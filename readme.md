@@ -378,8 +378,9 @@ car previews while HyperVision is on at 640x400 or 1280x800.
 
 HyperVision also uses [AI-refined skybox artwork](docs/skyboxes/README.md), with
 each horizon image at four times its original width and height, at 640x400 and
-1280x800. The 320x200 mode and classic rendering use the original skybox artwork.
-Banked and upside-down views remain supported at every HyperVision resolution.
+1280x800. For built-in horizons, the 320x200 mode and classic rendering use the
+original skybox artwork. Custom horizons generate their classic artwork from
+the installed PNG. Banked and upside-down views remain supported at every HyperVision resolution.
 Missing enhanced PNGs fall back to the original strips. The Open Watcom 16-bit DOS
 version retains its existing renderer.
 
@@ -2014,9 +2015,20 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v14. Revision v3 through v13 tracks open as v14 while preserving their
+revision is v15. Revision v3 through v14 tracks open as v15 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
+
+Custom horizons use one PNG in your Stunts folder's `horizons/` subdirectory.
+The editor discovers valid images when you select or reconnect that folder and
+shows their filenames without `.png` in the Horizon selector. Images must be
+4096 pixels wide and any integer height from 64 through 120 pixels, in opaque
+8-bit RGB or indexed PNG format without interlacing. Use RGB (93, 255, 255)
+for the sky, align scenery to the bottom, and join the left and right edges.
+The game generates classic artwork and uses the full image for enhanced rendering.
+Tracks and replays store the filename, so share the PNG alongside them. Missing
+or invalid images use the saved built-in fallback and retain the custom reference.
+See [custom horizons](docs/skyboxes/README.md#custom-horizons) for details.
 
 Switch from the 2D editor to **3D preview** to explore the track with WebGL and
 original models from your selected Stunts folder. Click for mouse look; WASD moves,

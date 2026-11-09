@@ -17,7 +17,7 @@
 #define ORACLE_MAX_TRACK_BYTES                                                                     \
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
 	 2U * CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS +      \
-	 CSTRK_MAX_NOTES)
+	 CSTRK_MAX_NOTES + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE)
 #define ORACLE_MAX_HEX_BYTES (2U * ORACLE_MAX_TRACK_BYTES)
 /* Include optional CRLF and the terminating NUL without accepting extra data. */
 #define ORACLE_LINE_CAPACITY (ORACLE_MAX_HEX_BYTES + 3U)

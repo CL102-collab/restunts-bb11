@@ -2186,10 +2186,71 @@ test('Shore rejects matching or invalid materials atomically and in stored track
     doc.cells[0] = { surface: water, halfWaterCorner: 1 };
     assert.throws(() => model.encodeCstrk(doc), /terrain/);
 });
+test('custom horizons preserve UTF-8 filenames, builtin fallback and complete undo history', () => {
+    const doc = new model.Document(4, 4); doc.setHorizon(4); doc.history = [];
+    const baseline = doc.snapshot(), filename = '  Északi 🌄 hegyek .PNG';
+    doc.setCustomHorizon(filename);
+    assert.equal(doc.horizon, 4); assert.equal(doc.customHorizon, filename); assert.equal(doc.history.length, 1);
+    const selected = doc.snapshot();
+    doc.setCustomHorizon(filename); assert.equal(doc.history.length, 1, 'unchanged selection creates no undo step');
+    doc.setHorizon(2); assert.equal(doc.customHorizon, ''); assert.equal(doc.horizon, 2);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), selected);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), baseline);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), selected);
+    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), selected);
+    const restored = new model.Document(); restored.restore(selected); assert.deepEqual(restored.snapshot(), selected);
+    const before = doc.snapshot(), history = doc.history.length;
+    for (const invalid of ['.png', 'a.jpg', '../a.png', 'horizons/a.png', 'dir\\a.png', 'a?.png', 'a:.png',
+        'a\0.png', 'a\u0085.png', '\ud800.png', 'x'.repeat(124) + '.png', 'é'.repeat(62) + '.png', null, 1]) {
+        assert.throws(() => doc.setCustomHorizon(invalid), /horizon/i);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+    }
+    for (const valid of ['x'.repeat(123) + '.png', 'é'.repeat(61) + '.png', ' .PNG', '\ufeffSky.png', 'Line\u2028Sky.png', 'Line\u2029Sky.png']) {
+        doc.setCustomHorizon(valid); assert.equal(model.decodeCstrk(model.encodeCstrk(doc)).customHorizon, valid);
+    }
+    doc.version = model.CUSTOM_HORIZON_VERSION - 1; const old = doc.snapshot();
+    assert.throws(() => doc.setCustomHorizon(filename), /require.*v15/); assert.deepEqual(doc.snapshot(), old);
+    assert.throws(() => model.encodeCstrk(doc), /require.*v15/);
+    doc.setHorizon(4); assert.equal(doc.customHorizon, ''); assert.doesNotThrow(() => model.encodeCstrk(doc));
+});
+test('CSTRK custom horizon trailer follows notes and rejects malformed or incompatible references', () => {
+    const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Notes remain ASCII.'); doc.setHorizon(3);
+    const original = model.encodeCstrk(doc), filename = 'Duna part.png', name = new TextEncoder().encode(filename);
+    doc.setCustomHorizon(filename); const encoded = model.encodeCstrk(doc), view = new DataView(encoded.buffer);
+    assert.equal(encoded.length, original.length + 2 + name.length);
+    assert.equal(view.getUint32(28, true), encoded.length - 32);
+    assert.deepEqual(encoded.subarray(32, original.length), original.subarray(32));
+    assert.equal(view.getUint16(original.length, true), name.length);
+    assert.deepEqual(encoded.subarray(original.length + 2), name);
+    for (const version of [model.CUSTOM_HORIZON_VERSION, model.CUSTOM_HORIZON_VERSION + 1, 101]) {
+        const bytes = encoded.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
+        const loaded = model.decodeCstrk(bytes); assert.equal(loaded.version, version); assert.equal(loaded.customHorizon, filename);
+        assert.deepEqual(model.encodeCstrk(loaded), bytes);
+    }
+    const old = encoded.slice(); new DataView(old.buffer).setUint16(8, model.CUSTOM_HORIZON_VERSION - 1, true);
+    assert.throws(() => model.decodeCstrk(old), /require.*v15/);
+    for (const length of [0, name.length - 1, name.length + 1, 128]) {
+        const bytes = encoded.slice(); new DataView(bytes.buffer).setUint16(original.length, length, true);
+        assert.throws(() => model.decodeCstrk(bytes), /horizon/i);
+    }
+    const invalidUtf8 = encoded.slice(); invalidUtf8[original.length + 2] = 0xc0;
+    assert.throws(() => model.decodeCstrk(invalidUtf8), /UTF-8/);
+    const invalidPath = encoded.slice(); invalidPath[original.length + 2] = 47;
+    assert.throws(() => model.decodeCstrk(invalidPath), /horizon/i);
+    const short = encoded.slice(0, original.length + 1); new DataView(short.buffer).setUint32(28, short.length - 32, true);
+    assert.throws(() => model.decodeCstrk(short), /horizon/i);
+    const extra = new Uint8Array(encoded.length + 1); extra.set(encoded); new DataView(extra.buffer).setUint32(28, extra.length - 32, true);
+    assert.throws(() => model.decodeCstrk(extra), /horizon/i);
+    for (const version of [3, 14, model.CUSTOM_HORIZON_VERSION]) {
+        const bytes = original.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
+        const loaded = model.decodeCstrk(bytes); assert.equal(loaded.customHorizon, ''); assert.equal(loaded.horizon, 3);
+        assert.equal(loaded.notes, doc.notes); assert.equal(model.encodeCstrk(loaded).length, original.length);
+    }
+});
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, model.COMBINED_CHECKPOINT_VERSION); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, model.CUSTOM_HORIZON_VERSION); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);

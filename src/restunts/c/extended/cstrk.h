@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "../legacy.h"
 
-#define CSTRK_VERSION 14U
+#define CSTRK_VERSION 15U
 #define CSTRK_MIN_VERSION 3U
 #define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_SLOPED_STUNT_VERSION 5U
@@ -20,9 +20,11 @@
 #define CSTRK_VINE_FIELD_VERSION 12U
 #define CSTRK_CHECKPOINT_VERSION 13U
 #define CSTRK_COMBINED_CHECKPOINT_VERSION 14U
+#define CSTRK_CUSTOM_HORIZON_VERSION 15U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
+#define CSTRK_PAYLOAD_SIZE_OFFSET 28U
 #define CSTRK_OBJECT_SIZE 16U
 #define CSTRK_OBJECT_LOWER_SURFACE_OFFSET 12U
 #define CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET 13U
@@ -57,6 +59,10 @@
 #define CSTRK_MAX_OBJECTS (CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION)
 #define CSTRK_MAX_LEGACY_ID 214U
 #define CSTRK_HORIZON_COUNT 5U
+#define CSTRK_MAX_HORIZON_NAME 127U
+#define CSTRK_CUSTOM_HORIZON_LENGTH_SIZE 2U
+#define CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE                                                      \
+	(CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + CSTRK_MAX_HORIZON_NAME)
 #define CSTRK_HORIZON_DEFAULT CSTRK_HORIZON_DESERT
 #define CSTRK_CORNER_DIRECTION_MASK 7U
 #define CSTRK_CORNER_SURFACE_SHIFT 3U
@@ -148,6 +154,8 @@ struct CSTRK_TRACK {
 	uint16_t width;
 	uint16_t height;
 	legacy_u8 horizon;
+	/* Optional UTF-8 basename including .png; horizon remains the built-in fallback. */
+	legacy_s8 custom_horizon[CSTRK_MAX_HORIZON_NAME + 1U];
 	uint8_t *corner_heights;  /* Row-major (width+1) * (height+1). */
 	struct CSTRK_CELL *cells; /* Row-major width * height. */
 	struct CSTRK_OBJECT *objects;
@@ -185,6 +193,11 @@ legacy_int cstrk_terrain_profile(const struct CSTRK_TRACK *track, legacy_u16 x, 
 								 struct CSTRK_TERRAIN_PROFILE *profile);
 int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
 					size_t error_size);
+/* Empty selects the built-in horizon. Custom names are UTF-8 PNG basenames,
+ * never paths. The setter preserves the track on failure and permits aliases. */
+legacy_int cstrk_custom_horizon_name_valid(const legacy_s8 *name, size_t length);
+legacy_int cstrk_set_custom_horizon(struct CSTRK_TRACK *track, const legacy_s8 *name, size_t length,
+									legacy_char *error, size_t error_size);
 int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object, char *error,
 					 size_t error_size);
 int cstrk_remove_object(struct CSTRK_TRACK *track, uint32_t index);

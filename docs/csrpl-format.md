@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v19**. The revision identifies the track format,
+recordings currently use **v20**. The revision identifies the track format,
 physics behavior, and filename metadata layout of the game that recorded the
 inputs; it is separate from the revision stored in the embedded track.
 
@@ -16,7 +16,7 @@ Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 Filename metadata has its own revision offset and does not change physics.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v14, physics revision is 4, and filename revision is 1. Physics revision 1 corrected wheel
+revision is v15, physics revision is 4, and filename revision is 1. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
@@ -47,6 +47,9 @@ introduced by track v13. Checkpoint progress is rebuilt during playback and
 restored by seeking, rewind, and ghost suspension.
 Replay v19 adds track v14's combined Blue / red checkpoints. A shared gate
 counts in both color sets, and its progress follows the same replay rules.
+Replay v20 adds track v15's optional custom horizon filename. The PNG remains
+an external file in `horizons/`; missing or invalid artwork uses the embedded
+track's built-in fallback without changing playback or discarding the filename.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -72,7 +75,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `19`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `20`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

@@ -16,11 +16,19 @@ from regression_timeouts import scaled_timeout
 
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
-CSTRK_VERSION = 14
-CSRPL_VERSION = 19
+CSTRK_VERSION = 15
+CSRPL_VERSION = 20
 CSRPL_MIN_VERSION = 11
+CSRPL_PRE_CUSTOM_HORIZON_VERSION = 19
 CSRPL_FUTURE_VERSION = 101
 CSTRK_HEADER_SIZE = 32
+CSTRK_OBJECT_SIZE = 16
+CSTRK_CELL_SIZE = 2
+CSTRK_CUSTOM_HORIZON_VERSION = 15
+CSTRK_MAX_HORIZON_NAME = 127
+CSTRK_CUSTOM_HORIZON_LENGTH_SIZE = 2
+CUSTOM_HORIZON_UNICODE = "Ghost fixture missing — Őrség.png"
+CUSTOM_HORIZON_BOUNDARY = "Ő" * 59 + " dusk.png"
 CSRPL_HEADER_SIZE = 64
 CSRPL_LONG_TRACK_NAME_VERSION = 17
 CSRPL_TRACK_NAME_OFFSET = 41
@@ -28,6 +36,8 @@ CSRPL_LEGACY_TRACK_NAME_SIZE = 9
 CSRPL_TRACK_NAME_SIZE = 13
 MAP_SIZE = 90
 LONG_FRAMES = 70001
+MAX_FRAMES = 120000
+CSTRK_MAX_NOTES = 8000
 BRAKE_INPUT = 2
 RULE_AMIGA_GRASS = 0x20
 RULE_OWOOT = 0x40
@@ -76,8 +86,8 @@ def rotate_object(piece, turns):
     return result
 
 
-def track_bytes(kind="flat", rotation=0, surface=0):
-    """Build a rectangular lap, optionally with the new slope/stunt modifiers."""
+def track_bytes(kind="flat", rotation=0, surface=0, *, custom_horizon="", horizon=4):
+    """Build a rectangular lap with versioned stunts or an optional custom horizon."""
     tight_barrel = kind == "barrel-tight"
     barrel = kind in ("barrel", "barrel-tight")
     left, right = (45, 51) if tight_barrel else ((70, 76) if barrel else (72, 78))
@@ -145,6 +155,12 @@ def track_bytes(kind="flat", rotation=0, surface=0):
             if piece["x"] == (left + right) // 2 and piece["y"] == bottom:
                 piece["tile"] = COMBINED_CHECKPOINT_ID
                 piece["rotation"] = 1
+    if kind == "maximum":
+        occupied = {(piece["x"], piece["y"]) for piece in pieces}
+        for row in range(MAP_SIZE):
+            for column in range(MAP_SIZE):
+                if (column, row) not in occupied:
+                    pieces.append(object_record(153, column, row))
     if kind == "dense":
         # Keep scenery clear of the lap while exercising a valid track payload
         # larger than the old entire-file reader limit.
@@ -175,11 +191,15 @@ def track_bytes(kind="flat", rotation=0, surface=0):
                                    piece["mask"], base, slope_x, slope_y, piece["lower"],
                                    piece["combined"], piece["roll"], 0))
     notes = b"Independent extended ghost fixture; wide world and versioned stunts."
-    if kind == "dense":
-        notes = notes.ljust(8000, b" ")
+    if kind in ("dense", "maximum"):
+        notes = notes.ljust(CSTRK_MAX_NOTES, b" ")
     payload = heights + bytes(2 * MAP_SIZE ** 2) + encoded + notes
+    if custom_horizon:
+        horizon_name = custom_horizon.encode("utf-8")
+        assert len(horizon_name) <= CSTRK_MAX_HORIZON_NAME
+        payload += struct.pack("<H", len(horizon_name)) + horizon_name
     header = struct.pack("<8sHHIHHIII", CSTRK_MAGIC, CSTRK_VERSION, CSTRK_HEADER_SIZE,
-                         4, MAP_SIZE, MAP_SIZE, len(notes), len(pieces), len(payload))
+                         horizon, MAP_SIZE, MAP_SIZE, len(notes), len(pieces), len(payload))
     return header + payload
 
 
@@ -193,6 +213,26 @@ def blank_replay(track, rate, car=b"P962"):
     header[33] = 1
     header[41:47] = b"BARREL"
     return header + track + bytes(1)
+
+
+def decode_track_horizon(track):
+    """Read the optional horizon trailer independently of the production codec."""
+    assert track[:8] == CSTRK_MAGIC
+    version, header, horizon, width, height, notes_size, objects, payload = struct.unpack_from("<HHIHHIII", track, 8)
+    assert header == CSTRK_HEADER_SIZE and len(track) == header + payload
+    standard_payload = ((width + 1) * (height + 1) + CSTRK_CELL_SIZE * width * height +
+                        CSTRK_OBJECT_SIZE * objects + notes_size)
+    assert standard_payload <= payload
+    trailer = track[header + standard_payload:]
+    filename = ""
+    if trailer:
+        assert version >= CSTRK_CUSTOM_HORIZON_VERSION
+        assert len(trailer) >= CSTRK_CUSTOM_HORIZON_LENGTH_SIZE
+        name_size = struct.unpack_from("<H", trailer)[0]
+        assert 0 < name_size <= CSTRK_MAX_HORIZON_NAME
+        assert len(trailer) == CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + name_size
+        filename = trailer[CSTRK_CUSTOM_HORIZON_LENGTH_SIZE:].decode("utf-8")
+    return horizon, filename
 
 
 def decode_replay(recording):
@@ -210,7 +250,9 @@ def decode_replay(recording):
     track = recording[CSRPL_HEADER_SIZE:CSRPL_HEADER_SIZE + track_size]
     inputs = recording[CSRPL_HEADER_SIZE + track_size:]
     assert track[:8] == CSTRK_MAGIC and all(value <= 63 for value in inputs)
+    horizon, custom_horizon = decode_track_horizon(track)
     return dict(version=version, frames=frames, rate=rate, rules=rules, track=track,
+                horizon=horizon, custom_horizon=custom_horizon,
                 inputs=inputs, car=recording[28:32], material=recording[32],
                 transmission=recording[33], opponent=recording[34],
                 track_name=recording[CSRPL_TRACK_NAME_OFFSET:reserved_start].split(b"\0", 1)[0])
@@ -282,6 +324,61 @@ def main():
         assert view["version"] == CSRPL_VERSION
         assert replayed["maximum_x"] > 65535 and replayed["maximum_z"] > 65535
         if args.part in (None, FORMAT_PART):
+            assert len(CUSTOM_HORIZON_BOUNDARY.encode("utf-8")) == CSTRK_MAX_HORIZON_NAME
+            custom_outputs = []
+            for number, (filename, fallback) in enumerate(((CUSTOM_HORIZON_UNICODE, 4),
+                                                          (CUSTOM_HORIZON_BOUNDARY, 2))):
+                custom_path = output / f"missing-horizon-{number}.cstrk"
+                custom_path.write_bytes(track_bytes(custom_horizon=filename, horizon=fallback))
+                assert not (data / filename).exists() and not (output / filename).exists()
+                custom_output, custom_view, custom_report, _ = generate(
+                    custom_path, "COUN", f"missing-horizon-{number}.csrpl")
+                assert custom_view["version"] == CSRPL_VERSION
+                assert custom_view["track"] == custom_path.read_bytes()
+                assert (custom_view["horizon"], custom_view["custom_horizon"]) == (fallback, filename)
+                assert custom_view["inputs"] == view["inputs"]
+                assert custom_report["total_frames"] == report["total_frames"]
+                custom_outputs.append((custom_output, custom_view))
+            maximum_track = track_bytes("maximum", custom_horizon=CUSTOM_HORIZON_BOUNDARY)
+            maximum_recording = bytearray(blank_replay(maximum_track, 20, car=b"COUN"))
+            maximum_recording.extend(bytes(MAX_FRAMES - 1))
+            struct.pack_into("<I", maximum_recording, 20, MAX_FRAMES)
+            old_maximum_size = (CSRPL_HEADER_SIZE + CSTRK_HEADER_SIZE + (MAP_SIZE + 1) ** 2 +
+                                CSTRK_CELL_SIZE * MAP_SIZE ** 2 + CSTRK_OBJECT_SIZE * MAP_SIZE ** 2 +
+                                CSTRK_MAX_NOTES + MAX_FRAMES)
+            assert len(maximum_recording) == old_maximum_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + CSTRK_MAX_HORIZON_NAME
+            maximum_source = output / "maximum-custom-horizon.csrpl"
+            maximum_source.write_bytes(maximum_recording)
+            maximum_score = verify(maximum_source, expected=2)
+            maximum_playback = playback(maximum_source)
+            assert maximum_score["frames"] == maximum_playback["frames"] == MAX_FRAMES
+            assert not maximum_score["finished"] and not maximum_playback["finished"]
+            custom_output, custom_view = custom_outputs[0]
+            old_custom = bytearray(custom_output.read_bytes())
+            struct.pack_into("<H", old_custom, 8, CSRPL_PRE_CUSTOM_HORIZON_VERSION)
+            custom_rules = custom_view["rules"] | RULE_AMIGA_GRASS
+            struct.pack_into("<H", old_custom, 26, custom_rules)
+            custom_seed = output / "missing-horizon-old.csrpl"
+            custom_seed.write_bytes(old_custom)
+            custom_baseline = verify(custom_seed)
+            for strategy in ("legacy", "state"):
+                custom_refined = output / f"missing-horizon-{strategy}.csrpl"
+                run(genghost, [custom_seed, "--fine-tune-gears-only", "--cores", 2,
+                               "--strategy", strategy, "--evaluations", 2, "--output", custom_refined])
+                refined_custom_view = decode_replay(custom_refined.read_bytes())
+                assert refined_custom_view["version"] == CSRPL_PRE_CUSTOM_HORIZON_VERSION
+                assert refined_custom_view["rules"] == custom_rules
+                assert refined_custom_view["track"] == custom_view["track"]
+                assert (refined_custom_view["horizon"], refined_custom_view["custom_horizon"]) == (4, CUSTOM_HORIZON_UNICODE)
+                refined_custom_score, replayed_custom = verify(custom_refined), playback(custom_refined)
+                assert refined_custom_score["total_frames"] <= custom_baseline["total_frames"]
+                assert replayed_custom["total_frames"] == refined_custom_score["total_frames"]
+            _, upgraded_custom, _, _ = generate(custom_seed, "COUN", "missing-horizon-upgraded.csrpl", evaluations=32)
+            assert upgraded_custom["version"] == CSRPL_VERSION
+            assert upgraded_custom["rules"] == custom_rules
+            assert upgraded_custom["track"] == custom_view["track"]
+            assert custom_seed.read_bytes() == old_custom
+            print("Missing custom PNGs, Unicode/127-byte names, fallback horizons and older CSRPL metadata survive generation/refinement", flush=True)
             for kind, rotation, surface in (("blue", 0, 0), ("red", 1, 1), ("both", 2, 2)):
                 checkpoint_path = output / f"checkpoints-{kind}.cstrk"
                 checkpoint_path.write_bytes(track_bytes(kind, rotation, surface))

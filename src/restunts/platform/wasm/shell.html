@@ -231,11 +231,20 @@
         const ANIMATION_DIRECTORY = 'opponents/animations';
         const CAR_DIRECTORY = 'cars';
         const TRACK_DIRECTORY = 'tracks';
+        const HORIZON_DIRECTORY = 'horizons';
+        const HORIZON_MAX_FILENAME_BYTES = 127;
+        const HORIZON_EXTENSION = '.png';
+        const HORIZON_ASCII_CONTROL_LAST = 0x1f;
+        const HORIZON_UNICODE_CONTROL_FIRST = 0x7f;
+        const HORIZON_UNICODE_CONTROL_LAST = 0x9f;
+        const HORIZON_SURROGATE_FIRST = 0xd800;
+        const HORIZON_SURROGATE_LAST = 0xdfff;
         const TRACK_EXTENSIONS = new Set(['trk', 'cstrk', 'hig', 'cshig']);
         const CAR_EXTENSIONS = new Set(['res', 'pre', '3sh', 'p3s', 'h3d', 'vsh', 'pvs']);
         // Use character comparisons: HTML minifiers may unescape regex control ranges.
         const DOS_BASENAME_MAX_LENGTH = 8;
         const DOS_BACKSLASH_CODE = 92;
+        const HORIZON_RESERVED_CHARACTERS = '<>:"/|?*' + String.fromCharCode(DOS_BACKSLASH_CODE);
         const DOS_RESERVED_CHARACTERS = '"*/:<>?|.' + String.fromCharCode(DOS_BACKSLASH_CODE);
         // Include the shape and compressed audio alternatives used by the native loaders.
         const GAME_EXTENSIONS = new Set(['3sh', 'cfg', 'cod', 'dif', 'drv', 'esh', 'fnt', 'h3d', 'hdr', 'hig',
@@ -267,8 +276,27 @@
                 character >= '!' && character <= '~' && !DOS_RESERVED_CHARACTERS.includes(character));
         }
 
+        function validHorizonFilename(name) {
+            if (typeof name !== 'string' || name.length <= HORIZON_EXTENSION.length ||
+                !name.toLowerCase().endsWith(HORIZON_EXTENSION) ||
+                new TextEncoder().encode(name).length > HORIZON_MAX_FILENAME_BYTES) return false;
+            // Keep the native UTF-8 basename exactly, including case and extension.
+            // Reject unpaired UTF-16 surrogates instead of encoding replacement bytes.
+            return Array.from(name).every(character => {
+                const point = character.codePointAt(0);
+                return point > HORIZON_ASCII_CONTROL_LAST &&
+                    (point < HORIZON_UNICODE_CONTROL_FIRST || point > HORIZON_UNICODE_CONTROL_LAST) &&
+                    (point < HORIZON_SURROGATE_FIRST || point > HORIZON_SURROGATE_LAST) &&
+                    !HORIZON_RESERVED_CHARACTERS.includes(character);
+            });
+        }
+
         function gameImportPath(path) {
             const name = path.toLowerCase();
+            if (name.startsWith(HORIZON_DIRECTORY + '/')) {
+                const filename = path.slice(HORIZON_DIRECTORY.length + 1);
+                if (validHorizonFilename(filename)) return HORIZON_DIRECTORY + '/' + filename;
+            }
             if (!name.includes('/') && validFilename(path, GAME_EXTENSIONS)) return name;
             if (name.startsWith(CAR_DIRECTORY + '/') &&
                 validFilename(path.slice(CAR_DIRECTORY.length + 1), CAR_EXTENSIONS)) return name;
@@ -850,7 +878,7 @@
                         status.textContent = 'Scanning game folder ' + selected.name + '… ' + files.length + ' game files found.';
                     } else if (entry.kind === 'directory' &&
                         (path.toLowerCase() === CAR_DIRECTORY || path.toLowerCase() === TRACK_DIRECTORY ||
-                            path.toLowerCase() === 'opponents' ||
+                            path.toLowerCase() === HORIZON_DIRECTORY || path.toLowerCase() === 'opponents' ||
                             path.toLowerCase() === ANIMATION_DIRECTORY)) {
                         await collectDirectory(entry, path + '/');
                     }
@@ -929,7 +957,7 @@
             setLoading(true);
             status.textContent = 'Reading game files from your folder…';
             try {
-                // Import immediate game resources, car resources, and supported opponent animations.
+                // Import game resources and the supported car, track, horizon, and animation folders.
                 const files = Array.from(gameFiles.files).map(file => ({ file,
                     path: file.webkitRelativePath.split('/').slice(1).join('/') }));
                 await loadGameFiles(files, null);

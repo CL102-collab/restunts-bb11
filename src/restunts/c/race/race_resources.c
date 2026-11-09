@@ -39,6 +39,7 @@
 #endif
 #ifdef RESTUNTS_SDL3
 #include "../hires/skybox_hires.h"
+#include "../extended/extended_horizon.h"
 #endif
 
 #define SKYBOX_RESOURCE_COUNT 5
@@ -64,9 +65,11 @@ static legacy_s8 skybox_resource_names[SKYBOX_RESOURCE_COUNT][SKYBOX_RESOURCE_NA
 void unload_skybox(void)
 {
 #ifdef RESTUNTS_SDL3
-	skybox_hires_unload();
-#endif
+	legacy_s16 custom_owned = extended_horizon_skybox_release();
+	if (skybox_resources_loaded != 0 && !custom_owned) {
+#else
 	if (skybox_resources_loaded != 0) {
+#endif
 		mmgr_free(skybox_res_ofs);
 	}
 	skybox_resources_loaded = 0;
@@ -88,6 +91,11 @@ void load_sdgame2_shapes(void)
 
 void load_skybox(legacy_s8 skybox_index)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_horizon_skybox_prepare(skybox_index)) {
+		return;
+	}
+#endif
 	if (((legacy_u8)skybox_index & SKYBOX_NO_IMAGES_FLAG) == 0) {
 		if (skybox_resources_loaded != 0 &&
 			(legacy_u8)skybox_index == (legacy_u8)loaded_skybox_index) {

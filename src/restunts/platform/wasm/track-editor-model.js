@@ -42,7 +42,9 @@
     const RAISE_LOWER_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 14, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const CUSTOM_HORIZON_VERSION = 15, CUSTOM_HORIZON_MAX_BYTES = 127, CUSTOM_HORIZON_LENGTH_BYTES = 2;
+    const horizonEncoder = new TextEncoder(), horizonDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+    const VERSION = 15, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -124,6 +126,20 @@
     const ROTATED_DIRECTIONAL_ARTWORK_MODELS = new Set([0, 2, 3, 6, 7, 8, 9, 10, 29, 23, 24, 25, 26]);
     const CROSSROAD_PHYSICAL_MODEL = 12, PIECE_DIRECTION_COUNT = 4, PIECE_AXIS_COUNT = 2;
     function integer(n, min, max, label) { if (!Number.isInteger(n) || n < min || n > max) throw new Error('Invalid ' + label + '.'); return n; }
+    function asciiCaseFold(value) { return value.replace(/[A-Z]/g, character => character.toLowerCase()); }
+    function validateCustomHorizonFilename(filename) {
+        if (typeof filename !== 'string') throw new Error('Invalid custom horizon filename.');
+        const encoded = horizonEncoder.encode(filename);
+        if (encoded.length > CUSTOM_HORIZON_MAX_BYTES || horizonDecoder.decode(encoded) !== filename ||
+            (filename && (filename.length <= 4 || !/\.png$/i.test(filename) || /[\x00-\x1f\x7f-\x9f<>:"/\\|?*]/.test(filename))))
+            throw new Error('Custom horizon must be a PNG basename of at most ' + CUSTOM_HORIZON_MAX_BYTES + ' UTF-8 bytes.');
+        return encoded;
+    }
+    function checkCustomHorizon(filename, version) {
+        const encoded = validateCustomHorizonFilename(filename);
+        if (encoded.length && version < CUSTOM_HORIZON_VERSION) throw new Error('Custom horizons require Chocolate Stunts track version v' + CUSTOM_HORIZON_VERSION + '.');
+        return encoded;
+    }
     function checkVersion(version) {
         if (Number.isInteger(version) && version > 0 && version < CSTRK_MIN_VERSION)
             throw new Error('Unsupported older Chocolate Stunts track version v' + version + '.');
@@ -431,12 +447,12 @@
             this.width = integer(width, 1, 90, 'track width'); this.height = integer(height, 1, 90, 'track height');
             this.vertices = new Uint8Array((width + 1) * (height + 1));
             this.cells = Array.from({ length: width * height }, () => ({ surface: 0, halfWaterCorner: 0 }));
-            this.objects = []; this.notes = ''; this.horizon = DEFAULT_HORIZON; this.version = VERSION; this.history = []; this.future = []; this.pending = null;
+            this.objects = []; this.notes = ''; this.horizon = DEFAULT_HORIZON; this.customHorizon = ''; this.version = VERSION; this.history = []; this.future = []; this.pending = null;
         }
         get canUndo() { return this.history.length > 0; }
         get canRedo() { return this.future.length > 0; }
-        snapshot() { return { width: this.width, height: this.height, vertices: Array.from(this.vertices), cells: this.cells.map(a => ({ ...a })), objects: this.objects.map(a => ({ ...a })), notes: this.notes, horizon: this.horizon, version: this.version }; }
-        restore(state) { this.width = state.width; this.height = state.height; this.vertices = Uint8Array.from(state.vertices); this.cells = state.cells.map(a => ({ ...a })); this.objects = state.objects.map(a => ({ ...a })); this.notes = state.notes; this.horizon = state.horizon; this.version = state.version; }
+        snapshot() { return { width: this.width, height: this.height, vertices: Array.from(this.vertices), cells: this.cells.map(a => ({ ...a })), objects: this.objects.map(a => ({ ...a })), notes: this.notes, horizon: this.horizon, customHorizon: this.customHorizon, version: this.version }; }
+        restore(state) { this.width = state.width; this.height = state.height; this.vertices = Uint8Array.from(state.vertices); this.cells = state.cells.map(a => ({ ...a })); this.objects = state.objects.map(a => ({ ...a })); this.notes = state.notes; this.horizon = state.horizon; this.customHorizon = state.customHorizon ?? ''; this.version = state.version; }
         beginTransaction(label = 'Edit') { if (this.pending) throw new Error('An editor transaction is already active.'); this.pending = { label, before: this.snapshot() }; }
         endTransaction() {
             if (!this.pending) return false;
@@ -728,10 +744,14 @@
             });
         }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
-        setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
+        setHorizon(horizon, customHorizon = '') {
+            integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkCustomHorizon(customHorizon, this.version);
+            return this.transaction('Change horizon', () => { this.horizon = horizon; this.customHorizon = customHorizon; });
+        }
+        setCustomHorizon(filename) { return this.setHorizon(this.horizon, filename); }
         validate(importing = false) {
             const errors = [], occupiedCells = new Set();
-            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); } catch (error) { errors.push(error.message); }
+            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); checkCustomHorizon(this.customHorizon, this.version); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
             for (let y = 0; y <= this.height; y++) for (let x = 0; x <= this.width; x++) {
                 const level = this.vertices[y * (this.width + 1) + x];
@@ -786,7 +806,9 @@
     }
     function encodeCstrk(doc) {
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
-        const payload = doc.vertices.length + doc.cells.length * 2 + doc.objects.length * 16 + doc.notes.length;
+        const customHorizon = validateCustomHorizonFilename(doc.customHorizon);
+        const payload = doc.vertices.length + doc.cells.length * 2 + doc.objects.length * 16 + doc.notes.length +
+            (customHorizon.length ? CUSTOM_HORIZON_LENGTH_BYTES + customHorizon.length : 0);
         const a = new Uint8Array(CSTRK_HEADER_SIZE + payload), v = new DataView(a.buffer); a.set(MAGIC);
         v.setUint16(8, doc.version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
         v.setUint32(CSTRK_HORIZON_OFFSET, doc.horizon, true); v.setUint16(16, doc.width, true); v.setUint16(18, doc.height, true);
@@ -803,6 +825,7 @@
             a[p + 13] = o.tunnelSlalom ?? 0; a[p + 14] = o.rollRamp ?? 0; a[p + 15] = o.pineCount ?? 0; p += 16;
         }
         for (let i = 0; i < doc.notes.length; i++) a[p++] = doc.notes.charCodeAt(i);
+        if (customHorizon.length) { v.setUint16(p, customHorizon.length, true); a.set(customHorizon, p + CUSTOM_HORIZON_LENGTH_BYTES); }
         return a;
     }
     function decodeCstrk(input) {
@@ -815,7 +838,8 @@
         integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon');
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);
         const doc = new Document(width, height), expected = doc.vertices.length + doc.cells.length * 2 + count * 16 + notesLength;
-        if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
+        if (notesLength > 8000 || count > 8100 || payload < expected || a.length !== CSTRK_HEADER_SIZE + payload) throw new Error('Invalid or truncated Chocolate Stunts track.');
+        if (payload > expected && version < CUSTOM_HORIZON_VERSION) throw new Error('Custom horizons require Chocolate Stunts track version v' + CUSTOM_HORIZON_VERSION + '.');
         doc.horizon = horizon; doc.version = version;
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
         for (const cell of doc.cells) {
@@ -851,12 +875,19 @@
             }
             doc.objects.push(object);
         }
-        doc.notes = String.fromCharCode(...a.subarray(p));
+        doc.notes = String.fromCharCode(...a.subarray(p, p + notesLength)); p += notesLength;
+        if (p < a.length) {
+            if (p + CUSTOM_HORIZON_LENGTH_BYTES > a.length) throw new Error('Truncated custom horizon filename.');
+            const length = v.getUint16(p, true); p += CUSTOM_HORIZON_LENGTH_BYTES;
+            if (!length || length > CUSTOM_HORIZON_MAX_BYTES || p + length !== a.length) throw new Error('Invalid custom horizon filename length.');
+            try { doc.customHorizon = horizonDecoder.decode(a.subarray(p)); }
+            catch (_) { throw new Error('Invalid UTF-8 custom horizon filename.'); }
+        }
         // Validate every field against the original wire revision before upgrading.
         const errors = doc.validate(true); if (errors.length) throw new Error(errors.join(' '));
         for (const object of doc.objects) if (object.pineCount === PINE_IMPORT_COUNT) object.pineCount = PINE_SIX_COUNT;
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, RAISE_LOWER_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, RAISE_LOWER_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, CUSTOM_HORIZON_VERSION, CUSTOM_HORIZON_MAX_BYTES, validateCustomHorizonFilename, asciiCaseFold, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

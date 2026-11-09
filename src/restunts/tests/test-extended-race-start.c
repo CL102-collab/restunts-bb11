@@ -24,7 +24,7 @@ static int extended_active;
 static int editor_available;
 #define TEST_TRACK_WARNING_CAPACITY 192U
 #define TEST_FUTURE_REVISION 101U
-#define TEST_SHORT_FUTURE_REVISION 15U
+#define TEST_SHORT_FUTURE_REVISION (CSTRK_VERSION + 1U)
 #define TEST_NEXT_REVISION (CSTRK_VERSION + 1U)
 
 static struct CSTRK_TRACK fixture_track;

@@ -5,6 +5,7 @@
 #include "../math/projection.h"
 #include "render_workers.h"
 #include "../asset_path.h"
+#include "../extended/extended_horizon.h"
 #include "../../platform/sdl3/sdl3.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -82,6 +83,7 @@ void skybox_hires_set_palette(const legacy_u8 *palette)
 		hires_original_palette[index].a = SDL_ALPHA_OPAQUE;
 	}
 	hires_palette_ready = 1;
+	extended_horizon_palette_changed();
 }
 
 /* Asset loading runs on the main thread that also advances both music paths.
@@ -138,6 +140,21 @@ static SDL_Surface *skybox_hires_convert(SDL_Surface *source, SDL_Palette *palet
 	return result;
 }
 
+SDL_Surface *skybox_hires_convert_surface(SDL_Surface *source)
+{
+	if (!source || !hires_palette_ready) {
+		return NULL;
+	}
+	SDL_Surface *converted = NULL;
+	SDL_Palette *palette = SDL_CreatePalette(SKYBOX_PALETTE_COLOR_COUNT);
+	if (palette &&
+		SDL_SetPaletteColors(palette, hires_original_palette, 0, SKYBOX_PALETTE_COLOR_COUNT)) {
+		converted = skybox_hires_convert(source, palette);
+	}
+	SDL_DestroyPalette(palette);
+	return converted;
+}
+
 static SDL_Surface *skybox_hires_load(const legacy_char *directory, legacy_s16 theme,
 									  legacy_s16 image)
 {
@@ -164,6 +181,9 @@ static SDL_Surface *skybox_hires_load(const legacy_char *directory, legacy_s16 t
 static SDL_Surface *skybox_hires_image(legacy_s16 theme, legacy_s16 image, legacy_s32 width,
 									   legacy_s32 height)
 {
+	if (extended_horizon_active()) {
+		return extended_horizon_image(image);
+	}
 	if (hires_loaded_theme != theme) {
 		skybox_hires_unload();
 		hires_loaded_theme = theme;
@@ -266,22 +286,24 @@ static legacy_s32 skybox_hires_prepare_strips(struct SKYBOX_HIRES_STRIP strips[S
 	legacy_s32 maximum_height = 0;
 	for (legacy_s32 index = 0; index < SKYBOX_IMAGE_COUNT; index++) {
 		const struct SHAPE2D *shape = shapes[index];
-		if (shape == NULL || shape->width == 0 || shape->width > SKYBOX_SCREEN_WIDTH ||
-			shape->height == 0 || shape->height > SKYBOX_SCREEN_BOTTOM) {
+		legacy_u16 width = shape ? LEGACY_READ_U16_LE((const legacy_u8 *)&shape->width) : 0;
+		legacy_u16 height = shape ? LEGACY_READ_U16_LE((const legacy_u8 *)&shape->height) : 0;
+		if (width == 0 || width > SKYBOX_SCREEN_WIDTH || height == 0 ||
+			height > SKYBOX_SCREEN_BOTTOM) {
 			continue;
 		}
 		struct SKYBOX_HIRES_STRIP *strip = &strips[index];
 		strip->pixels = (const legacy_u8 *)shape + SHAPE2D_HEADER_SIZE;
-		strip->width = shape->width * HIRES_SCALE;
-		strip->height = shape->height * HIRES_SCALE;
-		strip->pitch = shape->width;
+		strip->width = width * HIRES_SCALE;
+		strip->height = height * HIRES_SCALE;
+		strip->pitch = width;
 		strip->scale = SKYBOX_ORIGINAL_SAMPLE_SCALE;
 		SDL_Surface *source = NULL;
 		/* Keep enhanced images cached for resolution recovery. The smallest
 		 * renderer samples original artwork through the same rotated projection. */
 		if (scale != HIRES_MINIMUM_SCALE && hires_palette_ready && theme >= 0 &&
 			theme < SKYBOX_THEME_COUNT) {
-			source = skybox_hires_image(theme, index, shape->width, shape->height);
+			source = skybox_hires_image(theme, index, width, height);
 		}
 		if (source != NULL && source->w == strip->width && source->h == strip->height) {
 			strip->pixels = source->pixels;

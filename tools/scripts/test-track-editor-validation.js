@@ -347,6 +347,16 @@ for (let i = 0; i < path.length; i++) {
 const longResult = check('90 by 90 route beyond the old route limit', clearHistory(long), 0);
 assert.equal(longResult.pieces, path.length);
 
+// Exercise the complete largest wire payload, including the optional UTF-8
+// horizon trailer, through the same native differential oracle as normal tracks.
+const maximumPayload = new model.Document(90, 90);
+for (let y = 0; y < maximumPayload.height; y++) for (let x = 0; x < maximumPayload.width; x++)
+    maximumPayload.objects.push({ id: 4, x, y, rotation: 0, surface: 0, lowerSurface: 0,
+        width: 1, height: 1, mask: 1, baseHeight: 0, slopeX: 0, slopeY: 0 });
+maximumPayload.setNotes('n'.repeat(8000));
+maximumPayload.setCustomHorizon('h'.repeat(123) + '.png');
+check('maximum track payload with full notes and custom horizon filename', clearHistory(maximumPayload), validation.STATUS.NO_START_FINISH);
+
 for (const filename of process.argv.slice(3)) check('uploaded ' + filename, clearHistory(model.decodeCstrk(fs.readFileSync(filename))));
 if (process.argv[2]) {
     const input = fixtures.map(({ doc }) => Buffer.from(model.encodeCstrk(doc)).toString('hex')).join('\n') + '\n';

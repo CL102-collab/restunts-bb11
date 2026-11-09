@@ -234,6 +234,7 @@ set(common_sources
     track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c
     owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c
     driving_rules.c replay/replay.c stateio.c extended/extended_cstrk.c
+    extended/extended_cstrk_horizon.c
     extended/extended_csrpl.c extended/extended_cshig.c extended/extended_replay.c
     extended/extended_track.c extended/extended_checkpoint.c extended/extended_checkpoint_shape.c
     extended/extended_geometry.c extended/extended_opponent.c extended/extended_roll_ramp.c
@@ -256,6 +257,7 @@ set(game_sources
     race/race.c race/race_rewind.c race/race_presentation.c ghost/ghost.c ghost/ghost_line.c
     extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
     extended/extended_race_stats.c extended/extended_ghost.c extended/extended_validation.c
+    extended/extended_horizon.c extended/extended_horizon_skybox.c
     extended/extended_highscore.c extended/extended_frame.c extended/extended_frame_objects.c
     extended/extended_frame_terrain.c extended/extended_track_preview.c
     extended/extended_menu_runtime.c extended/extended_highscore_ui.c extended/extended_ui_dialog.c
@@ -550,11 +552,13 @@ if(RESTUNTS_BUILD_TESTS)
         message(FATAL_ERROR
             "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
     endif()
-    add_executable(test-cstrk ${core}/extended/extended_cstrk.c src/restunts/tests/test-cstrk.c)
+    add_executable(test-cstrk ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_cstrk_horizon.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
     add_executable(test-extended-checkpoint ${core}/extended/extended_checkpoint.c
-        ${core}/extended/extended_cstrk.c src/restunts/tests/test-extended-checkpoint.c)
+        ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_cstrk_horizon.c src/restunts/tests/test-extended-checkpoint.c)
     target_compile_definitions(test-extended-checkpoint PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-checkpoint PRIVATE -UNDEBUG)
     add_test(NAME extended-checkpoint COMMAND test-extended-checkpoint)
@@ -570,7 +574,8 @@ if(RESTUNTS_BUILD_TESTS)
         src/restunts/tests/test-crop-fields.c)
     target_compile_options(test-crop-fields PRIVATE -UNDEBUG)
     add_test(NAME crop-field-meshes COMMAND test-crop-fields)
-    add_executable(test-cshig ${core}/extended/extended_cstrk.c ${core}/extended/extended_cshig.c
+    add_executable(test-cshig ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_cstrk_horizon.c ${core}/extended/extended_cshig.c
         src/restunts/tests/test-cshig.c)
     target_compile_options(test-cshig PRIVATE -UNDEBUG)
     add_test(NAME cshig-format COMMAND test-cshig)
@@ -585,7 +590,8 @@ if(RESTUNTS_BUILD_TESTS)
         src/restunts/tests/test-extended-validation.c)
     target_compile_options(test-extended-validation PRIVATE -UNDEBUG)
     add_test(NAME extended-validation COMMAND test-extended-validation)
-    add_executable(test-csrpl ${core}/extended/extended_cstrk.c ${core}/extended/extended_csrpl.c
+    add_executable(test-csrpl ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_cstrk_horizon.c ${core}/extended/extended_csrpl.c
         ${core}/extended/extended_replay.c
         src/restunts/tests/test-csrpl.c)
     target_compile_options(test-csrpl PRIVATE -UNDEBUG)
@@ -599,6 +605,7 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-replay-runtime COMMAND test-extended-replay-runtime)
     add_executable(test-extended-ghost ${core}/extended/extended_ghost.c
         ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_cstrk_horizon.c
         ${core}/extended/extended_csrpl.c
         src/restunts/tests/test-extended-ghost.c)
     target_compile_definitions(test-extended-ghost PRIVATE RESTUNTS_SDL3)
@@ -1083,6 +1090,7 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(hires-mesh PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/hires-mesh-test")
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
+        ${core}/extended/extended_horizon.c ${core}/extended/extended_cstrk_horizon.c
         ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
@@ -1093,6 +1101,19 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME skybox-hires COMMAND test-skybox-hires)
     set_tests_properties(skybox-hires PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/skybox-test")
+    add_executable(test-extended-horizon src/restunts/tests/test-extended-horizon.c
+        ${core}/extended/extended_horizon.c ${core}/extended/extended_horizon_skybox.c
+        ${core}/extended/extended_cstrk_horizon.c ${core}/race/race_resources.c
+        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
+        ${core}/hires/render_workers.c ${platform}/memory.c ${platform}/asset_path.c
+        ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
+    target_link_libraries(test-extended-horizon PRIVATE restunts_options)
+    target_compile_options(test-extended-horizon PRIVATE -UNDEBUG ${restunts_test_section_options})
+    target_link_options(test-extended-horizon PRIVATE ${restunts_test_gc_sections})
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-horizon-test")
+    add_test(NAME extended-horizon COMMAND test-extended-horizon)
+    set_tests_properties(extended-horizon PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-horizon-test")
     add_executable(test-track-preview-skybox src/restunts/tests/test-track-preview-skybox.c)
     target_link_libraries(test-track-preview-skybox PRIVATE restunts_game)
     target_compile_options(test-track-preview-skybox PRIVATE -UNDEBUG)
@@ -1152,7 +1173,7 @@ if(RESTUNTS_BUILD_TESTS AND TARGET nuked_opl2)
     install(TARGETS nuked_opl2
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL
         LIBRARY DESTINATION lib COMPONENT Tests EXCLUDE_FROM_ALL)
-    install(TARGETS test-shape3d-hires test-hires-mesh test-skybox-hires test-track-preview-skybox test-render-workers
+    install(TARGETS test-shape3d-hires test-hires-mesh test-skybox-hires test-extended-horizon test-track-preview-skybox test-render-workers
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL)
     foreach(test platform audio audio-trace audio-definition audio-sequence input fileio hires timer)
         if(TARGET test-sdl3-${test})

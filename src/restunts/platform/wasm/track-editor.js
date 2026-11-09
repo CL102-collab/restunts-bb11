@@ -14,7 +14,7 @@
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
         previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
-        files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
+        files: new Map(), diskNames: new Map(), customHorizons: [], customHorizonErrors: [], name: 'Untitled', saved: '', tool: 'place',
         rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, raiseLowerSize: 1, pineSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, pineBrushPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
@@ -255,7 +255,37 @@
     function editableTarget(target) { return target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName); }
     function signature() {
         if (!state.doc) return '';
-        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.version]);
+        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.customHorizon, state.doc.version]);
+    }
+    function renderHorizonChoices() {
+        const select = $('track-horizon'), selected = state.doc?.customHorizon || '';
+        select.replaceChildren();
+        for (const [value, label] of model.HORIZONS.entries()) {
+            const option = document.createElement('option'); option.value = String(value); option.textContent = label; select.append(option);
+        }
+        const choices = state.customHorizons.slice();
+        const available = selected && choices.find(choice => model.asciiCaseFold(choice.filename) === model.asciiCaseFold(selected));
+        if (selected && !available) choices.push({ filename: selected, label: selected.replace(/\.png$/i, ''), unavailable: true });
+        if (choices.length) {
+            const group = document.createElement('optgroup'); group.label = 'Custom horizons';
+            for (const choice of choices) {
+                const option = document.createElement('option'); option.value = 'custom:' + choice.filename;
+                option.dataset.customHorizon = choice.filename;
+                option.textContent = choice.label + (choice.unavailable ? ' (unavailable)' : ''); group.append(option);
+            }
+            select.append(group);
+        }
+        select.value = selected ? 'custom:' + (available ? available.filename : selected) : String(state.doc?.horizon || 0);
+        const status = $('custom-horizon-status'), fallback = model.HORIZONS[state.doc?.horizon || 0];
+        const messages = [];
+        if (selected) messages.push(available ? 'Custom horizon; fallback: ' + fallback + '.' :
+            selected.replace(/\.png$/i, '') + ' is unavailable in this folder. Its reference is preserved; the game uses ' + fallback + '.');
+        if (state.customHorizonErrors.length) {
+            const first = state.customHorizonErrors.find(error => /duplicate|conflicting/i.test(error.message)) || state.customHorizonErrors[0];
+            messages.push(first.path + ': ' + first.message + (state.customHorizonErrors.length > 1 ?
+                ' (' + state.customHorizonErrors.length + ' horizon files could not be loaded.)' : ''));
+        }
+        status.textContent = messages.join(' '); status.hidden = !messages.length;
     }
     function refreshDocument() {
         state.clipboardPreview = null; state.pineBrushPreview = null;
@@ -266,7 +296,7 @@
         $('map-size').textContent = state.doc.width + ' × ' + state.doc.height;
         $('minimap-caption').textContent = state.doc.width + ' × ' + state.doc.height + ' tiles';
         $('object-count').textContent = state.doc.objects.length + (state.doc.objects.length === 1 ? ' element' : ' elements');
-        $('track-horizon').value = String(state.doc.horizon);
+        renderHorizonChoices();
         $('notes-count').textContent = state.doc.notes.length + ' / 8000';
         $('undo').disabled = !state.doc.canUndo;
         $('redo').disabled = !state.doc.canRedo;
@@ -515,7 +545,7 @@
         $('folder-fallback-help').hidden = true;
         folderMessage('Select your game folder. Tracks will be saved as downloads.');
     }
-    async function loadFolder(files, directory, name) {
+    async function loadFolder(files, directory, name, horizonWarnings = []) {
         if (state.loading) return;
         state.loading = true;
         $('choose-folder').disabled = true; $('restore-folder').disabled = true; $('folder-input').disabled = true;
@@ -523,12 +553,17 @@
         try {
             const normalized = new Map(), diskNames = new Map();
             for (const [filename, value] of files) {
-                const lower = filename.toLowerCase();
+                // Optional horizon artwork is validated independently so an
+                // ambiguous or corrupt image cannot disable ordinary editing.
+                if (/^horizons\//i.test(filename)) continue;
+                const lower = model.asciiCaseFold(filename);
                 if (normalized.has(lower)) throw new Error('The selected folder contains conflicting names: ' + filename + '.');
                 normalized.set(lower, value); diskNames.set(lower, filename);
             }
             if (!normalized.has('main.res') && !normalized.has('main.pre')) throw new Error('Choose the game folder containing MAIN.RES or MAIN.PRE.');
-            const resources = await window.TrackEditorResources.load(normalized);
+            const [resources, custom] = await Promise.all([window.TrackEditorResources.load(normalized),
+                window.TrackEditorResources.loadCustomHorizons(files, { validateFilename: model.validateCustomHorizonFilename })]);
+            state.customHorizons = custom.horizons; state.customHorizonErrors = horizonWarnings.concat(custom.errors);
             state.resources = resources; state.files = normalized; state.diskNames = diskNames; state.folder = directory;
             state.previewAssets = null; state.previewAssetsPromise = null; state.previewDirty = true;
             state.iconCache.clear(); state.ready = true;
@@ -554,13 +589,34 @@
             $('choose-folder').disabled = false; $('restore-folder').disabled = false; $('folder-input').disabled = false;
         }
     }
+    async function directoryFiles(directory) {
+        const files = new Map(), horizonErrors = [];
+        let horizonDirectory = '', conflictingHorizons = false;
+        for await (const entry of directory.values()) {
+            if (entry.kind === 'file') files.set(entry.name, await entry.getFile());
+            else if (entry.kind === 'directory' && model.asciiCaseFold(entry.name) === 'horizons') {
+                if (horizonDirectory) {
+                    conflictingHorizons = true;
+                    horizonErrors.push({ path: 'horizons', message: 'Conflicting horizon folders: ' + horizonDirectory + ' and ' + entry.name + '.' });
+                } else horizonDirectory = entry.name;
+                try {
+                    for await (const image of entry.values()) if (image.kind === 'file' && /\.png$/i.test(image.name)) {
+                        const filename = entry.name + '/' + image.name;
+                        try { files.set(filename, await image.getFile()); }
+                        catch (error) { horizonErrors.push({ path: filename, message: error.message || 'Cannot read horizon image.' }); }
+                    }
+                } catch (error) { horizonErrors.push({ path: entry.name, message: error.message || 'Cannot read horizon folder.' }); }
+            }
+        }
+        if (conflictingHorizons) for (const filename of files.keys()) if (/^horizons\//i.test(filename)) files.delete(filename);
+        return { files, horizonErrors };
+    }
     async function chooseFolder() {
         if (!window.showDirectoryPicker) { enableFallback(); $('folder-input').click(); return; }
         try {
             const directory = await window.showDirectoryPicker({ mode: 'readwrite', id: 'chocolate-stunts' });
-            const files = new Map();
-            for await (const entry of directory.values()) if (entry.kind === 'file') files.set(entry.name, await entry.getFile());
-            await loadFolder(files, directory, directory.name);
+            const { files, horizonErrors } = await directoryFiles(directory);
+            await loadFolder(files, directory, directory.name, horizonErrors);
         } catch (error) {
             if (error.name === 'AbortError') folderMessage('Folder selection cancelled. Choose a Stunts folder to begin.');
             else { folderMessage(error.message + ' You can also use read-only folder selection.'); $('folder-fallback-help').open = true; }
@@ -570,9 +626,8 @@
         if (!state.remembered) return;
         try {
             if (await state.remembered.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Folder access was not granted.');
-            const files = new Map();
-            for await (const entry of state.remembered.values()) if (entry.kind === 'file') files.set(entry.name, await entry.getFile());
-            await loadFolder(files, state.remembered, state.remembered.name);
+            const { files, horizonErrors } = await directoryFiles(state.remembered);
+            await loadFolder(files, state.remembered, state.remembered.name, horizonErrors);
         } catch (error) { folderMessage(error.message); }
     }
     async function loadTrack(file) {
@@ -1034,13 +1089,21 @@
         $('use-fallback').addEventListener('click', enableFallback);
         $('restore-folder').addEventListener('click', reconnectFolder);
         $('folder-input').addEventListener('change', event => {
-            const files = new Map();
+            const files = new Map(), horizonDirectories = new Set();
             for (const file of event.target.files) {
                 const relative = file.webkitRelativePath || file.name;
-                if (relative.split('/').length <= 2) files.set(file.name, file);
+                const parts = relative.split('/'), filename = parts.length > 1 ? parts.slice(1).join('/') : file.name;
+                const directory = filename.split('/')[0];
+                if (filename.includes('/') && model.asciiCaseFold(directory) === 'horizons') horizonDirectories.add(directory);
+                if (!filename.includes('/') || /^horizons\/[^/]+\.png$/i.test(filename)) files.set(filename, file);
+            }
+            const horizonWarnings = [];
+            if (horizonDirectories.size > 1) {
+                horizonWarnings.push({ path: 'horizons', message: 'Conflicting horizon folders: ' + Array.from(horizonDirectories).join(' and ') + '.' });
+                for (const filename of files.keys()) if (/^horizons\//i.test(filename)) files.delete(filename);
             }
             const first = event.target.files[0], name = first ? (first.webkitRelativePath || '').split('/')[0] || 'selected folder' : 'selected folder';
-            if (files.size) loadFolder(files, null, name);
+            if (files.size) loadFolder(files, null, name, horizonWarnings);
         });
         $('folder-dialog').addEventListener('cancel', event => { if (!state.ready) event.preventDefault(); });
         $('sidebar-toggle').addEventListener('click', () => setSidebarCollapsed(!state.sidebarCollapsed));
@@ -1105,7 +1168,14 @@
         $('load-track').addEventListener('click', () => $('track-file-input').click());
         $('track-file-input').addEventListener('change', event => { loadTrack(event.target.files[0]); event.target.value = ''; });
         $('save-track').addEventListener('click', openSave); $('save-form').addEventListener('submit', saveTrack);
-        $('track-horizon').addEventListener('change', () => { finishDrag(); state.doc.setHorizon(Number($('track-horizon').value)); refreshDocument(); message('Horizon set to ' + model.HORIZONS[state.doc.horizon] + '.'); });
+        $('track-horizon').addEventListener('change', () => {
+            finishDrag();
+            const selected = $('track-horizon').selectedOptions[0], filename = selected?.dataset.customHorizon;
+            try {
+                if (filename) state.doc.setCustomHorizon(filename); else state.doc.setHorizon(Number(selected.value));
+                refreshDocument(); message('Horizon set to ' + (state.doc.customHorizon ? state.doc.customHorizon.replace(/\.png$/i, '') : model.HORIZONS[state.doc.horizon]) + '.');
+            } catch (error) { renderHorizonChoices(); message(error.message, true); }
+        });
         $('notes-button').addEventListener('click', () => { $('track-notes').value = state.doc.notes; updateNotesCount(); showDialog('notes-dialog'); });
         $('track-notes').addEventListener('input', updateNotesCount);
         $('notes-form').addEventListener('submit', event => { event.preventDefault(); try { state.doc.setNotes($('track-notes').value); refreshDocument(); closeDialog('notes-dialog'); message('Updated track notes.'); } catch (error) { $('notes-error').textContent = error.message; } });
@@ -1235,9 +1305,7 @@
             return;
         }
         $('editor-version').textContent = 'v' + model.VERSION;
-        for (const [value, name] of model.HORIZONS.entries()) {
-            const option = document.createElement('option'); option.value = String(value); option.textContent = name; $('track-horizon').append(option);
-        }
+        renderHorizonChoices();
         buildGroups(); syncVisualControls(); showPanel(state.panel);
         if (!window.showDirectoryPicker) enableFallback();
         if (window.showDirectoryPicker) rememberFolder().then(folder => {

@@ -14,7 +14,7 @@
 #define EXTENDED_IO_CHUNK 16384U
 #define EXTENDED_MAX_TRACK_BYTES                                                                   \
 	(CSTRK_HEADER_SIZE + 91U * 91U + 2U * 90U * 90U + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS +      \
-	 CSTRK_MAX_NOTES)
+	 CSTRK_MAX_NOTES + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE)
 
 static char extended_io_error[192];
 

@@ -16,10 +16,19 @@
 #include "../c/track/trackdata_layout.h"
 #include "../c/skybox.h"
 #include "../c/hires/skybox_hires.h"
+#include "../c/extended/extended_horizon.h"
 
 #define SKY_HEIGHT 8
 #define HORIZON 80
 #define LEGACY_SKY_COLOR 4
+#define PREVIEW_CUSTOM_HEIGHT EXTENDED_HORIZON_MIN_HEIGHT
+#define PREVIEW_CUSTOM_LOGICAL_HEIGHT (PREVIEW_CUSTOM_HEIGHT / EXTENDED_HORIZON_SAMPLE_SCALE)
+#define PREVIEW_CUSTOM_NAME "preview.png"
+#define PREVIEW_CUSTOM_PATH "horizons/" PREVIEW_CUSTOM_NAME
+#define PREVIEW_CUSTOM_PALETTE_COLORS 256U
+#define PREVIEW_CUSTOM_PALETTE_FIRST 16U
+#define PREVIEW_CUSTOM_PALETTE_SHADES 64U
+#define PREVIEW_CUSTOM_PALETTE_CHANNEL_MAX 63U
 #define PREVIEW_SKYBOX_RASTER_PASSES 2U
 #define PREVIEW_MAX_RASTER_PASSES (PREVIEW_SKYBOX_RASTER_PASSES + 1U)
 #define PREVIEW_TEST_VERTEX_COUNT 4U
@@ -62,6 +71,35 @@ static void write_fixture(void)
 		}
 	}
 	assert(SDL_SavePNG(image, "skyboxes/country-sce3.png"));
+	SDL_DestroySurface(image);
+}
+
+static void write_custom_fixture(void)
+{
+	SDL_Surface *image =
+		SDL_CreateSurface(EXTENDED_HORIZON_WIDTH, PREVIEW_CUSTOM_HEIGHT, SDL_PIXELFORMAT_INDEX8);
+	assert(image);
+	SDL_Palette *palette = SDL_CreatePalette(PREVIEW_CUSTOM_PALETTE_COLORS);
+	assert(palette);
+	SDL_Color colors[PREVIEW_CUSTOM_PALETTE_COLORS] = {{0}};
+	for (legacy_u16 index = 0; index < PREVIEW_CUSTOM_PALETTE_COLORS; index++) {
+		colors[index].a = SDL_ALPHA_OPAQUE;
+	}
+	for (legacy_u16 index = 0; index < PREVIEW_CUSTOM_PALETTE_SHADES; index++) {
+		legacy_u8 shade = index * SDL_ALPHA_OPAQUE / PREVIEW_CUSTOM_PALETTE_CHANNEL_MAX;
+		colors[PREVIEW_CUSTOM_PALETTE_FIRST + index] =
+			(SDL_Color){shade, shade, shade, SDL_ALPHA_OPAQUE};
+	}
+	assert(SDL_SetPaletteColors(palette, colors, 0, PREVIEW_CUSTOM_PALETTE_COLORS));
+	assert(SDL_SetSurfacePalette(image, palette));
+	SDL_DestroyPalette(palette);
+	for (legacy_s32 row = 0; row < image->h; row++) {
+		legacy_u8 *pixels = (legacy_u8 *)image->pixels + row * image->pitch;
+		for (legacy_s32 column = 0; column < image->w; column++) {
+			pixels[column] = fixture_color(column, row);
+		}
+	}
+	assert(SDL_SavePNG(image, PREVIEW_CUSTOM_PATH));
 	SDL_DestroySurface(image);
 }
 
@@ -211,6 +249,54 @@ static void test_populated_preview(legacy_s32 scale)
 	track_element_map = empty_track;
 }
 
+static void test_custom_preview(legacy_s32 enhanced, legacy_s32 scale)
+{
+	hires_set_enabled(enhanced);
+	if (enhanced) {
+		hires_set_render_scale(scale);
+	}
+	assert(extended_horizon_load((const legacy_s8 *)PREVIEW_CUSTOM_NAME));
+	for (legacy_s16 image = 0; image < SKYBOX_IMAGE_COUNT; image++) {
+		skyboxes[image] = extended_horizon_shape(image);
+		skybox.heights[image] = PREVIEW_CUSTOM_LOGICAL_HEIGHT;
+	}
+	skybox.minimum_height = skybox.maximum_height = PREVIEW_CUSTOM_LOGICAL_HEIGHT;
+	loaded_skybox_index = 4;
+	skybox_resources_loaded = 1;
+	skybox_res_ofs = NULL;
+	sprite_select_target(&preview);
+	sprite_clear_target((legacy_u8)skybox.ground_color);
+	draw_preview_with_bounded_passes();
+	/* Menu presentation must retain both the derived classic pixels and the
+	 * enhanced preview after releasing the SDL-owned panorama and strips. */
+	unload_skybox();
+	assert(!extended_horizon_active());
+	sprite_select_target(&screen_target);
+	sprite_clear_target(0);
+	sprite_putimage(preview.sprite_bitmapptr);
+	legacy_s32 width, height;
+	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
+	legacy_s32 output_scale = enhanced ? scale : HIRES_MINIMUM_SCALE;
+	legacy_s32 source_step = EXTENDED_HORIZON_SAMPLE_SCALE / output_scale;
+	assert(width == SKYBOX_SCREEN_WIDTH * output_scale &&
+		   height == SKYBOX_SCREEN_BOTTOM * output_scale);
+	for (legacy_s32 row = 0; row < height; row++) {
+		for (legacy_s32 column = 0; column < width; column++) {
+			legacy_u8 expected = skybox.sky_color;
+			if (row >= HORIZON * output_scale) {
+				expected = skybox.ground_color;
+			} else if (row >= (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) {
+				expected = fixture_color(
+					SKYBOX_IMAGE_HALF_WRAP * EXTENDED_HORIZON_SAMPLE_SCALE + column * source_step +
+						source_step / 2,
+					(row - (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) * source_step +
+						source_step / 2);
+			}
+			assert(pixels[row * width + column] == expected);
+		}
+	}
+}
+
 legacy_int main(void)
 {
 	assert(SDL_Init(0));
@@ -218,6 +304,8 @@ legacy_int main(void)
 	assert(chdir("fixtures") == 0);
 	assert(SDL_CreateDirectory("skyboxes"));
 	write_fixture();
+	assert(SDL_CreateDirectory("horizons"));
+	write_custom_fixture();
 	legacy_u8 palette[768] = {0};
 	for (legacy_u32 index = 0; index < 64; index++) {
 		memset(palette + (16 + index) * 3, index, 3);
@@ -256,7 +344,13 @@ legacy_int main(void)
 	test_populated_preview(HIRES_SCALE);
 	test_populated_preview(HIRES_MEDIUM_SCALE);
 	test_populated_preview(HIRES_MINIMUM_SCALE);
+	test_custom_preview(0, HIRES_MINIMUM_SCALE);
+	test_custom_preview(1, HIRES_SCALE);
+	test_custom_preview(1, HIRES_MEDIUM_SCALE);
+	test_custom_preview(1, HIRES_MINIMUM_SCALE);
 	hires_shutdown();
+	assert(remove(PREVIEW_CUSTOM_PATH) == 0);
+	assert(rmdir("horizons") == 0);
 	assert(remove("skyboxes/country-sce3.png") == 0);
 	assert(rmdir("skyboxes") == 0);
 	assert(chdir("..") == 0);

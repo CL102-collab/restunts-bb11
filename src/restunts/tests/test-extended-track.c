@@ -3538,6 +3538,47 @@ static void test_checkpoint_roads(void)
 	cstrk_free(&track);
 }
 
+static void test_custom_horizon_activation(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_ALPINE;
+	static const legacy_s8 filename[] = "Far mountains.png";
+	assert(cstrk_set_custom_horizon(&track, filename, sizeof(filename) - 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT road = object_at(4U, 0U, 0U);
+	assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+	activate(&track);
+	const struct CSTRK_TRACK *active = extended_track_model();
+	assert(active != NULL && active->horizon == track.horizon);
+	assert(strcmp((const legacy_char *)active->custom_horizon, (const legacy_char *)filename) == 0);
+	assert(active->custom_horizon != track.custom_horizon);
+	assert(cstrk_set_custom_horizon(&track, NULL, 0U, error, sizeof(error)));
+	assert(strcmp((const legacy_char *)active->custom_horizon, (const legacy_char *)filename) == 0);
+	assert(cstrk_set_custom_horizon(&track, filename, sizeof(filename) - 1U, error, sizeof(error)));
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	/* A rejected reload must retain both the active reference and its object bindings. */
+	data[size - 1U] = '/';
+	const struct CSTRK_OBJECT *objects = active->objects;
+	assert(!extended_track_load(data, size, error, sizeof(error)));
+	assert(extended_track_model() == active && active->objects == objects);
+	assert(strcmp((const legacy_char *)active->custom_horizon, (const legacy_char *)filename) == 0);
+	data[size - 1U] = filename[sizeof(filename) - 2U];
+	extended_track_unload();
+	assert(extended_track_load(data, size, error, sizeof(error)));
+	assert(strcmp((const legacy_char *)extended_track_model()->custom_horizon,
+				  (const legacy_char *)filename) == 0);
+	assert(cstrk_set_custom_horizon(&track, NULL, 0U, error, sizeof(error)));
+	activate(&track);
+	assert(extended_track_model()->custom_horizon[0] == 0);
+	assert(extended_track_model()->horizon == CSTRK_HORIZON_ALPINE);
+	free(data);
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	FILE *resource = fopen("GAME.PRE", "rb");
@@ -3558,6 +3599,7 @@ int main(void)
 	legacy_u8 *legacy_elements = track_element_map;
 	legacy_u8 *legacy_terrain = track_terrain_map;
 	legacy_s16 *legacy_links = track_primary_route_links;
+	test_custom_horizon_activation();
 	test_checkpoint_roads();
 	test_native_mesh_rotations();
 	test_native_mesh_copy_boundaries();

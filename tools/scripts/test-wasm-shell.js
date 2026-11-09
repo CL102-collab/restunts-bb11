@@ -679,6 +679,120 @@ async function exerciseFallbackLoading(browser, url, temporary) {
     }
 }
 
+async function exerciseCustomHorizonLoading(browser, url) {
+    const required = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT'].map(path => ({ path, bytes: [1, 2, 3] }));
+    const skies = ['Sky.png', 'sky.png', 'Árvíztűrő 🌅.PNG'];
+    const specs = required.concat(skies.map((name, index) => ({ path: 'HoRiZoNs/' + name, bytes: [index, 4, 5] })),
+        ['Sky.png', 'archive/Sky.png', 'horizons/nested/Deep.png', 'horizons/photo.jpg', 'horizons/.png']
+            .map(path => ({ path, bytes: [9, 9, 9] })));
+    for (const direct of [true, false]) {
+        const context = await browser.newContext();
+        await context.addInitScript(direct => {
+            window.showDirectoryPicker = direct ? async () => window.testLoadingFixture.root : undefined;
+        }, direct);
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(String(error)));
+        try {
+            await page.goto(url);
+            await ready(page);
+            const paths = await page.evaluate(() => {
+                const accepted = ['HORIZONS/Sky.png', 'horizons/sky.png', 'horizons/Árvíztűrő 🌅.PNG',
+                    'horizons/é.png', 'horizons/e\u0301.png', 'horizons/' + 'a'.repeat(123) + '.png',
+                    'horizons/' + 'é'.repeat(61) + '.png'];
+                const rejected = ['horizons/.png', 'horizons/nested/Sky.png', 'Sky.png', 'archive/Sky.png',
+                    'horizons/' + 'a'.repeat(124) + '.png', 'horizons/' + 'é'.repeat(62) + '.png',
+                    ...['\u0000', '\u001f', '\u007f', '\u0085', '\u009f', '\ud800', '\udfff',
+                        '<', '>', ':', '"', '|', '?', '*', '/', '\\'].map(character => 'horizons/Sky' + character + '.png')];
+                return { accepted: accepted.map(path => [path, gameImportPath(path)]),
+                    rejected: rejected.map(path => [path, gameImportPath(path)]) };
+            });
+            for (const [source, result] of paths.accepted)
+                assert.equal(result, 'horizons/' + source.slice(source.indexOf('/') + 1),
+                    'Horizon imports must preserve exact filename spelling and UTF-8 byte limits');
+            for (const [source, result] of paths.rejected)
+                assert.equal(result, null, 'Unsupported horizon path must be ignored: ' + JSON.stringify(source));
+            if (direct) {
+                await page.evaluate(() => {
+                    const actualStorage = browserStorage;
+                    window.testFolderStorageCalls = [];
+                    browserStorage = async (store, mode, value) => {
+                        if (store !== FOLDER_STORE) return actualStorage(store, mode, value);
+                        testFolderStorageCalls.push(mode);
+                        if (mode === 'readwrite') window.testStoredDirectory = value;
+                        return window.testStoredDirectory;
+                    };
+                });
+            }
+            await installLoadingFixture(page, specs, direct);
+            await page.evaluate(() => {
+                testLoadingFixture.automatic.metadata = true;
+                testLoadingFixture.automatic.content = true;
+            });
+            if (direct) await page.locator('#open-folder').click();
+            else {
+                // Browser-created File objects keep both case-distinct names even
+                // on hosts whose native filesystem folds filename casing.
+                await page.evaluate(specs => {
+                    const transfer = new DataTransfer();
+                    for (const spec of specs) {
+                        const file = new File([Uint8Array.from(spec.bytes)], spec.path.slice(spec.path.lastIndexOf('/') + 1));
+                        Object.defineProperty(file, 'webkitRelativePath', { value: 'Fixture/' + spec.path });
+                        transfer.items.add(file);
+                    }
+                    gameFiles.files = transfer.files;
+                    gameFiles.dispatchEvent(new Event('change'));
+                }, specs);
+            }
+            await page.waitForFunction(() => !document.getElementById('start').disabled);
+            const imported = await page.evaluate(() => ({
+                files: Array.from(fixtureFiles, ([path, bytes]) => [path, Array.from(bytes)]),
+                baseline: Array.from(baseline.keys())
+            }));
+            const expected = required.map(({ path, bytes }) => ['/stunts/' + path.toLowerCase(), bytes])
+                .concat(skies.map((name, index) => ['/stunts/horizons/' + name, [index, 4, 5]]));
+            assert.deepEqual(imported.files.sort(), expected.sort(),
+                (direct ? 'Directory handles' : 'Read-only file inputs') + ' must import exact horizon basenames and reject nested artwork');
+            assert.ok(imported.baseline.every(path => !path.startsWith('horizons/')),
+                'Horizon artwork must not enter the save export baseline');
+            if (direct) {
+                assert.equal(await page.evaluate(() => testStoredDirectory === directoryHandle), true,
+                    'The chosen directory handle must be remembered after import');
+                const updated = required.concat([
+                    { path: 'horizons/Sky.png', bytes: [7, 8, 9] },
+                    { path: 'horizons/New skyline.PNG', bytes: [6, 5, 4] }
+                ]);
+                await installLoadingFixture(page, updated);
+                await page.evaluate(async () => {
+                    testLoadingFixture.automatic.metadata = true;
+                    testLoadingFixture.automatic.content = true;
+                    window.testStoredDirectory = testLoadingFixture.root;
+                    window.testFolderPermissionQueries = [];
+                    testStoredDirectory.queryPermission = async options => {
+                        testFolderPermissionQueries.push(options);
+                        return 'granted';
+                    };
+                    testStoredDirectory.requestPermission = () => { throw new Error('Startup must not prompt for permission'); };
+                    await restoreRememberedFolder();
+                });
+                const restored = await page.evaluate(() => ({
+                    files: Array.from(fixtureFiles, ([path, bytes]) => [path, Array.from(bytes)]),
+                    storage: testFolderStorageCalls,
+                    permissions: testFolderPermissionQueries
+                }));
+                assert.deepEqual(restored.files.sort(), updated.map(({ path, bytes }) =>
+                    ['/stunts/' + (path.startsWith('horizons/') ? path : path.toLowerCase()), bytes]).sort(),
+                'Remembered folders must re-enumerate PNGs, update changed bytes, and remove missing artwork');
+                assert.deepEqual(restored.storage, ['readwrite', 'readonly']);
+                assert.deepEqual(restored.permissions, [{ mode: 'readwrite' }]);
+            }
+            assert.deepEqual(errors, [], 'Custom horizon imports and folder restoration must not produce browser errors');
+        } finally {
+            await context.close();
+        }
+    }
+}
+
 async function exerciseExtendedHighscoreSaving(browser, url, temporary) {
     const scoreBytes = [0, 255, 1, 128, 13, 10];
     const specs = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'MiXeD.CsHiG', 'MiXeD.HIG']
@@ -1203,8 +1317,9 @@ async function main() {
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
+        await exerciseCustomHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

@@ -13,6 +13,8 @@
 #define CSHIG_CAR_NAME_BYTES 24U
 #define CSHIG_OPPONENT_BYTES 8U
 #define CSHIG_EMPTY_TICKS UINT64_MAX
+/* Canonical course identities exclude notes and custom horizon trailers.
+ * Raw CSTRK readers must additionally allow both cosmetic payloads. */
 #define CSHIG_MAX_TRACK_SIZE                                                                       \
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
 	 CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION * 2U + CSTRK_MAX_OBJECTS * CSTRK_OBJECT_SIZE)

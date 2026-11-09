@@ -1,4 +1,5 @@
 #include "cstrk.h"
+#include "extended_cstrk_horizon.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -440,6 +441,9 @@ static int cstrk_validate_internal(const struct CSTRK_TRACK *track, legacy_u8 al
 	if (track->horizon >= CSTRK_HORIZON_COUNT) {
 		return cstrk_fail(error, error_size, "Track has an unknown horizon");
 	}
+	if (!cstrk_horizon_valid(track, error, error_size)) {
+		return 0;
+	}
 	if (track->object_count > (uint32_t)track->width * track->height ||
 		(track->object_count != 0U && track->objects == NULL)) {
 		return cstrk_fail(error, error_size, "Track has too many objects or no object storage");
@@ -569,6 +573,10 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 	}
 	size_t payload =
 		cstrk_payload_size(track->width, track->height, track->object_count, track->notes_length);
+	size_t horizon_length = strlen((const legacy_char *)track->custom_horizon);
+	if (horizon_length) {
+		payload += CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + horizon_length;
+	}
 	uint8_t *encoded = calloc(CSTRK_HEADER_SIZE + payload, 1U);
 	if (encoded == NULL) {
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
@@ -581,7 +589,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 	cstrk_write16(encoded + 18U, track->height);
 	cstrk_write32(encoded + 20U, track->notes_length);
 	cstrk_write32(encoded + 24U, track->object_count);
-	cstrk_write32(encoded + 28U, (uint32_t)payload);
+	cstrk_write32(encoded + CSTRK_PAYLOAD_SIZE_OFFSET, (uint32_t)payload);
 	uint8_t *cursor = encoded + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)track->width + 1U) * ((size_t)track->height + 1U);
 	memcpy(cursor, track->corner_heights, corners);
@@ -617,6 +625,11 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(cursor, track->notes, track->notes_length);
+	cursor += track->notes_length;
+	if (horizon_length) {
+		cstrk_write16(cursor, (legacy_u16)horizon_length);
+		memcpy(cursor + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE, track->custom_horizon, horizon_length);
+	}
 	*data = encoded;
 	*size = CSTRK_HEADER_SIZE + payload;
 	cstrk_success(error, error_size);
@@ -650,9 +663,26 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		return cstrk_fail(error, error_size,
 						  "Track dimensions, notes length or object count exceed limits");
 	}
-	size_t payload = cstrk_payload_size(width, height, objects, notes_length);
-	if (cstrk_read32(data + 28U) != payload || size != CSTRK_HEADER_SIZE + payload) {
+	size_t original_payload = cstrk_payload_size(width, height, objects, notes_length);
+	size_t payload = cstrk_read32(data + CSTRK_PAYLOAD_SIZE_OFFSET);
+	if (payload < original_payload ||
+		payload > original_payload + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE ||
+		size != CSTRK_HEADER_SIZE + payload) {
 		return cstrk_fail(error, error_size, "Track payload is truncated or has extra bytes");
+	}
+	legacy_u16 horizon_length = 0;
+	if (payload > original_payload) {
+		size_t extra = payload - original_payload;
+		if (version < CSTRK_CUSTOM_HORIZON_VERSION || extra < CSTRK_CUSTOM_HORIZON_LENGTH_SIZE) {
+			return cstrk_fail(error, error_size, "Track has an unsupported custom horizon trailer");
+		}
+		const legacy_u8 *trailer = data + CSTRK_HEADER_SIZE + original_payload;
+		horizon_length = cstrk_read16(trailer);
+		if (!horizon_length || extra != CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + horizon_length ||
+			!cstrk_custom_horizon_name_valid(
+				(const legacy_s8 *)(trailer + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE), horizon_length)) {
+			return cstrk_fail(error, error_size, "Track has an invalid custom horizon trailer");
+		}
 	}
 	cstrk_init(&next);
 	if (!cstrk_create(&next, width, height, error, error_size)) {
@@ -661,6 +691,11 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	/* Validate revision-specific object semantics before upgrading metadata. */
 	next.version = version;
 	next.horizon = (legacy_u8)horizon;
+	if (horizon_length) {
+		memcpy(next.custom_horizon,
+			   data + CSTRK_HEADER_SIZE + original_payload + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE,
+			   horizon_length);
+	}
 	const uint8_t *cursor = data + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)width + 1U) * ((size_t)height + 1U);
 	memcpy(next.corner_heights, cursor, corners);

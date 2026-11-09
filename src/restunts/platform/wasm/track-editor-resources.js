@@ -61,6 +61,16 @@
     }
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
     const RGB_PALETTE_SIZE = 256 * 3, PALETTE_HEADER_SIZE = 16;
+    const CUSTOM_HORIZON_WIDTH = 4096, CUSTOM_HORIZON_MIN_HEIGHT = 64, CUSTOM_HORIZON_MAX_HEIGHT = 120;
+    const CUSTOM_HORIZON_FILENAME_BYTES = 127;
+    const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10], PNG_CHUNK_OVERHEAD = 12, PNG_HEADER_SIZE = 13;
+    const PNG_DEPTH = 8, PNG_RGB = 2, PNG_INDEXED = 3, PNG_PALETTE_LIMIT = 256;
+    const PNG_CRC_POLYNOMIAL = 0xedb88320, PNG_CRC_INITIAL = 0xffffffff;
+    const PNG_CRC_TABLE = Uint32Array.from({ length: PNG_PALETTE_LIMIT }, (_, index) => {
+        let value = index;
+        for (let bit = 0; bit < PNG_DEPTH; bit++) value = value & 1 ? PNG_CRC_POLYNOMIAL ^ value >>> 1 : value >>> 1;
+        return value >>> 0;
+    });
     const COMPRESSED_RESOURCE_EXTENSIONS = new Set(['pre', 'pvs', 'pes', 'xvs', 'p3s']);
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
@@ -408,9 +418,133 @@
         }
         return rgba;
     }
+    function validateCustomHorizonFilename(name) {
+        if (typeof name !== 'string' || name.length <= 4 || !/\.png$/i.test(name) ||
+            /[\u0000-\u001f\u007f-\u009f<>:"/\\|?*]/u.test(name)) fail('Invalid custom horizon filename.');
+        const encoded = new TextEncoder().encode(name);
+        if (encoded.length > CUSTOM_HORIZON_FILENAME_BYTES || new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(encoded) !== name)
+            fail('Custom horizon filenames must contain at most 127 valid UTF-8 bytes.');
+        return encoded;
+    }
+    function asciiCaseFold(value) { return value.replace(/[A-Z]/g, character => character.toLowerCase()); }
+    function findCustomHorizonFiles(files) {
+        const result = [];
+        for (const [path, value] of files) {
+            const match = /^horizons\/([^/]+\.png)$/i.exec(path);
+            if (match) result.push({ path, filename: match[1], label: match[1].slice(0, -4), value });
+        }
+        return result;
+    }
+    async function validateCustomHorizonPng(input) {
+        const a = bytes(input), view = new DataView(a.buffer, a.byteOffset, a.byteLength);
+        if (a.length > MAX_RESOURCE || !PNG_SIGNATURE.every((value, index) => a[index] === value)) fail('Invalid custom horizon PNG signature or file size.');
+        let cursor = PNG_SIGNATURE.length, width = 0, height = 0, type = 0, palette = null, transparency = null;
+        let hasData = false, endedData = false, ended = false, compressedSize = 0;
+        const chunks = [];
+        while (cursor < a.length) {
+            if (a.length - cursor < PNG_CHUNK_OVERHEAD) fail('Truncated custom horizon PNG chunk.');
+            const length = view.getUint32(cursor), start = cursor + PNG_CHUNK_OVERHEAD - 4, end = start + length;
+            if (length > MAX_RESOURCE || end + 4 > a.length) fail('Truncated custom horizon PNG chunk.');
+            const name = String.fromCharCode(...a.subarray(cursor + 4, start));
+            if (!/^[A-Za-z]{4}$/.test(name)) fail('Invalid custom horizon PNG chunk type.');
+            let crc = PNG_CRC_INITIAL;
+            for (let index = cursor + 4; index < end; index++) crc = PNG_CRC_TABLE[(crc ^ a[index]) & 255] ^ crc >>> 8;
+            if (((crc ^ PNG_CRC_INITIAL) >>> 0) !== view.getUint32(end)) fail('Invalid custom horizon PNG checksum.');
+            if (!width && name !== 'IHDR') fail('The custom horizon PNG must start with IHDR.');
+            if (hasData && name !== 'IDAT') endedData = true;
+            if (name === 'IHDR') {
+                if (width || length !== PNG_HEADER_SIZE) fail('Invalid custom horizon PNG header.');
+                width = view.getUint32(start); height = view.getUint32(start + 4); type = a[start + 9];
+                if (width !== CUSTOM_HORIZON_WIDTH || height < CUSTOM_HORIZON_MIN_HEIGHT || height > CUSTOM_HORIZON_MAX_HEIGHT)
+                    fail('Custom horizons must be 4096 pixels wide and 64 to 120 pixels tall.');
+                if (a[start + 8] !== PNG_DEPTH || (type !== PNG_RGB && type !== PNG_INDEXED) ||
+                    a[start + 10] || a[start + 11] || a[start + 12])
+                    fail('Custom horizons must be non-interlaced 8-bit RGB or indexed PNGs.');
+            } else if (name === 'PLTE') {
+                if (hasData || palette || !length || length % 3 || length > PNG_PALETTE_LIMIT * 3) fail('Invalid custom horizon PNG palette.');
+                palette = a.subarray(start, end);
+            } else if (name === 'tRNS') {
+                if (hasData || transparency || (type === PNG_INDEXED ? !palette || !length || length > palette.length / 3 : length !== 6))
+                    fail('Invalid custom horizon PNG transparency.');
+                transparency = a.subarray(start, end);
+            } else if (name === 'IDAT') {
+                if (endedData || (type === PNG_INDEXED && !palette)) fail('Invalid custom horizon PNG image data.');
+                hasData = true; chunks.push(a.subarray(start, end)); compressedSize += length;
+            } else if (name === 'IEND') {
+                if (length || !hasData || end + 4 !== a.length) fail('Invalid custom horizon PNG end.');
+                ended = true; break;
+            } else if (name.charCodeAt(0) < 'a'.charCodeAt(0)) fail('Unsupported custom horizon PNG chunk ' + name + '.');
+            cursor = end + 4;
+        }
+        if (!ended || !compressedSize) fail('Incomplete custom horizon PNG.');
+        if (typeof DecompressionStream !== 'function') fail('This browser cannot validate custom horizon PNGs.');
+        const channels = type === PNG_RGB ? 3 : 1, rowSize = width * channels, expected = (rowSize + 1) * height;
+        const compressed = new Uint8Array(compressedSize), decoded = new Uint8Array(expected);
+        let offset = 0;
+        for (const chunk of chunks) { compressed.set(chunk, offset); offset += chunk.length; }
+        const reader = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+        offset = 0;
+        try {
+            for (;;) {
+                const next = await reader.read();
+                if (next.done) break;
+                if (offset + next.value.length > expected) fail('Custom horizon PNG image data has an invalid size.');
+                decoded.set(next.value, offset); offset += next.value.length;
+            }
+        } catch (error) {
+            await reader.cancel().catch(() => {});
+            fail('Cannot decode custom horizon PNG: ' + error.message);
+        } finally { reader.releaseLock(); }
+        if (offset !== expected) fail('Custom horizon PNG image data has an invalid size.');
+        let previous = new Uint8Array(rowSize), row = new Uint8Array(rowSize);
+        const transparentRgb = type === PNG_RGB && transparency ? new DataView(transparency.buffer, transparency.byteOffset, transparency.byteLength) : null;
+        for (let y = 0; y < height; y++) {
+            const filter = decoded[y * (rowSize + 1)];
+            if (filter > 4) fail('Invalid custom horizon PNG row filter.');
+            for (let x = 0; x < rowSize; x++) {
+                const left = x >= channels ? row[x - channels] : 0, above = previous[x], upperLeft = x >= channels ? previous[x - channels] : 0;
+                let predictor = 0;
+                if (filter === 1) predictor = left;
+                else if (filter === 2) predictor = above;
+                else if (filter === 3) predictor = Math.floor((left + above) / 2);
+                else if (filter === 4) {
+                    const estimate = left + above - upperLeft;
+                    const dl = Math.abs(estimate - left), da = Math.abs(estimate - above), du = Math.abs(estimate - upperLeft);
+                    predictor = dl <= da && dl <= du ? left : da <= du ? above : upperLeft;
+                }
+                row[x] = decoded[y * (rowSize + 1) + 1 + x] + predictor;
+            }
+            for (let x = 0; x < rowSize; x += channels) {
+                if (type === PNG_INDEXED) {
+                    if (row[x] >= palette.length / 3) fail('Custom horizon PNG uses an invalid palette index.');
+                    if (transparency && row[x] < transparency.length && transparency[row[x]] !== 255) fail('Custom horizon PNGs must be fully opaque.');
+                } else if (transparentRgb && row[x] === transparentRgb.getUint16(0) && row[x + 1] === transparentRgb.getUint16(2) &&
+                    row[x + 2] === transparentRgb.getUint16(4)) fail('Custom horizon PNGs must be fully opaque.');
+            }
+            const swap = previous; previous = row; row = swap;
+        }
+        return { width, height };
+    }
+    async function loadCustomHorizons(files, { validateFilename = validateCustomHorizonFilename } = {}) {
+        const candidates = findCustomHorizonFiles(files), names = new Map(), horizons = [], errors = [];
+        for (const entry of candidates) {
+            const key = asciiCaseFold(entry.filename);
+            names.set(key, (names.get(key) || 0) + 1);
+        }
+        for (const entry of candidates) {
+            try {
+                validateFilename(entry.filename);
+                if (names.get(asciiCaseFold(entry.filename)) > 1) fail('Duplicate custom horizon filename (ignoring case).');
+                const input = entry.value.arrayBuffer ? await entry.value.arrayBuffer() : entry.value;
+                const dimensions = await validateCustomHorizonPng(input);
+                horizons.push({ path: entry.path, filename: entry.filename, label: entry.label, ...dimensions });
+            } catch (error) { errors.push({ path: entry.path, message: error.message }); }
+        }
+        return { horizons, errors };
+    }
     function normalizeFiles(files) {
         const normalized = new Map();
-        for (const [name, value] of files) normalized.set(name.toLowerCase(), value);
+        for (const [name, value] of files) normalized.set(asciiCaseFold(name), value);
         return normalized;
     }
     async function readResource(files, name, extensions) {
@@ -470,5 +604,6 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, load3D, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap, pineTreeLayout };
+    return { load, load3D, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap, pineTreeLayout,
+        validateCustomHorizonFilename, findCustomHorizonFiles, validateCustomHorizonPng, loadCustomHorizons };
 }));

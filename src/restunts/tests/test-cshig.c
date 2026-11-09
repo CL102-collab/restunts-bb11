@@ -57,7 +57,43 @@ static void assert_preserved(const struct CSHIG_TABLE *table, const struct CSHIG
 }
 
 #define TEST_FUTURE_REVISION 101U
-#define TEST_SHORT_FUTURE_REVISION 15U
+#define TEST_SHORT_FUTURE_REVISION (CSTRK_VERSION + 1U)
+#define TEST_PRE_CUSTOM_HORIZON_VERSION 14U
+
+/* Captured before custom horizons were added: gameplay bytes and the empty
+ * cosmetic payload remain identical, apart from the normalized revision. */
+static void test_pre_custom_horizon_identity(void)
+{
+	static const legacy_u8 expected[] = {
+		0x43, 0x53, 0x54, 0x52, 0x4b, 0x1a, 0x0d, 0x0a, TEST_PRE_CUSTOM_HORIZON_VERSION,
+		0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00,
+		0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+		0x00, 0x5c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x04, 0x00, 0x02, 0x01, 0x00, 0x00, 0x01,
+		0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x05, 0x00, 0x03, 0x02, 0x00, 0x00, 0x01, 0x01, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+	struct CSTRK_TRACK track;
+	make_track(&track);
+	memcpy(track.custom_horizon, "Budapest sunset.png", sizeof("Budapest sunset.png"));
+	track.horizon = CSTRK_HORIZON_CITY;
+	struct CSHIG_TABLE table;
+	cshig_init(&table);
+	assert(cshig_create(&table, &track, NULL, 0));
+	legacy_u8 normalized[sizeof(expected)];
+	memcpy(normalized, expected, sizeof(expected));
+	LEGACY_WRITE_U16_LE(normalized + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	assert(table.track_size == sizeof(expected));
+	assert(memcmp(table.track_data, normalized, sizeof(normalized)) == 0);
+	cshig_free(&table);
+	cstrk_free(&track);
+}
 
 static void test_identity(void)
 {
@@ -74,15 +110,22 @@ static void test_identity(void)
 	}
 	assert(cshig_matches_track(&table, &track));
 	assert(LEGACY_READ_U16_LE(table.track_data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
-	/* Cosmetic horizons and revision metadata do not change score identity. */
-	for (legacy_u8 horizon = CSTRK_HORIZON_DESERT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
-		track.horizon = horizon;
-		assert(cshig_matches_track(&table, &track));
-		assert(cshig_create(&other, &track, NULL, 0));
-		assert(other.track_size == table.track_size);
-		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
+	/* Both selected artwork and its built-in fallback are cosmetic. UTF-8
+	 * filenames remain external resources and never enter the course identity. */
+	static const legacy_char *const filenames[] = {"", "Budapest sunset.png",
+												   "Dunai \xc3\xa1rnyak.png"};
+	for (legacy_u16 index = 0; index < sizeof(filenames) / sizeof(filenames[0]); index++) {
+		memcpy(track.custom_horizon, filenames[index], strlen(filenames[index]) + 1U);
+		for (legacy_u8 horizon = CSTRK_HORIZON_DESERT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
+			track.horizon = horizon;
+			assert(cshig_matches_track(&table, &track));
+			assert(cshig_create(&other, &track, NULL, 0));
+			assert(other.track_size == table.track_size);
+			assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
+		}
 	}
 	track.horizon = CSTRK_HORIZON_DEFAULT;
+	track.custom_horizon[0] = '\0';
 	static const legacy_u16 revisions[] = {CSTRK_VERSION, TEST_SHORT_FUTURE_REVISION,
 										   TEST_FUTURE_REVISION, LEGACY_U16_MAX};
 	for (legacy_u16 index = 0; index < sizeof(revisions) / sizeof(revisions[0]); index++) {
@@ -107,6 +150,7 @@ static void test_identity(void)
 	assert(canonical.notes_length == 0U);
 	assert(canonical.version == CSTRK_VERSION);
 	assert(canonical.horizon == CSTRK_HORIZON_DEFAULT);
+	assert(canonical.custom_horizon[0] == '\0');
 	cstrk_free(&canonical);
 	track.cells[2].surface = CSTRK_TERRAIN_ICE;
 	assert(!cshig_matches_track(&table, &track));
@@ -210,6 +254,9 @@ static void test_prior_track_revisions(void)
 	legacy_u8 *current = NULL;
 	size_t size = 0;
 	assert(cshig_encode(&table, &current, &size, NULL, 0));
+	/* Older tables also match a track that subsequently chooses custom artwork. */
+	memcpy(track.custom_horizon, "Later skyline.png", sizeof("Later skyline.png"));
+	track.horizon = CSTRK_HORIZON_ALPINE;
 	legacy_u8 *prior = malloc(size);
 	assert(prior != NULL);
 	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_VERSION; version++) {
@@ -452,6 +499,19 @@ static void test_maximum_track(void)
 		object->y = (uint8_t)(index / 90U);
 		object->width = object->height = object->occupied_mask = 1U;
 	}
+	/* Maximum cosmetic payloads do not enlarge a canonical score identity. */
+	memset(track.notes, 'N', CSTRK_MAX_NOTES);
+	track.notes[CSTRK_MAX_NOTES] = '\0';
+	track.notes_length = CSTRK_MAX_NOTES;
+	memset(track.custom_horizon, 'h', CSTRK_MAX_HORIZON_NAME);
+	memcpy(track.custom_horizon + CSTRK_MAX_HORIZON_NAME - (sizeof(".png") - 1U), ".png",
+		   sizeof(".png"));
+	legacy_u8 *raw = NULL;
+	size_t raw_size = 0;
+	assert(cstrk_encode(&track, &raw, &raw_size, NULL, 0));
+	assert(raw_size ==
+		   CSHIG_MAX_TRACK_SIZE + CSTRK_MAX_NOTES + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE);
+	free(raw);
 	struct CSHIG_TABLE table, decoded;
 	cshig_init(&table);
 	cshig_init(&decoded);
@@ -508,6 +568,7 @@ static void test_text_and_tick_boundaries(void)
 
 int main(void)
 {
+	test_pre_custom_horizon_identity();
 	test_identity();
 	test_surface_corner_identity();
 	test_prior_track_revisions();

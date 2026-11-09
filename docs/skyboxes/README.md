@@ -23,6 +23,46 @@ The [asset manifest](../../assets/skyboxes/manifest.json) records the original
 dimensions, scenery coverage, resource headers, palette metadata, and
 extraction hashes.
 
+## Custom horizons
+
+Extended `.cstrk` tracks in SDL3 builds can select a custom horizon from the
+`horizons/` subdirectory of the game data folder. Supply **one PNG**, for example
+`horizons/Misty mountains.png`. Create the folder if it does not exist.
+No metadata file or separate strips are needed.
+The editor discovers images when you select or reconnect the Stunts folder and
+uses the filename stem (`Misty mountains`) as its display name.
+
+Custom artwork must meet these requirements:
+
+- Width: exactly **4096 pixels**.
+- Height: **any integer from 64 through 120 pixels**, including odd heights.
+- Format: non-interlaced, 8-bit RGB or indexed PNG. Every used pixel must be
+  opaque. RGBA, grayscale, and partially transparent images are unsupported.
+- Sky: flat RGB **(93, 255, 255)**. Keep scenery aligned to the bottom edge and
+  make the left and right edges join for a wrapping panorama.
+- Filename: a basename ending in `.png` (case-insensitive), at most 127 UTF-8
+  bytes including the extension. Spaces and Unicode are supported. Directory
+  separators, control characters, and `<>:"|?*` are rejected.
+
+The game pads the top with sky to the next multiple of four when needed; it
+does not stretch or crop the image. It splits the panorama into 1280, 768,
+1280, and 768-pixel strips and derives quarter-size artwork for classic mode
+and the lowest HyperVision resolution. Higher HyperVision resolutions use the
+full detail. Colors are mapped to the original VGA palette as with built-in art.
+These horizons also appear in native track selector previews. The editor's
+WebGL preview continues to use a flat sky.
+
+Select a built-in horizon before choosing a custom one to set its fallback.
+Tracks store both that built-in choice and the custom filename. Missing or
+invalid artwork uses the fallback and preserves the filename when saving.
+The image is not embedded in tracks, replays, or ghosts; distribute the PNG
+with them and copy it into `horizons/` on each installation. Changing horizon
+artwork does not affect race physics, checkpoint routes, or highscore identity.
+Legacy `.trk` tracks retain their five built-in horizons.
+
+The built-in assets described below still use four runtime strips. Custom
+horizons use the single panorama file instead.
+
 ## Extraction and verification
 
 From the repository root, validate the enhanced assets without game files:

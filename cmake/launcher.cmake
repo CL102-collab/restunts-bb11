@@ -118,6 +118,7 @@ function(restunts_add_desktop_launcher)
         "${genghost_gui_directory}/extended_options.cpp"
         "${launcher_directory}/options.cpp" "${launcher_directory}/game_data.cpp"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" OR RESTUNTS_WX_TOOLKIT STREQUAL "qt"
             OR "__WXQT__" IN_LIST wxWidgets_DEFINITIONS)
@@ -225,6 +226,7 @@ function(restunts_add_desktop_launcher)
             "${genghost_gui_directory}/extended_options.cpp"
             "${launcher_directory}/options.cpp"
             "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
+            "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
             "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
         target_link_libraries(test-genghost-gui-options PRIVATE ${launcher_test_wx_libraries})
         target_compile_definitions(test-genghost-gui-options PRIVATE wxUSE_GUI=0)

@@ -63,9 +63,28 @@ or Country, matching the original editor. The choice is saved in the track and
 used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
+Custom horizons appear in the same selector when the game folder contains
+`horizons/*.png`. Each image's filename, without `.png`, supplies its label;
+spaces and Unicode names are preserved. Reselect the game folder after adding
+images. Both direct folder access and read-only folder selection discover them.
+Use a single opaque 8-bit RGB or indexed PNG, exactly 4,096 pixels wide and
+64 through 120 pixels high, including every intermediate height. Use RGB
+`93, 255, 255` for sky. The game aligns the image's bottom edge with the horizon.
+
+Choosing a custom image retains the last built-in horizon as its fallback.
+The track stores its PNG filename, including `.png`, rather than the image;
+keep that file in `horizons` on each computer used to play the track. The filename
+must be a basename of at most 127 UTF-8 bytes. Custom horizons require `.cstrk`
+v15. Choosing a built-in horizon removes the custom reference, and either
+selection supports undo and redo. If a selected image is missing or unreadable,
+the editor keeps its filename and shows it as unavailable. Saving preserves that
+reference while the game uses the stored built-in fallback. Filenames differing
+only in A–Z letter case are ambiguous and left out of the list, as are invalid
+PNGs. Other valid images and the built-in horizons remain available.
+
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v14. Revision v3 through v13 tracks also open
-and are upgraded to v14 while preserving their original overpass road materials.
+great track." The current version is v15. Revision v3 through v14 tracks also open
+and are upgraded to v15 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.

@@ -51,6 +51,7 @@ fi
 # inspect private helpers, in which case that source must not also be linked.
 extended_companions() {
     case "$1" in
+        extended_cstrk.c) echo extended/extended_cstrk_horizon.c ;;
         fileio.c) echo extended/extended_fileio.c ;;
         file.c) echo extended/extended_file_dialog.c ;;
         gameinit.c) echo extended/extended_gameinit.c ;;

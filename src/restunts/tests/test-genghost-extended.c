@@ -33,7 +33,8 @@
 #define EXTENDED_TEST_SEARCH_BUDGET 32U
 #define EXTENDED_TEST_MAX_TRACK                                                                    \
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
-	 2U * CSTRK_MAX_OBJECTS + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS + CSTRK_MAX_NOTES)
+	 2U * CSTRK_MAX_OBJECTS + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS + CSTRK_MAX_NOTES +            \
+	 CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE)
 #define EXTENDED_TEST_MAX_SOURCE (CSRPL_HEADER_SIZE + EXTENDED_TEST_MAX_TRACK + GENGHOST_MAX_FRAMES)
 
 static legacy_u8 *read_source(const legacy_char *path, legacy_uint *size)

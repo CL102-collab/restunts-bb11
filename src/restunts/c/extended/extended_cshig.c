@@ -101,6 +101,7 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, legacy_u16 ver
 	/* Revision metadata and scenery do not change the course or its existing scores. */
 	gameplay.version = version;
 	gameplay.horizon = CSTRK_HORIZON_DEFAULT;
+	gameplay.custom_horizon[0] = '\0';
 	gameplay.notes_length = 0;
 	gameplay.notes[0] = '\0';
 	uint8_t *encoded = NULL;

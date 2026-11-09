@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
+const { deflateSync } = require('node:zlib');
 const resources = require('../../src/restunts/platform/wasm/track-editor-resources.js');
 const model = require('../../src/restunts/platform/wasm/track-editor-model.js');
 
@@ -36,6 +37,124 @@ function files() {
         ['GaMe2.3sH', archive([['zban', Uint8Array.from([7, 8])], ['road', Uint8Array.from([9, 10])]])]
     ]);
 }
+
+function pngChunk(type, data) {
+    const chunk = Buffer.alloc(12 + data.length); chunk.writeUInt32BE(data.length); chunk.write(type, 4); chunk.set(data, 8);
+    let crc = 0xffffffff;
+    for (let index = 4; index < 8 + data.length; index++) {
+        crc ^= chunk[index];
+        for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? 0xedb88320 ^ crc >>> 1 : crc >>> 1;
+    }
+    chunk.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length); return chunk;
+}
+function horizonPng({ width = 4096, height = 64, type = 2, depth = 8, interlace = 0, transparency,
+    palette = [93, 255, 255, 0, 0, 0], pixel = 0, filter = 0, compressedData, extraByte = false } = {}) {
+    const header = Buffer.alloc(13); header.writeUInt32BE(width); header.writeUInt32BE(height, 4);
+    header[8] = depth; header[9] = type; header[12] = interlace;
+    const channels = type === 3 ? 1 : 3, rowSize = width * channels;
+    const raw = Buffer.alloc((rowSize + 1) * height + (extraByte ? 1 : 0));
+    let previous = new Uint8Array(rowSize);
+    for (let y = 0; y < height; y++) {
+        const row = Uint8Array.from({ length: rowSize }, (_, x) => type === 3 ? pixel : [93, 255, 255][x % channels]);
+        const method = filter === 'all' ? y % 5 : filter; raw[y * (rowSize + 1)] = method;
+        for (let x = 0; x < rowSize; x++) {
+            const left = x >= channels ? row[x - channels] : 0, above = previous[x], upperLeft = x >= channels ? previous[x - channels] : 0;
+            let predictor = 0;
+            if (method === 1) predictor = left;
+            else if (method === 2) predictor = above;
+            else if (method === 3) predictor = Math.floor((left + above) / 2);
+            else if (method === 4) {
+                const estimate = left + above - upperLeft, dl = Math.abs(estimate - left), da = Math.abs(estimate - above), du = Math.abs(estimate - upperLeft);
+                predictor = dl <= da && dl <= du ? left : da <= du ? above : upperLeft;
+            }
+            raw[y * (rowSize + 1) + 1 + x] = row[x] - predictor;
+        }
+        previous = row;
+    }
+    const chunks = [pngChunk('IHDR', header)];
+    if (type === 3) chunks.push(pngChunk('PLTE', Uint8Array.from(palette)));
+    if (transparency) chunks.push(pngChunk('tRNS', Uint8Array.from(transparency)));
+    chunks.push(pngChunk('IDAT', compressedData || deflateSync(raw)), pngChunk('IEND', new Uint8Array()));
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), ...chunks]);
+}
+
+test('custom horizons validate every height and decode all native RGB/indexed row filters', async () => {
+    for (let height = 64; height <= 120; height++)
+        assert.deepEqual(await resources.validateCustomHorizonPng(horizonPng({ type: 3, height, filter: 'all' })), { width: 4096, height });
+    assert.deepEqual(await resources.validateCustomHorizonPng(horizonPng({ filter: 'all' })), { width: 4096, height: 64 });
+});
+
+test('custom horizon PNG validation rejects invalid dimensions, encodings, checksums and image data', async () => {
+    for (const options of [{ width: 4095 }, { height: 63 }, { height: 121 }])
+        await assert.rejects(resources.validateCustomHorizonPng(horizonPng(options)), /4096.*64 to 120/);
+    for (const options of [{ depth: 16 }, { type: 0 }, { type: 4 }, { type: 6 }, { interlace: 1 }])
+        await assert.rejects(resources.validateCustomHorizonPng(horizonPng(options)), /non-interlaced 8-bit RGB or indexed/);
+    const valid = horizonPng(), corrupt = valid.slice(); corrupt[corrupt.length - 1] ^= 1;
+    await assert.rejects(resources.validateCustomHorizonPng(corrupt), /checksum/);
+    for (const input of [new Uint8Array(), valid.subarray(0, 7), valid.subarray(0, valid.length - 1), valid.subarray(0, valid.length - 12)])
+        await assert.rejects(resources.validateCustomHorizonPng(input), /signature|Truncated|Incomplete/);
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ compressedData: Buffer.from([0, 1, 2]) })), /Cannot decode/);
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ filter: 5 })), /row filter/);
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ type: 3, pixel: 2 })), /palette index/);
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ extraByte: true })), /invalid size/);
+});
+
+test('custom horizon opacity checks use decoded pixels and permit unused transparency entries', async () => {
+    await resources.validateCustomHorizonPng(horizonPng({ type: 3, transparency: [255, 0], filter: 'all' }));
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ type: 3, transparency: [255, 0], pixel: 1, filter: 'all' })), /fully opaque/);
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ type: 3, transparency: [254], filter: 'all' })), /fully opaque/);
+    await resources.validateCustomHorizonPng(horizonPng({ transparency: [0, 0, 0, 0, 0, 0], filter: 'all' }));
+    await assert.rejects(resources.validateCustomHorizonPng(horizonPng({ transparency: [0, 93, 0, 255, 0, 255], filter: 'all' })), /fully opaque/);
+});
+
+test('custom horizon discovery keeps Unicode names and paths and loads only immediate horizon PNG files', async () => {
+    const input = horizonPng({ type: 3 }), selected = new Map([
+        ['horizons/Éjjeli táj.PNG', { arrayBuffer: async () => input }], ['HORIZONS/Alpine.png', input],
+        ['elsewhere/Sky.png', input], ['horizons/nested/Deep.png', input], ['horizons/readme.txt', input], ['Sky.png', input]
+    ]);
+    const found = resources.findCustomHorizonFiles(selected);
+    assert.deepEqual(found.map(({ path, filename, label }) => ({ path, filename, label })), [
+        { path: 'horizons/Éjjeli táj.PNG', filename: 'Éjjeli táj.PNG', label: 'Éjjeli táj' },
+        { path: 'HORIZONS/Alpine.png', filename: 'Alpine.png', label: 'Alpine' }
+    ]);
+    const result = await resources.loadCustomHorizons(selected);
+    assert.deepEqual(result.errors, []);
+    assert.deepEqual(result.horizons, found.map(({ path, filename, label }) => ({ path, filename, label, width: 4096, height: 64 })));
+});
+
+test('custom horizon names fold ASCII case while keeping distinct Unicode filenames', async () => {
+    const input = horizonPng({ type: 3 });
+    const result = await resources.loadCustomHorizons(new Map([
+        ['horizons/Észak.png', input], ['horizons/észak.PNG', input]
+    ]));
+    assert.deepEqual(result.errors, []);
+    assert.deepEqual(result.horizons.map(entry => entry.filename), ['Észak.png', 'észak.PNG']);
+    assert.equal(model.asciiCaseFold('ÉSZAK.PNG'), 'Észak.png');
+    assert.notEqual(model.asciiCaseFold('Észak.png'), model.asciiCaseFold('észak.PNG'));
+});
+test('custom horizon filename validation rejects unsafe basenames, malformed Unicode and overlong UTF-8', () => {
+    for (const name of ['', '.png', '../Sky.png', 'sub/Sky.png', 'sub\\Sky.png', 'bad:name.png', 'bad?name.png',
+        'bad*name.png', 'bad|name.png', 'bad<name.png', 'bad>name.png', 'bad"name.png', 'bad\x00name.png',
+        'bad\x1fname.png', 'bad\x7fname.png', 'bad\u0085name.png', 'bad\ud800name.png', 'Sky.jpg', 'é'.repeat(62) + '.png'])
+        assert.throws(() => resources.validateCustomHorizonFilename(name), /filename|UTF-8/);
+    assert.equal(resources.validateCustomHorizonFilename('a'.repeat(123) + '.PNG').length, 127);
+    assert.equal(resources.validateCustomHorizonFilename('é'.repeat(61) + '.png').length, 126);
+    for (const name of ['\ufeffSky.png', 'Line\u2028Sky.png', 'Line\u2029Sky.png'])
+        assert.deepEqual(resources.validateCustomHorizonFilename(name), model.validateCustomHorizonFilename(name));
+});
+
+test('invalid or duplicate custom horizons are reported individually while valid files remain available', async () => {
+    const valid = horizonPng({ type: 3 }), requested = [];
+    const result = await resources.loadCustomHorizons(new Map([
+        ['horizons/Sky.png', valid], ['horizons/sky.PNG', valid], ['horizons/Good.png', valid],
+        ['horizons/Corrupt.png', Uint8Array.from([1])], ['horizons/Unreadable.png', { arrayBuffer: async () => { throw new Error('Access denied'); } }],
+        ['horizons/bad:name.png', valid]
+    ]), { validateFilename: name => { requested.push(name); return resources.validateCustomHorizonFilename(name); } });
+    assert.deepEqual(result.horizons.map(entry => entry.filename), ['Good.png']);
+    assert.equal(result.errors.length, 5); assert(result.errors.filter(entry => /Duplicate/.test(entry.message)).length === 2);
+    assert(result.errors.some(entry => /Access denied/.test(entry.message))); assert(result.errors.some(entry => /signature/.test(entry.message)));
+    assert.equal(requested.length, 6, 'the shared storage filename validator checks every candidate');
+});
 
 test('checkpoint icons recolor the native banner and replace its direction arrow with road artwork', () => {
     const tileSize = 16, interior = tileSize - 1, white = 15, roadColor = 8;

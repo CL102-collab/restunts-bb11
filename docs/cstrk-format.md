@@ -1,12 +1,12 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v14**, supported
+SDL3 WebAssembly build. The current file-format revision is **v15**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
-a horizon choice, and up to 8,000 ASCII text bytes of notes. One hill level
-retains the original game's 450 geometry-unit height; horizontal tile size
+a built-in horizon choice, an optional custom horizon filename, and up to
+8,000 ASCII text bytes of notes. One hill level retains the original game's 450 geometry-unit height; horizontal tile size
 remains 1,024 units.
 
 The pure storage codec lives in `src/restunts/c/extended/extended_cstrk.c`, with
@@ -20,7 +20,7 @@ All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: an unsigned 16-bit integer. The
 minimum supported revision is v3; older extended-track revisions are rejected.
-New tracks are created with revision v14. Valid v3 through v13 tracks upgrade to v14
+New tracks are created with revision v15. Valid v3 through v14 tracks upgrade to v15
 in memory. Revision v3 tracks preserve their shared overpass surface as both
 upper and lower road materials, so subsequent saves retain their appearance and
 grip. Sloped tunnels and slaloms require v5; the reader rejects these placements
@@ -32,11 +32,12 @@ Revision v9 adds pine group modifiers. Revision v10 adds six-tree groves whose
 arrangement varies deterministically with tile position. Revision v11 adds the
 Wheat field scenery tile. Revision v12 adds Tulip field and Vine field. Revision v13 adds Blue checkpoint
 and Red checkpoint. Revision v14 adds Blue / red checkpoint. These
-revisions retain the same header and object layout.
+revisions retain the same header and object layout. Revision v15 adds an optional
+custom horizon filename after the notes; the header and object layout stay the same.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
-v15 or v101 is newer than a reader supporting v14. Its revision alone does not
+v16 or v101 is newer than a reader supporting v15. Its revision alone does not
 make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
@@ -48,9 +49,9 @@ The header occupies exactly 32 bytes:
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 3–65,535; current revision `14` |
+| 8 | 2 | Numeric format revision, 3–65,535; current revision `15` |
 | 10 | 2 | Header size, `32` |
-| 12 | 4 | Horizon, `0`–`4` |
+| 12 | 4 | Built-in horizon or custom horizon fallback, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
 | 18 | 2 | Height in tiles, 1–90 |
 | 20 | 4 | Notes length, 0–8,000 |
@@ -63,10 +64,16 @@ The payload contains these consecutive arrays:
 2. `width × height` two-byte terrain cells.
 3. `object_count` sixteen-byte object records.
 4. `notes_length` ASCII text bytes, without a NUL terminator.
+5. Optional custom horizon trailer (v15+): a two-byte filename length followed by
+   that many UTF-8 filename bytes, without a NUL terminator. This trailer is
+   omitted entirely when no custom horizon is selected.
 
-Consequently the file length is exactly
+Without a custom horizon, the file length is exactly
 `32 + (width+1)*(height+1) + 2*width*height + 16*object_count + notes_length`.
-The largest structurally permitted file in the current layout occupies 162,113 bytes.
+A custom horizon adds `2 + filename_length` bytes, included in the header
+payload length. The filename length is 1–127 bytes. An empty trailer, mismatched
+length, or custom trailer in a revision below v15 is rejected. The largest
+structurally permitted file occupies 162,242 bytes (162,113 without a trailer).
 
 ## Horizon
 
@@ -82,9 +89,20 @@ The horizon uses the original game's scenery choices:
 
 New tracks default to Desert. Every valid revision may select any of these
 horizons. Values outside this range and nonzero upper bytes are rejected.
-The selected horizon and revision are retained in embedded replay tracks.
-Horizon changes and revision metadata changes preserve the track's highscore
-table.
+A v15+ custom filename selects one PNG from the game data directory's
+`horizons/` folder. It must have a nonempty stem and a `.png` extension
+(case-insensitive), and occupy at most 127 UTF-8 bytes including the extension.
+Only a basename is accepted: directory separators, invalid UTF-8, C0/DEL/C1
+control characters, and Windows-forbidden filename characters (`<>:"|?*`)
+are rejected. Spaces and other Unicode characters are allowed. The editor
+shows the filename without its extension.
+
+The built-in selector remains the fallback when the PNG is missing or invalid.
+The filename is retained even when fallback artwork is used. The PNG is external;
+it is not embedded in the track or replay. See [custom horizon artwork](skyboxes/README.md#custom-horizons)
+for image requirements. The selected horizon, custom filename, and revision are
+retained in embedded replay tracks. Horizon and revision changes preserve the
+track's highscore table.
 
 ## Terrain
 
@@ -161,7 +179,7 @@ store a nonzero lower surface; all other objects require paved `0` in that field
 Revision v3 reserves all four bytes at offsets 12–15 as zero. Revisions v4
 through v6 reserve offsets 13–15, v7 reserves offsets 14–15, and v8 reserves
 offset 15. The reader rejects nonzero reserved bytes and upgrades accepted v3
-through v13 tracks to v14.
+through v14 tracks to v15.
 A v3 overpass inherits its lower material from its ordinary surface because the
 older renderer and collision model used that selection for both roads. Since v4,
 new overpasses default the lower surface to paved independently of the upper road.

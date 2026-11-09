@@ -1490,8 +1490,195 @@ static void test_checkpoint_records(void)
 	cstrk_free(&track);
 }
 
+#define TEST_HORIZON_PREFIX "prefix"
+#define TEST_HORIZON_VALID "Blue Mountains.png"
+
+static void test_custom_horizon_names(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	static const legacy_char *valid[] = {TEST_HORIZON_VALID,
+										 "night.PNG",
+										 "space and stars.PnG",
+										 "a.b.png",
+										 "\xc3\xa1rv\xc3\xadzt\xc5\xb1r\xc5\x91.png",
+										 "\xf0\x9f\x8c\x84.png",
+										 "\xed\x9f\xbf.png",
+										 "\xee\x80\x80.png",
+										 "\xf4\x8f\xbf\xbf.png"};
+	for (size_t index = 0; index < sizeof(valid) / sizeof(valid[0]); index++) {
+		size_t length = strlen(valid[index]);
+		assert(cstrk_custom_horizon_name_valid((const legacy_s8 *)valid[index], length));
+		assert(cstrk_set_custom_horizon(&track, (const legacy_s8 *)valid[index], length, error,
+										sizeof(error)));
+		assert(strcmp((const legacy_char *)track.custom_horizon, valid[index]) == 0);
+	}
+	static const legacy_char *invalid[] = {".png",
+										   "plain",
+										   "plain.jpg",
+										   "plain.pngx",
+										   "/a.png",
+										   "a/b.png",
+										   "a\\b.png",
+										   "a<b.png",
+										   "a>b.png",
+										   "a:b.png",
+										   "a\"b.png",
+										   "a|b.png",
+										   "a?b.png",
+										   "a*b.png",
+										   "\x80.png",
+										   "\xc0\xaf.png",
+										   "\xe0\x80\xaf.png",
+										   "\xf0\x80\x80\xaf.png",
+										   "\xed\xa0\x80.png",
+										   "\xf4\x90\x80\x80.png",
+										   "\xf5\x80\x80\x80.png",
+										   "\xf0\x9f.png",
+										   "\xc2\x80.png",
+										   "\xc2\x9f.png"};
+	struct CSTRK_TRACK before = track;
+	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		size_t length = strlen(invalid[index]);
+		assert(!cstrk_custom_horizon_name_valid((const legacy_s8 *)invalid[index], length));
+		assert(!cstrk_set_custom_horizon(&track, (const legacy_s8 *)invalid[index], length, error,
+										 sizeof(error)));
+		assert(memcmp(&before, &track, sizeof(track)) == 0);
+	}
+	legacy_s8 control[] = "a.png";
+	for (legacy_u16 value = 0; value <= 0x7fU; value++) {
+		if (value > 0x1fU && value != 0x7fU) {
+			continue;
+		}
+		control[0] = (legacy_s8)value;
+		assert(
+			!cstrk_set_custom_horizon(&track, control, sizeof(control) - 1U, error, sizeof(error)));
+		assert(memcmp(&before, &track, sizeof(track)) == 0);
+	}
+	legacy_s8 maximum[CSTRK_MAX_HORIZON_NAME + 1U];
+	memset(maximum, 'm', sizeof(maximum));
+	memcpy(maximum + sizeof(maximum) - sizeof(".png"), ".png", sizeof(".png"));
+	assert(cstrk_set_custom_horizon(&track, maximum, CSTRK_MAX_HORIZON_NAME, error, sizeof(error)));
+	before = track;
+	assert(!cstrk_set_custom_horizon(&track, maximum, sizeof(maximum), error, sizeof(error)));
+	assert(memcmp(&before, &track, sizeof(track)) == 0);
+	assert(!cstrk_set_custom_horizon(&track, NULL, 1U, error, sizeof(error)));
+	assert(cstrk_set_custom_horizon(
+		&track, (const legacy_s8 *)(TEST_HORIZON_PREFIX TEST_HORIZON_VALID),
+		sizeof(TEST_HORIZON_PREFIX TEST_HORIZON_VALID) - 1U, error, sizeof(error)));
+	assert(cstrk_set_custom_horizon(&track, track.custom_horizon + sizeof(TEST_HORIZON_PREFIX) - 1U,
+									sizeof(TEST_HORIZON_VALID) - 1U, error, sizeof(error)));
+	assert(strcmp((const legacy_char *)track.custom_horizon, TEST_HORIZON_VALID) == 0);
+	track.version = CSTRK_CUSTOM_HORIZON_VERSION - 1U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	assert(!cstrk_set_custom_horizon(&track, (const legacy_s8 *)TEST_HORIZON_VALID,
+									 sizeof(TEST_HORIZON_VALID) - 1U, error, sizeof(error)));
+	assert(cstrk_set_custom_horizon(&track, NULL, 0U, error, sizeof(error)));
+	assert(cstrk_validate(&track, error, sizeof(error)));
+	assert(track.custom_horizon[0] == 0);
+	assert(!cstrk_set_custom_horizon(NULL, NULL, 0U, error, sizeof(error)));
+	track.version = CSTRK_VERSION;
+	memset(track.custom_horizon, 'u', sizeof(track.custom_horizon));
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	cstrk_free(&track);
+}
+
+static void assert_custom_horizon_decode_preserved(const legacy_u8 *data, size_t size,
+												   struct CSTRK_TRACK *decoded)
+{
+	struct CSTRK_TRACK before = *decoded;
+	assert(!cstrk_decode(data, size, decoded, error, sizeof(error)));
+	assert(memcmp(&before, decoded, sizeof(before)) == 0);
+}
+
+static void test_custom_horizon_wire(void)
+{
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_CITY;
+	struct CSTRK_OBJECT object = object_at(0U, 0U);
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	static const legacy_char notes[] = "Keep notes.\r\n";
+	assert(cstrk_set_notes(&track, notes, sizeof(notes) - 1U, error, sizeof(error)));
+	legacy_u8 *plain = NULL, *named = NULL;
+	size_t plain_size = 0, named_size = 0;
+	assert(cstrk_encode(&track, &plain, &plain_size, error, sizeof(error)));
+	static const legacy_s8 name[] = "\xc3\xa1rv\xc3\xadzt\xc5\xb1r\xc5\x91.PNG";
+	const size_t length = sizeof(name) - 1U;
+	assert(cstrk_set_custom_horizon(&track, name, length, error, sizeof(error)));
+	assert(cstrk_encode(&track, &named, &named_size, error, sizeof(error)));
+	assert(named_size == plain_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE + length);
+	assert(LEGACY_READ_U32_LE(named + CSTRK_PAYLOAD_SIZE_OFFSET) == named_size - CSTRK_HEADER_SIZE);
+	assert(memcmp(plain, named, CSTRK_PAYLOAD_SIZE_OFFSET) == 0);
+	assert(memcmp(plain + CSTRK_HEADER_SIZE, named + CSTRK_HEADER_SIZE,
+				  plain_size - CSTRK_HEADER_SIZE) == 0);
+	assert(LEGACY_READ_U16_LE(named + plain_size) == length);
+	assert(memcmp(named + plain_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE, name, length) == 0);
+	assert(cstrk_decode(named, named_size, &decoded, error, sizeof(error)));
+	assert(strcmp((const legacy_char *)decoded.custom_horizon, (const legacy_char *)name) == 0);
+	assert(decoded.horizon == track.horizon && strcmp(decoded.notes, notes) == 0);
+	legacy_u8 *again = NULL;
+	size_t again_size = 0;
+	assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+	assert(again_size == named_size && memcmp(again, named, named_size) == 0);
+	free(again);
+	for (size_t end = plain_size; end < named_size; end++) {
+		assert_custom_horizon_decode_preserved(named, end, &decoded);
+	}
+	legacy_u8 *bad = malloc(named_size + 1U);
+	assert(bad != NULL);
+	for (legacy_u16 revision = CSTRK_MIN_VERSION; revision < CSTRK_CUSTOM_HORIZON_VERSION;
+		 revision++) {
+		memcpy(bad, named, named_size);
+		LEGACY_WRITE_U16_LE(bad + CSTRK_VERSION_OFFSET, revision);
+		assert_custom_horizon_decode_preserved(bad, named_size, &decoded);
+	}
+	memcpy(bad, named, named_size);
+	LEGACY_WRITE_U16_LE(bad + plain_size, 0U);
+	assert_custom_horizon_decode_preserved(bad, named_size, &decoded);
+	LEGACY_WRITE_U16_LE(bad + plain_size, CSTRK_MAX_HORIZON_NAME + 1U);
+	assert_custom_horizon_decode_preserved(bad, named_size, &decoded);
+	LEGACY_WRITE_U16_LE(bad + plain_size, length - 1U);
+	assert_custom_horizon_decode_preserved(bad, named_size, &decoded);
+	static const legacy_u8 invalid_first[] = {0U, 0xffU, '/', '\\'};
+	for (size_t index = 0; index < sizeof(invalid_first); index++) {
+		memcpy(bad, named, named_size);
+		bad[plain_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE] = invalid_first[index];
+		assert_custom_horizon_decode_preserved(bad, named_size, &decoded);
+	}
+	memcpy(bad, named, named_size);
+	bad[named_size] = 0;
+	LEGACY_WRITE_U32_LE(bad + CSTRK_PAYLOAD_SIZE_OFFSET, named_size + 1U - CSTRK_HEADER_SIZE);
+	assert_custom_horizon_decode_preserved(bad, named_size + 1U, &decoded);
+	memcpy(bad, plain, plain_size);
+	LEGACY_WRITE_U16_LE(bad + plain_size, 0U);
+	LEGACY_WRITE_U32_LE(bad + CSTRK_PAYLOAD_SIZE_OFFSET,
+						plain_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE - CSTRK_HEADER_SIZE);
+	assert_custom_horizon_decode_preserved(bad, plain_size + CSTRK_CUSTOM_HORIZON_LENGTH_SIZE,
+										   &decoded);
+	memcpy(bad, named, named_size);
+	LEGACY_WRITE_U16_LE(bad + CSTRK_VERSION_OFFSET, TEST_FUTURE_REVISION);
+	assert(cstrk_decode(bad, named_size, &decoded, error, sizeof(error)));
+	assert(decoded.version == TEST_FUTURE_REVISION);
+	assert(strcmp((const legacy_char *)decoded.custom_horizon, (const legacy_char *)name) == 0);
+	LEGACY_WRITE_U16_LE(plain + CSTRK_VERSION_OFFSET, CSTRK_CUSTOM_HORIZON_VERSION - 1U);
+	assert(cstrk_decode(plain, plain_size, &decoded, error, sizeof(error)));
+	assert(decoded.version == CSTRK_VERSION && decoded.custom_horizon[0] == 0);
+	assert(decoded.horizon == CSTRK_HORIZON_CITY && strcmp(decoded.notes, notes) == 0);
+	free(bad);
+	free(named);
+	free(plain);
+	cstrk_free(&decoded);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
+	test_custom_horizon_names();
+	test_custom_horizon_wire();
 	test_checkpoint_records();
 	test_crop_field_records();
 	test_wire_layout();

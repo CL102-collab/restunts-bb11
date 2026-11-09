@@ -7,10 +7,13 @@
 struct SPRITE;
 struct SHAPE2D;
 struct MATRIX;
+struct SDL_Surface;
 
 /* Capture the original six-bit VGA palette, independently of later fades. */
 void skybox_hires_set_palette(const legacy_u8 *palette);
 void skybox_hires_unload(void);
+/* Map opaque custom panoramas with the same original palette as built-in art. */
+struct SDL_Surface *skybox_hires_convert_surface(struct SDL_Surface *source);
 void skybox_hires_draw(const struct SPRITE *target, legacy_s16 theme, legacy_s16 image,
 					   legacy_s32 width, legacy_s32 height, legacy_s32 x, legacy_s32 y);
 

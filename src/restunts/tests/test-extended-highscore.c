@@ -27,6 +27,9 @@
 #define LEGACY_TRACK_PATH SCORE_DIRECTORY "/TWIN.TRK"
 #define FOLDER_TRACK_STEM "FOLDER"
 #define FOLDER_TRACK_PATH "tracks/" FOLDER_TRACK_STEM ".CSTRK"
+#define MAXIMUM_TRACK_STEM "MAXIMUM"
+#define MAXIMUM_TRACK_PATH SCORE_DIRECTORY "/" MAXIMUM_TRACK_STEM ".CSTRK"
+#define MAXIMUM_SCORE_PATH SCORE_DIRECTORY "/" MAXIMUM_TRACK_STEM ".cshig"
 
 static void write_bytes(const char *path, const uint8_t *bytes, size_t size)
 {
@@ -229,11 +232,15 @@ static void test_track_identity(struct CSTRK_TRACK *track)
 	struct CSTRK_OBJECT temporary = track->objects[0];
 	track->objects[0] = track->objects[1];
 	track->objects[1] = temporary;
+	memcpy(track->custom_horizon, "Changed skyline.png", sizeof("Changed skyline.png"));
+	track->horizon = CSTRK_HORIZON_CITY;
 	write_track(track);
 	/* Keep the raced model's older notes/order while the on-disk editorial
-	 * revision changes. Neither difference may disqualify the finish. */
+	 * revision and horizon artwork change. None may disqualify the finish. */
 	track->objects[1] = track->objects[0];
 	track->objects[0] = temporary;
+	track->custom_horizon[0] = '\0';
+	track->horizon = CSTRK_HORIZON_DEFAULT;
 	assert(cstrk_set_notes(track, "First revision", 14U, error, sizeof(error)));
 	assert(extended_highscore_validate_track(SCORE_DIRECTORY, "TWIN", track) == 0);
 	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "TWIN", track, 0) == 0);
@@ -422,6 +429,50 @@ static void test_track_folder_loading(struct CSTRK_TRACK *track)
 	assert(chdir("..") == 0);
 }
 
+static void test_maximum_custom_horizon_track(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, NULL, 0));
+	track.object_count = CSTRK_MAX_OBJECTS;
+	track.objects = calloc(track.object_count, sizeof(*track.objects));
+	assert(track.objects != NULL);
+	for (legacy_u32 index = 0; index < track.object_count; index++) {
+		struct CSTRK_OBJECT *object = &track.objects[index];
+		object->legacy_id = 4U;
+		object->x = (legacy_u8)(index % CSTRK_MAX_DIMENSION);
+		object->y = (legacy_u8)(index / CSTRK_MAX_DIMENSION);
+		object->width = object->height = object->occupied_mask = 1U;
+	}
+	memset(track.notes, 'N', CSTRK_MAX_NOTES);
+	track.notes[CSTRK_MAX_NOTES] = '\0';
+	track.notes_length = CSTRK_MAX_NOTES;
+	memset(track.custom_horizon, 'h', CSTRK_MAX_HORIZON_NAME);
+	memcpy(track.custom_horizon + CSTRK_MAX_HORIZON_NAME - (sizeof(".png") - 1U), ".png",
+		   sizeof(".png"));
+	legacy_u8 *bytes = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &bytes, &size, NULL, 0));
+	assert(size == CSHIG_MAX_TRACK_SIZE + CSTRK_MAX_NOTES + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE);
+	write_bytes(MAXIMUM_TRACK_PATH, bytes, size);
+	free(bytes);
+	assert(extended_highscore_validate_track(SCORE_DIRECTORY, MAXIMUM_TRACK_STEM, &track) == 0);
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, MAXIMUM_TRACK_STEM, &track, 1) == 0);
+	struct CSHIG_ENTRY entry = score_entry("Largest sky", 1234U);
+	legacy_uint rank = UINT_MAX;
+	assert(extended_highscore_record(SCORE_DIRECTORY, MAXIMUM_TRACK_STEM, &track, &entry, &rank) ==
+		   0);
+	assert(rank == 0U);
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, MAXIMUM_TRACK_STEM, &track, 0) == 0);
+	check_loaded_score(0U, "Largest sky", 1234U);
+	bytes = read_bytes(MAXIMUM_SCORE_PATH, &size);
+	assert(size == CSHIG_MAX_FILE_SIZE);
+	free(bytes);
+	assert(remove(MAXIMUM_TRACK_PATH) == 0);
+	assert(remove(MAXIMUM_SCORE_PATH) == 0);
+	cstrk_free(&track);
+}
+
 static void remove_test_directory(void)
 {
 	if (sdl3_file_exists(SCORE_DIRECTORY) == 0) {
@@ -433,6 +484,8 @@ static void remove_test_directory(void)
 	remove(SCORE_PATH);
 	remove(LEGACY_SCORE_PATH);
 	remove(LEGACY_TRACK_PATH);
+	remove(MAXIMUM_TRACK_PATH);
+	remove(MAXIMUM_SCORE_PATH);
 	for (const legacy_s8 *name = dos_file_find_first(SCORE_DIRECTORY "/_H*.tmp"); name != NULL;
 		 name = dos_file_find_next()) {
 		char path[128];
@@ -472,6 +525,7 @@ int main(void)
 	test_failure_preserves_scores(&track);
 	test_full_table(&track);
 	test_track_folder_loading(&track);
+	test_maximum_custom_horizon_track();
 	check_bytes(LEGACY_SCORE_PATH, legacy_scores, sizeof(legacy_scores));
 	check_bytes(LEGACY_TRACK_PATH, legacy_track, sizeof(legacy_track));
 	cstrk_free(&track);
