@@ -15,9 +15,28 @@
 #include "extended_track.h"
 #include "extended_geometry.h"
 #include "roll_ramp.h"
+#include "checkpoint_shape.h"
 #endif
 
 #ifdef RESTUNTS_SDL3
+#define CHECKPOINT_SOLID_BOX_COUNT 5U
+static const struct TRACK_SOLID_BOX checkpoint_boxes[CHECKPOINT_SOLID_BOX_COUNT] = {
+	{{-CHECKPOINT_GATE_OUTER_HALF_WIDTH, 0, -CHECKPOINT_GATE_HALF_DEPTH},
+	 {-CHECKPOINT_GATE_INNER_HALF_WIDTH, CHECKPOINT_GATE_LOWER_POLE_HEIGHT,
+	  CHECKPOINT_GATE_HALF_DEPTH}},
+	{{CHECKPOINT_GATE_INNER_HALF_WIDTH, 0, -CHECKPOINT_GATE_HALF_DEPTH},
+	 {CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_LOWER_POLE_HEIGHT,
+	  CHECKPOINT_GATE_HALF_DEPTH}},
+	{{-CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_LOWER_POLE_HEIGHT,
+	  -CHECKPOINT_GATE_HALF_DEPTH},
+	 {-CHECKPOINT_GATE_UPPER_INNER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_BOTTOM,
+	  CHECKPOINT_GATE_HALF_DEPTH}},
+	{{CHECKPOINT_GATE_UPPER_INNER_HALF_WIDTH, CHECKPOINT_GATE_LOWER_POLE_HEIGHT,
+	  -CHECKPOINT_GATE_HALF_DEPTH},
+	 {CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_BOTTOM, CHECKPOINT_GATE_HALF_DEPTH}},
+	{{-CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_BOTTOM, -CHECKPOINT_GATE_HALF_DEPTH},
+	 {CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_TOP, CHECKPOINT_GATE_HALF_DEPTH}}};
+
 static legacy_s16 roll_ramp_clip_solid(legacy_s64 first, legacy_s64 second, legacy_s16 *entry,
 									   legacy_s16 *exit)
 {
@@ -126,7 +145,8 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 		const struct CSTRK_OBJECT *object = &track->objects[i];
 		legacy_u32 id = extended_track_object_id(object);
 		if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0]) ||
-			(!object->roll_ramp && trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
+			(!object->roll_ramp && !cstrk_is_checkpoint(object->legacy_id) &&
+			 trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
 			continue;
 		}
 		struct VECTOR origin, local_first, local_second;
@@ -154,8 +174,10 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 			absolute_z - center_z < -3072 || absolute_z - center_z > 3072) {
 			continue;
 		}
-		legacy_s16 orientation =
-			object->roll_ramp ? roll_ramp_orientation(object) : trkObjectList[id].ss_rotY;
+		legacy_s16 orientation = object->roll_ramp ? roll_ramp_orientation(object)
+								 : cstrk_is_checkpoint(object->legacy_id)
+									 ? object->rotation * ANGLE_QUARTER_TURN
+									 : trkObjectList[id].ss_rotY;
 		track_rotate_local(&local_first, orientation);
 		track_rotate_local(&local_second, orientation);
 		if (object->roll_ramp) {
@@ -168,9 +190,15 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 			}
 			continue;
 		}
-		for (legacy_u16 box = 0; box < box_count; box++) {
+		const struct TRACK_SOLID_BOX *solids = boxes;
+		legacy_u16 solid_count = box_count;
+		if (cstrk_is_checkpoint(object->legacy_id)) {
+			solids = checkpoint_boxes;
+			solid_count = CHECKPOINT_SOLID_BOX_COUNT;
+		}
+		for (legacy_u16 box = 0; box < solid_count; box++) {
 			legacy_s16 contact;
-			if (solid_box_contact(&local_first, &local_second, &boxes[box], &contact)) {
+			if (solid_box_contact(&local_first, &local_second, &solids[box], &contact)) {
 				if (!hit || contact < earliest) {
 					earliest = contact;
 				}
@@ -416,7 +444,8 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 		const struct CSTRK_OBJECT *object = &track->objects[index];
 		legacy_u16 id = extended_track_object_id(object);
 		if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0]) ||
-			(!object->roll_ramp && trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
+			(!object->roll_ramp && !cstrk_is_checkpoint(object->legacy_id) &&
+			 trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
 			continue;
 		}
 		legacy_s32 center_x =
@@ -436,8 +465,10 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 		}
 		struct VECTOR origin;
 		extended_geometry_object_origin(track, object, &origin);
-		legacy_s16 orientation =
-			object->roll_ramp ? roll_ramp_orientation(object) : trkObjectList[id].ss_rotY;
+		legacy_s16 orientation = object->roll_ramp ? roll_ramp_orientation(object)
+								 : cstrk_is_checkpoint(object->legacy_id)
+									 ? object->rotation * ANGLE_QUARTER_TURN
+									 : trkObjectList[id].ss_rotY;
 		struct TRACK_FIXED_SOLID_POINT local_first =
 			fixed_solid_local(first, center_x, origin.y, center_z, orientation);
 		struct TRACK_FIXED_SOLID_POINT local_second =
@@ -448,6 +479,8 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 							  fixed_ramp_point_above_road(&local_second, object, orientation);
 		legacy_u16 count = object->roll_ramp
 							   ? ROLL_RAMP_SEGMENT_COUNT / 2U + ROLL_RAMP_SUPPORT_BOX_COUNT
+						   : cstrk_is_checkpoint(object->legacy_id)
+							   ? CHECKPOINT_SOLID_BOX_COUNT
 							   : sizeof(slalom_boxes) / sizeof(slalom_boxes[0]);
 		for (legacy_u16 part = 0; part < count; part++) {
 			struct TRACK_SOLID_BOX box;
@@ -471,7 +504,8 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 				box.maximum = support.maximum;
 				end_height = box.maximum.y;
 			} else {
-				box = slalom_boxes[part];
+				box = cstrk_is_checkpoint(object->legacy_id) ? checkpoint_boxes[part]
+															 : slalom_boxes[part];
 				end_height = box.maximum.y;
 			}
 			legacy_s16 contact;

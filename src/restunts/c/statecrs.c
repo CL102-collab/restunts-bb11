@@ -8,6 +8,7 @@
 #include "audio/audio_control.h"
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended/extended_statecrs.h"
+#include "extended/extended_checkpoint.h"
 #endif
 
 #define CAR_CRASH_PARTICLE_KIND_COUNT 2
@@ -288,6 +289,11 @@ void update_crash_state(legacy_s16 crash_event, legacy_s16 car_index)
 			break;
 
 		case CRASH_EVENT_FINISH:
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
+			if (!extended_checkpoint_finish_allowed(car_index)) {
+				return;
+			}
+#endif
 			carstate->car_crashBmpFlag = CRASH_EVENT_FINISH;
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 			extended_crash_record_finish(car_index);

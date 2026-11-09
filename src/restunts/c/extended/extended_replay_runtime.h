@@ -4,6 +4,7 @@
 #include "csrpl.h"
 #include "extended_replay.h"
 #include "../legacy.h"
+#include "extended_checkpoint.h"
 
 struct EXTENDED_REPLAY_CLOCKS {
 	uint32_t frame;
@@ -12,6 +13,7 @@ struct EXTENDED_REPLAY_CLOCKS {
 	uint32_t opponent_finish;
 	uint32_t player_end;
 	uint32_t penalty;
+	struct EXTENDED_CHECKPOINT_PROGRESS checkpoints;
 };
 
 extern struct EXTENDED_REPLAY_CLOCKS extended_replay_clocks;

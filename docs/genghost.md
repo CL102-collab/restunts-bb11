@@ -389,7 +389,15 @@ the selected restrictions all act through the same simulation used for replay
 playback.
 
 The legacy route planner enumerates simple directed start-to-finish paths through the
-track's branch connections. The search explores alternatives and refines
+track's branch connections. On extended tracks, a candidate route must include
+every blue checkpoint or every red checkpoint; a color absent from the track
+does not provide an empty alternative. Each complete color has its own search
+case, including when one physical path contains both colors. A case protects
+only its chosen color, so completing either set permits the remaining shortcuts.
+Tracks without checkpoints retain the usual finish rule.
+The controller guides the car through mandatory checkpoint openings even when
+grass shortcuts or branch switching are enabled, and simulation snapshots
+preserve which gates the car has actually passed. The search explores alternatives and refines
 driving parameters for 64 route segments, then refines recorded steering,
 pedal, and shift inputs. Segment genes control speed, cornering, racing line,
 shifts, shortcut attempts, power gear entry, and whether to brake during a

@@ -409,6 +409,8 @@ void extended_track_unload(void)
  * shape, keeping handed pieces distinct. Symmetric straights and scenery can
  * reuse the opposite spelling, since their route and shape are unchanged. */
 #define EXTENDED_FOOTPRINT_DIRECTION_COUNT 4U
+#define EXTENDED_CHECKPOINT_ROAD_FIRST_ID 4U
+#define EXTENDED_CHECKPOINT_AXIS_COUNT 2U
 #define EXTENDED_FOOTPRINT_FULL_SQUARE_MASK 15U
 #define EXTENDED_FOOTPRINT_NORTHWEST_SOUTHEAST_MASK 9U
 #define EXTENDED_FOOTPRINT_NORTHEAST_SOUTHWEST_MASK 6U
@@ -478,6 +480,15 @@ static legacy_int object_footprint_valid(const struct CSTRK_OBJECT *object)
 
 static int resolve_object_id(const struct CSTRK_OBJECT *object)
 {
+	/* A checkpoint is a straight road for traversal and wheel contact. Its
+	 * authored gate remains independent, so it cannot be mistaken for finish. */
+	if (cstrk_is_checkpoint(object->legacy_id)) {
+		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
+			return -1;
+		}
+		return EXTENDED_CHECKPOINT_ROAD_FIRST_ID +
+			   object->rotation % EXTENDED_CHECKPOINT_AXIS_COUNT;
+	}
 	/* Extended-only scenery retains its independent object while the legacy
 	 * route map sees an empty cell, without requiring new original assets. */
 	if (cstrk_is_crop_field(object->legacy_id)) {
@@ -539,7 +550,7 @@ static int resolve_object_id(const struct CSTRK_OBJECT *object)
 static legacy_s16 object_hill_id(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
 								 legacy_s16 id)
 {
-	if (!object->slope_x && !object->slope_y) {
+	if (cstrk_is_checkpoint(object->legacy_id) || (!object->slope_x && !object->slope_y)) {
 		return id;
 	}
 	legacy_s16 native = extended_geometry_native_hill_id(object, id);

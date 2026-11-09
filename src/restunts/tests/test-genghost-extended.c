@@ -8,6 +8,7 @@
 #include "../genghost/search.h"
 #include "../c/externs.h"
 #include "../c/extended/cstrk.h"
+#include "../c/extended/extended_checkpoint.h"
 #include "../c/extended/csrpl.h"
 #include "../c/driving_rules.h"
 #include "../c/extended/extended_track.h"
@@ -250,6 +251,19 @@ static void sample_roll(struct EXTENDED_TEST_ROLL *roll)
 	}
 }
 
+static legacy_u16 checkpoint_passed_count(legacy_u16 id)
+{
+	const struct CSTRK_TRACK *track = extended_track_model();
+	legacy_u16 count = 0;
+	for (legacy_u32 index = 0; index < track->object_count; index++) {
+		const struct CSTRK_OBJECT *object = &track->objects[index];
+		if (object->legacy_id == id && extended_checkpoint_passed(object, PLAYER_CAR_INDEX)) {
+			count++;
+		}
+	}
+	return count;
+}
+
 static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_char *program)
 {
 	struct CSRPL_VIEW replay;
@@ -258,8 +272,24 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 	struct EXTENDED_TEST_ROLL roll;
 	initialize_roll(&roll);
 	legacy_s32 maximum_x = 0, maximum_z = 0;
+	legacy_uint checkpoint_frame = 0;
+	legacy_u8 captured_checkpoint = 0;
+	const struct CSTRK_TRACK *track = extended_track_model();
+	legacy_u8 has_checkpoints = 0;
+	for (legacy_u32 index = 0; index < track->object_count; index++) {
+		has_checkpoints |= cstrk_is_checkpoint(track->objects[index].legacy_id);
+	}
+	struct GENGHOST_SNAPSHOT checkpoint, expected, restored;
 	for (legacy_uint frame = 0; frame < replay.metadata.frame_count; frame++) {
+		if (has_checkpoints && !captured_checkpoint) {
+			genghost_sim_capture(&checkpoint);
+			checkpoint_frame = frame;
+		}
 		assert(genghost_sim_step(replay.inputs[frame]) >= 0);
+		if (has_checkpoints && (checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID) ||
+								checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID))) {
+			captured_checkpoint = 1;
+		}
 		assert(genghost_sim_frame() == frame + 1U);
 		sample_roll(&roll);
 		if (state.playerstate.car_position.lx > maximum_x) {
@@ -269,17 +299,29 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 			maximum_z = state.playerstate.car_position.lz;
 		}
 	}
+	if (has_checkpoints) {
+		assert(captured_checkpoint);
+		genghost_sim_capture(&expected);
+		genghost_sim_restore(&checkpoint);
+		for (legacy_uint frame = checkpoint_frame; frame < replay.metadata.frame_count; frame++) {
+			assert(genghost_sim_step(replay.inputs[frame]) >= 0);
+		}
+		genghost_sim_capture(&restored);
+		assert(memcmp(&expected, &restored, sizeof(restored)) == 0);
+	}
 	struct GENGHOST_RESULT result;
 	genghost_sim_result(&result);
 	printf("{\"frames\":%u,\"finished\":%s,\"crashed\":%s,\"finish_frame\":%u,"
 		   "\"penalty_frames\":%u,\"total_frames\":%u,\"frames_per_second\":%u,"
 		   "\"maximum_x\":%d,\"maximum_z\":%d,\"barrel_present\":%s,"
-		   "\"barrel_complete\":%s,\"airborne_roll\":%d}\n",
+		   "\"barrel_complete\":%s,\"airborne_roll\":%d,\"blue_passed\":%u,\"red_passed\":%u}\n",
 		   result.frames, result.finished ? "true" : "false", result.crashed ? "true" : "false",
 		   result.finish_frame, result.penalty_frames, result.total_frames,
 		   genghost_sim_frame_rate(), (legacy_int)(maximum_x / EXTENDED_TEST_POSITION_SCALE),
 		   (legacy_int)(maximum_z / EXTENDED_TEST_POSITION_SCALE), roll.present ? "true" : "false",
-		   roll.complete ? "true" : "false", (legacy_int)roll.maximum);
+		   roll.complete ? "true" : "false", (legacy_int)roll.maximum,
+		   checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID),
+		   checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID));
 }
 
 static legacy_int budget_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)

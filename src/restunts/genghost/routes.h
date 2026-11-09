@@ -72,6 +72,8 @@ struct GENGHOST_ROUTE {
 	struct GENGHOST_WAYPOINT *points;
 	size_t point_count;
 	legacy_f64 length;
+	/* One required checkpoint color for this route case; NONE for tracks without gates. */
+	legacy_u8 checkpoint_colors;
 };
 
 struct GENGHOST_ROUTES {

@@ -255,6 +255,7 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 #endif
 		update_race_start_sequence();
 	}
+	extended_gamestep_finish_step();
 }
 
 void update_gamestate(void)

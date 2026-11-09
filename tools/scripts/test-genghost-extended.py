@@ -16,8 +16,8 @@ from regression_timeouts import scaled_timeout
 
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
-CSTRK_VERSION = 12
-CSRPL_VERSION = 17
+CSTRK_VERSION = 13
+CSRPL_VERSION = 18
 CSRPL_MIN_VERSION = 11
 CSRPL_FUTURE_VERSION = 101
 CSTRK_HEADER_SIZE = 32
@@ -37,6 +37,13 @@ REPLAY_PART = 2
 STUNT_PART = 3
 TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART)
 BARREL_ROTATION_COUNT = 4
+BLUE_CHECKPOINT_ID = 218
+RED_CHECKPOINT_ID = 219
+CHECKPOINT_ROWS = (10, 14)
+BRANCH_TOP, BRANCH_SPLIT, BRANCH_BOTTOM, BRANCH_START = 8, 18, 26, 22
+BRANCH_LEFT, BRANCH_MERGE, BRANCH_RIGHT = 72, 78, 84
+BRANCH_CHECKPOINT_ROW, BRANCH_CHECKPOINT_COLUMN = 13, 75
+BRANCH_SPLIT_ID, BRANCH_MERGE_ID = 79, 76
 # Keep each orientation/rate pair's collision modes together. Measured native
 # runtimes balance these searches with each part's format, replay or stunt work.
 BARREL_PARTS = {
@@ -74,6 +81,9 @@ def track_bytes(kind="flat", rotation=0, surface=0):
     left, right = (45, 51) if tight_barrel else ((70, 76) if barrel else (72, 78))
     top, bottom = (15, 45) if tight_barrel else ((20, 55) if barrel else (8, 16))
     start = top + 2 if barrel else (bottom - 1 if kind == "combined" else top + 3)
+    if kind.startswith("branches"):
+        left, right, top, bottom, start = (BRANCH_LEFT, BRANCH_RIGHT, BRANCH_TOP,
+                                           BRANCH_BOTTOM, BRANCH_START)
     launch = bottom - 7 if tight_barrel else 43
     landing = bottom - 1 if tight_barrel else 48
     pieces = [object_record(6, left, top), object_record(7, right, top),
@@ -93,6 +103,30 @@ def track_bytes(kind="flat", rotation=0, surface=0):
         pieces.append(piece)
     if barrel:
         pieces.append(object_record(85, left, launch, width=1, height=2, mask=3, roll=1))
+    if kind.startswith("branches"):
+        for piece in pieces:
+            if (piece["x"], piece["y"]) == (left, BRANCH_SPLIT):
+                piece["tile"] = BRANCH_SPLIT_ID
+            elif (piece["x"], piece["y"]) == (BRANCH_MERGE, top):
+                piece["tile"] = BRANCH_MERGE_ID
+            elif kind != "branches-red" and (piece["x"], piece["y"]) in (
+                    (left, BRANCH_CHECKPOINT_ROW), (BRANCH_CHECKPOINT_COLUMN, top)):
+                piece["tile"] = BLUE_CHECKPOINT_ID
+                piece["rotation"] = int(piece["y"] == top)
+        pieces.append(object_record(9, BRANCH_MERGE, BRANCH_SPLIT))
+        for column in range(left + 1, BRANCH_MERGE):
+            gate = kind != "branches-blue" and column == BRANCH_CHECKPOINT_COLUMN
+            piece = object_record(RED_CHECKPOINT_ID if gate else 5, column, BRANCH_SPLIT)
+            piece["rotation"] = int(gate)
+            pieces.append(piece)
+        for row in range(top + 1, BRANCH_SPLIT):
+            gate = kind != "branches-blue" and row == BRANCH_CHECKPOINT_ROW
+            pieces.append(object_record(RED_CHECKPOINT_ID if gate else 4, BRANCH_MERGE, row))
+    if kind in ("blue", "red", "both"):
+        for piece in pieces:
+            if piece["y"] in CHECKPOINT_ROWS and piece["x"] in (left, right):
+                piece["tile"] = (RED_CHECKPOINT_ID if kind == "red" or
+                                 (kind == "both" and piece["x"] == right) else BLUE_CHECKPOINT_ID)
     if kind == "dense":
         # Keep scenery clear of the lap while exercising a valid track payload
         # larger than the old entire-file reader limit.
@@ -230,6 +264,36 @@ def main():
         assert view["version"] == CSRPL_VERSION
         assert replayed["maximum_x"] > 65535 and replayed["maximum_z"] > 65535
         if args.part in (None, FORMAT_PART):
+            for kind, rotation, surface in (("blue", 0, 0), ("red", 1, 1), ("both", 2, 2)):
+                checkpoint_path = output / f"checkpoints-{kind}.cstrk"
+                checkpoint_path.write_bytes(track_bytes(kind, rotation, surface))
+                checkpoint_ghost, checkpoint_view, checkpoint_report, checkpoint_playback = generate(
+                    checkpoint_path, "COUN", f"checkpoints-{kind}.csrpl", evaluations=256)
+                assert checkpoint_view["track"] == checkpoint_path.read_bytes()
+                assert checkpoint_report["route_combinations"] == (2 if kind == "both" else 1)
+                assert checkpoint_report["routes_finished"] == (2 if kind == "both" else 1)
+                if kind == "both":
+                    assert checkpoint_playback["blue_passed"] == 2 or checkpoint_playback["red_passed"] == 2
+                else:
+                    assert checkpoint_playback["blue_passed"] == (0 if kind == "red" else 4)
+                    assert checkpoint_playback["red_passed"] == (0 if kind == "blue" else 4)
+                # The same mandatory gate protection applies to permissive driving.
+                generate(checkpoint_path, "COUN", f"checkpoints-{kind}-free.csrpl",
+                         evaluations=256, flags=("--pg:off", "--lc:off"))
+            for kind in ("branches", "branches-blue", "branches-red"):
+                branch_path = output / f"{kind}.cstrk"
+                branch_path.write_bytes(track_bytes(kind))
+                _, _, branch_report, branch_playback = generate(
+                    branch_path, "COUN", f"{kind}.csrpl", evaluations=512)
+                combinations = 2 if kind == "branches" else 1
+                assert branch_report["route_combinations"] == combinations
+                assert branch_report["routes_attempted"] == combinations
+                assert branch_report["routes_finished"] == combinations
+                if kind != "branches":
+                    required = "blue_passed" if kind == "branches-blue" else "red_passed"
+                    assert branch_playback[required] == 2
+            print("Checkpoint forks compile and finish every blue/red route case", flush=True)
+            print("Blue-only, red-only and mixed checkpoints generate verified ghosts on paved, dirt and ice", flush=True)
             second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
             assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
             print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)

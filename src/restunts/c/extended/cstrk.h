@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "../legacy.h"
 
-#define CSTRK_VERSION 12U
+#define CSTRK_VERSION 13U
 #define CSTRK_MIN_VERSION 3U
 #define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_SLOPED_STUNT_VERSION 5U
@@ -18,6 +18,7 @@
 #define CSTRK_WHEAT_FIELD_VERSION 11U
 #define CSTRK_TULIP_FIELD_VERSION 12U
 #define CSTRK_VINE_FIELD_VERSION 12U
+#define CSTRK_CHECKPOINT_VERSION 13U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -30,6 +31,8 @@
 #define CSTRK_WHEAT_FIELD_ID 215U
 #define CSTRK_TULIP_FIELD_ID 216U
 #define CSTRK_VINE_FIELD_ID 217U
+#define CSTRK_BLUE_CHECKPOINT_ID 218U
+#define CSTRK_RED_CHECKPOINT_ID 219U
 #define CSTRK_PINE_GROUP_OLD_COUNT 5U /* Decode-only alias for the six-tree group. */
 #define CSTRK_PINE_GROUP_SMALL_COUNT 6U
 #define CSTRK_PINE_GROUP_LARGE_COUNT 10U
@@ -115,7 +118,7 @@ struct CSTRK_CELL {
  * Bit (row * width + column) claims that cell. Unclaimed cells remain usable.
  * Vertices touching claimed cells lie on the rigid support plane
  * base_height + slope_x*x + slope_y*y; other vertices may form hills.
- * IDs refer to the original catalog or an extended scenery definition;
+ * IDs refer to the original catalog, extended scenery or a checkpoint gate;
  * resource admission is separate. */
 struct CSTRK_OBJECT {
 	uint16_t legacy_id;
@@ -158,6 +161,8 @@ struct CSTRK_TRACK {
  * revisions retain their numeric metadata. Encode preserves the stored revision. */
 /* Extended-only, drive-through crop scenery; not native catalog indexes. */
 legacy_int cstrk_is_crop_field(legacy_u16 id);
+/* Extended road gates use their authored color and independent rotation. */
+legacy_int cstrk_is_checkpoint(legacy_u16 id);
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,

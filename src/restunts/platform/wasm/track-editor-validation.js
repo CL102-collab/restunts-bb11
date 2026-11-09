@@ -20,6 +20,7 @@
     const FLAT_TERRAIN = 0, RAISED_TERRAIN = 6;
     const HILL_TERRAIN_FIRST = 7, HILL_TERRAIN_END = 11, HILL_ROAD_FIRST = 182, HILL_SPAN_FIRST = 194;
     const HILL_DIRECTION_COUNT = 4, HILL_DIRECT_VARIANT_COUNT = 3;
+    const STRAIGHT_ROAD_VERTICAL = 4, STRAIGHT_ROAD_HORIZONTAL = 5;
     const ROLL_RAMP_LAUNCH_CONNECTION = 6, ROLL_RAMP_JUMP_MAX_EMPTY_TILES = 6;
     const ORDINARY_JUMP_CONNECTION = 1, ORDINARY_JUMP_MAX_EMPTY_TILES = 2;
     const ROLL_RAMP_ENTRIES = [1, 8, 11, 4], ROLL_RAMP_EXITS = [11, 4, 1, 8];
@@ -44,6 +45,7 @@
     }
     function resolveOrientation(object) {
         if (model.isCropField(object.id)) return 0;
+        if (model.isCheckpoint(object.id)) return object.rotation % 2 ? STRAIGHT_ROAD_HORIZONTAL : STRAIGHT_ROAD_VERTICAL;
         const original = data.objects[object.id];
         if (!original || object.id < 1 || object.id >= 182) return -1;
         if (!object.rotation) return object.id;
@@ -62,7 +64,7 @@
     function resolveId(doc, object) {
         const id = resolveOrientation(object);
         if (id < 0) return id;
-        if (!object.slopeX && !object.slopeY) return id;
+        if (model.isCheckpoint(object.id) || (!object.slopeX && !object.slopeY)) return id;
         if (object.width > 1 || object.height > 1) return doc.supportsTerrain(object) ? id : -1;
         const profile = model.terrainProfile(doc.tileHeights(object.x, object.y));
         if (!profile) return -1;

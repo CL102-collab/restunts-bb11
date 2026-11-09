@@ -2,6 +2,7 @@
 #include "pine_trees.h"
 #include "wheat_field.h"
 #include "crop_fields.h"
+#include "checkpoint_shape.h"
 #include "../hires/shape3d_queue.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
@@ -311,6 +312,17 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (cstrk_is_checkpoint(model->legacy_id)) {
+		struct TRACKOBJECT gate = trkObjectList[CHECKPOINT_START_FINISH_ID];
+		struct TRACKOBJECT road = *frame_track_object_from_legacy_index(gate.ss_ssOvelay);
+		gate.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
+		road.ss_rotY = gate.ss_rotY;
+		if (frame_extended_draw_object_part(&object, &gate, 0) ||
+			frame_extended_draw_object_part(&object, &road, 1)) {
+			return 1;
+		}
+		return 0;
+	}
 	if (cstrk_is_crop_field(model->legacy_id)) {
 		struct TRACKOBJECT crop = *definition;
 		crop.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
@@ -484,6 +496,10 @@ legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *o
 	}
 	if (!transformed) {
 		return 0;
+	}
+	if (cstrk_is_checkpoint(object->object->legacy_id) &&
+		definition->ss_physicalModel == PHYSICAL_MODEL_START_FINISH) {
+		checkpoint_shape_modify(&mesh, object->object->legacy_id);
 	}
 	struct VECTOR anchor;
 	const struct VECTOR *upright_anchor =

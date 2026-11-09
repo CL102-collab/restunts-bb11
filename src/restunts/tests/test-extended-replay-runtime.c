@@ -25,6 +25,10 @@ legacy_u16 driving_rules_current(void)
 #define TEST_TIME_BUFFER_CAPACITY 32U
 #define TEST_TIME_LOW_FRAME_RATE 10U
 #define TEST_TIME_HIGH_FRAME_RATE 20U
+#define TEST_CHECKPOINT_EVENT_FRAME 66000U
+#define TEST_CHECKPOINT_OBJECT_INDEX 37U
+#define TEST_CHECKPOINT_VISITED_BYTE (TEST_CHECKPOINT_OBJECT_INDEX / 8U)
+#define TEST_CHECKPOINT_VISITED_MASK (1U << (TEST_CHECKPOINT_OBJECT_INDEX % 8U))
 
 static void test_replay_time_formatting(void)
 {
@@ -129,7 +133,13 @@ void update_gamestate(void)
 	state.playerstate.car_position.lx =
 		(legacy_s32)((uint32_t)state.playerstate.car_position.lx + input + (random_seed & 31U));
 	extended_replay_after_step();
-	if (extended_replay_frame() == 66000U) {
+	if (extended_replay_frame() == TEST_CHECKPOINT_EVENT_FRAME) {
+		extended_replay_clocks.checkpoints.initialized = 1;
+		extended_replay_clocks.checkpoints.visited[PLAYER_CAR_INDEX][TEST_CHECKPOINT_VISITED_BYTE] =
+			TEST_CHECKPOINT_VISITED_MASK;
+		extended_replay_clocks.checkpoints.remaining[PLAYER_CAR_INDEX][0] = 1U;
+		extended_replay_clocks.checkpoints.previous[PLAYER_CAR_INDEX] =
+			state.playerstate.car_position;
 		extended_replay_clocks.penalty = 80000U;
 		extended_replay_clocks.player_finish = 146000U;
 	}
@@ -233,10 +243,19 @@ int main(void)
 	uint32_t final_seed = random_seed;
 	legacy_s32 final_position = state.playerstate.car_position.lx;
 	assert(extended_replay_clocks.player_finish == 146000U);
+	struct EXTENDED_CHECKPOINT_PROGRESS final_checkpoints = extended_replay_clocks.checkpoints;
+	assert(final_checkpoints.initialized);
+	assert(final_checkpoints.visited[PLAYER_CAR_INDEX][TEST_CHECKPOINT_VISITED_BYTE] ==
+		   TEST_CHECKPOINT_VISITED_MASK);
 	assert(extended_replay_seek(65999U));
+	assert(!extended_replay_clocks.checkpoints.initialized);
+	assert(extended_replay_clocks.checkpoints
+			   .visited[PLAYER_CAR_INDEX][TEST_CHECKPOINT_VISITED_BYTE] == 0U);
 	assert(extended_replay_clocks.penalty == 0U);
 	assert(extended_replay_seek(100003U));
 	assert(random_seed == final_seed && state.playerstate.car_position.lx == final_position);
+	assert(memcmp(&extended_replay_clocks.checkpoints, &final_checkpoints,
+				  sizeof(final_checkpoints)) == 0);
 	assert(extended_replay_clocks.player_finish == 146000U);
 	assert(extended_replay_clocks.penalty == 80000U);
 	assert(!extended_replay_seek(100004U));
@@ -251,8 +270,12 @@ int main(void)
 	assert(extended_replay_seek(70001U));
 	struct GAMESTATE saved_state = state;
 	struct EXTENDED_REPLAY_SUSPENDED saved;
+	struct EXTENDED_CHECKPOINT_PROGRESS suspended_checkpoints = extended_replay_clocks.checkpoints;
 	extended_replay_runtime_suspend(&saved);
 	assert(!extended_replay_is_active());
+	assert(!extended_replay_clocks.checkpoints.initialized);
+	assert(memcmp(&saved.clocks.checkpoints, &suspended_checkpoints,
+				  sizeof(suspended_checkpoints)) == 0);
 	uint8_t ghost_inputs[3] = {1U, 2U, 3U};
 	struct CSRPL_VIEW ghost;
 	memset(&ghost, 0, sizeof(ghost));
@@ -271,12 +294,17 @@ int main(void)
 	extended_replay_runtime_resume(&saved);
 	assert(extended_replay_is_active());
 	assert(extended_replay_frame() == 70001U);
+	assert(memcmp(&extended_replay_clocks.checkpoints, &suspended_checkpoints,
+				  sizeof(suspended_checkpoints)) == 0);
 	assert(extended_replay_version() == CSRPL_VERSION);
 	assert(extended_replay_driving_rules() == DRIVING_RULE_KNOWN_MASK);
 	assert(extended_replay_recorded_frames() == 70001U);
 	assert(extended_replay_inputs()[70000U] == 23U);
 	assert(extended_replay_seek(0U));
 	assert(extended_replay_frame() == 0U && extended_replay_clocks.penalty == 0U);
+	assert(!extended_replay_clocks.checkpoints.initialized);
+	assert(extended_replay_clocks.checkpoints
+			   .visited[PLAYER_CAR_INDEX][TEST_CHECKPOINT_VISITED_BYTE] == 0U);
 	extended_replay_runtime_clear();
 	extended_replay_runtime_clear();
 	assert(!extended_replay_is_active());

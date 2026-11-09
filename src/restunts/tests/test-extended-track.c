@@ -21,6 +21,7 @@
 #include "../c/owoot/owoot_road.h"
 #include "../c/owoot/owoot_route.h"
 #include "../c/extended/roll_ramp.h"
+#include "../c/extended/checkpoint_shape.h"
 
 #undef memcpy
 #undef printf
@@ -3477,6 +3478,65 @@ static void test_cell_object_queries(void)
 	cstrk_free(&track);
 }
 
+static void test_checkpoint_roads(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, 4U, 4U, error, sizeof(error)));
+	static const legacy_u16 colors[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID};
+	for (legacy_u8 color = 0; color < sizeof(colors) / sizeof(colors[0]); color++) {
+		for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				struct CSTRK_OBJECT object = object_at(colors[color], 1U, 1U);
+				object.rotation = rotation;
+				object.surface = surface;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				const struct CSTRK_OBJECT *placed = extended_track_object_at(1, 1);
+				assert(placed && placed->legacy_id == colors[color]);
+				legacy_u16 id = extended_track_object_id(placed);
+				assert(trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_ROAD);
+				assert(trkObjectList[id].ss_trkObjInfoPtr != NULL);
+				struct VECTOR origin;
+				extended_geometry_object_origin(&track, &object, &origin);
+				(void)sample_world(origin.x, origin.y, origin.z);
+				static const legacy_s8 expected_surfaces[] = {CAR_SURFACE_PAVED, CAR_SURFACE_DIRT,
+															  CAR_SURFACE_ICE};
+				assert(current_surf_type == expected_surfaces[surface]);
+				static const struct VECTOR probes[] = {
+					{0, CHECKPOINT_GATE_SIGN_BOTTOM / 2, 0},
+					{(CHECKPOINT_GATE_INNER_HALF_WIDTH + CHECKPOINT_GATE_OUTER_HALF_WIDTH) / 2,
+					 CHECKPOINT_GATE_LOWER_POLE_HEIGHT / 2, 0},
+					{0, (CHECKPOINT_GATE_SIGN_BOTTOM + CHECKPOINT_GATE_SIGN_TOP) / 2, 0}};
+				for (legacy_u8 probe = 0; probe < sizeof(probes) / sizeof(probes[0]); probe++) {
+					struct VECTOR first = probes[probe], second = probes[probe];
+					first.z = -CHECKPOINT_GATE_HALF_DEPTH * 2;
+					second.z = CHECKPOINT_GATE_HALF_DEPTH * 2;
+					legacy_s16 inverse = (-rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+					track_rotate_local(&first, inverse);
+					track_rotate_local(&second, inverse);
+					first = object_world(&track, &object, first);
+					second = object_world(&track, &object, second);
+					legacy_s16 fraction;
+					assert(track_solid_obstacle_contact(&first, &second, &fraction) ==
+						   (probe != 0));
+					struct VECTORLONG fixed_first = {first.x * TEST_FIXED_POSITION_SCALE,
+													 first.y * TEST_FIXED_POSITION_SCALE,
+													 first.z * TEST_FIXED_POSITION_SCALE};
+					struct VECTORLONG fixed_second = {second.x * TEST_FIXED_POSITION_SCALE,
+													  second.y * TEST_FIXED_POSITION_SCALE,
+													  second.z * TEST_FIXED_POSITION_SCALE};
+					assert(track_solid_obstacle_contact_fixed(&fixed_first, &fixed_second,
+															  &fraction) == (probe != 0));
+				}
+				extended_track_unload();
+				assert(cstrk_remove_object(&track, 0U));
+			}
+		}
+	}
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	FILE *resource = fopen("GAME.PRE", "rb");
@@ -3497,6 +3557,7 @@ int main(void)
 	legacy_u8 *legacy_elements = track_element_map;
 	legacy_u8 *legacy_terrain = track_terrain_map;
 	legacy_s16 *legacy_links = track_primary_route_links;
+	test_checkpoint_roads();
 	test_native_mesh_rotations();
 	test_native_mesh_copy_boundaries();
 	test_world_coordinates_and_surfaces();

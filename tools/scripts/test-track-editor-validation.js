@@ -63,6 +63,15 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
+for (const id of [model.BLUE_CHECKPOINT_ID, model.RED_CHECKPOINT_ID]) {
+    for (const surface of model.SURFACES.keys()) for (let direction = 0; direction < 4; direction++) {
+        const doc = rectangle(), horizontal = direction % 2;
+        replace(doc, horizontal ? 25 : 2, horizontal ? 4 : 8, id, direction, surface);
+        check('checkpoint ' + id + ' surface ' + surface + ' direction ' + direction + ' connects as a road', clearHistory(doc), 0);
+        const absentStart = new model.Document(4, 4); put(absentStart, id, 1, 1, surface, direction);
+        check('checkpoint ' + id + ' direction ' + direction + ' is not a start', absentStart, validation.STATUS.NO_START_FINISH);
+    }
+}
 for (const id of [model.WHEAT_FIELD_ID, model.TULIP_FIELD_ID, model.VINE_FIELD_ID]) for (let direction = 0; direction < 4; direction++) {
     const name = model.catalog.find(piece => piece.id === id).name;
     const doc = rectangle();

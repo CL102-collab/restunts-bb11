@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../genghost/routes.h"
+#include "../genghost/extended_checkpoints.h"
 #include "../genghost/maneuvers.h"
 #include "../c/extended/extended_geometry.h"
 #include "../c/extended/extended_owoot_internal.h"
@@ -63,6 +64,19 @@
 #define TEST_LANDING_ADVANCE (CSTRK_TILE_WORLD_SIZE / 8)
 #define TEST_BARREL_ENTRY_SPEED (30U * 256U)
 #define TEST_BARREL_ENTRY_OFFSET 0.5
+#define TEST_CHECKPOINT_FIRST_ROW (TEST_TOP + 2U)
+#define TEST_CHECKPOINT_SECOND_ROW (TEST_BOTTOM - 2U)
+#define TEST_BRANCH_TOP 8U
+#define TEST_BRANCH_SPLIT 18U
+#define TEST_BRANCH_BOTTOM 26U
+#define TEST_BRANCH_START 22U
+#define TEST_BRANCH_LEFT 72U
+#define TEST_BRANCH_MERGE 78U
+#define TEST_BRANCH_RIGHT 84U
+#define TEST_BRANCH_CHECKPOINT_ROW 13U
+#define TEST_BRANCH_CHECKPOINT_COLUMN 75U
+#define TEST_BRANCH_SPLIT_ID 79U
+#define TEST_BRANCH_MERGE_ID 76U
 
 extern legacy_f64 sqrt(legacy_f64);
 
@@ -724,6 +738,179 @@ static void test_long_route(void)
 	cstrk_free(&track);
 }
 
+static legacy_int checkpoint_node(legacy_u8 column, legacy_u8 row)
+{
+	for (legacy_int piece = 0; piece < track_pieces_counter; piece++) {
+		if ((legacy_u8)track_route_columns[piece] == column &&
+			(legacy_u8)track_route_rows[piece] == row) {
+			return piece;
+		}
+	}
+	assert(0);
+	return -1;
+}
+
+static void test_checkpoint_route_colors(void)
+{
+	for (legacy_u8 color = 0; color < 2U; color++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROTATIONS; rotation++) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			rectangle(&track, 0, 0);
+			for (legacy_u32 index = 0; index < track.object_count; index++) {
+				struct CSTRK_OBJECT *object = &track.objects[index];
+				object->surface = rotation % (CSTRK_ROAD_ICE + 1U);
+				if (object->x == TEST_RIGHT && (object->y == TEST_CHECKPOINT_FIRST_ROW ||
+												object->y == TEST_CHECKPOINT_SECOND_ROW)) {
+					object->legacy_id = color ? CSTRK_RED_CHECKPOINT_ID : CSTRK_BLUE_CHECKPOINT_ID;
+				}
+			}
+			rotate_track(&track, rotation);
+			activate(&track);
+			struct GENGHOST_ROUTES routes;
+			assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+			assert(routes.count == 1U);
+			assert(routes.routes[0].checkpoint_colors == (1U << color));
+			genghost_routes_free(&routes);
+			extended_track_unload();
+			cstrk_free(&track);
+		}
+	}
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	rectangle(&track, 0, 0);
+	for (legacy_u32 index = 0; index < track.object_count; index++) {
+		struct CSTRK_OBJECT *object = &track.objects[index];
+		if (object->y == TEST_CHECKPOINT_FIRST_ROW || object->y == TEST_CHECKPOINT_SECOND_ROW) {
+			object->legacy_id =
+				object->x == TEST_LEFT ? CSTRK_BLUE_CHECKPOINT_ID : CSTRK_RED_CHECKPOINT_ID;
+		}
+	}
+	activate(&track);
+	struct GENGHOST_ROUTES combined;
+	assert(genghost_routes_build(&combined, error, sizeof(error)) == 0);
+	assert(combined.count == 2U);
+	assert(combined.routes[0].checkpoint_colors == GENGHOST_CHECKPOINT_BLUE);
+	assert(combined.routes[1].checkpoint_colors == GENGHOST_CHECKPOINT_RED);
+	genghost_routes_free(&combined);
+	legacy_int blue_first = checkpoint_node(TEST_LEFT, TEST_CHECKPOINT_FIRST_ROW);
+	legacy_int blue_second = checkpoint_node(TEST_LEFT, TEST_CHECKPOINT_SECOND_ROW);
+	legacy_int red_first = checkpoint_node(TEST_RIGHT, TEST_CHECKPOINT_FIRST_ROW);
+	legacy_int red_second = checkpoint_node(TEST_RIGHT, TEST_CHECKPOINT_SECOND_ROW);
+	legacy_int partial[] = {0, blue_first, red_first, blue_first};
+	assert(extended_genghost_checkpoint_colors(partial, sizeof(partial) / sizeof(partial[0])) == 0);
+	legacy_int blue[] = {0, blue_first, blue_second};
+	assert(extended_genghost_checkpoint_colors(blue, sizeof(blue) / sizeof(blue[0])) ==
+		   GENGHOST_CHECKPOINT_BLUE);
+	legacy_int red[] = {0, red_first, red_second};
+	assert(extended_genghost_checkpoint_colors(red, sizeof(red) / sizeof(red[0])) ==
+		   GENGHOST_CHECKPOINT_RED);
+	/* Give both color paths their own graph edges. Geometry remains authored,
+	 * while these links isolate enumeration from the route compiler. */
+	for (legacy_int piece = 0; piece < track_pieces_counter; piece++) {
+		track_primary_route_links[piece] = track_alternate_route_links[piece] = -1;
+	}
+	track_primary_route_links[0] = blue_first;
+	track_alternate_route_links[0] = red_first;
+	track_primary_route_links[blue_first] = blue_second;
+	track_primary_route_links[blue_second] = 0;
+	track_primary_route_links[red_first] = red_second;
+	track_primary_route_links[red_second] = 0;
+	struct GENGHOST_ROUTES routes;
+	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+	assert(routes.count == 2U);
+	assert(routes.routes[0].checkpoint_colors == GENGHOST_CHECKPOINT_BLUE);
+	assert(routes.routes[1].checkpoint_colors == GENGHOST_CHECKPOINT_RED);
+	genghost_routes_free(&routes);
+	/* Passing only one checkpoint of each color is never a valid case. */
+	track_primary_route_links[blue_first] = red_first;
+	track_primary_route_links[red_first] = 0;
+	assert(genghost_routes_build(&routes, error, sizeof(error)) != 0);
+	assert(routes.count == 0U);
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
+static void test_compiled_checkpoint_branches(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	add_piece(&track, TEST_TURN_NORTHWEST, TEST_BRANCH_LEFT, TEST_BRANCH_TOP);
+	add_piece(&track, TEST_TURN_NORTHEAST, TEST_BRANCH_RIGHT, TEST_BRANCH_TOP);
+	add_piece(&track, TEST_TURN_SOUTHWEST, TEST_BRANCH_LEFT, TEST_BRANCH_BOTTOM);
+	add_piece(&track, TEST_TURN_SOUTHEAST, TEST_BRANCH_RIGHT, TEST_BRANCH_BOTTOM);
+	for (legacy_u8 column = TEST_BRANCH_LEFT + 1U; column < TEST_BRANCH_RIGHT; column++) {
+		add_piece(&track,
+				  column == TEST_BRANCH_MERGE				? TEST_BRANCH_MERGE_ID
+				  : column == TEST_BRANCH_CHECKPOINT_COLUMN ? CSTRK_BLUE_CHECKPOINT_ID
+															: TEST_ROAD_HORIZONTAL,
+				  column, TEST_BRANCH_TOP);
+		if (column == TEST_BRANCH_CHECKPOINT_COLUMN) {
+			track.objects[track.object_count - 1U].rotation = 1U;
+		}
+		add_piece(&track, TEST_ROAD_HORIZONTAL, column, TEST_BRANCH_BOTTOM);
+	}
+	for (legacy_u8 row = TEST_BRANCH_TOP + 1U; row < TEST_BRANCH_BOTTOM; row++) {
+		add_piece(&track, TEST_ROAD_VERTICAL, TEST_BRANCH_RIGHT, row);
+		add_piece(&track,
+				  row == TEST_BRANCH_START			  ? TEST_START_NORTH
+				  : row == TEST_BRANCH_SPLIT		  ? TEST_BRANCH_SPLIT_ID
+				  : row == TEST_BRANCH_CHECKPOINT_ROW ? CSTRK_BLUE_CHECKPOINT_ID
+													  : TEST_ROAD_VERTICAL,
+				  TEST_BRANCH_LEFT, row);
+	}
+	add_piece(&track, TEST_TURN_SOUTHEAST, TEST_BRANCH_MERGE, TEST_BRANCH_SPLIT);
+	for (legacy_u8 column = TEST_BRANCH_LEFT + 1U; column < TEST_BRANCH_MERGE; column++) {
+		add_piece(&track,
+				  column == TEST_BRANCH_CHECKPOINT_COLUMN ? CSTRK_RED_CHECKPOINT_ID
+														  : TEST_ROAD_HORIZONTAL,
+				  column, TEST_BRANCH_SPLIT);
+		if (column == TEST_BRANCH_CHECKPOINT_COLUMN) {
+			track.objects[track.object_count - 1U].rotation = 1U;
+		}
+	}
+	for (legacy_u8 row = TEST_BRANCH_TOP + 1U; row < TEST_BRANCH_SPLIT; row++) {
+		add_piece(&track,
+				  row == TEST_BRANCH_CHECKPOINT_ROW ? CSTRK_RED_CHECKPOINT_ID : TEST_ROAD_VERTICAL,
+				  TEST_BRANCH_MERGE, row);
+	}
+	activate(&track);
+	struct GENGHOST_ROUTES routes;
+	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+	assert(routes.count == 2U);
+	assert(routes.routes[0].checkpoint_colors == GENGHOST_CHECKPOINT_BLUE);
+	assert(routes.routes[1].checkpoint_colors == GENGHOST_CHECKPOINT_RED);
+	assert(routes.dualway_pairs > 0);
+	legacy_uint accepted = 0, rejected = 0;
+	for (size_t index = 0; index < routes.count; index++) {
+		for (legacy_u64 selector = 1; selector <= routes.dualway_pairs + 2U; selector++) {
+			struct GENGHOST_POLICY policy;
+			genghost_policy_default(&policy);
+			for (legacy_uint segment = 0; segment < GENGHOST_POLICY_SEGMENTS; segment++) {
+				policy.segment[segment].dualway_choice = selector;
+			}
+			struct GENGHOST_ROUTE result;
+			legacy_int changed =
+				genghost_route_policy(&routes, index, &policy, &result, error, sizeof(error));
+			assert(changed >= 0);
+			if (changed) {
+				accepted++;
+				assert(result.checkpoint_colors == routes.routes[index].checkpoint_colors);
+				assert(extended_genghost_checkpoint_colors(result.pieces, result.piece_count) &
+					   result.checkpoint_colors);
+				genghost_route_release(&result);
+			} else {
+				rejected++;
+			}
+		}
+	}
+	assert(accepted && rejected);
+	genghost_routes_free(&routes);
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	mmgr_init_conventional_arena();
@@ -735,6 +922,8 @@ int main(void)
 	test_barrel_pilot_landing_release();
 	test_graded_catalog_targets();
 	test_long_route();
+	test_checkpoint_route_colors();
+	test_compiled_checkpoint_branches();
 	puts("Extended generator geometry: wide coordinates, road materials, modifiers and long "
 		 "routes.");
 	return 0;

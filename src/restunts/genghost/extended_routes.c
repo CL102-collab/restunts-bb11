@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "extended_routes.h"
+#include "extended_checkpoints.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
 #include "../c/car/car_resources.h"
@@ -272,7 +273,8 @@ static void route_speed_limits(struct GENGHOST_ROUTE *route)
 
 static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 							   const legacy_int *path, size_t depth, size_t *bytes,
-							   const legacy_u8 *portals, legacy_char *error, size_t error_size)
+							   const legacy_u8 *portals, legacy_u8 checkpoint_color,
+							   legacy_char *error, size_t error_size)
 {
 	size_t point_count = 0U;
 	for (size_t i = 0; i <= depth; i++) {
@@ -328,6 +330,7 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 	memcpy(route.pieces, path, depth * sizeof(*path));
 	route.pieces[depth] = 0;
 	route.piece_count = depth + 1U;
+	route.checkpoint_colors = checkpoint_color;
 	for (size_t i = 0; i < route.piece_count; i++) {
 		legacy_int piece = route.pieces[i];
 		legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
@@ -795,9 +798,13 @@ legacy_int extended_genghost_route_policy(const struct GENGHOST_ROUTES *set, siz
 		}
 		path[count++] = base->pieces[i];
 	}
+	if (!(extended_genghost_checkpoint_colors(path, count) & base->checkpoint_colors)) {
+		goto invalid;
+	}
 	struct GENGHOST_ROUTES built = {0};
 	size_t capacity = 0U, bytes = 0U;
-	if (append_route(&built, &capacity, path, count, &bytes, portals, error, error_size)) {
+	if (append_route(&built, &capacity, path, count, &bytes, portals, base->checkpoint_colors,
+					 error, error_size)) {
 		free(built.routes);
 		return -1;
 	}
@@ -879,8 +886,19 @@ legacy_int extended_genghost_routes_build(struct GENGHOST_ROUTES *set, legacy_ch
 			continue;
 		}
 		if (next == 0) {
-			if (append_route(set, &capacity, path, depth, &bytes, NULL, error, error_size) != 0) {
-				result = -1;
+			legacy_u8 colors = extended_genghost_checkpoint_colors(path, depth);
+			for (legacy_u8 color = GENGHOST_CHECKPOINT_BLUE; color <= GENGHOST_CHECKPOINT_NONE;
+				 color <<= 1U) {
+				if (!(colors & color)) {
+					continue;
+				}
+				if (append_route(set, &capacity, path, depth, &bytes, NULL, color, error,
+								 error_size) != 0) {
+					result = -1;
+					break;
+				}
+			}
+			if (result != 0) {
 				break;
 			}
 		} else if (!visited[next]) {
@@ -894,7 +912,10 @@ legacy_int extended_genghost_routes_build(struct GENGHOST_ROUTES *set, legacy_ch
 	free(choices);
 	free(visited);
 	if (result == 0 && set->count == 0U) {
-		route_error(error, error_size, "No start-to-finish route exists in the track graph.");
+		route_error(error, error_size,
+					extended_genghost_checkpoint_colors(NULL, 0) == GENGHOST_CHECKPOINT_NONE
+						? "No start-to-finish route exists in the track graph."
+						: "No start-to-finish route completes all checkpoints of a present color.");
 		result = -1;
 	}
 	if (result == 0) {
@@ -991,9 +1012,11 @@ void extended_genghost_driver_observe(const struct GENGHOST_ROUTE *route,
 	legacy_f64 best = DBL_MAX, best_progress = driver->progress, best_distance = DBL_MAX;
 	size_t first = driver->waypoint > 2U ? driver->waypoint - 2U : 0U;
 	size_t best_index = driver->waypoint;
+	size_t checkpoint_frontier = extended_genghost_checkpoint_frontier(route);
 	for (size_t i = first; i + 1U < route->point_count; i++) {
 		const struct GENGHOST_WAYPOINT *a = &route->points[i], *b = &route->points[i + 1U];
-		if (route->portals && b->piece_index > driver->next_portal) {
+		if (b->piece_index > checkpoint_frontier ||
+			(route->portals && b->piece_index > driver->next_portal)) {
 			break;
 		}
 		if (a->distance > driver->progress + 6144.0) {
@@ -1061,10 +1084,13 @@ static void point_at(const struct GENGHOST_ROUTE *route, legacy_f64 distance, le
 
 /* These pieces offer flat-road alternatives. Elevated geometry and stunts
  * retain the original driving line so useful launches remain available. */
-static legacy_int open_piece(legacy_int piece)
+static legacy_int open_piece(const struct GENGHOST_ROUTE *route, legacy_int piece)
 {
 	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
 	legacy_int model = trkObjectList[tile].ss_physicalModel;
+	if (extended_genghost_checkpoint_piece_required(route, piece)) {
+		return 0;
+	}
 	return model >= PHYSICAL_MODEL_ROAD && model <= PHYSICAL_MODEL_CROSSROAD;
 }
 
@@ -1167,7 +1193,7 @@ static legacy_int shortcut_target(const struct GENGHOST_ROUTE *route,
 		return 0;
 	}
 	size_t next = current + 1U;
-	if (!open_piece(route->pieces[current]) && confirmed != 0) {
+	if (!open_piece(route, route->pieces[current]) && confirmed != 0) {
 		return 0;
 	}
 	/* On a simple branch the native penalty state normally confirms the
@@ -1177,23 +1203,24 @@ static legacy_int shortcut_target(const struct GENGHOST_ROUTE *route,
 		advance = 3U;
 	}
 	for (legacy_uint n = 1U; n < advance && next + 1U < route->piece_count; n++) {
-		if (!open_piece(route->pieces[next]) || !open_piece(route->pieces[next + 1U])) {
+		if (!open_piece(route, route->pieces[next]) ||
+			!open_piece(route, route->pieces[next + 1U])) {
 			break;
 		}
 		next++;
 	}
-	if (!open_piece(route->pieces[next])) {
+	if (!open_piece(route, route->pieces[next])) {
 		return 0;
 	}
 	size_t future = next + 1U;
 	if (future >= route->piece_count) {
 		return 0;
 	}
-	if (!open_piece(route->pieces[future])) {
+	if (!open_piece(route, route->pieces[future])) {
 		return 0;
 	}
 	for (legacy_uint n = 1U; n < advance && future + 1U < route->piece_count; n++) {
-		if (!open_piece(route->pieces[future + 1U])) {
+		if (!open_piece(route, route->pieces[future + 1U])) {
 			break;
 		}
 		future++;
@@ -2280,6 +2307,10 @@ legacy_u8 extended_genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		planned_shortcut = 0;
 		planned_tactic = 1;
 	}
+	if (extended_genghost_checkpoint_target(route, driver, lookahead, &target)) {
+		planned_shortcut = 0;
+		planned_tactic = 0;
+	}
 	/* Count only a target the controller actually uses. */
 	if (planned_tactic) {
 		++driver->tactic_ticks;
@@ -2352,7 +2383,8 @@ legacy_u8 extended_genghost_driver_step(const struct GENGHOST_ROUTE *route,
 			limit = 250.0;
 		}
 		if ((planned_tactic && point->distance <= tactic_end) ||
-			(planned_shortcut && point->distance < target.distance && open_piece(point->piece))) {
+			(planned_shortcut && point->distance < target.distance &&
+			 open_piece(route, point->piece))) {
 			limit = 250.0;
 		}
 		/* Keep the first feasible seed fast enough to cross upside-down parts;

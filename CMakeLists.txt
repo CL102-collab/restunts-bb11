@@ -235,7 +235,7 @@ set(common_sources
     owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c
     driving_rules.c replay/replay.c stateio.c extended/extended_cstrk.c
     extended/extended_csrpl.c extended/extended_cshig.c extended/extended_replay.c
-    extended/extended_track.c
+    extended/extended_track.c extended/extended_checkpoint.c extended/extended_checkpoint_shape.c
     extended/extended_geometry.c extended/extended_opponent.c extended/extended_roll_ramp.c
     extended/extended_pine_trees.c extended/extended_wheat_field.c extended/extended_crop_fields.c
     extended/extended_trackobj.c
@@ -334,6 +334,7 @@ function(restunts_add_genghost)
         src/restunts/genghost/main.c src/restunts/genghost/extended_source.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
+        src/restunts/genghost/extended_checkpoints.c
         src/restunts/genghost/search.c src/restunts/genghost/extended_search.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
         src/restunts/genghost/parallel.c src/restunts/genghost/extended_parallel.c
@@ -552,6 +553,15 @@ if(RESTUNTS_BUILD_TESTS)
     add_executable(test-cstrk ${core}/extended/extended_cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
+    add_executable(test-extended-checkpoint ${core}/extended/extended_checkpoint.c
+        src/restunts/tests/test-extended-checkpoint.c)
+    target_compile_definitions(test-extended-checkpoint PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-checkpoint PRIVATE -UNDEBUG)
+    add_test(NAME extended-checkpoint COMMAND test-extended-checkpoint)
+    add_executable(test-checkpoint-shape ${core}/extended/extended_checkpoint_shape.c
+        src/restunts/tests/test-checkpoint-shape.c)
+    target_compile_options(test-checkpoint-shape PRIVATE -UNDEBUG)
+    add_test(NAME checkpoint-shape COMMAND test-checkpoint-shape)
     add_executable(test-wheat-field ${core}/extended/extended_wheat_field.c
         src/restunts/tests/test-wheat-field.c)
     target_compile_options(test-wheat-field PRIVATE -UNDEBUG)
@@ -835,6 +845,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
+        src/restunts/genghost/extended_checkpoints.c
         src/restunts/tests/test-genghost-simulation.c)
     target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
@@ -845,6 +856,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
+        src/restunts/genghost/extended_checkpoints.c
         src/restunts/genghost/search.c src/restunts/genghost/extended_search.c
         src/restunts/genghost/parallel.c src/restunts/genghost/extended_parallel.c
         src/restunts/genghost/maneuvers.c src/restunts/genghost/extended_maneuvers.c
@@ -857,6 +869,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         ${core}/extended/extended_replay_runtime.c ${platform}/main.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
+        src/restunts/genghost/extended_checkpoints.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
         src/restunts/genghost/search.c src/restunts/genghost/extended_search.c
         src/restunts/tests/test-genghost-extended.c)
@@ -868,6 +881,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         add_executable(test-genghost-extended-${extended_feature}
             ${common_sources} ${core}/headless/headless.c ${platform_common}
             src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
+            src/restunts/genghost/extended_checkpoints.c
             src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
             src/restunts/genghost/maneuvers.c src/restunts/genghost/extended_maneuvers.c
             src/restunts/tests/test-genghost-extended-${extended_feature}.c)

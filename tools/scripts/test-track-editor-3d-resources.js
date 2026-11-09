@@ -37,6 +37,43 @@ function files() {
     ]);
 }
 
+test('checkpoint icons recolor the native banner and replace its direction arrow with road artwork', () => {
+    const tileSize = 16, interior = tileSize - 1, white = 15, roadColor = 8;
+    const road = { width: tileSize, height: tileSize, pixels: new Uint8Array(tileSize * tileSize),
+        mask: { width: tileSize, height: tileSize, pixels: new Uint8Array(tileSize * tileSize).fill(255) } };
+    for (let y = 0; y < interior; y++) for (let x = 6; x <= 10; x++) {
+        road.pixels[y * tileSize + x] = roadColor; road.mask.pixels[y * tileSize + x] = 0;
+    }
+    const finish = { ...road, pixels: road.pixels.slice(), mask: { ...road.mask, pixels: road.mask.pixels.slice() } };
+    for (let y = 6; y <= 8; y++) for (let x = 3; x <= 13; x++)
+        if ((x + y) % 2) finish.pixels[y * tileSize + x] = white;
+    for (let y = 10; y <= 13; y++) finish.pixels[y * tileSize + 8] = white;
+    const icons = new Map([[1, finish], [4, road]]), original = resources.composeTileBitmap(finish);
+    const roadBitmap = resources.composeTileBitmap(road);
+    const rgb = new Uint8Array(PALETTE_SIZE); rgb.set([85, 85, 85], roadColor * 3);
+    rgb.set([85, 85, 255], 9 * 3); rgb.set([255, 85, 85], 12 * 3);
+    for (const [id, color] of [[model.BLUE_CHECKPOINT_ID, 9], [model.RED_CHECKPOINT_ID, 12]]) {
+        const bitmap = resources.composePieceTileBitmap(icons, id);
+        assert.equal(bitmap.width, interior); assert.equal(bitmap.height, interior);
+        for (let index = 0; index < original.pixels.length; index++) {
+            const row = Math.floor(index / interior), banner = row >= 6 && row <= 8;
+            const replaced = original.alpha[index] && original.pixels[index] === white;
+            assert.equal(bitmap.pixels[index], replaced ? banner ? color : roadBitmap.pixels[index] : original.pixels[index]);
+            assert.equal(bitmap.alpha[index], replaced && !banner ? roadBitmap.alpha[index] : original.alpha[index]);
+        }
+        assert(!bitmap.pixels.includes(white), 'the direction arrow and white checks are gone');
+        for (const surface of [0, 1, 2]) {
+            const rgba = resources.tintTileBitmap(bitmap, rgb, surface);
+            const signPixel = bitmap.pixels.indexOf(color), roadPixel = bitmap.pixels.indexOf(roadColor);
+            assert.deepEqual([...rgba.slice(signPixel * 4, signPixel * 4 + 3)], [...rgb.slice(color * 3, color * 3 + 3)], 'surface paint preserves checkpoint color');
+            if (surface) assert.notDeepEqual([...rgba.slice(roadPixel * 4, roadPixel * 4 + 3)], [...rgb.slice(roadColor * 3, roadColor * 3 + 3)], 'road still takes dirt or ice paint');
+        }
+        for (const flags of [[1, 0, 0], [0, 1, 0], [0, 0, 6]])
+            assert.throws(() => resources.composePieceTileBitmap(icons, id, ...flags), /checkpoint artwork flags/);
+    }
+    assert.deepEqual(resources.composeTileBitmap(finish), original, 'original artwork remains unchanged');
+});
+
 test('wheat field artwork draws golden crop rows without a native bitmap', () => {
     const bitmap = resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID);
     assert.equal(bitmap.width, 60); assert.equal(bitmap.height, 60);

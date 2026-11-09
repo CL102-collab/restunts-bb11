@@ -8,7 +8,7 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 15]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [9, 10, 4, 2, 4, 9, 2, 15]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
     assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
@@ -20,6 +20,38 @@ test('library combines rotated alternatives while preserving distinct shapes and
         assert.equal(entry.physical, physical); assert.equal(entry.name, name);
         assert.equal(model.library.find(piece => piece.id === id).name, name);
     }
+});
+test('checkpoint roads preserve colors, all surfaces and directions across CSTRK and clipboard transforms', () => {
+    const colors = [[model.BLUE_CHECKPOINT_ID, 'Blue checkpoint'], [model.RED_CHECKPOINT_ID, 'Red checkpoint']];
+    for (const [id, name] of colors) {
+        const entry = model.library.find(piece => piece.id === id);
+        assert.equal(entry.name, name); assert.equal(entry.group, 1); assert.equal(entry.decoration, false);
+        assert.deepEqual(entry.surfaces, [0, 1, 2]); assert(model.isCheckpoint(id)); assert(!model.isCropField(id));
+        for (const surface of entry.surfaces) for (let direction = 0; direction < 4; direction++) {
+            const doc = new model.Document(4, 4), variant = model.pieceVariant(entry, direction);
+            const object = doc.place(variant.piece.id, 1, 1, surface, variant.rotation);
+            assert.equal(object.id, id); assert.equal(object.surface, surface); assert.equal(object.rotation, direction);
+            assert.deepEqual([object.width, object.height, object.mask], [1, 1, 1]);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+            const clip = doc.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
+            for (const axis of ['horizontal', 'vertical']) {
+                const flipped = model.flipClipboard(clip, axis);
+                assert.equal(flipped.objects[0].id, id); assert.equal(flipped.objects[0].surface, surface);
+                assert.deepEqual(model.flipClipboard(flipped, axis), clip);
+            }
+            const rotated = model.rotateClipboard(clip, 1);
+            assert.equal(rotated.objects[0].id, id); assert.equal(rotated.objects[0].surface, surface);
+            assert.equal(rotated.objects[0].rotation, (direction + 1) % 4);
+            const older = model.encodeCstrk(doc);
+            new DataView(older.buffer).setUint16(8, model.CHECKPOINT_VERSION - 1, true);
+            assert.throws(() => model.decodeCstrk(older), /Checkpoints require.*v13/);
+            doc.version = model.CHECKPOINT_VERSION - 1;
+            assert.throws(() => model.encodeCstrk(doc), /Checkpoints require.*v13/);
+        }
+        const oldDoc = new model.Document(4, 4); oldDoc.version = model.CHECKPOINT_VERSION - 1;
+        assert.throws(() => oldDoc.place(id, 1, 1), /Checkpoints require.*v13/);
+    }
+    assert(!model.isCheckpoint(1)); assert(!model.isCheckpoint(model.VINE_FIELD_ID));
 });
 test('directions select native artwork and rotate remaining symmetric variations', () => {
     const piece = id => model.catalog.find(p => p.id === id);
@@ -2053,7 +2085,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, model.TULIP_FIELD_VERSION); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, model.CHECKPOINT_VERSION); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -2295,10 +2327,11 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
         const tileSize = road.width, connectors = [];
         const roadWidth = Array.from(road.alpha.slice(0, tileSize)).filter(Boolean).length;
         for (const entry of model.catalog.filter(piece => !piece.decoration && piece.legacySurface <= 0)) {
-            const routeIndex = routeData.objects[entry.id].routeIndex;
+            const routeId = model.isCheckpoint(entry.id) ? 4 : entry.id;
+            const routeIndex = routeData.objects[routeId].routeIndex;
             if (routeIndex === null) continue;
             const display = model.pieceDisplayVariant(entry);
-            let tile = resources.composeTileBitmap(decoded.icons.get(display.piece.id));
+            let tile = resources.composePieceTileBitmap(decoded.icons, display.piece.id);
             for (let turn = 0; turn < display.rotation; turn++) {
                 const rotated = { width: tile.height, height: tile.width, alpha: new Uint8Array(tile.alpha.length) };
                 for (let y = 0; y < tile.height; y++) for (let x = 0; x < tile.width; x++)

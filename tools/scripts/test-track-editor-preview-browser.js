@@ -43,6 +43,10 @@ function fixture() {
     for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++)
         doc.vertices[doc.vertexIndex(x, y)] = x < 7 ? 0 : x === 7 ? 1 : 2;
     doc.place(1, 2, 9);
+    for (const surface of model.SURFACES.keys()) {
+        doc.place(model.BLUE_CHECKPOINT_ID, surface * 2, 0, surface);
+        doc.place(model.RED_CHECKPOINT_ID, surface * 2, 1, surface);
+    }
     doc.place(4, 2, 3);
     doc.place(11, 3, 3);
     doc.place(115, 2, 6, 1, 0, 0, 1);

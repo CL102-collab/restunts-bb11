@@ -54,13 +54,13 @@ extended_companions() {
         fileio.c) echo extended/extended_fileio.c ;;
         file.c) echo extended/extended_file_dialog.c ;;
         gameinit.c) echo extended/extended_gameinit.c ;;
-        gamestep.c) echo extended/extended_gamestep.c ;;
+        gamestep.c) printf '%s\n' extended/extended_gamestep.c extended/extended_checkpoint.c ;;
         trkutil.c|replinit.c|race_resources.c) echo extended/extended_trkutil.c ;;
         race_route.c) echo extended/extended_race_route.c ;;
         track_setup.c) echo extended/extended_track_setup.c ;;
         trackobj.c) echo extended/extended_trackobj.c ;;
         stateply.c) echo extended/extended_stateply.c ;;
-        statecrs.c) echo extended/extended_statecrs.c ;;
+        statecrs.c) printf '%s\n' extended/extended_statecrs.c extended/extended_checkpoint.c ;;
         physics_collision.c) echo extended/extended_physics_collision.c ;;
         owoot_route.c) echo extended/extended_owoot_route.c ;;
         owoot_road.c) echo extended/extended_owoot_road.c ;;
@@ -116,7 +116,7 @@ small_source_companions() {
 hires_source_companions() {
     case "$1" in
         extended_frame.c) printf '%s\n' extended/extended_frame_tiles.c ;;
-        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c ;;
+        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c extended/extended_checkpoint_shape.c ;;
         extended_frame_terrain.c) printf '%s\n' extended/extended_frame_render_terrain.c extended/extended_frame_render_ground.c extended/extended_frame_precise.c ;;
         extended_geometry.c) printf '%s\n' hires/track_geometry.c ;;
         extended_menu_runtime.c) printf '%s\n' hires/track_preview_mode.c ;;
@@ -190,7 +190,7 @@ extended_folder_companions() {
                 printf '%s\n' extended/extended_frame.c extended/extended_frame_tiles.c
             fi
             ;;
-        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c ;;
+        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c extended/extended_checkpoint_shape.c ;;
         extended_frame_terrain.c) printf '%s\n' extended/extended_frame_render_terrain.c extended/extended_frame_render_ground.c extended/extended_frame_precise.c ;;
         extended_track_preview.c) printf '%s\n' extended/extended_track_preview_hires.c ;;
         frame_car.c) printf '%s\n' extended/extended_frame_layout.c ;;
@@ -494,7 +494,8 @@ run_host_test test-player-motion legacy.c \
     "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-route-points opponent/opponent.c "$test_source_dir/trkutil.c" -Wno-missing-braces
 run_host_test test-genghost-steering opponent/opponent.c \
-    "$test_source_dir/../genghost/extended_routes.c" -DRESTUNTS_SDL3 -DRESTUNTS_EXTENDED_REPLAY -lm
+    "$test_source_dir/../genghost/extended_routes.c" \
+    "$test_source_dir/../genghost/extended_checkpoints.c" -DRESTUNTS_SDL3 -DRESTUNTS_EXTENDED_REPLAY -lm
 run_host_test test-memmgr-cache memmgr.c \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-opponent-route car/carsetup.c \
@@ -541,6 +542,8 @@ run_host_test test-replay-controls legacy.c \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay/replay.c
 run_host_test test-cstrk extended/extended_cstrk.c
+run_host_test test-extended-checkpoint extended/extended_checkpoint.c -DRESTUNTS_SDL3
+run_host_test test-checkpoint-shape extended/extended_checkpoint_shape.c
 run_host_test test-cshig extended/extended_cshig.c "$test_source_dir/extended/extended_cstrk.c"
 run_host_test test-sdl3-file-replace ../platform/sdl3/file.c \
     -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ -I"$test_script_dir/stubs" -Wno-pointer-sign

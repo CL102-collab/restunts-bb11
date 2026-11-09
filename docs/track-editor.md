@@ -64,8 +64,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v12. Revision v3 through v11 tracks also open
-and are upgraded to v12 while preserving their original overpass road materials.
+great track." The current version is v13. Revision v3 through v12 tracks also open
+and are upgraded to v13 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -159,6 +159,15 @@ are not separate palette groups. Every road and stunt piece supports paved,
 dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
+
+The **Roads** group includes **Blue checkpoint** and **Red checkpoint**. Both use
+the start/finish sign without its arrow, with blue or red in place of white.
+Choose paved, dirt or ice independently and rotate each checkpoint as needed.
+Checkpoints require `.cstrk` v13 and appear in the 2D editor and 3D preview.
+During a race, pass every checkpoint of either color before crossing the finish.
+If only one color is present, all checkpoints of that color are required. A track
+without checkpoints keeps the usual finish rule. Checkpoints count in either
+direction when the car passes below the sign and between its poles.
 
 The **Scenery** group includes **Wheat field**, a one-tile patch of golden crop
 rows. Place adjoining tiles to make a larger field, and rotate the tile to change

@@ -27,6 +27,7 @@
 #include "../c/extended/pine_trees.h"
 #include "../c/extended/wheat_field.h"
 #include "../c/extended/crop_fields.h"
+#include "../c/extended/checkpoint_shape.h"
 #include "../c/owoot/owoot_road.h"
 #include "../c/menu/menu_internal.h"
 
@@ -4032,6 +4033,84 @@ static legacy_u16 check_crop_field_pixels(legacy_u16 id)
 	return CROP_RENDER_VARIANT_COUNT * CROP_RENDER_VARIANT_COUNT * 2U;
 }
 
+#define CHECKPOINT_RENDER_COLOR_COUNT 2U
+#define CHECKPOINT_RENDER_GRADE_COUNT 2U
+#define CHECKPOINT_RENDER_DIRECTION_COUNT 4U
+
+static legacy_u16 check_checkpoint_pixels(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	static const legacy_u16 ids[CHECKPOINT_RENDER_COLOR_COUNT] = {CSTRK_BLUE_CHECKPOINT_ID,
+																  CSTRK_RED_CHECKPOINT_ID};
+	static const legacy_u8 materials[CHECKPOINT_RENDER_COLOR_COUNT] = {
+		CHECKPOINT_SHAPE_BLUE_MATERIAL, CHECKPOINT_SHAPE_RED_MATERIAL};
+	struct CSTRK_OBJECT object = {0};
+	object.x = STUNT_RENDER_COLUMN;
+	object.y = STUNT_RENDER_ROW;
+	object.width = object.height = object.occupied_mask = 1U;
+	legacy_u16 frames = 0;
+	for (legacy_u8 grade = 0; grade < CHECKPOINT_RENDER_GRADE_COUNT; grade++) {
+		for (legacy_u16 y = 0; y <= track.height; y++) {
+			for (legacy_u16 x = 0; x <= track.width; x++) {
+				track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+					grade && x > STUNT_RENDER_COLUMN;
+			}
+		}
+		object.slope_x = grade;
+		for (legacy_u8 rotation = 0; rotation < CHECKPOINT_RENDER_DIRECTION_COUNT; rotation++) {
+			object.rotation = rotation;
+			position_render_target(STUNT_RENDER_COLUMN, STUNT_RENDER_ROW);
+			state.playerstate.car_position.ly =
+				(STUNT_RENDER_CAR_CLEARANCE + grade * CSTRK_LEVEL_WORLD_HEIGHT / 2) *
+				GRASS_RENDER_POSITION_SCALE;
+			state.playerstate.car_previous_position = state.playerstate.car_position;
+			state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+			custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+			custom_camera.elevation_angle = STUNT_RENDER_CAMERA_ELEVATION;
+			custom_camera.azimuth_angle = rotation * ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN;
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				object.surface = surface;
+				legacy_u32 *pixels[CHECKPOINT_RENDER_COLOR_COUNT];
+				size_t sizes[CHECKPOINT_RENDER_COLOR_COUNT];
+				for (legacy_u8 color = 0; color < CHECKPOINT_RENDER_COLOR_COUNT; color++) {
+					object.legacy_id = ids[color];
+					track.object_count = 0;
+					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+					activate_render_track(&track, 1);
+					pixels[color] = capture_complete_render(&sizes[color]);
+					legacy_u32 expected = RENDER_CAPTURE_OPAQUE_ALPHA |
+										  (legacy_u32)material_clrlist_ptr_cpy[materials[color]] *
+											  RENDER_CAPTURE_INDEX_RGB_STEP;
+					size_t colored = 0;
+					for (size_t pixel = 0; pixel < sizes[color]; pixel++) {
+						colored += pixels[color][pixel] == expected;
+					}
+					if (!colored) {
+						fprintf(stderr,
+								"Checkpoint %u rotation %u surface %u grade %u lacks sign color in "
+								"%s mode.\n",
+								ids[color], rotation, surface, grade,
+								renderer_active ? "HyperVision" : "classic");
+					}
+					assert(colored != 0);
+					frames++;
+				}
+				assert(sizes[0] == sizes[1]);
+				assert(memcmp(pixels[0], pixels[1], sizes[0] * sizeof(*pixels[0])) != 0);
+				free(pixels[0]);
+				free(pixels[1]);
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 #define HIGHWAY_RENDER_ID 111U
 #define HIGHWAY_RENDER_REVERSED_ID 113U
 #define HIGHWAY_RENDER_BASE_HEIGHT 2
@@ -5214,6 +5293,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_crop_field_pixels(CSTRK_WHEAT_FIELD_ID);
 		frames += check_crop_field_pixels(CSTRK_TULIP_FIELD_ID);
 		frames += check_crop_field_pixels(CSTRK_VINE_FIELD_ID);
+		frames += check_checkpoint_pixels();
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 		check_combined_stunt_meshes();

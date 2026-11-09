@@ -308,6 +308,31 @@ test('tulip and vine fields rotate and follow every straight hillside direction'
             assert.deepEqual(doc.snapshot(), before);
         }
     });
+    test('checkpoint signs preserve finish geometry and pole colors in all rotations and road surfaces', () => {
+        for (const [id, color] of [[model.BLUE_CHECKPOINT_ID, 9], [model.RED_CHECKPOINT_ID, 12]])
+            for (let rotation = 0; rotation < 4; rotation++) for (let surface = 0; surface < 3; surface++) {
+                const finishDoc = new model.Document(1, 1), checkpointDoc = new model.Document(1, 1);
+                finishDoc.place(1, 0, 0, surface, rotation); checkpointDoc.place(id, 0, 0, surface, rotation);
+                const finish = scene.buildScene(finishDoc, assets), checkpoint = scene.buildScene(checkpointDoc, assets);
+                assert.deepEqual(checkpoint.positions, finish.positions, 'checkpoints retain the same sign, poles and road');
+                assert.deepEqual(checkpoint.linePositions, finish.linePositions);
+                assert.equal(checkpoint.instances, 2);
+                let changed = 0;
+                for (let index = 0; index < finish.colors.length; index += 3) {
+                    const before = finish.colors.subarray(index, index + 3), after = checkpoint.colors.subarray(index, index + 3);
+                    if (before.every((channel, axis) => channel === after[axis])) continue;
+                    changed++;
+                    for (let axis = 0; axis < 3; axis++) near(after[axis], assets.palette[color * 3 + axis] / 255 * .78, 'only the white sign takes the checkpoint color');
+                }
+                assert(changed > 0, 'the banner is recolored');
+                const otherSurface = new model.Document(1, 1); otherSurface.place(id, 0, 0, (surface + 1) % 3, rotation);
+                assert.notDeepEqual(scene.buildScene(otherSurface, assets).colors, checkpoint.colors, 'road materials support paved, dirt and ice');
+            }
+        const doc = new model.Document(4, 3); doc.place(model.BLUE_CHECKPOINT_ID, 0, 0);
+        const { spawn } = scene.buildScene(doc, assets);
+        near(spawn.position[0], doc.width / 2, 'a checkpoint is not the start');
+        near(spawn.position[2], doc.height / 2);
+    });
     test('six and ten pines keep independent upright crowns and slope-following roots', () => {
         const source = scene.decodeShape(assets.models.get('tree'));
         const nativeTrees = source.primitives.reduce((sum, primitive) => sum + primitive.indices.length - 2, 0);

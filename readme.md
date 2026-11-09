@@ -2014,7 +2014,7 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v12. Revision v3 through v11 tracks open as v12 while preserving their
+revision is v13. Revision v3 through v12 tracks open as v13 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
 
@@ -2022,6 +2022,15 @@ Switch from the 2D editor to **3D preview** to explore the track with WebGL and
 original models from your selected Stunts folder. Click for mouse look; WASD moves,
 Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
 releases the mouse, and the 2D editor retains its zoom and map position.
+
+The Roads palette includes **Blue checkpoint** and **Red checkpoint** on paved,
+dirt or ice roads. Their gates use the start/finish design in blue or red,
+without an arrow. Finish a race by passing every checkpoint of either color
+present on the track, in any order and from either direction, below the signs
+and between the poles. A track with only one color requires all checkpoints of
+that color; tracks without checkpoints keep the usual finish rule. Genghost
+searches the valid checkpoint routes, including both color choices when present.
+Checkpoints require `.cstrk` v13.
 
 The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
 rows. Adjacent tiles form larger fields, rotation changes the row direction, and
