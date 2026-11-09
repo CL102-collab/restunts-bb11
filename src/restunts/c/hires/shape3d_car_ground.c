@@ -1,6 +1,8 @@
 #include "shape3d_car_ground.h"
 
 #if defined(RESTUNTS_SDL3)
+#include <float.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "shape3d_mesh.h"
@@ -9,6 +11,7 @@
 
 #define CAR_WHEEL_VERTEX_GROUP_SIZE 6
 #define CAR_WHEEL_CENTER_SAMPLE_OFFSET 3U
+#define CAR_GROUND_ROUNDING_ULPS 16U
 
 /* Physics places neutral tire contacts 384 fixed-point units below the body.
  * Cache the visible underside before suspension can change model vertices.
@@ -107,6 +110,33 @@ static void shape3d_hires_car_ground_bottom(struct CAR_GROUND_BOUNDS *bounds, le
 	bounds->has_geometry = 1;
 }
 
+/* Keep fractional centers and axes together until the final underside. Rounding
+ * each control first can enlarge a scaled tyre by a whole model unit. */
+static void shape3d_hires_car_precise_wheel_bottom(struct CAR_GROUND_BOUNDS *bounds,
+												   const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	legacy_f64 radius = 0;
+	legacy_u16 has_rim = 0;
+	for (legacy_u16 rim = 0; rim < CAR_WHEEL_VERTEX_GROUP_SIZE;
+		 rim += SHAPE3D_WHEEL_RIM_VERTEX_COUNT) {
+		if (!shape3d_hires_car_precise_has_area(&vertices[rim], SHAPE3D_WHEEL_RIM_VERTEX_COUNT)) {
+			continue;
+		}
+		legacy_f64 first_y = vertices[rim + SHAPE3D_WHEEL_FIRST_AXIS].y - vertices[rim].y;
+		legacy_f64 second_y = vertices[rim + SHAPE3D_WHEEL_SECOND_AXIS].y - vertices[rim].y;
+		legacy_f64 rim_radius = hypot(first_y, second_y);
+		if (rim_radius > radius) {
+			radius = rim_radius;
+		}
+		has_rim = 1;
+	}
+	if (has_rim) {
+		legacy_f64 center = fmin(vertices[0].y, vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y);
+		legacy_f64 tolerance = CAR_GROUND_ROUNDING_ULPS * DBL_EPSILON * (fabs(center) + radius + 1);
+		shape3d_hires_car_ground_bottom(bounds, (legacy_s32)floor(center - radius + tolerance));
+	}
+}
+
 static void shape3d_hires_car_ground_clear(struct CAR_GROUND_BOUNDS *bounds)
 {
 	free(bounds->extended_spheres);
@@ -179,6 +209,10 @@ static void shape3d_hires_car_ground_bounds(const struct SHAPE3D *shape,
 			}
 		}
 		if (type == SHAPE3D_PRIMITIVE_WHEEL) {
+			if (precise != NULL) {
+				shape3d_hires_car_precise_wheel_bottom(bounds, precise_points);
+				continue;
+			}
 			legacy_s32 radius = 0;
 			legacy_u16 has_rim = 0;
 			for (legacy_u16 rim = 0; rim < CAR_WHEEL_VERTEX_GROUP_SIZE;

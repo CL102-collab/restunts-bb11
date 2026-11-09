@@ -133,11 +133,20 @@ Wheel-arch chords are checked after encoding
 and locally expanded only as needed to retain the native steering clearance.
 The racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
 including bounds and wheel controls. Deterministic cached geometry
-keeps each mesh within H3D version 2's
+keeps each mesh within H3D version 3's
 65,535-vertex and 65,535-primitive limits:
 car0: 21648 vertices, 33507 primitives;
 car1: 1199 vertices, 2143 primitives;
 car2: 499 vertices, 810 primitives.
+All three H3D models display at 74.405% of their authored size,
+using one exact uniform scale (125/168) for bodywork, bounds and animated wheels.
+The scale matches Wikipedia's 1050/1344 mm height ratio against the stock
+Audi Sport Quattro S1 E2: its showroom height is 26 game units, versus the
+unscaled McMurtry's 27.3. The real wheelbases are 2200/2204 mm; the stock
+Audi's proportions prevent matching both ratios without deforming the McMurtry.
+The H3D v3 header carries the scale; all mesh payloads stay byte-identical.
+Tyre ground planes remain Y=0 in the showroom and Y=-6 while driving.
+Classic fallback models, physics contact points and collision sizes are unchanged.
 Showroom body coordinates have 2.2 mm precision;
 racing body coordinates have 2.75 mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive

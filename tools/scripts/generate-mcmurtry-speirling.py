@@ -102,13 +102,7 @@ def resources(data):
 
 def hypervision_resources(data):
     """Validate the optional companion directory before decoding its meshes."""
-    if len(data) < model.HYPERVISION_CONTAINER_HEADER_SIZE:
-        raise ValueError("Truncated HyperVision container")
-    magic, version, count = struct.unpack_from("<4sHH", data)
-    if (magic != model.HYPERVISION_CONTAINER_MAGIC or
-            version != detailed_model.CONTAINER_VERSION):
-        raise ValueError("Invalid HyperVision container signature or version")
-    cursor = model.HYPERVISION_CONTAINER_HEADER_SIZE
+    cursor, count, _ = detailed_model.container_header(data)
     directory_end = cursor + count * model.HYPERVISION_CONTAINER_ENTRY_SIZE
     if directory_end > len(data):
         raise ValueError("Truncated HyperVision directory")
@@ -584,6 +578,12 @@ def generate(repository):
     hypervision_models = {name: validate_hypervision_geometry(
                              shape, name, classic_models[name], simd)
                           for name, shape in enhanced.items()}
+    _, _, presentation_scale = detailed_model.container_header(outputs["STMCMU.H3D"])
+    for metadata in hypervision_models.values():
+        metadata["displayed_dimensions_game_units"] = {
+            axis: value * presentation_scale
+            for axis, value in metadata["dimensions_game_units"].items()}
+        metadata["displayed_wheelbase_game_units"] = 2 * model.HALF_WHEELBASE * presentation_scale
     performance = [physics.simulate_performance(fps) for fps in (20, 10)]
     for result in performance:
         if (abs(result["zero_to_60_mph_with_one_foot_rollout_seconds"] -
@@ -668,6 +668,7 @@ def generate(repository):
             "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
             "geometry": "Detailed exterior geometry imported from the supplied Sketchfab GLB, with transformed source bodywork, canopy, wing and underbody. Source wheel assemblies are replaced with the classic animated wheels. Source materials are mapped into the native palette and seven paint schemes; welded, quantized meshes provide separate showroom, near and distant racing detail levels.",
             "source_mesh": detailed_model.metadata(),
+            "presentation_scale": detailed_model.presentation_metadata(),
             "models": hypervision_models},
         "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
         "sources": SOURCES,
@@ -815,6 +816,15 @@ keeps each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
 car1: {hypervision_models['car1']['vertices']} vertices, {hypervision_models['car1']['primitives']} primitives;
 car2: {hypervision_models['car2']['vertices']} vertices, {hypervision_models['car2']['primitives']} primitives.
+All three H3D models display at {100 * detailed_model.PRESENTATION_SCALE:.3f}% of their authored size,
+using one exact uniform scale ({detailed_model.PRESENTATION_SCALE_NUMERATOR}/{detailed_model.PRESENTATION_SCALE_DENOMINATOR}) for bodywork, bounds and animated wheels.
+The scale matches Wikipedia's 1050/1344 mm height ratio against the stock
+Audi Sport Quattro S1 E2: its showroom height is 26 game units, versus the
+unscaled McMurtry's 27.3. The real wheelbases are 2200/2204 mm; the stock
+Audi's proportions prevent matching both ratios without deforming the McMurtry.
+The H3D v3 header carries the scale; all mesh payloads stay byte-identical.
+Tyre ground planes remain Y=0 in the showroom and Y=-6 while driving.
+Classic fallback models, physics contact points and collision sizes are unchanged.
 Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']:g} mm precision;
 racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive

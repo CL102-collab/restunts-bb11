@@ -167,6 +167,38 @@ mesh. Source node transforms, uniform scaling and precomputed quadric error
 reduction place it in the car's coordinate system. The `car0` showroom payload
 remains byte-identical after rebuilding the racing detail levels.
 
+All three HyperVision models display at **125/168 of their authored size**
+(74.405%, a 25.595% reduction), with exactly the same factor on X, Y and Z.
+This includes the body, animated wheels and bounds. The accepted mesh payloads,
+topology, materials, symmetry and vertex counts are byte-identical. The scale
+is stored in the H3D version 3 container header and applied after decoding,
+avoiding distortion from rounding the integer wheel controls. Body coordinates
+are scaled once when loaded; only wheel controls need refreshing during animation.
+
+The height reference is the stock Audi in `STAUDI.P3S`, whose showroom is 26
+game units tall after removing its 20× showroom scale. The unscaled McMurtry
+showroom is 27.3 units tall. Wikipedia was checked on 2026-11-09:
+
+| Dimension | [Audi Sport Quattro S1 E2](https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2) | [McMurtry Spéirling](https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling) |
+| --- | ---: | ---: |
+| Length | 4,240 mm | 3,815 mm |
+| Width | 1,860 mm | 1,795 mm |
+| Height | 1,344 mm | 1,050 mm |
+| Wheelbase | 2,204 mm | 2,200 mm |
+
+The uniform scale is `(26 × 1050 / 1344) / 27.3 = 125/168`, giving a showroom
+height of 20.3125 units, or 78.125% of the Audi's height. Stock model proportions
+prevent matching both real height and wheelbase ratios with a single scale;
+height is the selected reference. The displayed McMurtry wheelbase is 37.2024
+units, versus the Audi's 46. No dimension is stretched independently.
+
+Showroom tyres stay on Y=0; racing tyres stay on Y=-6. Bounds, shadows and
+rendered wheel clearances follow the scaled geometry. This adjustment applies
+to H3D presentation; classic fallback assets, physics contact points and
+collision sizes retain their existing units. The factory specification section
+below retains the manufacturer's 1,056 mm production height; Wikipedia's
+1,050 mm is the requested visual comparison reference.
+
 Both racing meshes are reduced directly from that current H3D `car0` geometry.
 The conversion removes its showroom scale and vertical offset to restore
 racing coordinates, then simplifies the body triangles. The total vertex
@@ -257,19 +289,20 @@ primitive counts include four native wheels. Body positions retain fractional
 precision during simplification, then round to the stored coordinate step.
 H3D uses native palette surfaces without interpolated shading normals.
 
-The companion uses H3D version 2 with signed 16-bit body-coordinate storage
+The companion uses H3D version 3 with signed 16-bit body-coordinate storage
 and wide vertex indices above 255 vertices. Showroom bodies use whole model
 coordinates at the stock 20× scale, approximately 2.2 mm per stored step.
 Racing bodies use four fraction bits, giving 1/16-unit coordinates or about
 2.75 mm per stored step. The first eight bounds and 24 animated wheel controls
-retain native whole units.
-See the [H3D format](hypervision-meshes.md#container-format-version-2).
+retain native whole units in the payload; the presentation scale applies after
+decoding. The precision figures above describe authored coordinates.
+See the [H3D format](hypervision-meshes.md#container-format-versions-2-and-3).
 
 Mesh reduction and coordinate quantization can still merge or remove small
 source features. H3D uses native palette surfaces; source UVs, textures and
 smooth-shading normals are omitted. HyperVision selects the detailed meshes
 when available; turning it off immediately restores the unchanged classic
-shapes. The loader accepts only H3D version 2; invalid or unsupported companions
+shapes. The loader accepts H3D versions 2 and 3; invalid or unsupported companions
 use the classic models. Ports without HyperVision ignore it.
 
 The first eight car vertices are bounds; the following 24 are the classic

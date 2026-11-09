@@ -485,7 +485,7 @@
   },
   "hypervision": {
     "resource": "STMCMU.H3D",
-    "format_version": 2,
+    "format_version": 3,
     "maximum_vertices_per_shape": 65535,
     "maximum_primitives_per_shape": 65535,
     "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
@@ -499,7 +499,7 @@
       "author": "Dave Love SketchFab",
       "source_url": "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
       "license": "https://creativecommons.org/licenses/by/4.0/",
-      "container_version": 2,
+      "container_version": 3,
       "coordinate_fraction_bits": {
         "car0": 0,
         "car1": 4,
@@ -566,6 +566,48 @@
       "showroom_arch_blend_radius_game_units": 16.0,
       "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."
     },
+    "presentation_scale": {
+      "numerator": 125,
+      "denominator": 168,
+      "uniform_factor": 0.7440476190476191,
+      "reference": "Audi Sport Quattro S1 E2 height ratio",
+      "verified_date": "2026-11-09",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2",
+        "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling"
+      ],
+      "wikipedia_dimensions_mm": {
+        "audi_sport_quattro_s1_e2": {
+          "length": 4240,
+          "width": 1860,
+          "height": 1344,
+          "wheelbase": 2204
+        },
+        "mcmurtry_speirling": {
+          "length": 3815,
+          "width": 1795,
+          "height": 1050,
+          "wheelbase": 2200
+        }
+      },
+      "unscaled_showroom_dimensions_game_units": {
+        "audi": {
+          "length": 83,
+          "body_width": 34,
+          "height": 26,
+          "wheelbase": 46
+        },
+        "mcmurtry": {
+          "length": 86.7,
+          "body_width": 37.9,
+          "height": 27.3,
+          "wheelbase": 50
+        }
+      },
+      "calculation": "(26 * 1050 / 1344) / 27.3 = 125 / 168",
+      "application": "All H3D body, bounds and animated wheel coordinates use the same factor. Scale about Y=0 in the showroom and Y=-6 during driving; scale X and Z about the car origin. Mesh payloads, source caches and topology are unchanged. Physics and classic fallback assets retain their existing units.",
+      "reference_tradeoff": "Stock Audi proportions do not match both real height and wheelbase ratios. Height is the visual reference; no axis is adjusted independently to force the wheelbase or length to match."
+    },
     "models": {
       "car0": {
         "vertices": 21648,
@@ -584,7 +626,13 @@
           1.743
         ],
         "coordinate_fraction_bits": 0,
-        "coordinate_step_mm": 2.2
+        "coordinate_step_mm": 2.2,
+        "displayed_dimensions_game_units": {
+          "length": 64.50892857142857,
+          "width": 28.273809523809526,
+          "height": 20.3125
+        },
+        "displayed_wheelbase_game_units": 37.202380952380956
       },
       "car1": {
         "vertices": 1199,
@@ -603,7 +651,13 @@
           1.163
         ],
         "coordinate_fraction_bits": 4,
-        "coordinate_step_mm": 2.75
+        "coordinate_step_mm": 2.75,
+        "displayed_dimensions_game_units": {
+          "length": 64.31361607142857,
+          "width": 28.273809523809526,
+          "height": 19.53125
+        },
+        "displayed_wheelbase_game_units": 37.202380952380956
       },
       "car2": {
         "vertices": 499,
@@ -622,7 +676,13 @@
           1.181
         ],
         "coordinate_fraction_bits": 4,
-        "coordinate_step_mm": 2.75
+        "coordinate_step_mm": 2.75,
+        "displayed_dimensions_game_units": {
+          "length": 64.22061011904762,
+          "width": 28.273809523809526,
+          "height": 20.228794642857142
+        },
+        "displayed_wheelbase_game_units": 37.202380952380956
       }
     }
   },
@@ -655,8 +715,8 @@
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
     },
     "STMCMU.H3D": {
-      "bytes": 978796,
-      "sha256": "c1d9183de1d179b76eb9a50c01bfbed5b310823609ee3c3e9e6bd0db711096ac"
+      "bytes": 978800,
+      "sha256": "e8a7f3db1b699f96072df8ee2f297924bbe9a8bcb8703c71c52bb11241eeb429"
     },
     "MCMU.obj": {
       "bytes": 27742,

@@ -29,7 +29,15 @@ SOURCE_URL = "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bd
 SOURCE_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 SOURCE_UNITS = 1000
 SOURCE_FORMAT_VERSION = 2
-CONTAINER_VERSION = 2
+LEGACY_CONTAINER_VERSION = 2
+CONTAINER_VERSION = 3
+CONTAINER_HEADER = struct.Struct("<4sHHHH")
+# Stock Audi car0 is 26 units tall; the accepted McMurtry car0 is 27.3.
+# Match Wikipedia's 1050/1344 height ratio with one scale for every axis.
+# Keep the authored payloads unchanged, including native wheel controls.
+PRESENTATION_SCALE_NUMERATOR = 125
+PRESENTATION_SCALE_DENOMINATOR = 168
+PRESENTATION_SCALE = PRESENTATION_SCALE_NUMERATOR / PRESENTATION_SCALE_DENOMINATOR
 MAX_FRACTION_BITS = 8
 RACING_FRACTION_BITS = 4
 FRACTION_BITS = {"car0": 0, "car1": RACING_FRACTION_BITS, "car2": RACING_FRACTION_BITS}
@@ -445,14 +453,59 @@ def build_container(model=None):
         import mcmurtry_model as model
     shapes = build_shapes(model)
     resources = [(name, shape.encode_hypervision()) for name, shape in shapes.items()]
-    offset = model.HYPERVISION_CONTAINER_HEADER_SIZE + len(resources) * model.HYPERVISION_CONTAINER_ENTRY_SIZE
+    offset = CONTAINER_HEADER.size + len(resources) * model.HYPERVISION_CONTAINER_ENTRY_SIZE
     directory, payload = bytearray(), bytearray()
     for name, data in resources:
         directory.extend(struct.pack("<4sII", name.encode("ascii"), offset, len(data)))
         payload.extend(data)
         offset += len(data)
-    return (struct.pack("<4sHH", model.HYPERVISION_CONTAINER_MAGIC,
-                        CONTAINER_VERSION, len(resources)) + directory + payload)
+    return (CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
+                                  CONTAINER_VERSION, len(resources),
+                                  PRESENTATION_SCALE_NUMERATOR,
+                                  PRESENTATION_SCALE_DENOMINATOR) + directory + payload)
+
+
+def container_header(data):
+    """Read presentation scale without transforming the authored payloads."""
+    import mcmurtry_model as model
+    if len(data) < model.HYPERVISION_CONTAINER_HEADER_SIZE:
+        raise ValueError("Truncated HyperVision container")
+    magic, version, count = struct.unpack_from("<4sHH", data)
+    if (magic != model.HYPERVISION_CONTAINER_MAGIC or
+            version not in (LEGACY_CONTAINER_VERSION, CONTAINER_VERSION)):
+        raise ValueError("Invalid HyperVision container signature or version")
+    if version == LEGACY_CONTAINER_VERSION:
+        return model.HYPERVISION_CONTAINER_HEADER_SIZE, count, 1.0
+    if len(data) < CONTAINER_HEADER.size:
+        raise ValueError("Truncated HyperVision scale header")
+    _, _, _, numerator, denominator = CONTAINER_HEADER.unpack_from(data)
+    if not numerator or not denominator:
+        raise ValueError("Invalid HyperVision presentation scale")
+    return CONTAINER_HEADER.size, count, numerator / denominator
+
+
+def presentation_metadata():
+    """Record the visual reference separately from authoring/physics units."""
+    return {
+        "numerator": PRESENTATION_SCALE_NUMERATOR,
+        "denominator": PRESENTATION_SCALE_DENOMINATOR,
+        "uniform_factor": PRESENTATION_SCALE,
+        "reference": "Audi Sport Quattro S1 E2 height ratio",
+        "verified_date": "2026-11-09",
+        "sources": ["https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2",
+                    "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling"],
+        "wikipedia_dimensions_mm": {
+            "audi_sport_quattro_s1_e2": {"length": 4240, "width": 1860,
+                                        "height": 1344, "wheelbase": 2204},
+            "mcmurtry_speirling": {"length": 3815, "width": 1795,
+                                  "height": 1050, "wheelbase": 2200}},
+        "unscaled_showroom_dimensions_game_units": {
+            "audi": {"length": 83, "body_width": 34, "height": 26, "wheelbase": 46},
+            "mcmurtry": {"length": 86.7, "body_width": 37.9, "height": 27.3, "wheelbase": 50}},
+        "calculation": "(26 * 1050 / 1344) / 27.3 = 125 / 168",
+        "application": "All H3D body, bounds and animated wheel coordinates use the same factor. Scale about Y=0 in the showroom and Y=-6 during driving; scale X and Z about the car origin. Mesh payloads, source caches and topology are unchanged. Physics and classic fallback assets retain their existing units.",
+        "reference_tradeoff": "Stock Audi proportions do not match both real height and wheelbase ratios. Height is the visual reference; no axis is adjusted independently to force the wheelbase or length to match.",
+    }
 
 
 def metadata():

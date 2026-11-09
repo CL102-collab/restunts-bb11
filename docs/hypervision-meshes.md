@@ -23,7 +23,10 @@ that replacement to enable its HyperVision mesh.
 supplied high-resolution GLB. The body retains source-derived triangles,
 simplified to the companion's vertex and primitive limits; materials use the
 native palette and all seven paints. Source wheel assemblies are replaced by
-the existing native animated wheels. The classic fallback and physics retain
+the existing native animated wheels. A version 3 uniform scale of 125/168
+makes all three McMurtry meshes 25.6% smaller, matching its real height ratio
+to the stock Audi Sport Quattro model without changing any proportions.
+The classic fallback and physics retain
 the existing model. Regenerate the package with:
 
 ```sh
@@ -38,16 +41,31 @@ The original GLB and textures are not required or bundled. See the
 [McMurtry source notes](mcmurtry-speirling.md#detailed-hypervision-companion)
 for attribution, optional offline-import dependencies and coordinate precision.
 
-## Container format, version 2
+## Container format, versions 2 and 3
 
 All numeric fields are little-endian, with no alignment padding. The file
-starts with this eight-byte header:
+starts with this header (eight bytes in version 2, twelve in version 3):
 
 | Offset | Type | Meaning |
 | --- | --- | --- |
 | 0 | 4 bytes | `H3D` followed by a zero byte |
-| 4 | unsigned 16-bit | Version, must be 2 |
+| 4 | unsigned 16-bit | Version, 2 or 3 |
 | 6 | unsigned 16-bit | Number of directory entries, 1–3 |
+| 8 | unsigned 16-bit | Version 3 only: nonzero uniform-scale numerator |
+| 10 | unsigned 16-bit | Version 3 only: nonzero uniform-scale denominator |
+
+Version 2 has a uniform scale of 1. Version 3 applies numerator/denominator
+to all decoded coordinates, including bounds and animated wheel controls.
+The showroom scales about `(0, 0, 0)`; racing meshes scale about `(0, -6, 0)`
+to preserve the native tyre contact plane. This is a visual transform: physics
+contacts, collision sizes and classic fallback geometry retain their existing
+units. The scale never rewrites or requantizes shape payloads.
+
+Body coordinates are scaled once at load time. After native wheel animation,
+the first 32 precise coordinates are refreshed from the unscaled controls and
+scaled once. Rendering, bounds culling, ground placement and shadows share
+these precise coordinates. Version 3 supports fractional presentation even
+when a shape has zero body fraction bits.
 
 Each 12-byte directory entry contains a four-byte name (`car0`, `car1` or
 `car2`), an unsigned 32-bit absolute file offset and an unsigned 32-bit byte
@@ -76,9 +94,10 @@ about 2.75 mm per racing-model step for the McMurtry. The fractional scale
 changes visual body precision while physics, bounds and wheel animation
 continue to use the existing native units.
 
-The loader accepts only container version 2. It rejects the complete companion
-if the version is unsupported or the fraction count exceeds eight, then selects
-the classic model.
+The loader accepts container versions 2 and 3. It rejects the complete companion
+if the version is unsupported, a scale component is zero, the fraction count
+exceeds eight, or scaled coordinates exceed signed 16-bit bounds. Rejected
+companions use the classic model.
 
 Primitive records contain a one-byte type, one-byte flags, one material byte
 per paint job, then vertex indices. Types 1–12 retain their classic meanings

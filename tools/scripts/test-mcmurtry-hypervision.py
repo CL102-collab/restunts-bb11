@@ -83,6 +83,11 @@ CANOPY_SILL_OBLIQUE_Z = (-8., -4., -3., 0.)
 CANOPY_SILL_OBLIQUE_XY = (10.5, 11.)
 CANOPY_SILL_MINIMUM_PAINTED_RAYS = 6
 SHOWROOM_PAYLOAD_SHA256 = "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03"
+ACCEPTED_PAYLOAD_SHA256 = {
+    "car0": SHOWROOM_PAYLOAD_SHA256,
+    "car1": "58f411141b3a7b99f2360ec0c5c0e80e96bebe1e90ab08fa85d4e74579032215",
+    "car2": "6b12bbd7432b693c6802c0b5ba7fdeaf3e690bc94b5d13787dfdbcfffa0a96bb",
+}
 PLANAR_HEIGHT = 2.0
 NEARBY_LAYER_GAP = 1 / (1 << detailed.RACING_FRACTION_BITS)
 NARROW_PANEL_WIDTH = 2 * NEARBY_LAYER_GAP
@@ -705,6 +710,48 @@ class DetailedGeometryTests(unittest.TestCase):
 
     def test_container_is_deterministic(self):
         self.assertEqual(detailed.build_container(), detailed.build_container())
+
+    def test_presentation_scale_preserves_all_accepted_mesh_payloads(self):
+        generated = generator.hypervision_resources(detailed.build_container())
+        for name, digest in ACCEPTED_PAYLOAD_SHA256.items():
+            for source, payload in (("installed", self.installed_shapes[name]),
+                                    ("generated", generated[name])):
+                with self.subTest(shape=name, source=source):
+                    self.assertEqual(digest, hashlib.sha256(payload).hexdigest())
+
+    def test_presentation_scale_matches_audi_height_reference(self):
+        data = detailed.build_container()
+        _, _, scale = detailed.container_header(data)
+        shape = self.shapes["car0"]
+        height = max(point[1] for point in shape.vertices[CONTROLS_END:]) / model.SHOWROOM_SCALE
+        self.assertAlmostEqual(1050 / 1344, height * scale / 26)
+        self.assertLess(scale, 1)
+
+    def test_legacy_unscaled_container_remains_readable(self):
+        resources = list(self.installed_shapes.items())
+        offset = model.HYPERVISION_CONTAINER_HEADER_SIZE + len(resources) * model.HYPERVISION_CONTAINER_ENTRY_SIZE
+        directory, payloads = bytearray(), bytearray()
+        for name, payload in resources:
+            directory.extend(struct.pack("<4sII", name.encode("ascii"), offset, len(payload)))
+            payloads.extend(payload)
+            offset += len(payload)
+        legacy = (struct.pack("<4sHH", model.HYPERVISION_CONTAINER_MAGIC,
+                              detailed.LEGACY_CONTAINER_VERSION, len(resources)) + directory + payloads)
+        self.assertEqual(1, detailed.container_header(legacy)[2])
+        self.assertEqual(self.installed_shapes, generator.hypervision_resources(legacy))
+
+    def test_invalid_presentation_scale_is_rejected(self):
+        for numerator, denominator in ((0, 1), (1, 0), (0, 0)):
+            header = detailed.CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
+                                                    detailed.CONTAINER_VERSION, 1,
+                                                    numerator, denominator)
+            with self.subTest(numerator=numerator, denominator=denominator):
+                with self.assertRaisesRegex(ValueError, "presentation scale"):
+                    generator.hypervision_resources(header)
+        header = detailed.CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
+                                                detailed.CONTAINER_VERSION, 1, 1, 1)
+        with self.assertRaisesRegex(ValueError, "Truncated HyperVision scale header"):
+            detailed.container_header(header[:-1])
 
     def test_lods_reduce_the_actual_geometry(self):
         counts = [len(self.shapes[name].primitives) for name in ("car0", "car1", "car2")]

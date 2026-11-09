@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +37,8 @@
 #define TEST_MESH_FRACTION_BITS 4U
 #define TEST_MESH_FRACTION_DIVISOR (1U << TEST_MESH_FRACTION_BITS)
 #define TEST_MESH_OBSOLETE_VERSION 1U
-#define TEST_MESH_INVALID_VERSION 3U
+#define TEST_MESH_INVALID_VERSION 4U
+#define TEST_MESH_COORDINATE_TOLERANCE 1e-10
 #define TEST_MESH_ADDRESS_BOUNDARY_VERTEX (LEGACY_U16_MAX / SHAPE3D_VERTEX_SIZE + 1U)
 
 struct TEST_MESH {
@@ -290,17 +292,18 @@ static void prepare_classic_cars(struct TEST_CLASSIC_CARS *cars)
 	}
 }
 
-static legacy_u8 *make_container(const struct TEST_CLASSIC_CARS *cars, size_t *size)
+static legacy_u8 *make_container_with_type(const struct TEST_CLASSIC_CARS *cars, size_t *size,
+										   legacy_u8 type)
 {
-	struct TEST_MESH mesh = make_mesh(TEST_MESH_ADDRESS_BOUNDARY_VERTEX + 3U, TEST_MESH_PAINT_COUNT,
-									  SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+	struct TEST_MESH mesh =
+		make_mesh(TEST_MESH_ADDRESS_BOUNDARY_VERTEX + 3U, TEST_MESH_PAINT_COUNT, type);
 	size_t offset = TEST_CONTAINER_HEADER_SIZE + TEST_CAR_MESH_COUNT * TEST_CONTAINER_ENTRY_SIZE;
 	*size = offset + TEST_CAR_MESH_COUNT * mesh.size;
 	assert(*size > LEGACY_U16_MAX);
 	legacy_u8 *data = calloc(1, *size);
 	assert(data != NULL);
 	memcpy(data, "H3D", sizeof("H3D"));
-	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, HIRES_MESH_VERSION);
+	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, HIRES_MESH_LEGACY_VERSION);
 	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_COUNT_OFFSET, TEST_CAR_MESH_COUNT);
 	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
 		legacy_u8 *entry = data + TEST_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
@@ -317,6 +320,52 @@ static legacy_u8 *make_container(const struct TEST_CLASSIC_CARS *cars, size_t *s
 	}
 	free(mesh.storage);
 	return data;
+}
+
+static legacy_u8 *make_container(const struct TEST_CLASSIC_CARS *cars, size_t *size)
+{
+	return make_container_with_type(cars, size, SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+}
+
+#define TEST_SCALE_CONTAINER_HEADER_SIZE 12U
+#define TEST_SCALE_NUMERATOR_OFFSET 8U
+#define TEST_SCALE_DENOMINATOR_OFFSET 10U
+#define TEST_SCALE_NUMERATOR 125U
+#define TEST_SCALE_DENOMINATOR 168U
+#define TEST_SCALE_SHOWROOM_MULTIPLIER 20
+#define TEST_SCALE_RACING_GROUND -6
+#define TEST_SCALE_WHEEL_CENTER_Y 2
+#define TEST_SCALE_WHEEL_RADIUS 8
+
+static legacy_u8 *make_scaled_container(legacy_u8 *original, size_t *size)
+{
+	size_t extra = TEST_SCALE_CONTAINER_HEADER_SIZE - TEST_CONTAINER_HEADER_SIZE;
+	legacy_u8 *data = malloc(*size + extra);
+	assert(data != NULL);
+	memcpy(data, original, TEST_CONTAINER_HEADER_SIZE);
+	memcpy(data + TEST_SCALE_CONTAINER_HEADER_SIZE, original + TEST_CONTAINER_HEADER_SIZE,
+		   *size - TEST_CONTAINER_HEADER_SIZE);
+	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, HIRES_MESH_VERSION);
+	LEGACY_WRITE_U16_LE(data + TEST_SCALE_NUMERATOR_OFFSET, TEST_SCALE_NUMERATOR);
+	LEGACY_WRITE_U16_LE(data + TEST_SCALE_DENOMINATOR_OFFSET, TEST_SCALE_DENOMINATOR);
+	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
+		legacy_u8 *entry =
+			data + TEST_SCALE_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
+		LEGACY_WRITE_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD,
+							LEGACY_READ_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD) + extra);
+	}
+	*size += extra;
+	free(original);
+	return data;
+}
+
+static void assert_scaled_vertex(const struct SHAPE3D_HIRES_VECTOR *point, const struct VECTOR *raw,
+								 legacy_f64 divisor, legacy_f64 scale, legacy_f64 ground)
+{
+	assert(fabs(point->x - raw->x / divisor * scale) < TEST_MESH_COORDINATE_TOLERANCE);
+	assert(fabs(point->y - (ground + (raw->y / divisor - ground) * scale)) <
+		   TEST_MESH_COORDINATE_TOLERANCE);
+	assert(fabs(point->z - raw->z / divisor * scale) < TEST_MESH_COORDINATE_TOLERANCE);
 }
 
 static void write_container(const legacy_char *path, const legacy_u8 *data, size_t size)
@@ -512,7 +561,7 @@ static void check_car_mesh_lifetime(void)
 
 extern void full_data_initialize(void);
 
-static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_u8 fractional)
+static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_u8 racing)
 {
 	struct SHAPE3D *mesh = hires_shape3d_car_mesh(classic);
 	assert(mesh != classic);
@@ -523,13 +572,17 @@ static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_
 				  mesh->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 				  TEST_MCMURTRY_WHEEL_BYTES) == 0);
 	const struct SHAPE3D_HIRES_VECTOR *vertices = hires_shape3d_car_vertices(mesh);
-	assert((vertices != NULL) == (fractional != 0));
+	assert(vertices != NULL || racing == 0);
 	assert(vertices == hires_shape3d_car_vertices(classic));
+	struct VECTOR reference;
+	shape3d_vertex_read(mesh, TEST_CAR_FIRST_WHEEL_VERTEX, &reference);
+	legacy_f64 scale = vertices != NULL ? vertices[TEST_CAR_FIRST_WHEEL_VERTEX].x / reference.x : 1;
+	assert(scale > 0 && scale <= 1);
+	legacy_f64 ground = racing != 0 ? TEST_SCALE_RACING_GROUND : 0;
 	for (legacy_u16 index = 0; vertices != NULL && index < TEST_CAR_VERTEX_COUNT; index++) {
 		struct VECTOR vertex;
 		shape3d_vertex_read(mesh, index, &vertex);
-		assert(vertices[index].x == vertex.x && vertices[index].y == vertex.y &&
-			   vertices[index].z == vertex.z);
+		assert_scaled_vertex(&vertices[index], &vertex, 1, scale, ground);
 	}
 	return mesh;
 }
@@ -553,6 +606,11 @@ static void check_real_car_cache_reload(void)
 	assert(player->shape3d_numverts == LEGACY_U8_MAX);
 	assert(player->shape3d_numprimitives == TEST_MCMURTRY_CLASSIC_PRIMITIVES);
 	struct SHAPE3D *enhanced = check_real_mcmurtry_mesh(player, 1);
+	assert(shape3d_hires_car_ground_height(&game3dshapes[PLAYER_CAR_LOW_SHAPE]) == 0);
+	assert(shape3d_hires_car_ground_height(player) == TEST_SCALE_RACING_GROUND);
+	assert(shape3d_hires_car_ground_height(&game3dshapes[PLAYER_CAR_HIGH_SHAPE]) ==
+		   TEST_SCALE_RACING_GROUND);
+	assert(shape3d_hires_car_ground_offset(player) == 0);
 	memcpy(original,
 		   player->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 		   sizeof(original));
@@ -800,6 +858,126 @@ static void check_fractional_car_cache(void)
 	free(data);
 }
 
+static void check_scaled_car_cache(void)
+{
+	struct TEST_CLASSIC_CARS cars;
+	prepare_classic_cars(&cars);
+	/* A proper wheel makes fractional rounding of its underside observable. */
+	const struct VECTOR wheel[] = {{-13, TEST_SCALE_WHEEL_CENTER_Y, 25},
+								   {-13, TEST_SCALE_WHEEL_CENTER_Y + TEST_SCALE_WHEEL_RADIUS, 25},
+								   {-13, TEST_SCALE_WHEEL_CENTER_Y, 25 + TEST_SCALE_WHEEL_RADIUS},
+								   {-19, TEST_SCALE_WHEEL_CENTER_Y, 25},
+								   {-19, TEST_SCALE_WHEEL_CENTER_Y + TEST_SCALE_WHEEL_RADIUS, 25},
+								   {-19, TEST_SCALE_WHEEL_CENTER_Y, 25 + TEST_SCALE_WHEEL_RADIUS}};
+	for (legacy_u16 car = 0; car < TEST_CAR_COUNT; car++) {
+		for (legacy_u16 model = 0; model < TEST_CAR_MESH_COUNT; model++) {
+			legacy_s16 factor = model == 0 ? TEST_SCALE_SHOWROOM_MULTIPLIER : 1;
+			legacy_s16 shift = model == 0 ? -TEST_SCALE_RACING_GROUND * factor : 0;
+			for (legacy_u16 vertex = 0; vertex < SDL_arraysize(wheel); vertex++) {
+				struct VECTOR point = {wheel[vertex].x * factor, wheel[vertex].y * factor + shift,
+									   wheel[vertex].z * factor};
+				shape3d_vertex_write(&cars.shapes[car][model], TEST_CAR_FIRST_WHEEL_VERTEX + vertex,
+									 &point);
+			}
+		}
+	}
+	size_t size;
+	legacy_u8 *data = make_container_with_type(&cars, &size, SHAPE3D_PRIMITIVE_WHEEL);
+	data = make_scaled_container(data, &size);
+	const struct VECTOR body = {123, -140, 7};
+	for (legacy_u16 model = 0; model < TEST_CAR_MESH_COUNT; model++) {
+		legacy_u8 *entry =
+			data + TEST_SCALE_CONTAINER_HEADER_SIZE + model * TEST_CONTAINER_ENTRY_SIZE;
+		legacy_u8 *payload = data + LEGACY_READ_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD);
+		LEGACY_WRITE_U16_LE(payload + TEST_MESH_FRACTION_BITS_OFFSET,
+							model == 0 ? 0 : TEST_MESH_FRACTION_BITS);
+		struct SHAPE3D shape;
+		assert(hires_shape3d_mesh_decode(
+			payload, LEGACY_READ_U32_LE(entry + TEST_CONTAINER_LENGTH_FIELD), &shape));
+		shape3d_vertex_write(&shape, TEST_CAR_VERTEX_COUNT, &body);
+		legacy_u8 *indices =
+			shape.shape3d_primitives + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape.shape3d_numpaints;
+		for (legacy_u16 vertex = 0; vertex < SDL_arraysize(wheel); vertex++) {
+			LEGACY_WRITE_U16_LE(indices + vertex * sizeof(legacy_u16),
+								TEST_CAR_FIRST_WHEEL_VERTEX + vertex);
+		}
+	}
+	legacy_char directory[FILE_CAR_PATH_SIZE], path[FILE_CAR_PATH_SIZE];
+	assert(SDL_snprintf(directory, sizeof(directory), "hires-scaled-%" LEGACY_PRIu64,
+						(legacy_u64)SDL_GetTicksNS()) > 0);
+	assert(SDL_CreateDirectory(directory));
+	assert(SDL_snprintf(path, sizeof(path), "%s/STSCAL.H3D", directory) > 0);
+	file_car_set_base((const legacy_s8 *)directory);
+	write_container(path, data, size);
+	for (legacy_u16 car = 0; car < TEST_CAR_COUNT; car++) {
+		hires_shape3d_load_car_meshes(car, (const legacy_s8 *)"SCAL", cars.pointers[car]);
+	}
+	legacy_f64 scale = (legacy_f64)TEST_SCALE_NUMERATOR / TEST_SCALE_DENOMINATOR;
+	for (legacy_u16 model = 0; model < TEST_CAR_MESH_COUNT; model++) {
+		struct SHAPE3D *mesh = hires_shape3d_car_mesh(cars.pointers[0][model]);
+		assert(mesh != cars.pointers[0][model]);
+		const struct SHAPE3D_HIRES_VECTOR *vertices = hires_shape3d_car_vertices(mesh);
+		assert(vertices != NULL && vertices == hires_shape3d_car_vertices(cars.pointers[0][model]));
+		legacy_f64 ground = model == 0 ? 0 : TEST_SCALE_RACING_GROUND;
+		legacy_f64 divisor = model == 0 ? 1 : TEST_MESH_FRACTION_DIVISOR;
+		for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
+			struct VECTOR raw;
+			shape3d_vertex_read(mesh, vertex, &raw);
+			assert_scaled_vertex(&vertices[vertex], &raw,
+								 vertex < TEST_CAR_VERTEX_COUNT ? 1 : divisor, scale, ground);
+		}
+		const legacy_u8 *entry =
+			data + TEST_SCALE_CONTAINER_HEADER_SIZE + model * TEST_CONTAINER_ENTRY_SIZE;
+		const legacy_u8 *payload = data + LEGACY_READ_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD);
+		assert(memcmp(mesh->shape3d_vertex_bytes, payload + TEST_MESH_HEADER_SIZE,
+					  (size_t)mesh->shape3d_numverts * SHAPE3D_VERTEX_SIZE) == 0);
+		assert(shape3d_hires_car_ground_height(mesh) == ground);
+	}
+	struct SHAPE3D *mesh = hires_shape3d_car_mesh(cars.pointers[0][1]);
+	const struct SHAPE3D_HIRES_VECTOR *vertices = hires_shape3d_car_vertices(mesh);
+	const struct SHAPE3D_HIRES_VECTOR *other = hires_shape3d_car_vertices(cars.pointers[1][1]);
+	struct SHAPE3D_HIRES_VECTOR other_wheel = other[TEST_CAR_FIRST_WHEEL_VERTEX];
+	struct SHAPE3D_HIRES_VECTOR original_body = vertices[TEST_CAR_VERTEX_COUNT];
+	struct VECTOR changed = {-123, 45, 67};
+	shape3d_vertex_write(&cars.shapes[0][1], TEST_CAR_FIRST_WHEEL_VERTEX, &changed);
+	for (legacy_u16 refresh = 0; refresh < TEST_CAR_MESH_COUNT; refresh++) {
+		hires_shape3d_update_car_mesh(cars.pointers[0][1]);
+		assert_scaled_vertex(&vertices[TEST_CAR_FIRST_WHEEL_VERTEX], &changed, 1, scale,
+							 TEST_SCALE_RACING_GROUND);
+		assert(memcmp(&original_body, &vertices[TEST_CAR_VERTEX_COUNT], sizeof(original_body)) ==
+			   0);
+		assert(memcmp(&other_wheel, &other[TEST_CAR_FIRST_WHEEL_VERTEX], sizeof(other_wheel)) == 0);
+	}
+	/* A changed rear wheel still fails the shared-control contract. */
+	shape3d_vertex_write(&cars.shapes[0][1], TEST_CAR_FIRST_WHEEL_VERTEX, &wheel[0]);
+	shape3d_vertex_write(&cars.shapes[0][1],
+						 TEST_CAR_FIRST_WHEEL_VERTEX + 2U * SDL_arraysize(wheel), &changed);
+	hires_shape3d_load_car_meshes(0, (const legacy_s8 *)"SCAL", cars.pointers[0]);
+	assert_classic_fallback(&cars, 0);
+	const size_t invalid_fields[] = {TEST_SCALE_NUMERATOR_OFFSET, TEST_SCALE_DENOMINATOR_OFFSET};
+	for (legacy_u16 field = 0; field < SDL_arraysize(invalid_fields); field++) {
+		legacy_u16 saved = LEGACY_READ_U16_LE(data + invalid_fields[field]);
+		LEGACY_WRITE_U16_LE(data + invalid_fields[field], 0);
+		write_container(path, data, size);
+		hires_shape3d_load_car_meshes(1, (const legacy_s8 *)"SCAL", cars.pointers[1]);
+		assert_classic_fallback(&cars, 1);
+		LEGACY_WRITE_U16_LE(data + invalid_fields[field], saved);
+	}
+	write_container(path, data, TEST_SCALE_CONTAINER_HEADER_SIZE - 1U);
+	hires_shape3d_load_car_meshes(1, (const legacy_s8 *)"SCAL", cars.pointers[1]);
+	assert_classic_fallback(&cars, 1);
+	LEGACY_WRITE_U16_LE(data + TEST_SCALE_NUMERATOR_OFFSET, LEGACY_U16_MAX);
+	LEGACY_WRITE_U16_LE(data + TEST_SCALE_DENOMINATOR_OFFSET, 1);
+	write_container(path, data, size);
+	hires_shape3d_load_car_meshes(1, (const legacy_s8 *)"SCAL", cars.pointers[1]);
+	assert_classic_fallback(&cars, 1);
+	hires_shape3d_free_car_meshes();
+	file_car_set_base(NULL);
+	assert(SDL_RemovePath(path));
+	assert(SDL_RemovePath(directory));
+	free(data);
+}
+
 legacy_int main(void)
 {
 	check_valid_meshes();
@@ -810,6 +988,7 @@ legacy_int main(void)
 	check_car_mesh_lifetime();
 	check_real_car_cache_reload();
 	check_fractional_car_cache();
-	puts("HyperVision wide mesh decoding, resource lifetime and fallback checks passed.");
+	check_scaled_car_cache();
+	puts("HyperVision mesh decoding, uniform scale, ground contact and lifetime checks passed.");
 	return 0;
 }
