@@ -652,6 +652,7 @@ legacy_void RsGamestepUpdateGamestateImpl(
       RsGamestepUpdateRaceStartSequence();
     }
   }
+  RsExtendedGamestepFinishStep();
 }
 
 legacy_void RsUpdateGamestate()

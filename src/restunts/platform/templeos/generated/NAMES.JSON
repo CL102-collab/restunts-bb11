@@ -339,6 +339,7 @@
   "extended_gameinit_reset": "RsExtendedGameinitReset",
   "extended_gameinit_restore": "RsExtendedGameinitRestore",
   "extended_gamestep_after_step": "RsExtendedGamestepAfterStep",
+  "extended_gamestep_finish_step": "RsExtendedGamestepFinishStep",
   "extended_gamestep_input": "RsExtendedGamestepInput",
   "extended_gamestep_legacy_checkpoints": "RsExtendedGamestepLegacyCheckpoints",
   "extended_hiscore_show_error": "RsExtendedHiscoreShowError",

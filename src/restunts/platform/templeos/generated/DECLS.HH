@@ -238,6 +238,7 @@ extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
 extern legacy_s16 RsExtendedGamestepInput(legacy_s8 *input,legacy_s16 store_checkpoints);
 extern legacy_s16 RsExtendedGamestepLegacyCheckpoints();
 extern legacy_void RsExtendedGamestepAfterStep();
+extern legacy_void RsExtendedGamestepFinishStep();
 extern legacy_s16 RsSetupPlayerCars();
 extern legacy_void RsFreePlayerCars();
 extern legacy_void RsGhostLoadSimulationResources();

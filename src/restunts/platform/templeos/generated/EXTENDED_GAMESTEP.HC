@@ -51,3 +51,7 @@ legacy_s16 RsExtendedGamestepLegacyCheckpoints()
 legacy_void RsExtendedGamestepAfterStep()
 {
 }
+
+legacy_void RsExtendedGamestepFinishStep()
+{
+}
