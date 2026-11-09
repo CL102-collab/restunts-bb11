@@ -91,7 +91,6 @@ GEAR_RATIO_SHIFT = 16
 BRAND_TEXT = "MCMURTRY"
 BRAND_ORIGIN = (-15, 17)
 BRAND_SUPERSCRIPT_INDEX = 1
-BRAND_SUPERSCRIPT_RISE = 2
 BRAND_SUPERSCRIPT_C = ("011", "100", "011")
 FONT_GLYPH_HEIGHT, FONT_GLYPH_ADVANCE = 5, 4
 BLACK, CHARCOAL, CARBON, EDGE = 0, 31, 29, 27
@@ -109,13 +108,9 @@ INSTRUMENT_TRANSFORM_IDS = (("imt1", -1), ("imt3", 1))
 INSTRUMENT_PIVOT = (WHEEL_CENTER[0] - INSTRUMENT_RECT[0],
                     WHEEL_CENTER[1] - INSTRUMENT_RECT[1])
 COWL_CROWN_TOP, COWL_CROWN_RISE, COWL_BOTTOM = 118, 7, 132
-FASCIA_OUTLINE = ((8, 135), (28, 129), (72, 124), (120, 121), (160, 120),
-                  (200, 121), (248, 124), (292, 130), (312, 138), (313, 146),
-                  (301, 150), (272, 145), (232, 137), (194, 133), (160, 132),
-                  (126, 133), (88, 137), (49, 144), (23, 148), (9, 144))
-FASCIA_UPPER_EDGE = FASCIA_OUTLINE[:9]
-FASCIA_LOWER_EDGE = FASCIA_OUTLINE[9:] + FASCIA_OUTLINE[:1]
-FASCIA_SEAM, FASCIA_SHADOW = 22, 27
+FASCIA_UPPER_EDGE = ((8, 135), (28, 129), (72, 124), (120, 121), (160, 120),
+                     (200, 121), (248, 124), (292, 130), (312, 138))
+FASCIA_SEAM = 22
 FASCIA_CLOUD_STRENGTH, FASCIA_GRAIN_STRENGTH = .12, .08
 # The photographed outlets are deep open scoops, not a bank of grille slots.
 # Their asymmetric rounded mouths have a thin upper edge and rolled near lip.
@@ -135,6 +130,16 @@ DUCT_INNER_LIP = ((41, 145), (52, 148), (72, 146), (87, 142), (96, 136))
 DUCT_RIBS = (((50, 133), (51, 140)), ((59, 131), (60, 139)),
              ((68, 130), (69, 135)))
 DUCT_RIB_SHADE = 30
+# The front face follows both outlet lips and meets the same corner anchors
+# as the metal side plates. Its depth extends into the well, not the road.
+FASCIA_FRONT_LEFT = DUCT_LOWER_LIP + ((112, 135), (136, 133), ((WIDTH - 1) / 2, 132))
+FASCIA_FRONT_EDGE = FASCIA_FRONT_LEFT + tuple(
+    (WIDTH - 1 - x, y) for x, y in reversed(FASCIA_FRONT_LEFT[:-1]))
+FASCIA_OUTLINE = FASCIA_UPPER_EDGE + tuple(reversed(FASCIA_FRONT_EDGE))
+FASCIA_FACE_DEPTH = 4
+FASCIA_SHADOW_DROP = 2
+FASCIA_FACE_LIGHT = -.12
+FASCIA_TOP_LIGHT = .05
 # Nearly upright metal control plates stay ahead of the steering-column well.
 # A broad flat face and narrow bevels replace the swept carbon consoles.
 SIDE_PANEL_CURVE = (DUCT_LOWER_LIP[0], (31, 161), (32, 184), (39, 204))
@@ -371,17 +376,24 @@ def _air_outlet(canvas, reflected):
 
 
 def _fascia(canvas):
-    """Rear carbon deck and column well behind the raised side consoles."""
-    _surface(canvas, FASCIA_OUTLINE, "fascia_carbon")
-    _seam(canvas, FASCIA_UPPER_EDGE, FASCIA_SEAM)
-    _seam(canvas, FASCIA_LOWER_EDGE, FASCIA_SHADOW)
+    """Raised upper surround flush with the side plates, ahead of the well."""
+    # Recessed column geometry is behind the entire foreground surround.
     _surface(canvas, COLUMN_RECESS, "recess")
     _seam(canvas, COLUMN_RIM, BLACK)
     _seam(canvas, [(x, y + 1) for x, y in COLUMN_RIM], CARBON)
-    # Only the column's upper rim appears above the foreground display.
     _ellipse(canvas, 160, 143, 14, 13, BLACK)
     _ellipse(canvas, 160, 142, 11, 10, EDGE)
     _ellipse(canvas, 160, 144, 9, 10, BLACK)
+
+    lower_edge = [(x, y + FASCIA_FACE_DEPTH) for x, y in FASCIA_FRONT_EDGE]
+    shadow_edge = [(x, y + FASCIA_SHADOW_DROP) for x, y in lower_edge]
+    canvas.polygon(list(FASCIA_FRONT_EDGE) + list(reversed(shadow_edge)), BLACK)
+    _surface(canvas, list(FASCIA_FRONT_EDGE) + list(reversed(lower_edge)),
+             "fascia_carbon", light=FASCIA_FACE_LIGHT)
+    _surface(canvas, FASCIA_OUTLINE, "fascia_carbon", light=FASCIA_TOP_LIGHT)
+    _seam(canvas, FASCIA_UPPER_EDGE, FASCIA_SEAM)
+    _seam(canvas, FASCIA_FRONT_EDGE, EDGE)
+    _seam(canvas, lower_edge, CHARCOAL)
     for reflected in (False, True):
         _air_outlet(canvas, reflected)
 
@@ -625,11 +637,10 @@ def _wheel(canvas, direction):
     for x, y in CONTROL_CENTERS:
         bitmap(knob, (x - half_size, y - half_size / WHEEL_VERTICAL_SCALE))
 
-    # Give the smaller superscript C its own upper rows, while keeping the
-    # normal lettering at its established baseline below the display.
+    # The small C shares the other letters' cap line; its shorter height
+    # supplies the raised appearance without projecting above the M.
     text_width = len(BRAND_TEXT) * FONT_GLYPH_ADVANCE - 1
-    lettering = Canvas(text_width, FONT_GLYPH_HEIGHT + BRAND_SUPERSCRIPT_RISE,
-                       color=TRANSPARENT)
+    lettering = Canvas(text_width, FONT_GLYPH_HEIGHT, color=TRANSPARENT)
     for index, letter in enumerate(BRAND_TEXT):
         x = index * FONT_GLYPH_ADVANCE
         if index == BRAND_SUPERSCRIPT_INDEX:
@@ -638,9 +649,8 @@ def _wheel(canvas, direction):
                     if pixel == "1":
                         lettering.point(x + column, row, WHITE)
         else:
-            lettering.text(x, BRAND_SUPERSCRIPT_RISE, letter, WHITE)
-    bitmap(lettering, (BRAND_ORIGIN[0],
-                       BRAND_ORIGIN[1] - BRAND_SUPERSCRIPT_RISE / WHEEL_VERTICAL_SCALE))
+            lettering.text(x, 0, letter, WHITE)
+    bitmap(lettering, BRAND_ORIGIN)
 
 
 def instrument_transform(direction):
