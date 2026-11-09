@@ -24,7 +24,7 @@ def children(parent):
     path = Path(f"/proc/{parent}/task/{parent}/children")
     try:
         return [int(value) for value in path.read_text().split()]
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         result = []
         for candidate in Path("/proc").iterdir():
             if not candidate.name.isdecimal():
@@ -42,7 +42,7 @@ def alive(pid):
     try:
         data = Path(f"/proc/{pid}/stat").read_text()
         return data[data.rfind(")") + 2:].split()[0] != "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
 
 

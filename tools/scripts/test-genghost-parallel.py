@@ -35,7 +35,7 @@ def process_workers(parent, chicane_flag=None):
     children = Path(f"/proc/{parent}/task/{parent}/children")
     try:
         pids = [int(value) for value in children.read_text().split()]
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         # Some container kernels omit /task/PID/children. PPID in /proc/PID/stat
         # provides the same relationship without requiring that kernel feature.
         pids = [int(path.name) for path in Path("/proc").iterdir() if path.name.isdecimal()]
@@ -61,7 +61,7 @@ def process_live(pid):
     try:
         state = Path(f"/proc/{pid}/stat").read_text()
         return state[state.rfind(")") + 2:].split()[0] != "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
 
 
