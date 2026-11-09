@@ -248,10 +248,12 @@ run_host_test() {
     done
 
     echo "Building $test_name"
-    "$test_compiler" "${test_compile_flags[@]}" "$@" \
+    # Place per-test libraries after the fixture and discovered sources so
+    # linkers using --as-needed keep libraries that satisfy those objects.
+    "$test_compiler" "${test_compile_flags[@]}" \
         "$fixture" "$test_source_dir/$source_file" \
         ${extra_sources[@]+"${extra_sources[@]}"} \
-        "${test_link_flags[@]}" -o "$test_build_dir/$test_name"
+        "$@" "${test_link_flags[@]}" -o "$test_build_dir/$test_name"
 
     echo "Running $test_name"
     "$test_build_dir/$test_name"
@@ -589,7 +591,7 @@ run_host_test test-shape3d-materials shape3d/shape3d.c \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-shape3d-vertices shape3d/shape3d.c \
     -Wno-pointer-sign -Wno-unused-variable
-run_host_test test-car-grounding legacy.c -DRESTUNTS_SDL3 -Wno-pointer-sign
+run_host_test test-car-grounding legacy.c -DRESTUNTS_SDL3 -Wno-pointer-sign -lm
 run_host_test test-car-shape-lifetime shape3d/shape3d_car.c \
     "$test_source_dir/owoot/owoot.c" "$test_source_dir/owoot/owoot_wheels.c" \
     "$test_source_dir/shape3d/shape3d_resources.c" "$test_source_dir/shape3d/shape3d.c" \
