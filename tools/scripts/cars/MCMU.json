@@ -525,24 +525,46 @@
         "car0": 2.2
       },
       "racing_vertex_targets_including_controls": {
-        "car1": 1000,
+        "car1": 1200,
         "car2": 500
       },
-      "racing_authoring_source": "tools/scripts/mcmurtry_model.py",
-      "racing_surface_generator": "tools/scripts/mcmurtry_racing.py",
-      "racing_aperture_generator": "tools/scripts/mcmurtry_apertures.py",
-      "racing_mirrors": false,
-      "racing_wheel_top_apertures": "four roof cutouts following authored outlines, with fitted recess walls and dark floors",
+      "racing_vertex_limits_including_controls": {
+        "car1": [
+          1000,
+          1200
+        ],
+        "car2": [
+          400,
+          500
+        ]
+      },
+      "racing_authoring_source": "STMCMU.H3D/car0",
+      "racing_source_car0_sha256": "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03",
+      "racing_compact_source": "tools/scripts/cars/mcmurtry_racing_lods.json.gz",
       "racing_surface_construction": {
-        "car1": "crease-aware Catmull-Clark subdivision of connected authored panels",
-        "car2": "smoothed authored panels with face-center triangulation and preserved arch outlines",
-        "crease_angle_degrees": 50,
-        "preserve_encoded_panel_winding": true,
-        "distant_arch_min_abs_x_game_units": 13.0
+        "algorithm": {
+          "car1": "connected source-sampled front panels, repaired rear profiles and mirrored body",
+          "car2": "material-constrained quadric edge collapse"
+        },
+        "arch_expansion_game_units": {
+          "car1": 0.0,
+          "car2": 0.0
+        },
+        "generator": "tools/scripts/generate-mcmurtry-lods.py",
+        "minimum_component_area_game_units_squared": {
+          "car1": 10.0,
+          "car2": 20.0
+        },
+        "near_body_symmetry": "positive X half reflected across shared centreline vertices",
+        "near_front_panels": "shared hood, wheel-vent recess, wheel-well and bumper edges",
+        "near_rear_base_vertices": 1000,
+        "near_rear_panels": "joined canopy sill, source shoulder contour, fender lips and bumper corners",
+        "protected_features": "source wing, glass extrema and wheel-arch contours",
+        "wing_blades": "closed convex envelopes of source blade components"
       },
       "showroom_arch_target_radius_game_units": 10.0,
       "showroom_arch_blend_radius_game_units": 16.0,
-      "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Racing shells use continuous source-guided native retopology with crease-aware panel smoothing and constrained winding instead of merging disconnected imported layers; panel materials and seven paints remain coherent. Four recessed wheel-top apertures retain their authored outlines; racing mirrors are omitted. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."
+      "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."
     },
     "models": {
       "car0": {
@@ -565,42 +587,40 @@
         "coordinate_step_mm": 2.2
       },
       "car1": {
-        "vertices": 1071,
-        "primitives": 1906,
+        "vertices": 1199,
+        "primitives": 2143,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.0,
-          "width": 38.5,
-          "height": 24.9375
+          "length": 86.4375,
+          "width": 38.0,
+          "height": 26.25
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.069,
-          1.069,
-          1.216,
-          1.216
+          1.383,
+          1.383,
+          1.163,
+          1.163
         ],
-        "minimum_upper_tyre_clearance_game_units": 1.041,
         "coordinate_fraction_bits": 4,
         "coordinate_step_mm": 2.75
       },
       "car2": {
-        "vertices": 437,
-        "primitives": 715,
+        "vertices": 499,
+        "primitives": 810,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.75,
-          "width": 38.5,
-          "height": 24.9375
+          "length": 86.3125,
+          "width": 38.0,
+          "height": 27.1875
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.128,
-          1.128,
-          1.302,
-          1.302
+          1.147,
+          1.081,
+          1.163,
+          1.181
         ],
-        "minimum_upper_tyre_clearance_game_units": 1.218,
         "coordinate_fraction_bits": 4,
         "coordinate_step_mm": 2.75
       }
@@ -635,8 +655,8 @@
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
     },
     "STMCMU.H3D": {
-      "bytes": 969988,
-      "sha256": "73c279b023a3e51bc1883a60dea877b38d161f13ff42749e69d96bd0dff900e2"
+      "bytes": 978796,
+      "sha256": "c1d9183de1d179b76eb9a50c01bfbed5b310823609ee3c3e9e6bd0db711096ac"
     },
     "MCMU.obj": {
       "bytes": 27742,

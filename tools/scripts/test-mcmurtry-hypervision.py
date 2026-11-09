@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Check source provenance, detailed H3D geometry and shared animated wheels."""
 
+import gzip
 import hashlib
 import importlib.util
+import json
 import math
+from collections import Counter
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest import mock
 
 import mcmurtry_hypervision as detailed
 import mcmurtry_model as model
@@ -22,13 +26,65 @@ SPEC.loader.exec_module(generator)
 CONTROLS_END = model.WHEEL_CONTROL_START + detailed.WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
 SOURCE_LENGTH_TOLERANCE = .1
 MINIMUM_SOURCE_TRIANGLES = 100_000
-RACING_VERTEX_TARGETS = {"car1": 1_000, "car2": 500}
-VERTEX_TARGET_TOLERANCE = .1
+RACING_VERTEX_BUDGETS = {"car1": (1_000, 1_200), "car2": (400, 500)}
+SOURCE_EXTENT_TOLERANCE = 1.5
+WING_SAMPLE_X = (-12., 12.)
+WING_SAMPLE_Z = (-40., -42.)
+WING_HEIGHT_TOLERANCE = 1.5
+FRONT_FENDER_WITNESSES = ((12.5, 21.5), (13.25, 27.5), (17.375, 26.25))
+FRONT_FENDER_RAY_HEIGHT = 12.0
+FRONT_FENDER_ABS_X_BOUNDS = (11.0, 20.0)
+FRONT_FENDER_Z_BOUNDS = (13.0, 37.0)
+FRONT_FENDER_MINIMUM_Y = 6.0
+FRONT_FENDER_DEPTH_TOLERANCE = 1.0
+FRONT_FENDER_MINIMUM_PAINTED_RAYS = 20
+FRONT_FENDER_VIEW_DIRECTIONS = ((0., 1., 0.), (1., 1., 0.), (-1., 1., 0.),
+                                (1., 1., 1.), (1., 1., -1.))
+FRONT_PANEL_SAMPLE_X = tuple(float(x) for x in range(1, 18, 2))
+HOOD_SAMPLE_Z = tuple(float(z) for z in range(17, 42, 4))
+HOOD_MINIMUM_Y = 6.0
+HOOD_MINIMUM_PAINTED_RAYS = 35
+BUMPER_SAMPLE_Y = (.5, 2.5, 4.5, 6.5)
+BUMPER_MINIMUM_Z = 34.0
+BUMPER_MINIMUM_PAINTED_RAYS = 8
+BUMPER_MATERIAL_BOUNDARY_MARGIN = 1.5
+FRONT_PANEL_DEPTH_TOLERANCE = 1.5
+FRONT_JOIN_Z = 4.0
+REAR_PAINT_SAMPLE_MARGIN = .25
+REAR_PAINT_DEPTH_TOLERANCE = 1.5
+REAR_OBLIQUE_DIRECTIONS = ((1., .5, -1.), (1., .5, 1.))
+REAR_ARCH_SOURCE_BOUNDS = ((13.5, 20.), (9., 15.8), (-33., -15.))
+REAR_ARCH_SAMPLE_Y = (12., 12.5, 13.)
+REAR_ARCH_SAMPLE_Z = (-28., -26., -24., -22.)
+REAR_ARCH_OBLIQUE_Z = (-20., -24., -28.)
+REAR_ARCH_OBLIQUE_XY = (14., 10.)
+REAR_ARCH_MINIMUM_PAINTED_RAYS = 14
+REAR_CROWN_SOURCE_BOUNDS = ((16., 18.5), (9., 16.), (-34., -16.))
+REAR_CROWN_SAMPLE_X = (16., 16.5, 17., 17.5, 18., 18.5)
+REAR_CROWN_SAMPLE_Z = tuple(float(z) for z in range(-34, -15, 2))
+REAR_CROWN_MINIMUM_PAINTED_RAYS = 35
+REAR_CROWN_HEIGHT_TOLERANCE = 1.0
+REAR_CORNER_SOURCE_BOUNDS = ((10., 20.), (4., 15.), (-43., -34.))
+REAR_CORNER_SAMPLE_X = (16.5, 17.5, 18.5)
+REAR_CORNER_SAMPLE_Y = (8., 10.)
+REAR_CORNER_OBLIQUE_Z = (-36., -40.)
+REAR_CORNER_OBLIQUE_XY = (17., 10.)
+REAR_CORNER_MINIMUM_PAINTED_RAYS = 5
+REAR_SHOULDER_SOURCE_BOUNDS = ((4., 16.), (8., 21.), (-30., -12.))
+REAR_SHOULDER_SAMPLE_X = (7.5, 8.5, 9.5, 10.5)
+REAR_SHOULDER_SAMPLE_Z = (-20., -22., -24., -26.)
+REAR_SHOULDER_OBLIQUE_Z = (-20., -24.)
+REAR_SHOULDER_OBLIQUE_XY = (11., 14.)
+REAR_SHOULDER_MINIMUM_PAINTED_RAYS = 14
+CANOPY_SILL_SOURCE_BOUNDS = ((7., 10.), (7., 14.), (-19., 1.))
+CANOPY_SILL_SAMPLE_X = (8., 8.5, 9.)
+CANOPY_SILL_SAMPLE_Z = (-12., -8., -4., -3., 0.)
+CANOPY_SILL_OBLIQUE_Z = (-8., -4., -3., 0.)
+CANOPY_SILL_OBLIQUE_XY = (10.5, 11.)
+CANOPY_SILL_MINIMUM_PAINTED_RAYS = 6
 SHOWROOM_PAYLOAD_SHA256 = "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03"
 PLANAR_HEIGHT = 2.0
 NEARBY_LAYER_GAP = 1 / (1 << detailed.RACING_FRACTION_BITS)
-APERTURE_SAMPLE_FRACTIONS = (.2, .5, .8)
-MINIMUM_APERTURE_DEPTH = .25
 NARROW_PANEL_WIDTH = 2 * NEARBY_LAYER_GAP
 PANEL_RIDGE_HEIGHT = .5
 
@@ -64,6 +120,16 @@ class SourceImportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "differs from.*reference"):
                 detailed.import_source(source, output)
             self.assertFalse(output.exists())
+
+    def test_cached_racing_lods_reject_a_different_showroom_source(self):
+        cached = json.loads(gzip.decompress(detailed.RACING_SOURCE_PATH.read_bytes()))
+        cached["source_car0_sha256"] = hashlib.sha256(b"another showroom mesh").hexdigest()
+        with tempfile.TemporaryDirectory() as folder:
+            stale = Path(folder) / "stale_racing_lods.json.gz"
+            stale.write_bytes(gzip.compress(json.dumps(cached).encode("utf-8")))
+            with mock.patch.object(detailed, "RACING_SOURCE_PATH", stale):
+                with self.assertRaisesRegex(ValueError, "rebuilt from the current car0"):
+                    detailed.build_shapes()
 
 
 class RacingSurfaceTests(unittest.TestCase):
@@ -165,6 +231,63 @@ class DetailedGeometryTests(unittest.TestCase):
         cls.installed_shapes = generator.hypervision_resources(companion.read_bytes())
 
     @staticmethod
+    def encoded_body_faces(payload, name):
+        """Read coordinates and complete paint tables from the serialized asset."""
+        points, _, _ = generator.decode_model(payload, name, hypervision=True)
+        vertices, primitives, paints, header_size, index_size = generator.model_layout(
+            payload, name, hypervision=True)
+        cursor = header_size + vertices * struct.calcsize("<3h") + primitives * struct.calcsize("<II")
+        faces = []
+        for _ in range(primitives):
+            kind, flags = payload[cursor:cursor + 2]
+            count = kind if kind <= racing.MAX_POLYGON_VERTICES else {
+                model.SPHERE_PRIMITIVE: 2, model.WHEEL_PRIMITIVE: model.WHEEL_CONTROL_COUNT}[kind]
+            materials = tuple(payload[cursor + 2:cursor + 2 + paints])
+            indices = struct.unpack_from(f"<{count}{'H' if index_size == 2 else 'B'}",
+                                         payload, cursor + 2 + paints)
+            cursor += 2 + paints + count * index_size
+            if kind != model.WHEEL_PRIMITIVE:
+                faces.append((kind, flags, materials, tuple(points[index] for index in indices)))
+        return points[CONTROLS_END:], faces
+
+    def test_encoded_near_body_is_exactly_mirrored_with_all_paint_jobs(self):
+        payloads = {"generated": self.shapes["car1"].encode_hypervision(),
+                    "installed": self.installed_shapes["car1"]}
+        for source, payload in payloads.items():
+            vertices, faces = self.encoded_body_faces(payload, "car1")
+            with self.subTest(source=source, geometry="vertices"):
+                self.assertEqual(Counter(vertices), Counter((-x, y, z) for x, y, z in vertices))
+            # Canonical spatial triangles make this independent of vertex IDs,
+            # primitive order and winding of the two-sided surfaces. Include
+            # every paint byte so matching turquoise cannot hide another
+            # paint job's mismatched panels.
+            original = Counter((kind, flags, materials, tuple(sorted(points)))
+                               for kind, flags, materials, points in faces)
+            reflected = Counter((kind, flags, materials,
+                                 tuple(sorted((-x, y, z) for x, y, z in points)))
+                                for kind, flags, materials, points in faces)
+            with self.subTest(source=source, geometry="triangles and paint tables"):
+                self.assertEqual(original, reflected)
+
+    def test_encoded_near_front_has_no_open_surface_edges(self):
+        payloads = {"generated": self.shapes["car1"].encode_hypervision(),
+                    "installed": self.installed_shapes["car1"]}
+        for source, payload in payloads.items():
+            _, faces = self.encoded_body_faces(payload, "car1")
+            edges = Counter(tuple(sorted((first, second)))
+                            for kind, _, _, points in faces
+                            if detailed.TRIANGLE_VERTICES <= kind <= racing.MAX_POLYGON_VERTICES
+                            for first, second in zip(points, points[1:] + points[:1]))
+            # Vents are recesses with walls and floors. Their rims, the hood
+            # and the bumper must meet adjacent triangles even after encoding.
+            # The rear source body joins at Z=4; its independent panel edges
+            # do not describe the connected front surface under test.
+            open_edges = [edge for edge, count in edges.items()
+                          if count < 2 and max(point[2] for point in edge) > FRONT_JOIN_Z]
+            with self.subTest(source=source):
+                self.assertFalse(open_edges, f"{len(open_edges)} open front edges: {open_edges[:5]}")
+
+    @staticmethod
     def roof_hit(shape, x, z):
         hits = []
         for kind, _, materials, indices in shape.primitives:
@@ -184,41 +307,301 @@ class DetailedGeometryTests(unittest.TestCase):
                     hits.append((a[1] + u * (b[1] - a[1]) + v * (c[1] - a[1]), materials))
         return max(hits, default=None)
 
-    def test_four_wheel_top_openings_are_visible_recesses(self):
-        black = (model.BLACK,) * model.PAINT_COUNT
-        for name in RACING_VERTEX_TARGETS:
+    @staticmethod
+    def body_ray_faces(shape):
+        """Precompute normalized body triangles for independent sightline tests."""
+        shift = model.SHOWROOM_Y_OFFSET if shape.scale == model.SHOWROOM_SCALE else 0
+        points = [(x / shape.scale, (y - shift) / shape.scale, z / shape.scale)
+                  for x, y, z in shape.vertices]
+        faces = []
+        for kind, _, materials, indices in shape.primitives:
+            if not detailed.TRIANGLE_VERTICES <= kind <= racing.MAX_POLYGON_VERTICES:
+                continue
+            for corner in range(1, len(indices) - 1):
+                a, b, c = [points[index] for index in
+                           (indices[0], indices[corner], indices[corner + 1])]
+                faces.append((a, tuple(y - x for x, y in zip(a, b)),
+                              tuple(y - x for x, y in zip(a, c)), materials))
+        return faces
+
+    @staticmethod
+    def body_ray_hit(faces, anchor, direction):
+        """Return the first surface seen from infinity along a two-sided ray."""
+        dx, dy, dz = direction
+        nearest = None
+        for a, edge, other, materials in faces:
+            px = dy * other[2] - dz * other[1]
+            py = dz * other[0] - dx * other[2]
+            pz = dx * other[1] - dy * other[0]
+            determinant = edge[0] * px + edge[1] * py + edge[2] * pz
+            if abs(determinant) <= generator.GEOMETRY_TOLERANCE:
+                continue
+            tx, ty, tz = (anchor[axis] - a[axis] for axis in range(detailed.AXES))
+            u = (tx * px + ty * py + tz * pz) / determinant
+            if u < -generator.GEOMETRY_TOLERANCE or u > 1 + generator.GEOMETRY_TOLERANCE:
+                continue
+            qx = ty * edge[2] - tz * edge[1]
+            qy = tz * edge[0] - tx * edge[2]
+            qz = tx * edge[1] - ty * edge[0]
+            v = (dx * qx + dy * qy + dz * qz) / determinant
+            if v < -generator.GEOMETRY_TOLERANCE or u + v > 1 + generator.GEOMETRY_TOLERANCE:
+                continue
+            depth = (other[0] * qx + other[1] * qy + other[2] * qz) / determinant
+            if nearest is None or depth > nearest[0]:
+                nearest = depth, materials
+        return nearest
+
+    def test_near_front_fender_skin_blocks_source_sightlines(self):
+        source = self.body_ray_faces(self.shapes["car0"])
+        near = self.body_ray_faces(self.shapes["car1"])
+        painted_rays = 0
+        for side in (-1, 1):
+            for x, z in FRONT_FENDER_WITNESSES:
+                anchor = side * x, FRONT_FENDER_RAY_HEIGHT, z
+                for view in FRONT_FENDER_VIEW_DIRECTIONS:
+                    length = math.sqrt(sum(component * component for component in view))
+                    direction = side * view[0] / length, view[1] / length, view[2] / length
+                    original = self.body_ray_hit(source, anchor, direction)
+                    # Open source vents and views blocked by another component
+                    # do not imply that the fender skin should fill that ray.
+                    if original is None or len(set(original[1])) == 1:
+                        continue
+                    source_hit = [coordinate + original[0] * component
+                                  for coordinate, component in zip(anchor, direction)]
+                    if (not FRONT_FENDER_ABS_X_BOUNDS[0] <= abs(source_hit[0]) <=
+                            FRONT_FENDER_ABS_X_BOUNDS[1] or
+                            not FRONT_FENDER_Z_BOUNDS[0] <= source_hit[2] <= FRONT_FENDER_Z_BOUNDS[1] or
+                            source_hit[1] <= FRONT_FENDER_MINIMUM_Y):
+                        continue
+                    painted_rays += 1
+                    with self.subTest(side=side, anchor=anchor, direction=view):
+                        simplified = self.body_ray_hit(near, anchor, direction)
+                        self.assertIsNotNone(simplified)
+                        self.assertGreaterEqual(simplified[0],
+                                                original[0] - FRONT_FENDER_DEPTH_TOLERANCE)
+        self.assertGreaterEqual(painted_rays, FRONT_FENDER_MINIMUM_PAINTED_RAYS)
+
+    def test_near_hood_retains_painted_source_coverage_between_wheel_vents(self):
+        source = self.body_ray_faces(self.shapes["car0"])
+        near = self.body_ray_faces(self.shapes["car1"])
+        painted_rays = 0
+        paint_tables = {model.PAINT_TOP, model.PAINT_SIDE, model.PAINT_EDGE}
+        for x in FRONT_PANEL_SAMPLE_X:
+            for z in HOOD_SAMPLE_Z:
+                original = self.body_ray_hit(source, (x, 0., z), (0., 1., 0.))
+                # The retained source has real wheel vents and glass; those
+                # openings must not be turned into painted hole-filling caps.
+                if (original is None or original[1] not in paint_tables or
+                        original[0] <= HOOD_MINIMUM_Y):
+                    continue
+                painted_rays += 1
+                for side in (-1, 1):
+                    with self.subTest(side=side, x=x, z=z):
+                        simplified = self.body_ray_hit(near, (side * x, 0., z), (0., 1., 0.))
+                        self.assertIsNotNone(simplified)
+                        self.assertIn(simplified[1], paint_tables)
+                        self.assertAlmostEqual(original[0], simplified[0],
+                                               delta=FRONT_PANEL_DEPTH_TOLERANCE)
+        self.assertGreaterEqual(painted_rays, HOOD_MINIMUM_PAINTED_RAYS)
+
+    def test_near_front_bumper_retains_continuous_source_paint(self):
+        source = self.body_ray_faces(self.shapes["car0"])
+        near = self.body_ray_faces(self.shapes["car1"])
+        painted_rays = 0
+        paint_tables = {model.PAINT_TOP, model.PAINT_SIDE, model.PAINT_EDGE}
+        for y in BUMPER_SAMPLE_Y:
+            for x in FRONT_PANEL_SAMPLE_X:
+                original = self.body_ray_hit(source, (x, y, 0.), (0., 0., 1.))
+                # Only the source's painted nose supplies expectations; its
+                # lower intake and dark splitter remain legitimate surfaces.
+                if (original is None or original[1] not in paint_tables or
+                        original[0] <= BUMPER_MINIMUM_Z):
+                    continue
+                margin = BUMPER_MATERIAL_BOUNDARY_MARGIN
+                neighbors = [self.body_ray_hit(source, (x + dx, y + dy, 0.), (0., 0., 1.))
+                             for dx, dy in ((-margin, 0.), (margin, 0.),
+                                            (0., -margin), (0., margin))]
+                # The reduced outline approximates the paint/carbon seam;
+                # enforce clean color inside the painted band, away from it.
+                if any(hit is None or hit[1] not in paint_tables for hit in neighbors):
+                    continue
+                painted_rays += 1
+                for side in (-1, 1):
+                    with self.subTest(side=side, x=x, y=y):
+                        simplified = self.body_ray_hit(near, (side * x, y, 0.), (0., 0., 1.))
+                        self.assertIsNotNone(simplified)
+                        self.assertIn(simplified[1], paint_tables)
+                        self.assertAlmostEqual(original[0], simplified[0],
+                                               delta=FRONT_PANEL_DEPTH_TOLERANCE)
+        self.assertGreaterEqual(painted_rays, BUMPER_MINIMUM_PAINTED_RAYS)
+
+    def assert_source_painted_probes(self, probes, source_bounds, minimum_rays, *,
+                                    depth_tolerance=REAR_PAINT_DEPTH_TOLERANCE):
+        """Check visible skin against the entire source, excluding material seams."""
+        source = self.body_ray_faces(self.shapes["car0"])
+        near = self.body_ray_faces(self.shapes["car1"])
+        paint_tables = {model.PAINT_TOP, model.PAINT_SIDE, model.PAINT_EDGE}
+        painted_rays = 0
+        for anchor, view in probes:
+            length = math.sqrt(sum(value * value for value in view))
+            direction = tuple(value / length for value in view)
+            original = self.body_ray_hit(source, anchor, direction)
+            if original is None or original[1] not in paint_tables:
+                continue
+            point = [coordinate + original[0] * component
+                     for coordinate, component in zip(anchor, direction)]
+            if any(not lower <= coordinate <= upper
+                   for coordinate, (lower, upper) in zip(point, source_bounds)):
+                continue
+            dx, dy, dz = direction
+            horizontal = (dz, 0., -dx) if dx or dz else (1., 0., 0.)
+            length = math.sqrt(sum(value * value for value in horizontal))
+            horizontal = tuple(value / length for value in horizontal)
+            hx, hy, hz = horizontal
+            vertical = (dy * hz - dz * hy, dz * hx - dx * hz, dx * hy - dy * hx)
+            neighbors = [self.body_ray_hit(source, tuple(
+                coordinate + sign * REAR_PAINT_SAMPLE_MARGIN * component
+                for coordinate, component in zip(anchor, tangent)), direction)
+                for tangent in (horizontal, vertical) for sign in (-1, 1)]
+            # Real vents, glass boundaries and source silhouettes are not
+            # missing paint. Require a painted footprint around each witness.
+            if any(hit is None or hit[1] not in paint_tables for hit in neighbors):
+                continue
+            painted_rays += 1
+            for side in (-1, 1):
+                mirrored_anchor = (side * anchor[0], anchor[1], anchor[2])
+                mirrored_direction = (side * direction[0], direction[1], direction[2])
+                with self.subTest(side=side, anchor=anchor, direction=view):
+                    simplified = self.body_ray_hit(near, mirrored_anchor, mirrored_direction)
+                    self.assertIsNotNone(simplified)
+                    self.assertIn(simplified[1], paint_tables)
+                    # A painted floor seen through absent roof triangles has
+                    # the right color but fails this independent depth check.
+                    self.assertAlmostEqual(original[0], simplified[0],
+                                           delta=depth_tolerance)
+        self.assertGreaterEqual(painted_rays, minimum_rays)
+
+    def test_near_rear_arch_retains_source_paint_from_side_and_oblique_views(self):
+        probes = [((0., y, z), (1., 0., 0.))
+                  for y in REAR_ARCH_SAMPLE_Y for z in REAR_ARCH_SAMPLE_Z]
+        probes.extend(((*REAR_ARCH_OBLIQUE_XY, z), direction)
+                      for z in REAR_ARCH_OBLIQUE_Z for direction in REAR_OBLIQUE_DIRECTIONS)
+        self.assert_source_painted_probes(probes, REAR_ARCH_SOURCE_BOUNDS,
+                                          REAR_ARCH_MINIMUM_PAINTED_RAYS)
+
+    def test_near_rear_fender_crown_stays_within_the_source_height_profile(self):
+        # Closing a gap must not create a raised spike. Independently sample
+        # the visible source skin across the crown instead of inspecting the
+        # repair's selected control points or its profile construction.
+        probes = [((x, 0., z), (0., 1., 0.))
+                  for x in REAR_CROWN_SAMPLE_X for z in REAR_CROWN_SAMPLE_Z]
+        self.assert_source_painted_probes(probes, REAR_CROWN_SOURCE_BOUNDS,
+                                          REAR_CROWN_MINIMUM_PAINTED_RAYS,
+                                          depth_tolerance=REAR_CROWN_HEIGHT_TOLERANCE)
+
+    def test_near_upper_rear_corners_retain_source_paint_and_depth(self):
+        probes = [((x, y, 0.), (0., 0., -1.))
+                  for x in REAR_CORNER_SAMPLE_X for y in REAR_CORNER_SAMPLE_Y]
+        probes.extend(((*REAR_CORNER_OBLIQUE_XY, z), direction)
+                      for z in REAR_CORNER_OBLIQUE_Z for direction in REAR_OBLIQUE_DIRECTIONS)
+        self.assert_source_painted_probes(probes, REAR_CORNER_SOURCE_BOUNDS,
+                                          REAR_CORNER_MINIMUM_PAINTED_RAYS)
+
+    def test_near_aft_canopy_shoulder_covers_the_source_painted_roof(self):
+        probes = [((x, 0., z), (0., 1., 0.))
+                  for x in REAR_SHOULDER_SAMPLE_X for z in REAR_SHOULDER_SAMPLE_Z]
+        probes.extend(((*REAR_SHOULDER_OBLIQUE_XY, z), direction)
+                      for z in REAR_SHOULDER_OBLIQUE_Z for direction in REAR_OBLIQUE_DIRECTIONS)
+        self.assert_source_painted_probes(probes, REAR_SHOULDER_SOURCE_BOUNDS,
+                                          REAR_SHOULDER_MINIMUM_PAINTED_RAYS)
+
+    def test_near_canopy_sill_meets_the_source_painted_body(self):
+        probes = [((x, 0., z), (0., 1., 0.))
+                  for x in CANOPY_SILL_SAMPLE_X for z in CANOPY_SILL_SAMPLE_Z]
+        probes.extend(((*CANOPY_SILL_OBLIQUE_XY, z), direction)
+                      for z in CANOPY_SILL_OBLIQUE_Z for direction in REAR_OBLIQUE_DIRECTIONS)
+        self.assert_source_painted_probes(probes, CANOPY_SILL_SOURCE_BOUNDS,
+                                          CANOPY_SILL_MINIMUM_PAINTED_RAYS)
+
+    def test_racing_envelopes_follow_the_showroom_source(self):
+        showroom = self.shapes["car0"]
+        source = [(x / showroom.scale,
+                   (y - model.SHOWROOM_Y_OFFSET) / showroom.scale,
+                   z / showroom.scale)
+                  for x, y, z in showroom.vertices[CONTROLS_END:]]
+        for name in RACING_VERTEX_BUDGETS:
+            body = self.shapes[name].vertices[CONTROLS_END:]
+            for axis in range(detailed.AXES):
+                for bound in (min, max):
+                    with self.subTest(shape=name, axis=axis, bound=bound.__name__):
+                        self.assertAlmostEqual(bound(p[axis] for p in source),
+                                               bound(p[axis] for p in body),
+                                               delta=SOURCE_EXTENT_TOLERANCE)
+
+    def test_rear_wing_survives_on_both_sides_of_the_body(self):
+        showroom = self.shapes["car0"]
+        for name in RACING_VERTEX_BUDGETS:
+            for x in WING_SAMPLE_X:
+                for z in WING_SAMPLE_Z:
+                    with self.subTest(shape=name, x=x, z=z):
+                        original = self.roof_hit(showroom, x * showroom.scale,
+                                                 z * showroom.scale)
+                        simplified = self.roof_hit(self.shapes[name], x, z)
+                        self.assertIsNotNone(original)
+                        self.assertIsNotNone(simplified)
+                        source_height = ((original[0] - model.SHOWROOM_Y_OFFSET) /
+                                         showroom.scale)
+                        self.assertAlmostEqual(source_height, simplified[0],
+                                               delta=WING_HEIGHT_TOLERANCE)
+                        self.assertEqual(original[1], simplified[1])
+
+    def test_outer_fender_crowns_retain_source_coverage(self):
+        showroom = self.shapes["car0"]
+        for name in RACING_VERTEX_BUDGETS:
+            for x, _, z in model.WHEEL_CENTERS:
+                x += math.copysign(model.WHEEL_HALF_WIDTH -
+                                   generator.WHEEL_ARCH_SIDE_BAND, x)
+                with self.subTest(shape=name, x=x, z=z):
+                    original = self.roof_hit(showroom, x * showroom.scale,
+                                             z * showroom.scale)
+                    simplified = self.roof_hit(self.shapes[name], x, z)
+                    self.assertIsNotNone(original)
+                    self.assertIsNotNone(simplified)
+                    source_height = ((original[0] - model.SHOWROOM_Y_OFFSET) /
+                                     showroom.scale)
+                    self.assertAlmostEqual(source_height, simplified[0],
+                                           delta=SOURCE_EXTENT_TOLERANCE)
+
+    def test_racing_body_has_no_unused_vertices_or_collapsed_duplicate_faces(self):
+        for name in RACING_VERTEX_BUDGETS:
             shape = self.shapes[name]
-            uncut = detailed._DetailedShape(1, detailed.FRACTION_BITS[name])
-            racing.populate_shape(uncut, name, model)
-            for wheel in range(detailed.WHEEL_COUNT):
-                lip = model.vent_geometry(wheel)["lip"]
-                for u in APERTURE_SAMPLE_FRACTIONS:
-                    for v in APERTURE_SAMPLE_FRACTIONS:
-                        point = tuple((1 - v) * ((1 - u) * lip[0][axis] + u * lip[1][axis]) +
-                                      v * ((1 - u) * lip[3][axis] + u * lip[2][axis])
-                                      for axis in range(detailed.AXES))
-                        x, z = point[0], point[2] - model.BODY_ORIGIN_Z
-                        with self.subTest(shape=name, wheel=wheel, u=u, v=v):
-                            hit = self.roof_hit(shape, x, z)
-                            roof = self.roof_hit(uncut, x, z)
-                            self.assertIsNotNone(hit)
-                            self.assertIsNotNone(roof)
-                            self.assertEqual(black, hit[1])
-                            self.assertGreaterEqual(roof[0] - hit[0], MINIMUM_APERTURE_DEPTH)
-
-    def test_racing_mirror_stalks_are_omitted(self):
-        for name in RACING_VERTEX_TARGETS:
+            used, faces = set(), set()
+            for kind, _, _, indices in shape.primitives:
+                if kind == model.WHEEL_PRIMITIVE:
+                    continue
+                used.update(indices)
+                for corner in range(1, len(indices) - 1):
+                    triangle = tuple(shape.vertices[index] for index in
+                                     (indices[0], indices[corner], indices[corner + 1]))
+                    with self.subTest(shape=name, indices=indices, corner=corner):
+                        self.assertNotEqual((0, 0, 0), detailed._cross(triangle))
+                        key = tuple(sorted(triangle))
+                        self.assertNotIn(key, faces)
+                        faces.add(key)
             with self.subTest(shape=name):
-                self.assertFalse(any(kind == model.LINE_PRIMITIVE
-                                     for kind, _, _, _ in self.shapes[name].primitives))
+                self.assertEqual(set(range(CONTROLS_END, len(shape.vertices))), used)
 
-    def test_recessed_roofs_clear_the_entire_upper_tyre_envelope(self):
-        for name in RACING_VERTEX_TARGETS:
+    def test_racing_materials_retain_source_palette_and_all_seven_paints(self):
+        source_materials = {materials for _, _, materials, _ in self.shapes["car0"].primitives}
+        for name in RACING_VERTEX_BUDGETS:
+            materials = {colors for _, _, colors, _ in self.shapes[name].primitives}
             with self.subTest(shape=name):
-                points, triangles, _ = generator.decode_model(
-                    self.shapes[name].encode_hypervision(), name, hypervision=True)
-                clearance = generator.validate_wheel_covers(points, triangles, 1, 0, name)
-                self.assertGreaterEqual(clearance, generator.WHEEL_ARCH_MIN_CLEARANCE)
+                self.assertLessEqual(materials, source_materials)
+                self.assertIn((model.BLACK,) * model.PAINT_COUNT, materials)
+                self.assertIn((model.CARBON,) * model.PAINT_COUNT, materials)
+                painted = materials & {model.PAINT_TOP, model.PAINT_SIDE, model.PAINT_EDGE}
+                self.assertTrue(painted)
+                self.assertTrue(all(len(set(colors)) == model.PAINT_COUNT for colors in painted))
 
     def test_source_provenance_dimensions_and_exterior_selection(self):
         self.assertEqual(detailed.SOURCE_SHA256, self.source["source_sha256"])
@@ -257,7 +640,7 @@ class DetailedGeometryTests(unittest.TestCase):
                                     for _, _, materials, _ in shape.primitives))
 
     def test_racing_vertex_budgets_include_bounds_and_wheel_controls(self):
-        for name, target in RACING_VERTEX_TARGETS.items():
+        for name, (lower, upper) in RACING_VERTEX_BUDGETS.items():
             payloads = {"generated": self.shapes[name].encode_hypervision(),
                         "installed": self.installed_shapes[name]}
             for source, payload in payloads.items():
@@ -266,12 +649,16 @@ class DetailedGeometryTests(unittest.TestCase):
                     # The complete encoded table includes the first 32 bounds
                     # and animated-wheel controls, as requested by the budget.
                     self.assertEqual(len(points), metadata["vertices"])
-                    # Simpler coherent surfaces may use less than the target.
-                    self.assertGreater(len(points), model.NATIVE_LIMIT)
-                    self.assertLessEqual(len(points), target * (1 + VERTEX_TARGET_TOLERANCE))
+                    self.assertGreaterEqual(len(points), lower)
+                    self.assertLessEqual(len(points), upper)
             with self.subTest(shape=name, source="authoring"):
-                self.assertLessEqual(len(self.shapes[name].vertices),
-                                     target * (1 + VERTEX_TARGET_TOLERANCE))
+                self.assertGreaterEqual(len(self.shapes[name].vertices), lower)
+                self.assertLessEqual(len(self.shapes[name].vertices), upper)
+
+    def test_installed_meshes_match_their_authoring_inputs(self):
+        for name, shape in self.shapes.items():
+            with self.subTest(shape=name):
+                self.assertEqual(shape.encode_hypervision(), self.installed_shapes[name])
 
     def test_showroom_payload_stays_byte_identical(self):
         payloads = {"generated": self.shapes["car0"].encode_hypervision(),

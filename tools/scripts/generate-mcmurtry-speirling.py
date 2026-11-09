@@ -488,9 +488,12 @@ def validate_hypervision_geometry(shape, name, classic, simd):
     metadata["animated_wheels"] = len(model.WHEEL_CENTERS)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
         points, triangles, scale, shift, name)
-    if name in detailed_model.RACING_VERTEX_TARGETS:
-        metadata["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
-            points, triangles, scale, shift, name)
+    if name in detailed_model.RACING_VERTEX_LIMITS:
+        lower, upper = detailed_model.RACING_VERTEX_LIMITS[name]
+        if not lower <= metadata["vertices"] <= upper:
+            raise ValueError(f"HyperVision {name} exceeds its racing vertex budget")
+    # Imported car0 has open wheel-top vents. Its derived LODs share those
+    # openings, so the classic continuous-roof ray test does not apply here.
     fraction_bits = struct.unpack_from("<H", shape, HYPERVISION_FRACTION_BITS_OFFSET)[0]
     metadata["coordinate_fraction_bits"] = fraction_bits
     metadata["coordinate_step_mm"] = model.MM_PER_UNIT / (scale * (1 << fraction_bits))
@@ -681,7 +684,7 @@ assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
 The optional fifth file, STMCMU.H3D, supplies an imported showroom mesh and
-smooth simplified racing shells for HyperVision. The generator installs it
+car0-derived low-polygon racing meshes for HyperVision. The generator installs it
 beside the classic files. Connected racing panels retain the source-guided
 bodywork, canopy, wing and underbody with palette materials and animated wheels.
 Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
@@ -739,8 +742,8 @@ The HyperVision showroom imports the detailed exterior directly from that
 GLB. A compressed transformed source mesh is retained in
 tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
 regeneration without the upload or third-party Python packages. Racing meshes
-smooth the connected native retopology at fractional precision, preserving
-continuous panels instead of merging unrelated source layers. All models
+are reduced directly from the current H3D car0, preserving palette seams,
+open boundaries and the native wheel clearance. All models
 use the game's four animated wheels, palette materials and seven paints. H3D does not store
 textures or transparency. The original GLB, textures and manufacturer
 photographs are not included.
@@ -793,17 +796,20 @@ The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
-STMCMU.H3D retains the detailed imported showroom and builds smoother racing
-shells from connected authored panels. Near racing uses crease-aware
-Catmull-Clark subdivision; distant racing smooths the original corners and
-triangulates around panel centres while preserving the wheel-arch outlines.
-Broad body panels are rounded, with deliberate glass, intake and wing creases.
-Smoothing backs off at narrow panels before their encoded triangles can fold.
-Both racing meshes omit the mirrors. Four wheel-top openings are cut into the
-smoothed body, following the rectangular front and shaped rear outlines, with
-fitted recess walls and dark floors instead of floating surface overlays.
-The racing budgets remain about {detailed_model.RACING_VERTEX_TARGETS['car1']} and {detailed_model.RACING_VERTEX_TARGETS['car2']}
-vertices including bounds and wheel controls. Deterministic quantization
+STMCMU.H3D retains the detailed imported showroom and derives both racing
+meshes directly from that car0 payload. The near mesh has connected source-sampled
+hood, wheel-vent recesses and bumper panels. Its complete body is built from
+one half and mirrored, including all paint tables. The painted canopy sill
+joins the body skin, and the rear shoulder, arch lips and bumper corners follow
+source contours so internal dark surfaces stay behind the exterior panels.
+Material-constrained edge
+collapse retains the rear and distant mesh, preserving the canopy, wing and
+palette boundaries while removing small separate fittings. The showroom scale
+and height offset are removed before racing coordinates are quantized.
+Wheel-arch chords are checked after encoding
+and locally expanded only as needed to retain the native steering clearance.
+The racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
+including bounds and wheel controls. Deterministic cached geometry
 keeps each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
 65,535-vertex and 65,535-primitive limits:
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
@@ -813,9 +819,10 @@ Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']
 racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive
 counts include four native wheels. Bounds and wheel controls retain native
-integer coordinates. Simplified continuous panels omit tiny source features.
+integer coordinates. Simplified panels omit tiny source features.
 Ordinary generation uses Python's standard library and preserves
-the compact source and its precomputed meshes. Classic meshes retain their
+the compact source and its precomputed meshes. Racing cache provenance is tied
+to the exact car0 payload checksum. Classic meshes retain their
 original byte limits, wheel controls and driving specifications.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow

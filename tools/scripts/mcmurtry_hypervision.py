@@ -1,8 +1,8 @@
 """Detailed McMurtry HyperVision meshes adapted from the supplied Sketchfab GLB.
 
 Normal car generation uses Python's standard library, the compact showroom
-source in cars/mcmurtry_hypervision_source.json.gz, and the smooth racing
-retopology in mcmurtry_racing.py. Reimport the original archive with --source
+source in cars/mcmurtry_hypervision_source.json.gz, and cached racing meshes
+reduced directly from car0. Reimport the original archive with --source
 to rebuild the showroom input. Native wheel primitives retain the game's
 steering, suspension and tyre rendering.
 """
@@ -35,7 +35,10 @@ RACING_FRACTION_BITS = 4
 FRACTION_BITS = {"car0": 0, "car1": RACING_FRACTION_BITS, "car2": RACING_FRACTION_BITS}
 QEM_TARGETS = {"car0": 32_000, "car1": 12_000}
 SHOWROOM_CLUSTER = .05
-RACING_VERTEX_TARGETS = {"car1": 1_000, "car2": 500}
+RACING_VERTEX_TARGETS = {"car1": 1_200, "car2": 500}
+RACING_VERTEX_LIMITS = {"car1": (1_000, 1_200), "car2": (400, 500)}
+RACING_SOURCE_PATH = Path(__file__).with_name("cars") / "mcmurtry_racing_lods.json.gz"
+RACING_CACHE_VERSION = 1
 TRIANGLE_VERTICES = 3
 AXES = 3
 HOMOGENEOUS_AXES = 4
@@ -406,15 +409,33 @@ def _showroom_shape(source, model):
 def build_shapes(model=None):
     if model is None:
         import mcmurtry_model as model
-    import mcmurtry_racing as racing
-    import mcmurtry_apertures as apertures
     source = load_source()
     shapes = {"car0": _showroom_shape({**source, **source["lods"]["car0"]}, model)}
+    cached = json.loads(gzip.decompress(RACING_SOURCE_PATH.read_bytes()))
+    if (cached["version"] != RACING_CACHE_VERSION or
+            set(cached["lods"]) != set(RACING_VERTEX_TARGETS)):
+        raise ValueError("Invalid cached racing LOD schema")
+    if cached["coordinate_fraction_bits"] != {name: FRACTION_BITS[name] for name in RACING_VERTEX_TARGETS}:
+        raise ValueError("Racing LODs must be rebuilt at the current coordinate precision")
+    digest = hashlib.sha256(shapes["car0"].encode_hypervision()).hexdigest()
+    if cached["source_car0_sha256"] != digest:
+        raise ValueError("Racing LODs must be rebuilt from the current car0")
+    controls_end = model.WHEEL_CONTROL_START + WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
     for name in RACING_VERTEX_TARGETS:
         shape = _DetailedShape(1, FRACTION_BITS[name])
-        racing.populate_shape(shape, name, model)
-        apertures.populate_apertures(shape, model)
+        classic = model._car(simple=name == "car2")
+        shape.vertices = list(classic.vertices[:controls_end])
+        shape.primitives = [p for p in classic.primitives if p[0] == model.WHEEL_PRIMITIVE]
+        factor = 1 << FRACTION_BITS[name]
+        shape.vertices.extend(tuple(c / factor for c in point)
+                              for point in cached["lods"][name]["vertices"])
+        for indices, materials in cached["lods"][name]["triangles"]:
+            shape.primitives.append((TRIANGLE_VERTICES, model.TWO_SIDED_FLAG,
+                                     tuple(materials), tuple(i + controls_end for i in indices)))
         _fit_bounds(shape, model)
+        lower, upper = RACING_VERTEX_LIMITS[name]
+        if not lower <= len(shape.vertices) <= upper:
+            raise ValueError(f"{name} exceeds its racing vertex budget")
         shapes[name] = shape
     return shapes
 
@@ -436,8 +457,8 @@ def build_container(model=None):
 
 def metadata():
     import mcmurtry_model as model
-    import mcmurtry_racing as racing
     source = load_source()
+    cached = json.loads(gzip.decompress(RACING_SOURCE_PATH.read_bytes()))
     return {"source_sha256": source["source_sha256"], "source_triangles": source["source_triangles"],
             "retained_source_triangles": len(source["triangles"]), "retained_meshes": len(source["meshes"]),
             "compact_source": "tools/scripts/cars/mcmurtry_hypervision_source.json.gz",
@@ -448,20 +469,14 @@ def metadata():
             "cluster_spacing_game_units": {"car0": SHOWROOM_CLUSTER},
             "cluster_spacing_mm": {"car0": SHOWROOM_CLUSTER * model.MM_PER_UNIT},
             "racing_vertex_targets_including_controls": RACING_VERTEX_TARGETS,
-            "racing_authoring_source": "tools/scripts/mcmurtry_model.py",
-            "racing_surface_generator": "tools/scripts/mcmurtry_racing.py",
-            "racing_aperture_generator": "tools/scripts/mcmurtry_apertures.py",
-            "racing_mirrors": False,
-            "racing_wheel_top_apertures": "four roof cutouts following authored outlines, with fitted recess walls and dark floors",
-            "racing_surface_construction": {
-                "car1": "crease-aware Catmull-Clark subdivision of connected authored panels",
-                "car2": "smoothed authored panels with face-center triangulation and preserved arch outlines",
-                "crease_angle_degrees": racing.CREASE_ANGLE_DEGREES,
-                "preserve_encoded_panel_winding": True,
-                "distant_arch_min_abs_x_game_units": racing.DISTANT_ARCH_MIN_X},
+            "racing_vertex_limits_including_controls": RACING_VERTEX_LIMITS,
+            "racing_authoring_source": "STMCMU.H3D/car0",
+            "racing_source_car0_sha256": cached["source_car0_sha256"],
+            "racing_compact_source": "tools/scripts/cars/mcmurtry_racing_lods.json.gz",
+            "racing_surface_construction": cached["simplification"],
             "showroom_arch_target_radius_game_units": ARCH_TARGET_RADIUS["car0"],
             "showroom_arch_blend_radius_game_units": ARCH_BLEND_RADIUS,
-            "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Racing shells use continuous source-guided native retopology with crease-aware panel smoothing and constrained winding instead of merging disconnected imported layers; panel materials and seven paints remain coherent. Four recessed wheel-top apertures retain their authored outlines; racing mirrors are omitted. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."}
+            "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."}
 
 
 def main():
