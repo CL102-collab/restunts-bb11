@@ -4,10 +4,13 @@
 #include "cstrk.h"
 #include "../hires/skybox_hires.h"
 #include "../shape2d/shape2d.h"
+#include "../asset_path.h"
 #include "../../platform/sdl3/sdl3.h"
 #include <SDL3/SDL.h>
 
 #define HORIZON_DIRECTORY_NAME "horizons"
+#define HORIZON_BUNDLED_ANTARCTICA "Antarctica.png"
+#define HORIZON_BUNDLED_ANTARCTICA_DOS "antarct.png"
 #define HORIZON_SPRITE_PAGE_SIZE (LEGACY_U16_MAX + 1UL)
 #define HORIZON_PNG_SIGNATURE_SIZE 8U
 #define HORIZON_PNG_IHDR_SIZE 13U
@@ -223,45 +226,80 @@ static legacy_s16 horizon_png_valid(const legacy_u8 *bytes, size_t size)
 	return 0;
 }
 
+/* Return -1 for an unreadable or ambiguous lookup, zero for missing, and one
+ * for a unique match. An invalid user override must not expose a bundled image. */
+static legacy_s16 horizon_find_path(const legacy_char *root, const legacy_char *name,
+									SDL_PathType type, legacy_char **path)
+{
+	struct HORIZON_NAME_LOOKUP lookup;
+	lookup.wanted = name;
+	lookup.found[0] = 0;
+	lookup.matches = 0;
+	lookup.type = type;
+	if (!SDL_EnumerateDirectory(root, horizon_find_name, &lookup) || lookup.matches > 1U) {
+		return -1;
+	}
+	if (!lookup.matches) {
+		return 0;
+	}
+	if (SDL_asprintf(path, "%s%s%s", root, lookup.found,
+					 type == SDL_PATHTYPE_DIRECTORY ? "/" : "") < 0) {
+		return -1;
+	}
+	return 1;
+}
+
+static legacy_u8 *horizon_read_directory(const legacy_char *directory, const legacy_s8 *name,
+										 legacy_s16 bundled, size_t *size, legacy_s16 *found)
+{
+	legacy_char *path = NULL;
+	*found = horizon_find_path(directory, (const legacy_char *)name, SDL_PATHTYPE_FILE, &path);
+	/* DOS32 deliverables use an 8.3 alias, while tracks retain their full name.
+	 * Aliases apply only in bundled locations, after the canonical filename. */
+	if (!*found && bundled &&
+		horizon_name_equal((const legacy_char *)name, HORIZON_BUNDLED_ANTARCTICA)) {
+		*found =
+			horizon_find_path(directory, HORIZON_BUNDLED_ANTARCTICA_DOS, SDL_PATHTYPE_FILE, &path);
+	}
+	legacy_u8 *bytes = *found == 1 ? SDL_LoadFile(path, size) : NULL;
+	SDL_free(path);
+	return bytes;
+}
+
+static legacy_u8 *horizon_read_root(const legacy_char *root, const legacy_s8 *name,
+									legacy_s16 bundled, size_t *size, legacy_s16 *found)
+{
+	legacy_char *directory = NULL;
+	*found = horizon_find_path(root, HORIZON_DIRECTORY_NAME, SDL_PATHTYPE_DIRECTORY, &directory);
+	legacy_u8 *bytes =
+		*found == 1 ? horizon_read_directory(directory, name, bundled, size, found) : NULL;
+	SDL_free(directory);
+	return bytes;
+}
+
 static legacy_u8 *horizon_read_file(const legacy_s8 *name, size_t *size)
 {
-	/* SDL filesystem operations reinterpret relative paths on mobile. Anchor
-	 * both directory lookups to the actual selected game-data working folder. */
+	/* Anchor mobile filesystem operations to the selected game-data CWD. */
 	legacy_char *root = SDL_GetCurrentDirectory();
 	if (!root) {
 		return NULL;
 	}
-	struct HORIZON_NAME_LOOKUP lookup;
-	lookup.wanted = HORIZON_DIRECTORY_NAME;
-	lookup.found[0] = 0;
-	lookup.matches = 0;
-	lookup.type = SDL_PATHTYPE_DIRECTORY;
-	if (!SDL_EnumerateDirectory(root, horizon_find_name, &lookup) || lookup.matches != 1U) {
-		SDL_free(root);
-		return NULL;
-	}
-	legacy_char *directory = NULL;
-	legacy_s16 joined = SDL_asprintf(&directory, "%s%s/", root, lookup.found) >= 0;
+	legacy_s16 found = 0;
+	legacy_u8 *bytes = horizon_read_root(root, name, 0, size, &found);
 	SDL_free(root);
-	if (!joined) {
-		return NULL;
+	if (found) {
+		return bytes;
 	}
-	lookup.wanted = (const legacy_char *)name;
-	lookup.found[0] = 0;
-	lookup.matches = 0;
-	lookup.type = SDL_PATHTYPE_FILE;
-	if (!SDL_EnumerateDirectory(directory, horizon_find_name, &lookup) || lookup.matches != 1U) {
-		SDL_free(directory);
-		return NULL;
+	const legacy_char *base = asset_path_base();
+	if (base) {
+		bytes = horizon_read_root(base, name, 1, size, &found);
+		if (found) {
+			return bytes;
+		}
 	}
-	legacy_char *path = NULL;
-	joined = SDL_asprintf(&path, "%s%s", directory, lookup.found) >= 0;
-	SDL_free(directory);
-	if (!joined) {
-		return NULL;
-	}
-	legacy_u8 *bytes = SDL_LoadFile(path, size);
-	SDL_free(path);
+#ifdef RESTUNTS_HORIZON_DIRECTORY
+	bytes = horizon_read_directory(RESTUNTS_HORIZON_DIRECTORY "/", name, 1, size, &found);
+#endif
 	return bytes;
 }
 

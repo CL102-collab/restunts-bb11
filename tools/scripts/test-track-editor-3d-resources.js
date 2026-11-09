@@ -328,3 +328,28 @@ test('local Stunts 3D assets load lazily alongside the ordinary 2D resources', a
     assert.equal(assets.palette.length, PALETTE_SIZE);
     assert.deepEqual(assets.palette, editor.palette);
 });
+
+
+test('bundled horizons are available offline and local overrides stay authoritative', async () => {
+    const bundled = [{ filename: 'Antarctica.png', value: horizonPng({ height: 120 }) }];
+    const available = await resources.loadCustomHorizons(new Map(), { bundled });
+    assert.deepEqual(available.errors, []);
+    assert.deepEqual(available.horizons, [{ path: 'bundled/Antarctica.png', filename: 'Antarctica.png',
+        label: 'Antarctica', width: 4096, height: 120 }]);
+    const override = await resources.loadCustomHorizons(new Map([['horizons/ANTARCTICA.PNG', horizonPng({ height: 64 })]]), { bundled });
+    assert.equal(override.horizons.length, 1);
+    assert.equal(override.horizons[0].filename, 'ANTARCTICA.PNG');
+    assert.equal(override.horizons[0].height, 64);
+    const corrupt = await resources.loadCustomHorizons(new Map([['horizons/Antarctica.png', new Uint8Array()]]), { bundled });
+    assert.deepEqual(corrupt.horizons, []);
+    assert.equal(corrupt.errors.length, 1);
+    const duplicate = await resources.loadCustomHorizons(new Map([
+        ['horizons/Antarctica.png', horizonPng()], ['horizons/ANTARCTICA.PNG', horizonPng()]
+    ]), { bundled });
+    assert.deepEqual(duplicate.horizons, []);
+    assert.equal(duplicate.errors.length, 2);
+    const dataUrl = 'data:image/png;base64,' + horizonPng({ height: 65 }).toString('base64');
+    const embedded = await resources.loadCustomHorizons(new Map(), { bundled: [{ filename: 'Antarctica.png', url: dataUrl }] });
+    assert.deepEqual(embedded.errors, []);
+    assert.equal(embedded.horizons[0].height, 65);
+});

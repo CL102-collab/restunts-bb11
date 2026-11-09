@@ -8,6 +8,12 @@ foreach(car_file IN LISTS restunts_car_files)
     configure_file("${CMAKE_SOURCE_DIR}/assets/cars/${car_file}"
         "${restunts_web_assets}/assets/cars/${car_file}" COPYONLY)
 endforeach()
+foreach(horizon_file IN LISTS restunts_horizon_files)
+    configure_file("${CMAKE_SOURCE_DIR}/assets/horizons/${horizon_file}"
+        "${restunts_web_assets}/assets/horizons/${horizon_file}" COPYONLY)
+    install(FILES "${CMAKE_SOURCE_DIR}/assets/horizons/${horizon_file}"
+        DESTINATION horizons COMPONENT Runtime)
+endforeach()
 foreach(theme desert tropical alpine city country)
     foreach(image scen sce2 sce3 sce4)
         configure_file("${CMAKE_SOURCE_DIR}/assets/skyboxes/${theme}-${image}.png"

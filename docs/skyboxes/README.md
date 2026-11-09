@@ -30,7 +30,8 @@ Extended `.cstrk` tracks in SDL3 builds can select a custom horizon from the
 `horizons/Misty mountains.png`. Create the folder if it does not exist.
 No metadata file or separate strips are needed.
 The editor discovers images when you select or reconnect the Stunts folder and
-uses the filename stem (`Misty mountains`) as its display name.
+uses the filename stem (`Misty mountains`) as its display name. Packaged builds
+also include **Antarctica**, available in the editor without copying extra files.
 
 Custom artwork must meet these requirements:
 
@@ -55,13 +56,57 @@ WebGL preview continues to use a flat sky.
 Select a built-in horizon before choosing a custom one to set its fallback.
 Tracks store both that built-in choice and the custom filename. Missing or
 invalid artwork uses the fallback and preserves the filename when saving.
-The image is not embedded in tracks, replays, or ghosts; distribute the PNG
-with them and copy it into `horizons/` on each installation. Changing horizon
+The image is not embedded in tracks, replays, or ghosts; distribute your custom
+PNG with them and copy it into `horizons/` on each installation. Bundled horizons
+are already available in the package. A matching image in the selected game
+folder overrides bundled artwork; an invalid or ambiguous override uses the
+track's saved built-in fallback and the editor reports the problem. Changing horizon
 artwork does not affect race physics, checkpoint routes, or highscore identity.
 Legacy `.trk` tracks retain their five built-in horizons.
 
 The built-in assets described below still use four runtime strips. Custom
 horizons use the single panorama file instead.
+
+## Bundled Antarctica horizon
+
+[Antarctica.png](../../assets/horizons/Antarctica.png) is an original 4096 × 120,
+opaque 8-bit RGB pixel-art panorama. Two directions contain tall, rugged snow-covered
+mountain ranges; the intervening directions open onto lower ridges and broad ice
+shelves. Snow and ice use cool blue shadows, and the sky uses the game's flat
+RGB (93, 255, 255). Its maximum height gives the mountain silhouettes as much
+vertical detail as the custom horizon format allows.
+
+Select **Antarctica** in the editor's Horizon selector and save as `.cstrk`.
+SDL3 packages include the artwork alongside the bundled McMurtry and Tesla cars.
+The standalone editor embeds the same PNG, and browser packages preload it.
+Native and Android games search the selected game folder first, then the bundled
+assets. Source builds can also load `assets/horizons/Antarctica.png` directly.
+DOS32 packages use the 8.3 filename `antarct.png`; the track still stores the
+portable name `Antarctica.png`. Legacy DOS16, Amiga, and TempleOS builds retain
+their original horizons because they do not support `.cstrk`.
+
+The image generation tool created an original four-row Antarctic texture atlas
+and revised it into pixel art using the existing enhanced Alpine horizon as a
+style reference. Stepped outlines, white snow clusters, and cool blue pixel
+shadows replace smooth painted shading. The final atlas is
+1536 × 1024 pixels, with one 1536 × 256 compass-direction panel per row. The
+art direction specified steep white Transantarctic peaks, detailed glacial faces,
+broad low ice shelves, a flat cyan sky, no vegetation or structures, and matching
+low ice at the ends of each panel. The Antarctic landscape is original; no
+external photographs were used. The generated atlas SHA-256 is
+`46325dc34b1b7d2e8b5dabd280f0da08cb23a53ae19342365dce43688842d4f5`.
+
+For the runtime export, the bottom 180 pixels of each panel were packed in row
+order into one panorama and uniformly scaled to 4096 × 120 with nearest-neighbor
+sampling to preserve the crisp pixel edges. Connected cyan sky was
+normalized to the game's exact sky color. All peaks remain inside the image,
+and the left and right edges meet on the same low ice shelf. Narrow 32-pixel
+windows on either side of each join match the ice outline and shadow using
+existing snow and ice colors. Eight center columns are identical at every join,
+including the wraparound; the mountain artwork outside these windows is
+unchanged. The PNG is opaque,
+non-interlaced RGB, with no separate strip files or metadata required. The
+engine derives its classic strips and palette mapping when loading the image.
 
 ## Extraction and verification
 

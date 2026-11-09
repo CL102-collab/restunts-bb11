@@ -562,7 +562,8 @@
             }
             if (!normalized.has('main.res') && !normalized.has('main.pre')) throw new Error('Choose the game folder containing MAIN.RES or MAIN.PRE.');
             const [resources, custom] = await Promise.all([window.TrackEditorResources.load(normalized),
-                window.TrackEditorResources.loadCustomHorizons(files, { validateFilename: model.validateCustomHorizonFilename })]);
+                window.TrackEditorResources.loadCustomHorizons(files, { validateFilename: model.validateCustomHorizonFilename,
+                    bundled: horizonWarnings.length ? [] : window.TrackEditorResources.BUNDLED_HORIZONS })]);
             state.customHorizons = custom.horizons; state.customHorizonErrors = horizonWarnings.concat(custom.errors);
             state.resources = resources; state.files = normalized; state.diskNames = diskNames; state.folder = directory;
             state.previewAssets = null; state.previewAssetsPromise = null; state.previewDirty = true;

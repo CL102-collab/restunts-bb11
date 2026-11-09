@@ -71,9 +71,17 @@ Use a single opaque 8-bit RGB or indexed PNG, exactly 4,096 pixels wide and
 64 through 120 pixels high, including every intermediate height. Use RGB
 `93, 255, 255` for sky. The game aligns the image's bottom edge with the horizon.
 
+**Antarctica** is bundled with the editor and game packages. Its snowy mountain
+ranges alternate with low ice shelves, and it appears in the selector even when
+the chosen game folder has no `horizons` directory. The offline editor embeds
+the PNG, so it needs no extra download. A local `horizons/Antarctica.png` takes
+priority over the bundled artwork. Invalid or ambiguous local replacements
+use the track's built-in fallback, as with other custom horizons.
+
 Choosing a custom image retains the last built-in horizon as its fallback.
 The track stores its PNG filename, including `.png`, rather than the image;
-keep that file in `horizons` on each computer used to play the track. The filename
+keep that file in `horizons` on each computer used to play the track, unless it
+is included with the game like Antarctica. The filename
 must be a basename of at most 127 UTF-8 bytes. Custom horizons require `.cstrk`
 v15. Choosing a built-in horizon removes the custom reference, and either
 selection supports undo and redo. If a selected image is missing or unreadable,

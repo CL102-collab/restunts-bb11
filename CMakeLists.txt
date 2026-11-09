@@ -384,12 +384,14 @@ add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_co
 target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
+set(restunts_horizon_files Antarctica.png)
 set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STMCMU.H3D STTERR.3SH
     STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
     RESTUNTS_EDITOR_DIRECTORY="${CMAKE_CURRENT_BINARY_DIR}"
     RESTUNTS_MENU_DIRECTORY="${restunts_asset_directory}/menus"
     RESTUNTS_SKYBOX_DIRECTORY="${restunts_asset_directory}/skyboxes"
+    RESTUNTS_HORIZON_DIRECTORY="${restunts_asset_directory}/horizons"
     RESTUNTS_OPPONENT_DIRECTORY="${restunts_asset_directory}/opponents"
     RESTUNTS_MUSIC_DIRECTORY="${restunts_asset_directory}/music")
 target_link_libraries(restunts_game PUBLIC restunts_options PRIVATE restunts_webm)
@@ -469,6 +471,9 @@ include(cmake/track-editor.cmake)
 if(ANDROID)
     # Gradle packages native libraries and app assets; install the editor, source and licenses.
     install(FILES docs/android.md DESTINATION share/docs/restunts COMPONENT Runtime)
+    foreach(horizon_file IN LISTS restunts_horizon_files)
+        install(FILES "assets/horizons/${horizon_file}" DESTINATION horizons COMPONENT Runtime)
+    endforeach()
     return()
 endif()
 
@@ -497,6 +502,14 @@ foreach(car_file IN LISTS restunts_car_files)
     install(FILES "assets/cars/${car_file}" DESTINATION bin/cars COMPONENT Runtime)
 endforeach()
 install(FILES assets/tracks/README.TXT DESTINATION bin/tracks COMPONENT Runtime)
+foreach(horizon_file IN LISTS restunts_horizon_files)
+    set(horizon_install_name "${horizon_file}")
+    if(CMAKE_SYSTEM_NAME STREQUAL "DOS" AND horizon_file STREQUAL "Antarctica.png")
+        set(horizon_install_name antarct.png)
+    endif()
+    install(FILES "assets/horizons/${horizon_file}" DESTINATION bin/horizons
+        RENAME "${horizon_install_name}" COMPONENT Runtime)
+endforeach()
 foreach(music IN LISTS music_tracks)
     install(FILES "assets/music/${music}.ogg" DESTINATION bin/music COMPONENT Runtime OPTIONAL)
 endforeach()
@@ -1105,9 +1118,11 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/extended/extended_horizon.c ${core}/extended/extended_horizon_skybox.c
         ${core}/extended/extended_cstrk_horizon.c ${core}/race/race_resources.c
         ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
-        ${core}/hires/render_workers.c ${platform}/memory.c ${platform}/asset_path.c
+        ${core}/hires/render_workers.c ${platform}/memory.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-extended-horizon PRIVATE restunts_options)
+    target_compile_definitions(test-extended-horizon PRIVATE
+        RESTUNTS_HORIZON_DIRECTORY="${restunts_asset_directory}/horizons")
     target_compile_options(test-extended-horizon PRIVATE -UNDEBUG ${restunts_test_section_options})
     target_link_options(test-extended-horizon PRIVATE ${restunts_test_gc_sections})
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-horizon-test")

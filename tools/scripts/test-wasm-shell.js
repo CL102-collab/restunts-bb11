@@ -679,6 +679,65 @@ async function exerciseFallbackLoading(browser, url, temporary) {
     }
 }
 
+async function exerciseBundledHorizonLoading(browser, url) {
+    const required = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT'].map(path => ({ path, bytes: [1, 2, 3] }));
+    for (const direct of [true, false]) {
+        const context = await browser.newContext();
+        await context.addInitScript(direct => {
+            window.showDirectoryPicker = direct ? async () => window.testLoadingFixture.root : undefined;
+        }, direct);
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(String(error)));
+        try {
+            await page.goto(url);
+            await ready(page);
+            await page.evaluate(() => {
+                Module.FS.mkdirTree('/assets/horizons/nested');
+                Module.FS.writeFile('/assets/horizons/Antarctica.png', Uint8Array.from([11, 22, 33]));
+                Module.FS.writeFile('/assets/horizons/ignored.jpg', Uint8Array.from([44]));
+                Module.FS.writeFile('/assets/horizons/nested/ignored.png', Uint8Array.from([55]));
+            });
+            async function load(specs) {
+                await installLoadingFixture(page, specs, direct);
+                await page.evaluate(() => {
+                    testLoadingFixture.automatic.metadata = true;
+                    testLoadingFixture.automatic.content = true;
+                });
+                if (direct) await page.locator('#open-folder').click();
+                else await page.evaluate(specs => {
+                    const transfer = new DataTransfer();
+                    for (const spec of specs) {
+                        const file = new File([Uint8Array.from(spec.bytes)], spec.path.slice(spec.path.lastIndexOf('/') + 1));
+                        Object.defineProperty(file, 'webkitRelativePath', { value: 'Fixture/' + spec.path });
+                        transfer.items.add(file);
+                    }
+                    gameFiles.files = transfer.files;
+                    gameFiles.dispatchEvent(new Event('change'));
+                }, specs);
+                await page.waitForFunction(() => !document.getElementById('start').disabled);
+                return page.evaluate(() => Array.from(fixtureFiles, ([name, bytes]) => [name, Array.from(bytes)])
+                    .filter(([name]) => name.startsWith('/stunts/horizons/')));
+            }
+            const bundled = [['/stunts/horizons/Antarctica.png', [11, 22, 33]]];
+            assert.deepEqual(await load(required), bundled,
+                'The bundled horizon must be installed after either folder picker loads ordinary game data');
+            const override = { path: 'HORIZONS/aNtArCtIcA.PNG', bytes: [77, 88, 99] };
+            assert.deepEqual(await load(required.concat(override)), [['/stunts/horizons/aNtArCtIcA.PNG', override.bytes]],
+                'A local case-insensitive override must replace the bundle without creating ambiguous duplicate names');
+            assert.deepEqual(await load(required), bundled,
+                'Changing folders must restore the bundled horizon after removing a local override');
+            assert.deepEqual(await page.evaluate(() => Array.from(Module.FS.readFile('/assets/horizons/Antarctica.png'))),
+                [11, 22, 33], 'Folder imports must preserve the embedded source artwork');
+            assert.equal(await page.evaluate(() => Array.from(baseline.keys()).some(name => name.startsWith('horizons/'))),
+                false, 'Bundled artwork must not become an exported save');
+            assert.deepEqual(errors, [], 'Bundled horizon imports must not produce browser errors');
+        } finally {
+            await context.close();
+        }
+    }
+}
+
 async function exerciseCustomHorizonLoading(browser, url) {
     const required = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT'].map(path => ({ path, bytes: [1, 2, 3] }));
     const skies = ['Sky.png', 'sky.png', 'Árvíztűrő 🌅.PNG'];
@@ -1318,8 +1377,9 @@ async function main() {
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseCustomHorizonLoading(browser, url);
+        await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

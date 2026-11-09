@@ -19,6 +19,12 @@ other game files.
 Car resources may be placed directly in the game folder or in its `cars/`
 subfolder. The bundled Tesla Roadster and McMurtry cars load automatically from
 the app's private `cars/` folder alongside its music and skyboxes.
+The game APK also includes **Antarctica**, a snowy mountain horizon for extended
+tracks, in its private `horizons/` folder. Tracks using `Antarctica.png` can play
+without copying the image into the selected game folder. A matching PNG in that
+folder's `horizons/` subdirectory takes priority over the bundled artwork.
+The bundled image stays separate from synchronized game files and is retained
+when changing or refreshing the selected folder.
 Tracks may remain loose or go directly in `tracks/` in the selected game folder.
 Both `.TRK` and `.CSTRK` tracks are discovered automatically, with loose files
 taking priority over matching filenames in `tracks/`. Optional `.HIG`/`.CSHIG`

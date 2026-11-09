@@ -2,6 +2,8 @@
 """Bundle the browser track editor into one offline tracked.html file."""
 
 import argparse
+import base64
+import json
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -10,6 +12,21 @@ from urllib.parse import urlsplit
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src/restunts/platform/wasm"
 OUTPUT_NAME = "tracked.html"
+HORIZON_PATTERN = re.compile(r"(/\* bundled-horizons:start \*/)(.*?)(/\* bundled-horizons:end \*/)", re.DOTALL)
+
+
+def embed_bundled_horizons(script, directory):
+    """Keep the bundled custom artwork usable from a single offline HTML file."""
+    def replace(match):
+        entries = json.loads(match.group(2))
+        root = Path(directory).resolve().parents[3] / "assets/horizons"
+        for entry in entries:
+            path = (Path(directory) / entry["url"]).resolve()
+            if not path.is_relative_to(root.resolve()) or path.name != entry["filename"]:
+                raise ValueError("Bundled horizon must be a file in assets/horizons")
+            entry["url"] = "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+        return match.group(1) + json.dumps(entries, separators=(",", ":")) + match.group(3)
+    return HORIZON_PATTERN.sub(replace, script)
 
 
 class EditorSource(HTMLParser):
@@ -51,7 +68,7 @@ class EditorSource(HTMLParser):
             if "defer" not in attributes or "async" in attributes \
                     or attributes.get("type", "text/javascript") != "text/javascript":
                 raise ValueError("Editor scripts must be deferred classic scripts")
-            script = self.asset(attributes["src"])
+            script = embed_bundled_horizons(self.asset(attributes["src"]), self.directory)
             script = re.sub(r"</script", r"<\\/script", script, flags=re.IGNORECASE)
             self.scripts.append(f"<script>\n{script.rstrip()}\n</script>")
             self.pending_script = self.source_offset()

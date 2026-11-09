@@ -93,7 +93,7 @@ async function save(page, direct) {
 async function checkSelection(page, direct, output) {
     const choices = await page.locator('#track-horizon option').evaluateAll(options => options.map(option => ({ value: option.value, label: option.textContent })));
     assert.deepEqual(choices.slice(0, 5).map(choice => choice.label), model.HORIZONS);
-    assert.deepEqual(choices.slice(5).map(choice => choice.label).sort(), CUSTOM_FILES.map(name => name.replace(/\.png$/i, '')).sort());
+    assert.deepEqual(choices.slice(5).map(choice => choice.label).sort(), ['Antarctica', ...CUSTOM_FILES.map(name => name.replace(/\.png$/i, ''))].sort());
     assert.match(await page.locator('#custom-horizon-status').textContent(), /Corrupt|Too short/);
     await openTrack(page);
     await page.locator('#track-horizon').selectOption('custom:' + UNICODE_FILENAME);
@@ -136,6 +136,9 @@ async function main() {
             await observeModel(page);
             if (direct) await page.addInitScript(() => { window.showDirectoryPicker = async () => directoryUnderTest; });
             await page.goto(server.url);
+            // After loading the single HTML, disconnect the read-only browser.
+            // Bundled artwork must work without fetching any external sidecars.
+            if (!direct) await page.context().setOffline(true);
             if (direct) {
                 // Exercise actual FileSystemDirectoryHandle values/getFile/write APIs
                 // in OPFS; only the OS picker is replaced for headless automation.
@@ -162,6 +165,17 @@ async function main() {
             assert.deepEqual(await stored(page), retained, 'changing folders preserves the selected reference');
             const resaved = model.decodeCstrk(Uint8Array.from(await save(page, direct)));
             assert.equal(resaved.customHorizon, retained.customHorizon); assert.equal(resaved.horizon, retained.horizon);
+            // This folder has no horizons directory: the bundled PNG must still be
+            // available without any network or filesystem sidecar next to tracked.html.
+            await page.locator('#track-horizon').selectOption('custom:Antarctica.png');
+            assert.equal(await page.locator('#track-horizon option:checked').textContent(), 'Antarctica');
+            const antarctica = model.decodeCstrk(Uint8Array.from(await save(page, direct)));
+            assert.equal(antarctica.customHorizon, 'Antarctica.png');
+            assert.equal(antarctica.horizon, retained.horizon);
+            if (settings.output) {
+                await page.locator('#track-horizon').scrollIntoViewIfNeeded();
+                await page.screenshot({ path: path.join(settings.output, direct ? 'antarctica-filesystem.png' : 'antarctica-offline.png') });
+            }
             assert.deepEqual(errors, []);
             await page.close();
         }
@@ -177,7 +191,7 @@ async function main() {
         assert.match(await page.locator('#track-horizon option:checked').textContent(), /unavailable/);
         await page.locator('#track-horizon').selectOption('3');
         assert.deepEqual(await stored(page), { customHorizon: '', horizon: 3 });
-        console.log('PASS browser custom horizons: read-only directory and actual FileSystem handles; Unicode labels; 64/65/119/120 heights; targeted discovery; invalid/duplicate rejection; undo/redo; direct/download saves; missing/corrupt reference preservation.');
+        console.log('PASS browser custom horizons: bundled Antarctica without network access; read-only directory and actual FileSystem handles; Unicode labels; 64/65/119/120 heights; targeted discovery; invalid/duplicate rejection; undo/redo; direct/download saves; missing/corrupt reference preservation.');
     } finally {
         if (browser) await browser.close(); if (server) await server.close(); await fs.rm(temporary, { recursive: true, force: true });
     }

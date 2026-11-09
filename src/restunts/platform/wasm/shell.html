@@ -232,6 +232,7 @@
         const CAR_DIRECTORY = 'cars';
         const TRACK_DIRECTORY = 'tracks';
         const HORIZON_DIRECTORY = 'horizons';
+        const BUNDLED_HORIZON_DIRECTORY = '/assets/' + HORIZON_DIRECTORY;
         const HORIZON_MAX_FILENAME_BYTES = 127;
         const HORIZON_EXTENSION = '.png';
         const HORIZON_ASCII_CONTROL_LAST = 0x1f;
@@ -701,6 +702,22 @@
             if (failed) throw firstError;
         }
 
+        function copyBundledHorizons(localNames) {
+            const fold = name => name.replace(/[A-Z]/g, character => character.toLowerCase());
+            const local = new Set(Array.from(localNames, fold));
+            let names;
+            try { names = Module.FS.readdir(BUNDLED_HORIZON_DIRECTORY); }
+            catch (_) { return; }
+            for (const name of names) {
+                const relative = HORIZON_DIRECTORY + '/' + name;
+                if (!validHorizonFilename(name) || local.has(fold(relative))) continue;
+                const source = BUNDLED_HORIZON_DIRECTORY + '/' + name;
+                if (!Module.FS.isFile(Module.FS.stat(source).mode)) continue;
+                Module.FS.mkdirTree(DATA_DIRECTORY + '/' + HORIZON_DIRECTORY);
+                Module.FS.writeFile(DATA_DIRECTORY + '/' + relative, Module.FS.readFile(source));
+            }
+        }
+
         async function loadGameFiles(files, selectedDirectory) {
             const candidates = [];
             for (const entry of files) {
@@ -760,6 +777,7 @@
                 }
             }
             clearDirectory(DATA_DIRECTORY);
+            copyBundledHorizons(pending.keys());
             for (const name of pending.keys()) {
                 const bytes = contents.get(name);
                 const path = DATA_DIRECTORY + '/' + name;

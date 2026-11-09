@@ -302,6 +302,28 @@ public final class GameDataSyncTest {
             "Accepted excessive path depth.");
     }
 
+    private static void bundledHorizonAndOverride(File root) throws IOException {
+        Fixture fixture = new Fixture(root, "bundled-horizon");
+        File bundled = new File(fixture.root, "horizons/Antarctica.png");
+        putFile(bundled, ORIGINAL);
+        fixture.engine().refresh();
+        requireFile(bundled, ORIGINAL);
+        require(!new File(fixture.game, "horizons/antarctica.png").exists(),
+            "Copied bundled artwork into the synchronized game folder.");
+
+        fixture.store.put("Horizons/Antarctica.png", PUBLIC_CHANGE);
+        fixture.engine().refresh();
+        fixture.requireContents("horizons/antarctica.png", PUBLIC_CHANGE);
+        requireFile(bundled, ORIGINAL);
+
+        fixture.store.files.remove("Horizons/Antarctica.png");
+        fixture.engine().refresh();
+        require(!new File(fixture.game, "horizons/antarctica.png").exists(),
+            "Kept a removed public horizon override instead of allowing bundled fallback.");
+        requireFile(bundled, ORIGINAL);
+        require(fixture.store.writes == 0, "Published bundled artwork into the selected folder.");
+    }
+
     private static void refreshAllContent(File root) throws IOException {
         Fixture fixture = new Fixture(root, "all-content");
         String[] customFiles = {"cars/custom.res", "cars/custom.pre", "cars/custom.3sh",
@@ -737,6 +759,7 @@ public final class GameDataSyncTest {
         try {
             paths();
             refreshAllContent(root);
+            bundledHorizonAndOverride(root);
             failedRefresh(root);
             packedRefresh(root);
             publishEveryFormatAndRetry(root);

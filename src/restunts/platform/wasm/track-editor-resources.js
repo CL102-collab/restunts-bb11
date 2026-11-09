@@ -6,6 +6,10 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
     const MAX_RESOURCE = 16 * 1024 * 1024;
+    // The standalone editor builder replaces these development URLs with PNG data URLs.
+    const BUNDLED_HORIZONS = /* bundled-horizons:start */[
+        {"filename":"Antarctica.png","url":"../../../../assets/horizons/Antarctica.png"}
+    ]/* bundled-horizons:end */;
     const EDITOR_TILE_SIZE = 16, EDITOR_TILE_INTERIOR = EDITOR_TILE_SIZE - 1;
     const OVERPASS_VERTICAL_ICON = 101, OVERPASS_HORIZONTAL_ICON = 102;
     const ROAD_SURFACE_DIRT = 1, ROAD_SURFACE_ICE = 2;
@@ -525,11 +529,23 @@
         }
         return { width, height };
     }
-    async function loadCustomHorizons(files, { validateFilename = validateCustomHorizonFilename } = {}) {
+    async function loadCustomHorizons(files, { validateFilename = validateCustomHorizonFilename, bundled = [] } = {}) {
         const candidates = findCustomHorizonFiles(files), names = new Map(), horizons = [], errors = [];
         for (const entry of candidates) {
             const key = asciiCaseFold(entry.filename);
             names.set(key, (names.get(key) || 0) + 1);
+        }
+        for (const entry of bundled) {
+            // A local override remains authoritative even when it is invalid or ambiguous.
+            const key = asciiCaseFold(entry.filename);
+            if (names.has(key)) continue;
+            names.set(key, 1);
+            candidates.push({ filename: entry.filename, label: entry.filename.replace(/\.png$/i, ''),
+                path: 'bundled/' + entry.filename, bundled: true, value: entry.value || { async arrayBuffer() {
+                    const response = await fetch(entry.url);
+                    if (!response.ok) fail('Cannot load bundled horizon ' + entry.filename + '.');
+                    return response.arrayBuffer();
+                } } });
         }
         for (const entry of candidates) {
             try {
@@ -605,5 +621,5 @@
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
     return { load, load3D, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap, pineTreeLayout,
-        validateCustomHorizonFilename, findCustomHorizonFiles, validateCustomHorizonPng, loadCustomHorizons };
+        validateCustomHorizonFilename, findCustomHorizonFiles, validateCustomHorizonPng, loadCustomHorizons, BUNDLED_HORIZONS };
 }));

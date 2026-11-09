@@ -181,6 +181,10 @@ MENU_BACKGROUNDS = ("main", "showroom", "opponent")
 MUSIC_TRACKS = ("titl", "slct", "over", "vict")
 CLASSIC_CUSTOM_CAR_FILES = ("CARMCMU.RES", "CARTERR.RES", "STMCMU.3SH", "STTERR.3SH",
                             "STDAMCMU.VSH", "STDATERR.VSH", "STDBMCMU.VSH", "STDBTERR.VSH")
+CUSTOM_HORIZON_FILES = ("Antarctica.png",)
+DOS_CUSTOM_HORIZON_FILES = {"antarct.png": "Antarctica.png"}
+CUSTOM_HORIZON_DIRECTORIES = {"horizons", "bin/horizons", "assets/horizons",
+                              "share/restunts/wasm-relink/data/assets/horizons"}
 CUSTOM_CAR_FILES = CLASSIC_CUSTOM_CAR_FILES + ("STMCMU.H3D",)
 CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
                           "share/restunts/wasm-relink/data/assets/cars"}
@@ -224,6 +228,28 @@ def validate_custom_car_resources(files):
             require(source.is_file(), f"Missing custom car source resource: {source}")
             require(content == source.read_bytes(),
                     f"Custom car resource differs from source: {name}")
+
+
+def custom_horizon_source(name):
+    path = PurePosixPath(name)
+    if str(path.parent) in CUSTOM_HORIZON_DIRECTORIES and path.name in CUSTOM_HORIZON_FILES:
+        return ROOT / "assets/horizons" / path.name
+    if str(path.parent) == "bin/horizons" and path.name in DOS_CUSTOM_HORIZON_FILES:
+        return ROOT / "assets/horizons" / DOS_CUSTOM_HORIZON_FILES[path.name]
+    return None
+
+
+def validate_custom_horizon_resources(files):
+    for name, content in files.items():
+        source = custom_horizon_source(name)
+        if source is not None:
+            require(source.is_file(), f"Missing custom horizon source resource: {source}")
+            require(content == source.read_bytes(),
+                    f"Custom horizon resource differs from source: {name}")
+
+
+def custom_horizon_files(directory):
+    return {f"{directory}/{name}" for name in CUSTOM_HORIZON_FILES}
 
 
 def custom_car_files(directory):
@@ -289,6 +315,7 @@ def android_required_assets():
     required = {f"assets/licenses/{name}" for name in ANDROID_LICENSES}
     required.add(ANDROID_TRACKS_README)
     required |= custom_car_files("assets/cars")
+    required |= custom_horizon_files("assets/horizons")
     required |= {f"assets/skyboxes/{theme}-{image}.png"
                  for theme in SKYBOX_THEMES for image in SKYBOX_IMAGES}
     required |= {f"assets/menus/{background}.png" for background in MENU_BACKGROUNDS}
@@ -371,6 +398,7 @@ def validate_android_apk(target, content):
     require(files[ANDROID_TRACKS_README] == (ROOT / ANDROID_TRACKS_README).read_bytes(),
             "Android tracks README differs from source")
     validate_custom_car_resources(files)
+    validate_custom_horizon_resources(files)
     elf_class, machine = ELF_ARCHITECTURES[target.split("-")[1]]
     for name in native:
         validate_elf(target, name, files[name], elf_class, machine)
@@ -432,7 +460,7 @@ def required_files(target):
                      "share/docs/restunts/genghost.md", "share/docs/restunts/genghost-android.md",
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE"}
-        return required | nuked_source_files()
+        return required | nuked_source_files() | custom_horizon_files("horizons")
     if target == "browser":
         required |= {"restunts.html", "wasm.md", "THIRD-PARTY-NOTICES.txt",
                      "share/licenses/restunts/SDL-LICENSE.txt",
@@ -449,7 +477,9 @@ def required_files(target):
                      for background in MENU_BACKGROUNDS}
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
-        return required | custom_car_files(f"{relink}/data/assets/cars")
+        return (required | custom_car_files(f"{relink}/data/assets/cars") |
+                custom_horizon_files(f"{relink}/data/assets/horizons") |
+                custom_horizon_files("horizons"))
     if target == "dos16":
         names = DOS_EXECUTABLES
     elif target == "dos32":
@@ -462,6 +492,8 @@ def required_files(target):
     if target == "dos16":
         return required | custom_car_files("cars") | {"tracks/README.TXT"}
     required |= custom_car_files("bin/cars") | {"bin/tracks/README.TXT"}
+    required |= ({f"bin/horizons/{name}" for name in DOS_CUSTOM_HORIZON_FILES}
+                 if target == "dos32" else custom_horizon_files("bin/horizons"))
     required |= {"share/docs/restunts/sdl3.md", "share/licenses/restunts/SDL-LICENSE.txt"}
     if target in HAIKU_TARGETS:
         required.add("share/docs/restunts/haiku.md")
@@ -531,6 +563,7 @@ def validate_contents(target, files, modes):
         if target.startswith("dos"):
             require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
     validate_custom_car_resources(files)
+    validate_custom_horizon_resources(files)
     validate_windows_gui_audits(target, files)
     if target == "templeos":
         validate_templeos_package({name: content for name, content in files.items() if name != README})
@@ -600,6 +633,7 @@ def readme(target, commit):
                   "The app manages its private working cache and copies completed game writes",
                   "back to your selected folder, including tracks, replays and screenshots.",
                   "Custom cars are inside both APKs; enhanced artwork/music are inside the game APK.",
+                  "Antarctica is included in the game APK and as horizons/Antarctica.png.",
                   "Both APKs include dependency notices.",
                   "Release workflow APKs use the project's persistent release signing key.",
                   "PR/local debug APKs use debug keys, which may differ between builds.",
@@ -617,6 +651,7 @@ def readme(target, commit):
     elif target == "browser":
         lines += ["Open restunts.html in your browser and choose your game-data folder.",
                   "Custom cars are embedded under /assets/cars and loaded automatically.",
+                  "Antarctica is embedded and supplied separately as horizons/Antarctica.png.",
                   "The HTML runs offline by itself. Keep the licenses and Nuked source/relink",
                   "kit with redistributed packages; see wasm.md for instructions."]
     elif target == "dos16":
@@ -629,6 +664,7 @@ def readme(target, commit):
         lines += [f"Run bin/{executable} --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
                   "Enhanced skyboxes, opponent portraits, and menu backgrounds are included",
                   "beside the game. Custom cars in bin/cars are loaded automatically.",
+                  "The bundled Antarctica horizon in bin/horizons is available automatically.",
                   "Place custom tracks in bin/tracks; loose tracks take priority on name conflicts.",
                   "See share/docs/restunts/sdl3.md for controls and platform details."]
         if target != "dos32":
@@ -685,7 +721,9 @@ def readme(target, commit):
     if target in HAIKU_TARGETS:
         lines += ["See share/docs/restunts/haiku.md for Haiku setup and VM testing."]
     if target == "dos32":
-        lines += ["You can instead copy the entire contents of bin (including artwork folders)",
+        lines += ["Antarctica uses the DOS-compatible file bin/horizons/antarct.png.",
+                  "Tracks and the editor retain its canonical name Antarctica.png.",
+                  "You can instead copy the entire contents of bin (including artwork folders)",
                   "into your original game's directory, then run restunts.exe there.",
                   "", "CWSDPMI release 7 is included unmodified in bin/CWSDPMI.EXE.",
                   "You have the right to receive its source code and binary updates:",

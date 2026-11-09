@@ -16,9 +16,10 @@ struct SDL_Surface;
 struct SHAPE2D;
 
 #ifdef RESTUNTS_SDL3
-/* Only horizons/ in the selected game-data directory is searched. Source names
- * are UTF-8 basenames; ambiguous ASCII-casefolded spellings are rejected.
- * The module owns its panorama, strip views and derived classic sprites. */
+/* Search game-data horizons/ first, then bundled executable/source artwork.
+ * Missing overrides permit bundled defaults; invalid or ambiguous overrides
+ * retain the track's built-in fallback. Names are UTF-8 basenames. The module
+ * owns its panorama, strip views and derived classic sprites. */
 legacy_s16 extended_horizon_load(const legacy_s8 *name);
 void extended_horizon_unload(void);
 void extended_horizon_palette_changed(void);

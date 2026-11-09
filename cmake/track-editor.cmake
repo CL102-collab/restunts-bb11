@@ -3,7 +3,8 @@ find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 set(restunts_editor_source "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm")
 set(restunts_editor_builder "${CMAKE_SOURCE_DIR}/tools/scripts/build-track-editor.py")
 set(restunts_editor_html "${CMAKE_CURRENT_BINARY_DIR}/tracked.html")
-set(restunts_editor_inputs "${restunts_editor_builder}")
+set(restunts_editor_inputs "${restunts_editor_builder}"
+    "${CMAKE_SOURCE_DIR}/assets/horizons/Antarctica.png")
 foreach(editor_file track-editor.html track-editor.css track-editor.js
         track-editor-model.js track-editor-resources.js
         track-editor-route-data.js track-editor-validation.js

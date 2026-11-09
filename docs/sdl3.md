@@ -354,6 +354,15 @@ Windows uses the corresponding `.exe` names. Dump outputs and saved game data
 are written in the selected data directory, so it must be writable. Keep the
 original game resources and replay/car additions together there.
 
+The bundled **Antarctica** horizon adds snowy mountains and lower ice fields to
+extended tracks. It is included in `bin/horizons/Antarctica.png`; the game finds
+it beside the executable even when `--data-dir` points to a separate game folder.
+The offline editor includes Antarctica in its Horizon selector. A same-named
+image in the game folder's `horizons/` directory takes priority. Missing local
+artwork uses the packaged image; invalid or ambiguous local artwork uses the
+track's saved built-in fallback. DOS32 stores the packaged image as `antarct.png`
+while tracks retain the canonical `Antarctica.png` reference.
+
 Custom cars are also discovered automatically in `cars/` inside the game-data
 folder, beside the executable, and in the bundled car resource directory.
 Native packages include Tesla (`TERR`) and McMurtry (`MCMU`) in `bin/cars/`.

@@ -1,5 +1,6 @@
 """Check the standalone editor's assets, execution order and offline codec."""
 
+import base64
 import importlib.util
 from html.parser import HTMLParser
 import json
@@ -65,7 +66,16 @@ class BuildTrackEditorTests(unittest.TestCase):
         for script, name in zip(contents.scripts, names):
             filename = f"track-editor-{name}.js" if name else "track-editor.js"
             expected = (EDITOR.SOURCE_DIRECTORY / filename).read_text(encoding="utf-8")
-            self.assertEqual(script.strip(), expected.strip())
+            self.assertEqual(script.strip(), EDITOR.embed_bundled_horizons(expected, EDITOR.SOURCE_DIRECTORY).strip())
+
+    def test_bundled_horizon_contains_exact_png_without_external_dependencies(self):
+        contents = BundleContents(EDITOR.build_editor())
+        marker = EDITOR.HORIZON_PATTERN.search(contents.scripts[1])
+        self.assertIsNotNone(marker)
+        entries = json.loads(marker.group(2))
+        self.assertEqual([entry["filename"] for entry in entries], ["Antarctica.png"])
+        self.assertEqual(base64.b64decode(entries[0]["url"].split(",", 1)[1]),
+                         (EDITOR.SOURCE_DIRECTORY.parents[3] / "assets/horizons/Antarctica.png").read_bytes())
 
     def test_3d_preview_controls_are_embedded(self):
         source = EDITOR.build_editor()
@@ -112,7 +122,7 @@ class BuildTrackEditorTests(unittest.TestCase):
         code = """
 const vm = require('node:vm');
 const scripts = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
-const browser = vm.createContext({});
+const browser = vm.createContext({ TextEncoder, TextDecoder });
 for (const script of scripts.slice(0, -1)) vm.runInContext(script, browser);
 vm.runInContext(`
     if (typeof TrackEditorPreview.Preview !== 'function' || typeof TrackEditorScene.buildScene !== 'function') {

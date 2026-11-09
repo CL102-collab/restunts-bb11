@@ -29,7 +29,7 @@ class TrackEditorInstallTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.project = self.root / "source"
         self.project.mkdir()
-        for name in ("src", "tools", "docs"):
+        for name in ("src", "tools", "docs", "assets"):
             (self.project / name).symlink_to(ROOT / name, target_is_directory=True)
         (self.project / "CMakeLists.txt").write_text(
             "cmake_minimum_required(VERSION 3.25)\n"

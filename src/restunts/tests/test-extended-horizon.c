@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <SDL3/SDL.h>
 #include "../c/legacy.h"
+#include "../c/asset_path.h"
 #include "../c/platform.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/skybox.h"
@@ -57,11 +58,16 @@
 #define TEST_MISSING_NAME "Missing.png"
 #define TEST_FIXTURE_NAME "Fixture.png"
 #define TEST_ROOT "horizon-fixtures"
+#define TEST_BUNDLE_ROOT "bundle"
+#define TEST_BUNDLED_NAME "Antarctica.png"
+#define TEST_BUNDLED_ALIAS "antarct.png"
 #define TEST_PATH_PREFIX "horizons/"
 #define TEST_PATH_CAPACITY (sizeof(TEST_PATH_PREFIX) + CSTRK_MAX_HORIZON_NAME)
 #define TEST_HASH_OFFSET 2166136261UL
 #define TEST_HASH_PRIME 16777619UL
 #define TEST_CLASSIC_PAGE_BYTES (LEGACY_U16_MAX + 1UL)
+#define TEST_ANTARCTICA_PANEL_COUNT 4U
+#define TEST_ANTARCTICA_JOIN_COLUMNS 8
 
 struct SKYBOX skybox;
 legacy_s8 skybox_resources_loaded;
@@ -76,6 +82,7 @@ static legacy_s16 materials[TEST_MATERIAL_COUNT];
 legacy_s16 *material_clrlist_ptr = materials;
 static struct CSTRK_TRACK test_track;
 static legacy_s16 test_track_active = 1;
+static legacy_char *bundled_base;
 static legacy_u32 builtin_loads, builtin_frees, timer_pumps;
 static legacy_s8 builtin_resource;
 static struct SHAPE2D builtin_shapes[SKYBOX_IMAGE_COUNT];
@@ -84,6 +91,11 @@ static legacy_u8 target_rows[TEST_SCREEN_HEIGHT * sizeof(legacy_u16)];
 static legacy_u8 *screen;
 static legacy_u8 vga_palette[TEST_PALETTE_COLORS * TEST_PALETTE_CHANNELS];
 static const legacy_s32 strip_widths[SKYBOX_IMAGE_COUNT] = {320, 192, 320, 192};
+
+const legacy_char *asset_path_base(void)
+{
+	return bundled_base;
+}
 
 legacy_int extended_track_active(void)
 {
@@ -621,6 +633,133 @@ static void test_directory_case_and_ambiguity(void)
 	assert(rename("Horizons", "horizons") == 0);
 }
 
+static void test_bundled_lookup(void)
+{
+	assert(SDL_CreateDirectory(TEST_BUNDLE_ROOT "/horizons"));
+	assert(chdir(TEST_BUNDLE_ROOT) == 0);
+	bundled_base = SDL_GetCurrentDirectory();
+	assert(bundled_base);
+	write_fixture(TEST_BUNDLED_NAME, EXTENDED_HORIZON_WIDTH, 65, TEST_PNG_RGB, TEST_FIRST_SEED, 0);
+	assert(chdir("..") == 0);
+	assert(extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert_panorama(65, TEST_FIRST_SEED);
+	extended_horizon_unload();
+
+	/* User artwork takes precedence, including across a case-only spelling. */
+	write_fixture("antarctica.PNG", EXTENDED_HORIZON_WIDTH, 119, TEST_PNG_INDEXED, TEST_SECOND_SEED,
+				  0);
+	assert(extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert_panorama(119, TEST_SECOND_SEED);
+	extended_horizon_unload();
+	/* An invalid local override deliberately shows the saved built-in fallback. */
+	write_fixture("antarctica.PNG", EXTENDED_HORIZON_WIDTH, 63, TEST_PNG_RGB, TEST_SECOND_SEED, 0);
+	assert(!extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert_unloaded();
+	write_fixture(TEST_BUNDLED_NAME, EXTENDED_HORIZON_WIDTH, 120, TEST_PNG_RGB, TEST_SECOND_SEED,
+				  0);
+	assert(!extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert(remove(TEST_PATH_PREFIX "antarctica.PNG") == 0);
+	assert(remove(TEST_PATH_PREFIX TEST_BUNDLED_NAME) == 0);
+	assert(rename("horizons", "Horizons") == 0);
+	assert(SDL_CreateDirectory("horizons"));
+	assert(!extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert(rmdir("horizons") == 0);
+	assert(rename("Horizons", "horizons") == 0);
+
+	/* A DOS32 bundle can use its 8.3 filename without changing the saved name. */
+	assert(rename(TEST_BUNDLE_ROOT "/horizons/" TEST_BUNDLED_NAME,
+				  TEST_BUNDLE_ROOT "/horizons/" TEST_BUNDLED_ALIAS) == 0);
+	assert(extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert_panorama(65, TEST_FIRST_SEED);
+	extended_horizon_unload();
+	assert(chdir(TEST_BUNDLE_ROOT) == 0);
+	write_fixture(TEST_BUNDLED_NAME, EXTENDED_HORIZON_WIDTH, 120, TEST_PNG_RGB, TEST_SECOND_SEED,
+				  0);
+	assert(chdir("..") == 0);
+	assert(extended_horizon_load((const legacy_s8 *)TEST_BUNDLED_NAME));
+	assert_panorama(120, TEST_SECOND_SEED);
+	extended_horizon_unload();
+	assert(remove(TEST_BUNDLE_ROOT "/horizons/" TEST_BUNDLED_NAME) == 0);
+	assert(remove(TEST_BUNDLE_ROOT "/horizons/" TEST_BUNDLED_ALIAS) == 0);
+	SDL_free(bundled_base);
+	bundled_base = NULL;
+	assert(rmdir(TEST_BUNDLE_ROOT "/horizons") == 0);
+	assert(rmdir(TEST_BUNDLE_ROOT) == 0);
+}
+
+#ifdef RESTUNTS_HORIZON_DIRECTORY
+static legacy_u8 bundled_panorama_pixel(legacy_s32 column, legacy_s32 row, legacy_s16 classic)
+{
+	legacy_s32 scale = classic ? 1 : EXTENDED_HORIZON_SAMPLE_SCALE;
+	legacy_s32 panorama_width = SKYBOX_IMAGE_FULL_WRAP * scale;
+	column = (column + panorama_width) % panorama_width;
+	for (legacy_s16 image = 0; image < SKYBOX_IMAGE_COUNT; image++) {
+		legacy_s32 width = strip_widths[image] * scale;
+		if (column < width) {
+			if (classic) {
+				const legacy_u8 *pixels =
+					(const legacy_u8 *)extended_horizon_shape(image) + SHAPE2D_HEADER_SIZE;
+				return pixels[row * width + column];
+			}
+			SDL_Surface *strip = extended_horizon_image(image);
+			return ((const legacy_u8 *)strip->pixels)[row * strip->pitch + column];
+		}
+		column -= width;
+	}
+	assert(!"Panorama column must resolve to one native strip");
+	return 0;
+}
+
+static void test_bundled_antarctica_seams(void)
+{
+	/* Four authored compass panels join at different offsets than the native
+	 * 1280/768-pixel strips. Check every artwork join, including wraparound. */
+	for (legacy_u16 panel = 0; panel < TEST_ANTARCTICA_PANEL_COUNT; panel++) {
+		legacy_s32 seam = panel * EXTENDED_HORIZON_WIDTH / TEST_ANTARCTICA_PANEL_COUNT;
+		for (legacy_s32 row = 0; row < EXTENDED_HORIZON_MAX_HEIGHT; row++) {
+			legacy_u8 expected = bundled_panorama_pixel(seam - 1, row, 0);
+			for (legacy_s32 offset = -TEST_ANTARCTICA_JOIN_COLUMNS / 2;
+				 offset < TEST_ANTARCTICA_JOIN_COLUMNS / 2; offset++) {
+				assert(bundled_panorama_pixel(seam + offset, row, 0) == expected);
+			}
+		}
+		seam /= EXTENDED_HORIZON_SAMPLE_SCALE;
+		for (legacy_s32 row = 0; row < EXTENDED_HORIZON_MAX_HEIGHT / EXTENDED_HORIZON_SAMPLE_SCALE;
+			 row++) {
+			assert(bundled_panorama_pixel(seam - 1, row, 1) ==
+				   bundled_panorama_pixel(seam, row, 1));
+		}
+	}
+}
+
+static void test_source_bundle(void)
+{
+	test_track_active = 1;
+	select_reference(TEST_BUNDLED_NAME);
+	assert(extended_horizon_active());
+	assert(extended_horizon_matches((const legacy_s8 *)TEST_BUNDLED_NAME));
+	legacy_u32 scenery_pixels = 0;
+	for (legacy_s16 image = 0; image < SKYBOX_IMAGE_COUNT; image++) {
+		SDL_Surface *strip = extended_horizon_image(image);
+		assert(strip && strip->w == strip_widths[image] * EXTENDED_HORIZON_SAMPLE_SCALE);
+		assert(strip->h == EXTENDED_HORIZON_MAX_HEIGHT);
+		for (legacy_s32 row = 0; row < strip->h; row++) {
+			const legacy_u8 *pixels = (const legacy_u8 *)strip->pixels + row * strip->pitch;
+			for (legacy_s32 column = 0; column < strip->w; column++) {
+				scenery_pixels += pixels[column] != TEST_SKY_COLOR;
+			}
+		}
+	}
+	assert(scenery_pixels > 0);
+	test_bundled_antarctica_seams();
+	for (legacy_s16 scale = HIRES_MINIMUM_SCALE; scale <= HIRES_SCALE; scale *= 2) {
+		assert(frame_hash(scale, 0) != frame_hash(scale, ANGLE_EIGHTH_TURN));
+	}
+	unload_skybox();
+	assert_unloaded();
+}
+#endif
+
 legacy_int main(void)
 {
 	assert(SDL_Init(0));
@@ -654,6 +793,10 @@ legacy_int main(void)
 	test_validation_and_transparency();
 	test_resource_switching_and_rendering();
 	test_directory_case_and_ambiguity();
+	test_bundled_lookup();
+#ifdef RESTUNTS_HORIZON_DIRECTORY
+	test_source_bundle();
+#endif
 	assert_unloaded();
 	hires_shutdown();
 	static const legacy_char *names[] = {TEST_FIXTURE_NAME, TEST_CUSTOM_NAME, TEST_SECOND_NAME,

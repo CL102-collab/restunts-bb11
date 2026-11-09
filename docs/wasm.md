@@ -3,9 +3,11 @@
 The SDL3 platform also builds with Emscripten. The output is one self-contained
 `restunts.html`: JavaScript, WebAssembly, enhanced artwork, and any supplied
 optional Ogg Vorbis music replacements are embedded. The Tesla Roadster and
-McMurtry custom cars are bundled under `/assets/cars/`. **No original game data is
-included**, including stock cars, tracks, replays, sounds, fonts, or menus. The build does not require a `stunts/`
-directory. The redistributable package and relink kit also exclude that data.
+McMurtry custom cars are bundled under `/assets/cars/`. The Antarctica custom
+horizon is bundled under `/assets/horizons/` and copied into the game
+filesystem automatically when loading a folder. **No original game data is
+included**, including stock cars, tracks, replays, sounds, fonts, or menus.
+The build does not require a `stunts/` directory. The redistributable package and relink kit also exclude that data.
 
 ## Build
 
@@ -159,8 +161,14 @@ result. Use WebM with VP8 video; animations play silently while HyperVision is
 on, keeping the game's music. Missing or unusable clips retain the original
 animation. The `cars/` folder accepts `.RES`, `.PRE`, `.3SH`, `.P3S`, `.VSH`, and
 `.PVS` resources directly; loose car resources in the game folder still work.
-Bundled cars load automatically, alongside cars in your selected folder. Other
-subfolders, executables, and the HTML are ignored. The `tracks/` folder accepts
+Bundled cars load automatically, alongside cars in your selected folder.
+Custom horizon PNGs in `horizons/` retain their exact UTF-8 filenames. The bundled
+Antarctica horizon is always available unless your folder supplies a PNG with
+the same name (ignoring ASCII letter case). Reselecting a folder without that
+override restores the bundled artwork. The track editor also includes
+Antarctica automatically. The package contains a loose `horizons/Antarctica.png`
+for sharing with tracks or copying into another installation. Other subfolders,
+executables, and the HTML are ignored. The `tracks/` folder accepts
 `.TRK`, `.CSTRK`, `.HIG`, and `.CSHIG` files directly. Loose tracks take priority
 over matching filenames in `tracks/`; duplicate filenames appear only once
 in the track menu. Saved tracks and updated scores remain in the game folder.

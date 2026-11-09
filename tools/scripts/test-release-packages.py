@@ -2,6 +2,7 @@
 """Exercise archive integrity failures before release publication."""
 
 import argparse
+import base64
 import contextlib
 import importlib.util
 import io
@@ -59,10 +60,14 @@ class ReleasePackageTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.output = self.root / "archives"
 
-    def copy_car_sources(self, source):
+    def copy_bundled_sources(self, source):
         track_readme = source / "assets/tracks/README.TXT"
         track_readme.parent.mkdir(parents=True, exist_ok=True)
         track_readme.write_bytes((PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes())
+        for name in PACKAGES.CUSTOM_HORIZON_FILES:
+            path = source / "assets/horizons" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((PACKAGES.ROOT / "assets/horizons" / name).read_bytes())
         for name in PACKAGES.CUSTOM_CAR_FILES:
             path = source / "assets/cars" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,6 +245,9 @@ class ReleasePackageTests(unittest.TestCase):
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
         if name in {"tracks/README.TXT", "bin/tracks/README.TXT", "assets/tracks/README.TXT"}:
             return (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
+        horizon_source = PACKAGES.custom_horizon_source(name)
+        if horizon_source is not None:
+            return horizon_source.read_bytes()
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
             return car_source.read_bytes()
@@ -333,6 +341,49 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.subTest(target=target, extra=extra), \
                         self.assertRaisesRegex(ValueError, "Unexpected package file"):
                     PACKAGES.validate_contents(target, {**files, extra: FILE_DATA}, modes)
+
+    def test_custom_horizons_survive_supported_archives_and_android_game_apk(self):
+        for target in PACKAGES.SDL3_TARGETS:
+            with self.subTest(target=target):
+                archive = self.create(target)
+                files, _ = PACKAGES.archive_contents(archive)
+                expected = (PACKAGES.ROOT / "assets/horizons/Antarctica.png").read_bytes()
+                self.assertIn(base64.b64encode(expected), files[PACKAGES.track_editor_path(target)])
+                if target == "browser":
+                    self.assertEqual(files["horizons/Antarctica.png"], expected)
+                    self.assertEqual(files[
+                        "share/restunts/wasm-relink/data/assets/horizons/Antarctica.png"], expected)
+                elif target in PACKAGES.ANDROID_TARGETS:
+                    self.assertEqual(files["horizons/Antarctica.png"], expected)
+                    with zipfile.ZipFile(io.BytesIO(files[PACKAGES.ANDROID_APK])) as apk:
+                        self.assertEqual(apk.read("assets/horizons/Antarctica.png"), expected)
+                else:
+                    filename = "antarct.png" if target == "dos32" else "Antarctica.png"
+                    self.assertEqual(files[f"bin/horizons/{filename}"], expected)
+                self.assertIn("Antarctica", files[PACKAGES.README].decode("utf-8"))
+
+    def test_custom_horizons_are_required_and_cannot_be_substituted(self):
+        for target in PACKAGES.SDL3_TARGETS:
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.FILE_MODE for name in files}
+            for name in files:
+                if PACKAGES.custom_horizon_source(name) is None:
+                    continue
+                with self.subTest(target=target, missing=name), \
+                        self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents(target, {key: data for key, data in files.items()
+                                                        if key != name}, modes)
+                with self.subTest(target=target, replaced=name), \
+                        self.assertRaisesRegex(ValueError, "Custom horizon resource differs from source"):
+                    PACKAGES.validate_contents(target, {**files, name: FILE_DATA}, modes)
+        for target in PACKAGES.ANDROID_TARGETS:
+            name = "assets/horizons/Antarctica.png"
+            with self.subTest(target=target, missing=name), \
+                    self.assertRaisesRegex(ValueError, "missing.*APK members"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, missing=(name,)))
+            with self.subTest(target=target, replaced=name), \
+                    self.assertRaisesRegex(ValueError, "Custom horizon resource differs from source"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, {name: FILE_DATA}))
 
     def test_custom_cars_survive_every_archive_and_both_android_apks(self):
         for target in PACKAGES.TARGETS:
@@ -1048,7 +1099,7 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_android_optional_source_music_is_required_inside_apk_only(self):
         source = self.root / "android-source"
-        self.copy_car_sources(source)
+        self.copy_bundled_sources(source)
         with mock.patch.object(PACKAGES, "ROOT", source):
             baseline = {target: self.apk_data(target) for target in PACKAGES.ANDROID_TARGETS}
             for track in PACKAGES.MUSIC_TRACKS:
@@ -1205,7 +1256,7 @@ class ReleasePackageTests(unittest.TestCase):
         tracks = ("titl", "slct", "over", "vict")
         targets = {"linux-x64": "bin/music", "dos32": "bin/music",
                    "browser": "share/restunts/wasm-relink/data/assets/music"}
-        self.copy_car_sources(source)
+        self.copy_bundled_sources(source)
         with mock.patch.object(PACKAGES, "ROOT", source):
             baseline = {target: PACKAGES.required_files(target) for target in targets}
             for track in tracks:
@@ -1236,7 +1287,7 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_absent_music_is_optional(self):
         source = self.root / "empty-source"
-        self.copy_car_sources(source)
+        self.copy_bundled_sources(source)
         with mock.patch.object(PACKAGES, "ROOT", source):
             for target in ("linux-x64", "dos32", "browser"):
                 with self.subTest(target=target):
