@@ -14,7 +14,18 @@ legacy_int cstrk_is_crop_field(legacy_u16 id)
 
 legacy_int cstrk_is_checkpoint(legacy_u16 id)
 {
-	return id == CSTRK_BLUE_CHECKPOINT_ID || id == CSTRK_RED_CHECKPOINT_ID;
+	return cstrk_checkpoint_colors(id) != 0U;
+}
+
+legacy_u8 cstrk_checkpoint_colors(legacy_u16 id)
+{
+	if (id == CSTRK_BLUE_CHECKPOINT_ID) {
+		return CSTRK_CHECKPOINT_BLUE_MASK;
+	}
+	if (id == CSTRK_RED_CHECKPOINT_ID) {
+		return CSTRK_CHECKPOINT_RED_MASK;
+	}
+	return id == CSTRK_COMBINED_CHECKPOINT_ID ? CSTRK_CHECKPOINT_BOTH_MASK : 0U;
 }
 
 static int cstrk_fail(char *error, size_t size, const char *format, ...)
@@ -265,10 +276,13 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 						  (unsigned)index);
 	}
 	if (cstrk_is_checkpoint(object->legacy_id)) {
-		if (track->version < CSTRK_CHECKPOINT_VERSION) {
+		legacy_u16 required_version = object->legacy_id == CSTRK_COMBINED_CHECKPOINT_ID
+										  ? CSTRK_COMBINED_CHECKPOINT_VERSION
+										  : CSTRK_CHECKPOINT_VERSION;
+		if (track->version < required_version) {
 			return cstrk_fail(error, error_size,
 							  "Object %u requires track version v%u for checkpoints",
-							  (legacy_uint)index, CSTRK_CHECKPOINT_VERSION);
+							  (legacy_uint)index, required_version);
 		}
 		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
 			return cstrk_fail(error, error_size, "Object %u has an invalid checkpoint footprint",

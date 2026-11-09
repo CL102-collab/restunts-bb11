@@ -1,7 +1,7 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v13**, supported
+SDL3 WebAssembly build. The current file-format revision is **v14**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
@@ -20,7 +20,7 @@ All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: an unsigned 16-bit integer. The
 minimum supported revision is v3; older extended-track revisions are rejected.
-New tracks are created with revision v13. Valid v3 through v12 tracks upgrade to v13
+New tracks are created with revision v14. Valid v3 through v13 tracks upgrade to v14
 in memory. Revision v3 tracks preserve their shared overpass surface as both
 upper and lower road materials, so subsequent saves retain their appearance and
 grip. Sloped tunnels and slaloms require v5; the reader rejects these placements
@@ -31,12 +31,12 @@ Revision v8 adds the directional Barrel roll ramp modifier.
 Revision v9 adds pine group modifiers. Revision v10 adds six-tree groves whose
 arrangement varies deterministically with tile position. Revision v11 adds the
 Wheat field scenery tile. Revision v12 adds Tulip field and Vine field. Revision v13 adds Blue checkpoint
-and Red checkpoint. These
+and Red checkpoint. Revision v14 adds Blue / red checkpoint. These
 revisions retain the same header and object layout.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
-v15 or v101 is newer than a reader supporting v13. Its revision alone does not
+v15 or v101 is newer than a reader supporting v14. Its revision alone does not
 make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
@@ -48,7 +48,7 @@ The header occupies exactly 32 bytes:
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 3–65,535; current revision `13` |
+| 8 | 2 | Numeric format revision, 3–65,535; current revision `14` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -139,7 +139,7 @@ to Water. The field is ignored when the direction is zero.
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
-| 0 | 2 | Already-oriented legacy catalog tile ID, 1–214, or extended object ID, 215–219 (see below) |
+| 0 | 2 | Already-oriented legacy catalog tile ID, 1–214, or extended object ID, 215–220 (see below) |
 | 2 | 1 | Anchor x |
 | 3 | 1 | Anchor y |
 | 4 | 1 | Additional clockwise quarter turns, 0–3 |
@@ -161,7 +161,7 @@ store a nonzero lower surface; all other objects require paved `0` in that field
 Revision v3 reserves all four bytes at offsets 12–15 as zero. Revisions v4
 through v6 reserve offsets 13–15, v7 reserves offsets 14–15, and v8 reserves
 offset 15. The reader rejects nonzero reserved bytes and upgrades accepted v3
-through v12 tracks to v13.
+through v13 tracks to v14.
 A v3 overpass inherits its lower material from its ordinary surface because the
 older renderer and collision model used that selection for both roads. Since v4,
 new overpasses default the lower surface to paved independently of the upper road.
@@ -171,7 +171,8 @@ or the 16-byte object record. Revision v10 admits six-tree groups in byte 15
 while retaining the same layout. Revision v11 adds catalog ID 215 without
 assigning additional object bytes. Revision v12 adds catalog IDs 216 and 217
 with the same layout. Revision v13 adds checkpoint IDs 218 and 219 without
-changing object size. Future revisions retain their numeric metadata
+changing object size. Revision v14 adds combined checkpoint ID 220, retaining
+the same header and object layout. Future revisions retain their numeric metadata
 and use this known layout.
 An explicit in-memory v3 export requires equal upper and lower overpass
 surfaces and writes zero at byte 12, preserving the original shared-surface format.
@@ -234,6 +235,14 @@ mask `1`). They support all four rotations, paved, dirt and ice road surfaces,
 raised ground and straight slopes. Their modifier fields at offsets 12–15 must
 be zero. Each checkpoint is a straight bidirectional road with a colored
 start/finish-style gate and no directional arrow.
+
+Blue / red checkpoint uses catalog ID `220` and requires revision v14. It has
+the same footprint, surfaces, rotations, support and modifier rules as the
+single-color gates. Its flag is blue on the top half and red on the bottom
+half. The gate belongs to both checkpoint sets, so passing it once counts for
+both colors. Every blue route and every red route must pass all combined
+gates. A track with combined gates and blue-only gates may finish by passing
+all combined gates via the red set; the converse holds for red-only gates.
 
 To finish a race, the car must pass every Blue checkpoint or every Red
 checkpoint before crossing the finish line. Only colors present on the track
@@ -328,6 +337,6 @@ of obsolete revisions, all 12 material pairs in four corner directions, sparse
 overlays, positive and negative slopes, versioned sloped-stunt placement, the v7
 Tunnel with slalom modifier, v8 barrel roll ramps, v9 pine groups, v10
 six-tree groups, v11 Wheat field, v12 Tulip/Vine field records, and v13
-checkpoint records,
+checkpoint records, v14 combined checkpoints,
 revision-specific reserved-byte rejection, ASCII limits, transactional failure,
 and the maximum-size 90×90 map.

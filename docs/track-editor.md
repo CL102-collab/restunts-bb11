@@ -64,8 +64,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v13. Revision v3 through v12 tracks also open
-and are upgraded to v13 while preserving their original overpass road materials.
+great track." The current version is v14. Revision v3 through v13 tracks also open
+and are upgraded to v14 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -162,8 +162,11 @@ its original appearance.
 
 The **Roads** group includes **Blue checkpoint** and **Red checkpoint**. Both use
 the start/finish sign without its arrow, with blue or red in place of white.
-Choose paved, dirt or ice independently and rotate each checkpoint as needed.
-Checkpoints require `.cstrk` v13 and appear in the 2D editor and 3D preview.
+The **Blue / red checkpoint** has blue on the top half of its flag and red on
+the bottom half. Passing it counts for both colors, so it must be passed on
+either route. Blue and red checkpoints require `.cstrk` v13; the combined
+checkpoint requires v14. All three support paved, dirt and ice, rotation, and
+the 2D editor and 3D preview.
 During a race, pass every checkpoint of either color before crossing the finish.
 If only one color is present, all checkpoints of that color are required. A track
 without checkpoints keeps the usual finish rule. Checkpoints count in either

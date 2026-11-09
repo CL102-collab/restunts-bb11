@@ -24,9 +24,7 @@ static legacy_u8 object_color(const struct CSTRK_OBJECT *object)
 	if (!object) {
 		return 0;
 	}
-	return object->legacy_id == CSTRK_BLUE_CHECKPOINT_ID  ? GENGHOST_CHECKPOINT_BLUE
-		   : object->legacy_id == CSTRK_RED_CHECKPOINT_ID ? GENGHOST_CHECKPOINT_RED
-														  : 0;
+	return cstrk_checkpoint_colors(object->legacy_id);
 }
 
 static const struct CSTRK_OBJECT *checkpoint_object(legacy_int piece)
@@ -55,8 +53,10 @@ legacy_u8 extended_genghost_checkpoint_colors(const legacy_int *path, size_t cou
 	legacy_u8 visited[GENGHOST_CHECKPOINT_VISITED_BYTES] = {0};
 	for (legacy_u32 index = 0; index < track->object_count; index++) {
 		legacy_u8 color = object_color(&track->objects[index]);
-		if (color) {
-			total[color == GENGHOST_CHECKPOINT_RED]++;
+		for (legacy_u8 bit = 0; bit < GENGHOST_CHECKPOINT_COLOR_COUNT; bit++) {
+			if (color & (1U << bit)) {
+				total[bit]++;
+			}
 		}
 	}
 	if (!total[0] && !total[1]) {
@@ -72,7 +72,11 @@ legacy_u8 extended_genghost_checkpoint_colors(const legacy_int *path, size_t cou
 		legacy_u8 bit = 1U << (placed % GENGHOST_CHECKPOINT_BITS);
 		if (!(visited[placed / GENGHOST_CHECKPOINT_BITS] & bit)) {
 			visited[placed / GENGHOST_CHECKPOINT_BITS] |= bit;
-			crossed[color == GENGHOST_CHECKPOINT_RED]++;
+			for (legacy_u8 channel = 0; channel < GENGHOST_CHECKPOINT_COLOR_COUNT; channel++) {
+				if (color & (1U << channel)) {
+					crossed[channel]++;
+				}
+			}
 		}
 	}
 	legacy_u8 complete = 0;

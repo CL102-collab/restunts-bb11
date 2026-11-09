@@ -77,6 +77,7 @@
 #define TEST_BRANCH_CHECKPOINT_COLUMN 75U
 #define TEST_BRANCH_SPLIT_ID 79U
 #define TEST_BRANCH_MERGE_ID 76U
+#define TEST_BRANCH_SHARED_ROW (TEST_BRANCH_START - 2U)
 
 extern legacy_f64 sqrt(legacy_f64);
 
@@ -831,7 +832,68 @@ static void test_checkpoint_route_colors(void)
 	cstrk_free(&track);
 }
 
-static void test_compiled_checkpoint_branches(void)
+static void test_shared_checkpoint_route_colors(void)
+{
+	const legacy_u8 all_colors = GENGHOST_CHECKPOINT_BLUE | GENGHOST_CHECKPOINT_RED;
+	for (legacy_u8 exclusive_colors = 0; exclusive_colors <= all_colors; exclusive_colors++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		rectangle(&track, 0, 0);
+		for (legacy_u32 index = 0; index < track.object_count; index++) {
+			struct CSTRK_OBJECT *object = &track.objects[index];
+			if (object->y != TEST_CHECKPOINT_FIRST_ROW && object->y != TEST_CHECKPOINT_SECOND_ROW) {
+				continue;
+			}
+			if (object->x == TEST_RIGHT) {
+				object->legacy_id = CSTRK_COMBINED_CHECKPOINT_ID;
+			} else if (object->y == TEST_CHECKPOINT_FIRST_ROW &&
+					   (exclusive_colors & GENGHOST_CHECKPOINT_BLUE)) {
+				object->legacy_id = CSTRK_BLUE_CHECKPOINT_ID;
+			} else if (object->y == TEST_CHECKPOINT_SECOND_ROW &&
+					   (exclusive_colors & GENGHOST_CHECKPOINT_RED)) {
+				object->legacy_id = CSTRK_RED_CHECKPOINT_ID;
+			}
+		}
+		activate(&track);
+		legacy_int shared_first = checkpoint_node(TEST_RIGHT, TEST_CHECKPOINT_FIRST_ROW);
+		legacy_int shared_second = checkpoint_node(TEST_RIGHT, TEST_CHECKPOINT_SECOND_ROW);
+		legacy_int blue = checkpoint_node(TEST_LEFT, TEST_CHECKPOINT_FIRST_ROW);
+		legacy_int red = checkpoint_node(TEST_LEFT, TEST_CHECKPOINT_SECOND_ROW);
+		legacy_int shared_only[] = {0, shared_first, shared_second};
+		assert(extended_genghost_checkpoint_colors(shared_only,
+												   sizeof(shared_only) / sizeof(shared_only[0])) ==
+			   (all_colors & ~exclusive_colors));
+		legacy_int missing_shared[] = {0, shared_first, blue, red, shared_first};
+		assert(extended_genghost_checkpoint_colors(
+				   missing_shared, sizeof(missing_shared) / sizeof(missing_shared[0])) == 0);
+		legacy_int blue_path[] = {0, shared_first, shared_second, blue, shared_first};
+		assert(extended_genghost_checkpoint_colors(blue_path,
+												   sizeof(blue_path) / sizeof(blue_path[0])) ==
+			   (GENGHOST_CHECKPOINT_BLUE |
+				((exclusive_colors & GENGHOST_CHECKPOINT_RED) ? 0 : GENGHOST_CHECKPOINT_RED)));
+		legacy_int red_path[] = {0, shared_first, shared_second, red, shared_second};
+		assert(
+			extended_genghost_checkpoint_colors(red_path, sizeof(red_path) / sizeof(red_path[0])) ==
+			(GENGHOST_CHECKPOINT_RED |
+			 ((exclusive_colors & GENGHOST_CHECKPOINT_BLUE) ? 0 : GENGHOST_CHECKPOINT_BLUE)));
+		struct GENGHOST_ROUTES routes;
+		assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+		assert(routes.count == 2U);
+		for (size_t index = 0; index < routes.count; index++) {
+			assert(routes.routes[index].checkpoint_colors == (1U << index));
+			assert(extended_genghost_checkpoint_piece_color(shared_first) == all_colors);
+			assert(
+				extended_genghost_checkpoint_piece_required(&routes.routes[index], shared_first));
+			assert(
+				extended_genghost_checkpoint_piece_required(&routes.routes[index], shared_second));
+		}
+		genghost_routes_free(&routes);
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+}
+
+static void test_compiled_checkpoint_branches(legacy_u8 shared)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
@@ -852,12 +914,16 @@ static void test_compiled_checkpoint_branches(void)
 		add_piece(&track, TEST_ROAD_HORIZONTAL, column, TEST_BRANCH_BOTTOM);
 	}
 	for (legacy_u8 row = TEST_BRANCH_TOP + 1U; row < TEST_BRANCH_BOTTOM; row++) {
-		add_piece(&track, TEST_ROAD_VERTICAL, TEST_BRANCH_RIGHT, row);
 		add_piece(&track,
-				  row == TEST_BRANCH_START			  ? TEST_START_NORTH
-				  : row == TEST_BRANCH_SPLIT		  ? TEST_BRANCH_SPLIT_ID
-				  : row == TEST_BRANCH_CHECKPOINT_ROW ? CSTRK_BLUE_CHECKPOINT_ID
-													  : TEST_ROAD_VERTICAL,
+				  shared && row == TEST_BRANCH_CHECKPOINT_ROW ? CSTRK_COMBINED_CHECKPOINT_ID
+															  : TEST_ROAD_VERTICAL,
+				  TEST_BRANCH_RIGHT, row);
+		add_piece(&track,
+				  row == TEST_BRANCH_START					? TEST_START_NORTH
+				  : row == TEST_BRANCH_SPLIT				? TEST_BRANCH_SPLIT_ID
+				  : row == TEST_BRANCH_CHECKPOINT_ROW		? CSTRK_BLUE_CHECKPOINT_ID
+				  : shared && row == TEST_BRANCH_SHARED_ROW ? CSTRK_COMBINED_CHECKPOINT_ID
+															: TEST_ROAD_VERTICAL,
 				  TEST_BRANCH_LEFT, row);
 	}
 	add_piece(&track, TEST_TURN_SOUTHEAST, TEST_BRANCH_MERGE, TEST_BRANCH_SPLIT);
@@ -923,7 +989,9 @@ int main(void)
 	test_graded_catalog_targets();
 	test_long_route();
 	test_checkpoint_route_colors();
-	test_compiled_checkpoint_branches();
+	test_shared_checkpoint_route_colors();
+	test_compiled_checkpoint_branches(0);
+	test_compiled_checkpoint_branches(1);
 	puts("Extended generator geometry: wide coordinates, road materials, modifiers and long "
 		 "routes.");
 	return 0;

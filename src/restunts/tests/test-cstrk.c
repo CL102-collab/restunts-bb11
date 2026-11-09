@@ -675,7 +675,7 @@ static void test_invalid_records(void)
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	struct CSTRK_OBJECT invalid[] = {
 		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
-		{CSTRK_RED_CHECKPOINT_ID + 1U, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+		{CSTRK_COMBINED_CHECKPOINT_ID + 1U, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
 		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0},
 		{1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
 		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
@@ -1434,9 +1434,17 @@ static void test_checkpoint_records(void)
 	cstrk_init(&track);
 	cstrk_init(&decoded);
 	assert(cstrk_create(&track, 2U, 2U, error, sizeof(error)));
-	static const legacy_u16 ids[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID};
+	static const legacy_u16 ids[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID,
+									 CSTRK_COMBINED_CHECKPOINT_ID};
+	static const legacy_u8 colors[] = {CSTRK_CHECKPOINT_BLUE_MASK, CSTRK_CHECKPOINT_RED_MASK,
+									   CSTRK_CHECKPOINT_BOTH_MASK};
 	for (legacy_u8 color = 0; color < sizeof(ids) / sizeof(ids[0]); color++) {
 		assert(cstrk_is_checkpoint(ids[color]));
+		assert(cstrk_checkpoint_colors(ids[color]) == colors[color]);
+		legacy_u16 required_version = ids[color] == CSTRK_COMBINED_CHECKPOINT_ID
+										  ? CSTRK_COMBINED_CHECKPOINT_VERSION
+										  : CSTRK_CHECKPOINT_VERSION;
+		track.version = required_version;
 		for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
 			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 				struct CSTRK_OBJECT object = object_at(0U, 0U);
@@ -1451,7 +1459,9 @@ static void test_checkpoint_records(void)
 				assert(decoded.objects[0].legacy_id == object.legacy_id);
 				assert(decoded.objects[0].rotation == rotation);
 				assert(decoded.objects[0].surface == surface);
-				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_CHECKPOINT_VERSION - 1U);
+				assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == required_version);
+				assert(decoded.version == CSTRK_VERSION);
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, required_version - 1U);
 				assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
 				assert(strstr(error, "checkpoints") != NULL);
 				free(data);
@@ -1473,7 +1483,9 @@ static void test_checkpoint_records(void)
 		assert(!cstrk_add_object(&track, &object, error, sizeof(error)));
 	}
 	assert(!cstrk_is_checkpoint(CSTRK_VINE_FIELD_ID));
-	assert(!cstrk_is_checkpoint(CSTRK_RED_CHECKPOINT_ID + 1U));
+	assert(!cstrk_is_checkpoint(CSTRK_COMBINED_CHECKPOINT_ID + 1U));
+	assert(cstrk_checkpoint_colors(CSTRK_VINE_FIELD_ID) == 0U);
+	assert(cstrk_checkpoint_colors(CSTRK_COMBINED_CHECKPOINT_ID + 1U) == 0U);
 	cstrk_free(&decoded);
 	cstrk_free(&track);
 }

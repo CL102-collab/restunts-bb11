@@ -16,8 +16,8 @@ from regression_timeouts import scaled_timeout
 
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
-CSTRK_VERSION = 13
-CSRPL_VERSION = 18
+CSTRK_VERSION = 14
+CSRPL_VERSION = 19
 CSRPL_MIN_VERSION = 11
 CSRPL_FUTURE_VERSION = 101
 CSTRK_HEADER_SIZE = 32
@@ -39,11 +39,13 @@ TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART)
 BARREL_ROTATION_COUNT = 4
 BLUE_CHECKPOINT_ID = 218
 RED_CHECKPOINT_ID = 219
+COMBINED_CHECKPOINT_ID = 220
 CHECKPOINT_ROWS = (10, 14)
 BRANCH_TOP, BRANCH_SPLIT, BRANCH_BOTTOM, BRANCH_START = 8, 18, 26, 22
 BRANCH_LEFT, BRANCH_MERGE, BRANCH_RIGHT = 72, 78, 84
 BRANCH_CHECKPOINT_ROW, BRANCH_CHECKPOINT_COLUMN = 13, 75
 BRANCH_SPLIT_ID, BRANCH_MERGE_ID = 79, 76
+BRANCH_SHARED_ROW = BRANCH_START - 2
 # Keep each orientation/rate pair's collision modes together. Measured native
 # runtimes balance these searches with each part's format, replay or stunt work.
 BARREL_PARTS = {
@@ -104,29 +106,45 @@ def track_bytes(kind="flat", rotation=0, surface=0):
     if barrel:
         pieces.append(object_record(85, left, launch, width=1, height=2, mask=3, roll=1))
     if kind.startswith("branches"):
+        branch_kind = kind.replace("-shared", "")
         for piece in pieces:
             if (piece["x"], piece["y"]) == (left, BRANCH_SPLIT):
                 piece["tile"] = BRANCH_SPLIT_ID
             elif (piece["x"], piece["y"]) == (BRANCH_MERGE, top):
                 piece["tile"] = BRANCH_MERGE_ID
-            elif kind != "branches-red" and (piece["x"], piece["y"]) in (
+            elif branch_kind != "branches-red" and (piece["x"], piece["y"]) in (
                     (left, BRANCH_CHECKPOINT_ROW), (BRANCH_CHECKPOINT_COLUMN, top)):
                 piece["tile"] = BLUE_CHECKPOINT_ID
                 piece["rotation"] = int(piece["y"] == top)
         pieces.append(object_record(9, BRANCH_MERGE, BRANCH_SPLIT))
         for column in range(left + 1, BRANCH_MERGE):
-            gate = kind != "branches-blue" and column == BRANCH_CHECKPOINT_COLUMN
+            gate = branch_kind != "branches-blue" and column == BRANCH_CHECKPOINT_COLUMN
             piece = object_record(RED_CHECKPOINT_ID if gate else 5, column, BRANCH_SPLIT)
             piece["rotation"] = int(gate)
             pieces.append(piece)
         for row in range(top + 1, BRANCH_SPLIT):
-            gate = kind != "branches-blue" and row == BRANCH_CHECKPOINT_ROW
+            gate = branch_kind != "branches-blue" and row == BRANCH_CHECKPOINT_ROW
             pieces.append(object_record(RED_CHECKPOINT_ID if gate else 4, BRANCH_MERGE, row))
-    if kind in ("blue", "red", "both"):
+    if kind.endswith("-shared") and kind.startswith("branches"):
+        for piece in pieces:
+            if (piece["x"], piece["y"]) in ((left, BRANCH_SHARED_ROW),
+                                              (right, BRANCH_CHECKPOINT_ROW)):
+                piece["tile"] = COMBINED_CHECKPOINT_ID
+    if kind in ("blue", "red", "both", "both-shared"):
         for piece in pieces:
             if piece["y"] in CHECKPOINT_ROWS and piece["x"] in (left, right):
                 piece["tile"] = (RED_CHECKPOINT_ID if kind == "red" or
-                                 (kind == "both" and piece["x"] == right) else BLUE_CHECKPOINT_ID)
+                                 (kind in ("both", "both-shared") and piece["x"] == right) else BLUE_CHECKPOINT_ID)
+    if kind in ("shared", "shared-blue", "shared-red"):
+        for piece in pieces:
+            if piece["y"] in CHECKPOINT_ROWS and piece["x"] in (left, right):
+                piece["tile"] = (COMBINED_CHECKPOINT_ID if kind == "shared" or piece["x"] == left
+                                 else BLUE_CHECKPOINT_ID if kind == "shared-blue" else RED_CHECKPOINT_ID)
+    if kind == "both-shared":
+        for piece in pieces:
+            if piece["x"] == (left + right) // 2 and piece["y"] == bottom:
+                piece["tile"] = COMBINED_CHECKPOINT_ID
+                piece["rotation"] = 1
     if kind == "dense":
         # Keep scenery clear of the lap while exercising a valid track payload
         # larger than the old entire-file reader limit.
@@ -292,6 +310,22 @@ def main():
                 if kind != "branches":
                     required = "blue_passed" if kind == "branches-blue" else "red_passed"
                     assert branch_playback[required] == 2
+            shared_cases = (("shared", 0, 0, True), ("shared", 0, 0, False),
+                            ("shared-blue", 1, 1, True), ("shared-red", 2, 2, True),
+                            ("both-shared", 3, 0, True), ("branches-shared", 0, 0, True),
+                            ("branches-shared", 0, 0, False))
+            for kind, rotation, surface, restricted in shared_cases:
+                name = kind + ("-restricted" if restricted else "-free")
+                shared_path = output / f"{name}.cstrk"
+                shared_path.write_bytes(track_bytes(kind, rotation, surface))
+                _, _, shared_report, shared_playback = generate(
+                    shared_path, "COUN", f"{name}.csrpl", evaluations=512,
+                    flags=RESTRICTED if restricted else ("--pg:off", "--lc:off"))
+                assert shared_report["route_combinations"] == 2
+                assert shared_report["routes_attempted"] == shared_report["routes_finished"] == 2
+                expected_shared = 4 if kind == "shared" else 1 if kind == "both-shared" else 2
+                assert shared_playback["shared_passed"] == expected_shared
+            print("Shared blue/red gates remain mandatory for both generated color cases and snapshots", flush=True)
             print("Checkpoint forks compile and finish every blue/red route case", flush=True)
             print("Blue-only, red-only and mixed checkpoints generate verified ghosts on paved, dirt and ice", flush=True)
             second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")

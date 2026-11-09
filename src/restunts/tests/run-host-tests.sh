@@ -542,7 +542,8 @@ run_host_test test-replay-controls legacy.c \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay/replay.c
 run_host_test test-cstrk extended/extended_cstrk.c
-run_host_test test-extended-checkpoint extended/extended_checkpoint.c -DRESTUNTS_SDL3
+run_host_test test-extended-checkpoint extended/extended_checkpoint.c \
+    "$test_source_dir/extended/extended_cstrk.c" -DRESTUNTS_SDL3
 run_host_test test-checkpoint-shape extended/extended_checkpoint_shape.c
 run_host_test test-cshig extended/extended_cshig.c "$test_source_dir/extended/extended_cstrk.c"
 run_host_test test-sdl3-file-replace ../platform/sdl3/file.c \

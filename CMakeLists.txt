@@ -554,7 +554,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
     add_executable(test-extended-checkpoint ${core}/extended/extended_checkpoint.c
-        src/restunts/tests/test-extended-checkpoint.c)
+        ${core}/extended/extended_cstrk.c src/restunts/tests/test-extended-checkpoint.c)
     target_compile_definitions(test-extended-checkpoint PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-checkpoint PRIVATE -UNDEBUG)
     add_test(NAME extended-checkpoint COMMAND test-extended-checkpoint)

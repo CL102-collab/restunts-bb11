@@ -27,11 +27,6 @@ static struct CSTRK_OBJECT objects[TEST_OBJECT_CAPACITY];
 static struct CSTRK_TRACK track;
 static legacy_s16 track_active = 1, replay_active = 1;
 
-legacy_int cstrk_is_checkpoint(legacy_u16 id)
-{
-	return id == CSTRK_BLUE_CHECKPOINT_ID || id == CSTRK_RED_CHECKPOINT_ID;
-}
-
 legacy_int extended_track_active(void)
 {
 	return track_active;
@@ -245,6 +240,63 @@ static void test_color_alternatives(void)
 	assert(extended_checkpoint_finish_allowed(PLAYER_CAR_INDEX));
 }
 
+static legacy_u16 add_combined_gate(legacy_u8 rotation, legacy_u8 surface)
+{
+	legacy_u16 index = (legacy_u16)track.object_count;
+	assert(index < TEST_OBJECT_CAPACITY);
+	objects[index] = test_object(CSTRK_COMBINED_CHECKPOINT_ID, (legacy_u8)(TEST_GATE_ROW + index));
+	objects[index].rotation = rotation;
+	objects[index].surface = surface;
+	track.object_count++;
+	return index;
+}
+
+static void test_combined_checkpoints(void)
+{
+	for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
+		for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+			for (legacy_u16 chosen = 1U; chosen <= 2U; chosen++) {
+				reset_fixture(1U, 1U);
+				legacy_u16 shared = add_combined_gate(rotation, surface);
+				sweep_gate(chosen, 0, TEST_CAR_HEIGHT, 0);
+				assert(!finish_attempt());
+				sweep_gate(shared, 0, TEST_CAR_HEIGHT, rotation & 1U);
+				assert(extended_checkpoint_passed(&objects[shared], PLAYER_CAR_INDEX));
+				assert(finish_attempt());
+			}
+		}
+	}
+
+	/* A shared gate itself introduces both colors. The other color's set
+	 * can therefore consist entirely of shared gates. */
+	reset_fixture(1U, 0U);
+	legacy_u16 shared = add_combined_gate(0U, CSTRK_ROAD_PAVED);
+	sweep_gate(shared, 0, TEST_CAR_HEIGHT, 0);
+	assert(!extended_checkpoint_passed(&objects[1], PLAYER_CAR_INDEX));
+	assert(finish_attempt());
+	reset_fixture(0U, 1U);
+	shared = add_combined_gate(0U, CSTRK_ROAD_ICE);
+	sweep_gate(shared, 0, TEST_CAR_HEIGHT, 1);
+	assert(!extended_checkpoint_passed(&objects[1], PLAYER_CAR_INDEX));
+	assert(finish_attempt());
+
+	reset_fixture(0U, 0U);
+	legacy_u16 first = add_combined_gate(0U, CSTRK_ROAD_PAVED);
+	legacy_u16 second = add_combined_gate(0U, CSTRK_ROAD_DIRT);
+	assert(!finish_attempt());
+	sweep_gate(first, 0, TEST_CAR_HEIGHT, 0);
+	sweep_gate(first, 0, TEST_CAR_HEIGHT, 1);
+	assert(!finish_attempt());
+	struct EXTENDED_REPLAY_CLOCKS snapshot = extended_replay_clocks;
+	sweep_gate(second, 0, TEST_CAR_HEIGHT, 1);
+	assert(finish_attempt());
+	extended_replay_clocks = snapshot;
+	state.playerstate.car_crashBmpFlag = CRASH_EVENT_NONE;
+	assert(!finish_attempt());
+	sweep_gate(second, 0, TEST_CAR_HEIGHT, 0);
+	assert(finish_attempt());
+}
+
 static void test_finish_rotation_and_opponent(void)
 {
 	for (legacy_u16 rotation = 0U; rotation < 4U; rotation++) {
@@ -338,6 +390,7 @@ legacy_int main(void)
 {
 	test_aperture();
 	test_color_alternatives();
+	test_combined_checkpoints();
 	test_finish_rotation_and_opponent();
 	test_real_crossings_and_snapshot();
 	test_finish_order_in_fast_tick();

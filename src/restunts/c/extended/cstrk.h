@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "../legacy.h"
 
-#define CSTRK_VERSION 13U
+#define CSTRK_VERSION 14U
 #define CSTRK_MIN_VERSION 3U
 #define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_SLOPED_STUNT_VERSION 5U
@@ -19,6 +19,7 @@
 #define CSTRK_TULIP_FIELD_VERSION 12U
 #define CSTRK_VINE_FIELD_VERSION 12U
 #define CSTRK_CHECKPOINT_VERSION 13U
+#define CSTRK_COMBINED_CHECKPOINT_VERSION 14U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -33,6 +34,10 @@
 #define CSTRK_VINE_FIELD_ID 217U
 #define CSTRK_BLUE_CHECKPOINT_ID 218U
 #define CSTRK_RED_CHECKPOINT_ID 219U
+#define CSTRK_COMBINED_CHECKPOINT_ID 220U
+#define CSTRK_CHECKPOINT_BLUE_MASK 1U
+#define CSTRK_CHECKPOINT_RED_MASK 2U
+#define CSTRK_CHECKPOINT_BOTH_MASK (CSTRK_CHECKPOINT_BLUE_MASK | CSTRK_CHECKPOINT_RED_MASK)
 #define CSTRK_PINE_GROUP_OLD_COUNT 5U /* Decode-only alias for the six-tree group. */
 #define CSTRK_PINE_GROUP_SMALL_COUNT 6U
 #define CSTRK_PINE_GROUP_LARGE_COUNT 10U
@@ -163,6 +168,8 @@ struct CSTRK_TRACK {
 legacy_int cstrk_is_crop_field(legacy_u16 id);
 /* Extended road gates use their authored color and independent rotation. */
 legacy_int cstrk_is_checkpoint(legacy_u16 id);
+/* Colors whose complete route requires this gate; zero for every other ID. */
+legacy_u8 cstrk_checkpoint_colors(legacy_u16 id);
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,

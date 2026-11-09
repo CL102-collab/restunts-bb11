@@ -21,10 +21,12 @@
     const TULIP_FIELD_ID = 216, TULIP_FIELD_PHYSICAL_MODEL = 76, TULIP_FIELD_VERSION = 12;
     const VINE_FIELD_ID = 217, VINE_FIELD_PHYSICAL_MODEL = 77, VINE_FIELD_VERSION = 12;
     const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, CHECKPOINT_VERSION = 13;
-    const BLUE_CHECKPOINT_PHYSICAL_MODEL = 78, RED_CHECKPOINT_PHYSICAL_MODEL = 79;
+    const COMBINED_CHECKPOINT_ID = 220, COMBINED_CHECKPOINT_VERSION = 14;
+    const BLUE_CHECKPOINT_PHYSICAL_MODEL = 78, RED_CHECKPOINT_PHYSICAL_MODEL = 79, COMBINED_CHECKPOINT_PHYSICAL_MODEL = 80;
     const CHECKPOINTS = new Map([
-        [BLUE_CHECKPOINT_ID, { name: 'Blue checkpoint', physical: BLUE_CHECKPOINT_PHYSICAL_MODEL }],
-        [RED_CHECKPOINT_ID, { name: 'Red checkpoint', physical: RED_CHECKPOINT_PHYSICAL_MODEL }]
+        [BLUE_CHECKPOINT_ID, { name: 'Blue checkpoint', physical: BLUE_CHECKPOINT_PHYSICAL_MODEL, version: CHECKPOINT_VERSION }],
+        [RED_CHECKPOINT_ID, { name: 'Red checkpoint', physical: RED_CHECKPOINT_PHYSICAL_MODEL, version: CHECKPOINT_VERSION }],
+        [COMBINED_CHECKPOINT_ID, { name: 'Blue / red checkpoint', physical: COMBINED_CHECKPOINT_PHYSICAL_MODEL, version: COMBINED_CHECKPOINT_VERSION }]
     ]);
     function isCheckpoint(id) { return CHECKPOINTS.has(id); }
     const CROP_FIELDS = new Map([
@@ -39,7 +41,7 @@
     const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 13, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 14, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -177,7 +179,8 @@
         if (pineCount === PINE_SIX_COUNT && version < PINE_SIX_VERSION) throw new Error(PINE_SIX_VERSION_ERROR);
     }
     function checkCheckpoint(entry, version) {
-        if (isCheckpoint(entry.id) && version < CHECKPOINT_VERSION) throw new Error('Checkpoints require Chocolate Stunts track version v' + CHECKPOINT_VERSION + '.');
+        const checkpoint = CHECKPOINTS.get(entry.id);
+        if (checkpoint && version < checkpoint.version) throw new Error(checkpoint.name + 's require Chocolate Stunts track version v' + checkpoint.version + '.');
     }
     function checkCropField(entry, version) {
         const field = CROP_FIELDS.get(entry.id);
@@ -717,7 +720,7 @@
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
                 try {
-                    integer(object.id, 1, RED_CHECKPOINT_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
+                    integer(object.id, 1, COMBINED_CHECKPOINT_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
                     integer(object.width, 1, 2, 'element width'); integer(object.height, 1, 2, 'element height');
                     integer(object.mask, 1, (1 << (object.width * object.height)) - 1, 'element footprint');
                     integer(object.rotation, 0, 3, 'element rotation'); integer(object.surface, 0, 2, 'element surface');
@@ -824,5 +827,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

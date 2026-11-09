@@ -8,7 +8,7 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [9, 10, 4, 2, 4, 9, 2, 15]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [10, 10, 4, 2, 4, 9, 2, 15]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
     assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
@@ -22,8 +22,10 @@ test('library combines rotated alternatives while preserving distinct shapes and
     }
 });
 test('checkpoint roads preserve colors, all surfaces and directions across CSTRK and clipboard transforms', () => {
-    const colors = [[model.BLUE_CHECKPOINT_ID, 'Blue checkpoint'], [model.RED_CHECKPOINT_ID, 'Red checkpoint']];
-    for (const [id, name] of colors) {
+    const colors = [[model.BLUE_CHECKPOINT_ID, 'Blue checkpoint', model.CHECKPOINT_VERSION],
+        [model.RED_CHECKPOINT_ID, 'Red checkpoint', model.CHECKPOINT_VERSION],
+        [model.COMBINED_CHECKPOINT_ID, 'Blue / red checkpoint', model.COMBINED_CHECKPOINT_VERSION]];
+    for (const [id, name, introduction] of colors) {
         const entry = model.library.find(piece => piece.id === id);
         assert.equal(entry.name, name); assert.equal(entry.group, 1); assert.equal(entry.decoration, false);
         assert.deepEqual(entry.surfaces, [0, 1, 2]); assert(model.isCheckpoint(id)); assert(!model.isCropField(id));
@@ -43,13 +45,19 @@ test('checkpoint roads preserve colors, all surfaces and directions across CSTRK
             assert.equal(rotated.objects[0].id, id); assert.equal(rotated.objects[0].surface, surface);
             assert.equal(rotated.objects[0].rotation, (direction + 1) % 4);
             const older = model.encodeCstrk(doc);
-            new DataView(older.buffer).setUint16(8, model.CHECKPOINT_VERSION - 1, true);
-            assert.throws(() => model.decodeCstrk(older), /Checkpoints require.*v13/);
-            doc.version = model.CHECKPOINT_VERSION - 1;
-            assert.throws(() => model.encodeCstrk(doc), /Checkpoints require.*v13/);
+            new DataView(older.buffer).setUint16(8, introduction - 1, true);
+            const requiredVersion = new RegExp('checkpoints require.*v' + introduction);
+            assert.throws(() => model.decodeCstrk(older), requiredVersion);
+            doc.version = introduction;
+            const firstRevision = model.encodeCstrk(doc);
+            assert.equal(new DataView(firstRevision.buffer).getUint16(8, true), introduction);
+            const upgraded = model.decodeCstrk(firstRevision);
+            assert.equal(upgraded.version, model.VERSION); assert.deepEqual(upgraded.objects, doc.objects);
+            doc.version = introduction - 1;
+            assert.throws(() => model.encodeCstrk(doc), requiredVersion);
         }
-        const oldDoc = new model.Document(4, 4); oldDoc.version = model.CHECKPOINT_VERSION - 1;
-        assert.throws(() => oldDoc.place(id, 1, 1), /Checkpoints require.*v13/);
+        const oldDoc = new model.Document(4, 4); oldDoc.version = introduction - 1;
+        assert.throws(() => oldDoc.place(id, 1, 1), new RegExp('checkpoints require.*v' + introduction));
     }
     assert(!model.isCheckpoint(1)); assert(!model.isCheckpoint(model.VINE_FIELD_ID));
 });
@@ -2085,7 +2093,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, model.CHECKPOINT_VERSION); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, model.COMBINED_CHECKPOINT_VERSION); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -2293,7 +2301,7 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
             const pixelsPerTile = tile.width / entry.width;
             assert(Number.isInteger(pixelsPerTile));
             assert.equal(tile.height, entry.height * pixelsPerTile);
-            if (model.isCropField(entry.id)) assert(pixelsPerTile >= 15, 'generated scenery may use finer artwork');
+            if (model.isCropField(entry.id) || entry.id === model.COMBINED_CHECKPOINT_ID) assert(pixelsPerTile >= 15, 'generated artwork may use finer detail');
             else assert.equal(pixelsPerTile, 15, 'native artwork keeps its original tile resolution');
             assert.equal(tile.pixels.length, tile.width * tile.height);
             assert.equal(tile.alpha.length, tile.pixels.length);
@@ -2332,6 +2340,16 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
             if (routeIndex === null) continue;
             const display = model.pieceDisplayVariant(entry);
             let tile = resources.composePieceTileBitmap(decoded.icons, display.piece.id);
+            // Compare connector coverage in native tile units even when the
+            // generated banner uses finer pixels for its exact half-height split.
+            const scale = tile.width / (display.piece.width * tileSize);
+            if (scale !== 1) {
+                const normalized = { width: tile.width / scale, height: tile.height / scale,
+                    alpha: new Uint8Array(tile.alpha.length / (scale * scale)) };
+                for (let y = 0; y < normalized.height; y++) for (let x = 0; x < normalized.width; x++)
+                    normalized.alpha[y * normalized.width + x] = tile.alpha[Math.floor((y + .5) * scale) * tile.width + Math.floor((x + .5) * scale)];
+                tile = normalized;
+            }
             for (let turn = 0; turn < display.rotation; turn++) {
                 const rotated = { width: tile.height, height: tile.width, alpha: new Uint8Array(tile.alpha.length) };
                 for (let y = 0; y < tile.height; y++) for (let x = 0; x < tile.width; x++)

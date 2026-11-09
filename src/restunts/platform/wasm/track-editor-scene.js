@@ -20,8 +20,10 @@
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
     const PINE_COUNTS = new Set([6, 10]), PINE_SCALE = 256;
     const START_FINISH_ID = 1, STRAIGHT_ROAD_MODEL = 1, CHECKPOINT_WHITE = 15;
-    const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219;
-    const CHECKPOINT_MATERIALS = new Map([[BLUE_CHECKPOINT_ID, 9], [RED_CHECKPOINT_ID, 12]]);
+    const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, COMBINED_CHECKPOINT_ID = 220;
+    const CHECKPOINT_BLUE = 9, CHECKPOINT_RED = 12;
+    const CHECKPOINT_MATERIALS = new Map([[BLUE_CHECKPOINT_ID, [CHECKPOINT_BLUE]], [RED_CHECKPOINT_ID, [CHECKPOINT_RED]],
+        [COMBINED_CHECKPOINT_ID, [CHECKPOINT_BLUE, CHECKPOINT_RED]]]);
     const WHEAT_FIELD_ID = 215, WHEAT_PHYSICAL_MODEL = 75;
     const TULIP_FIELD_ID = 216, TULIP_PHYSICAL_MODEL = 76, VINE_FIELD_ID = 217, VINE_PHYSICAL_MODEL = 77;
     // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
@@ -137,6 +139,28 @@
             if (inside) output.push(current);
         }
         return output;
+    }
+    function checkpointShape(shape, colors) {
+        const white = shape.primitives.filter(primitive => primitive.materials.includes(CHECKPOINT_WHITE));
+        const heights = white.flatMap(primitive => primitive.indices.map(index => shape.vertices[index][1]));
+        const midpoint = (Math.min(...heights) + Math.max(...heights)) / 2;
+        const vertices = shape.vertices.slice(), primitives = [];
+        for (const primitive of shape.primitives) {
+            const painted = color => primitive.materials.map(material => material === CHECKPOINT_WHITE ? color : material);
+            if (colors.length < 2 || !primitive.materials.includes(CHECKPOINT_WHITE) || primitive.type < 3 || primitive.type > 10) {
+                primitives.push({ ...primitive, materials: painted(colors[0]) }); continue;
+            }
+            const points = primitive.indices.map(index => shape.vertices[index]);
+            for (let half = 0; half < colors.length; half++) {
+                const clipped = clipPolygon(points, point => point[1] - midpoint, half === 0);
+                if (clipped.length < 3) continue;
+                for (const triangle of triangulate(clipped)) {
+                    const indices = triangle.map(point => { vertices.push(point); return vertices.length - 1; });
+                    primitives.push({ ...primitive, type: indices.length, materials: painted(colors[half]), indices });
+                }
+            }
+        }
+        return { vertices, primitives };
     }
     function repaint(primitive, surface, physical) {
         if (physical >= 64) surface = 0;
@@ -338,7 +362,8 @@
         function mesh(object, definition, shape, physical, surface, settings = {}) {
             const rotation = settings.rotation === undefined ? (definition.rotation + object.rotation) % 4 : settings.rotation;
             const scale = settings.scale || 1, offset = settings.offset || [0, 0, 0];
-            const local = shape.vertices.map(point => rotate(point, rotation).map((value, axis) => Math.trunc(value * scale) + offset[axis]));
+            const local = shape.vertices.map(point => rotate(point, rotation).map((value, axis) =>
+                (settings.preserveFractions ? value * scale : Math.trunc(value * scale)) + offset[axis]));
             const upright = UPRIGHT_MODELS.has(physical) && (object.slopeX || object.slopeY) && !settings.nativeHill;
             let anchor = local[0];
             if (upright) for (const point of local)
@@ -383,9 +408,8 @@
                 if (object.width !== 1 || object.height !== 1 || object.mask !== 1 ||
                     object.lowerSurface || object.tunnelSlalom || object.rollRamp || object.pineCount) fail('Invalid 3D checkpoint.');
                 const sign = data.objects[START_FINISH_ID], shape = nativeShape(sign.shape);
-                const painted = { vertices: shape.vertices, primitives: shape.primitives.map(primitive => ({ ...primitive,
-                    materials: primitive.materials.map(material => material === CHECKPOINT_WHITE ? checkpointMaterial : material) })) };
-                mesh(object, sign, painted, STRAIGHT_ROAD_MODEL, object.surface);
+                mesh(object, sign, checkpointShape(shape, checkpointMaterial), STRAIGHT_ROAD_MODEL, object.surface,
+                    { preserveFractions: checkpointMaterial.length > 1 });
                 const road = data.objects[sign.overlay];
                 mesh(object, road, nativeShape(road.shape), STRAIGHT_ROAD_MODEL, object.surface);
                 continue;

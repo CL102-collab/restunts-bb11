@@ -113,12 +113,6 @@ static legacy_u16 checkpoint_indices[CSTRK_MAX_OBJECTS];
 static legacy_u16 checkpoint_count;
 static legacy_u16 checkpoint_totals[EXTENDED_CHECKPOINT_COLOR_COUNT];
 
-static legacy_u16 checkpoint_color(const struct CSTRK_OBJECT *object)
-{
-	return object->legacy_id == CSTRK_BLUE_CHECKPOINT_ID ? CHECKPOINT_BLUE_INDEX
-														 : CHECKPOINT_RED_INDEX;
-}
-
 static struct CARSTATE *checkpoint_car(legacy_s16 car_index)
 {
 	return car_index == PLAYER_CAR_INDEX ? &state.playerstate : &state.opponentstate;
@@ -137,9 +131,14 @@ static legacy_s16 checkpoint_prepare(void)
 		checkpoint_totals[CHECKPOINT_BLUE_INDEX] = 0;
 		checkpoint_totals[CHECKPOINT_RED_INDEX] = 0;
 		for (legacy_u32 index = 0; index < track->object_count; index++) {
-			if (cstrk_is_checkpoint(track->objects[index].legacy_id)) {
+			legacy_u8 colors = cstrk_checkpoint_colors(track->objects[index].legacy_id);
+			if (colors) {
 				checkpoint_indices[checkpoint_count++] = (legacy_u16)index;
-				checkpoint_totals[checkpoint_color(&track->objects[index])]++;
+				for (legacy_u16 color = 0; color < EXTENDED_CHECKPOINT_COLOR_COUNT; color++) {
+					if (colors & (1U << color)) {
+						checkpoint_totals[color]++;
+					}
+				}
 			}
 		}
 		checkpoint_objects = track->objects;
@@ -195,7 +194,12 @@ static void checkpoint_observe(legacy_s16 car_index, const struct CHECKPOINT_INT
 			(!finish ||
 			 hit.numerator * finish->denominator < finish->numerator * hit.denominator)) {
 			*visited |= mask;
-			progress->remaining[car_index][checkpoint_color(object)]--;
+			legacy_u8 colors = cstrk_checkpoint_colors(object->legacy_id);
+			for (legacy_u16 color = 0; color < EXTENDED_CHECKPOINT_COLOR_COUNT; color++) {
+				if (colors & (1U << color)) {
+					progress->remaining[car_index][color]--;
+				}
+			}
 		}
 	}
 }

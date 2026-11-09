@@ -499,7 +499,10 @@ legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *o
 	}
 	if (cstrk_is_checkpoint(object->object->legacy_id) &&
 		definition->ss_physicalModel == PHYSICAL_MODEL_START_FINISH) {
-		checkpoint_shape_modify(&mesh, object->object->legacy_id);
+		if (!checkpoint_shape_modify(&mesh, object->object->legacy_id)) {
+			extended_geometry_free_shape(&mesh);
+			return 0;
+		}
 	}
 	struct VECTOR anchor;
 	const struct VECTOR *upright_anchor =

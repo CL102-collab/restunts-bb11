@@ -333,6 +333,39 @@ test('tulip and vine fields rotate and follow every straight hillside direction'
         near(spawn.position[0], doc.width / 2, 'a checkpoint is not the start');
         near(spawn.position[2], doc.height / 2);
     });
+    test('combined checkpoint flags split into equally tall blue upper and red lower halves', () => {
+        const top = 121, bottom = 86, midpoint = (top + bottom) / 2;
+        const source = scene.decodeShape(assets.models.get('fini'));
+        const original = JSON.stringify(source);
+        const area = triangle => {
+            const a = triangle[1].map((value, axis) => value - triangle[0][axis]);
+            const b = triangle[2].map((value, axis) => value - triangle[0][axis]);
+            return Math.hypot(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]) / 2;
+        };
+        for (let rotation = 0; rotation < 4; rotation++) for (let surface = 0; surface < 3; surface++)
+            for (const [slopeX, slopeY] of [[0, 0], [1, 0], [0, 1]]) {
+                const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
+                doc.place(model.COMBINED_CHECKPOINT_ID, 0, 0, surface, rotation);
+                const result = scene.buildScene(doc, assets), points = vertices(result.positions), colors = vertices(result.colors);
+                const areas = [0, 0], heights = [[], []];
+                assert.equal(result.instances, 2);
+                for (let index = 0; index < points.length; index += 3) {
+                    const color = colors[index], candidates = [9, 12];
+                    const half = candidates.findIndex(material => color.every((channel, axis) =>
+                        Math.abs(channel - assets.palette[material * 3 + axis] / 255 * .78) <= EPSILON));
+                    if (half < 0) continue;
+                    const triangle = points.slice(index, index + 3);
+                    const local = triangle.map(point => [point[0], point[1] - (1 + slopeX * point[0] + slopeY * (1 - point[2])) * LEVEL / TILE, point[2]]);
+                    areas[half] += area(local); heights[half].push(...local.map(point => point[1] * TILE));
+                }
+                assert(areas.every(value => value > 0), 'both colors occupy the flag');
+                near(areas[0], areas[1], 'both flag halves cover equal area');
+                near(Math.min(...heights[0]), midpoint); near(Math.max(...heights[0]), top);
+                near(Math.min(...heights[1]), bottom); near(Math.max(...heights[1]), midpoint);
+                assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).objects, doc.objects, 'combined flags survive saving and reopening');
+            }
+        assert.equal(JSON.stringify(source), original, 'native finish artwork remains unchanged');
+    });
     test('six and ten pines keep independent upright crowns and slope-following roots', () => {
         const source = scene.decodeShape(assets.models.get('tree'));
         const nativeTrees = source.primitives.reduce((sum, primitive) => sum + primitive.indices.length - 2, 0);

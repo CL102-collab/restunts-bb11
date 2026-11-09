@@ -46,6 +46,7 @@ function fixture() {
     for (const surface of model.SURFACES.keys()) {
         doc.place(model.BLUE_CHECKPOINT_ID, surface * 2, 0, surface);
         doc.place(model.RED_CHECKPOINT_ID, surface * 2, 1, surface);
+        doc.place(model.COMBINED_CHECKPOINT_ID, surface * 2, 2, surface);
     }
     doc.place(4, 2, 3);
     doc.place(11, 3, 3);

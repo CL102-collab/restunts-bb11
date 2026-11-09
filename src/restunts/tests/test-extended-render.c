@@ -4034,8 +4034,69 @@ static legacy_u16 check_crop_field_pixels(legacy_u16 id)
 }
 
 #define CHECKPOINT_RENDER_COLOR_COUNT 2U
+#define CHECKPOINT_RENDER_VARIANT_COUNT 3U
 #define CHECKPOINT_RENDER_GRADE_COUNT 2U
 #define CHECKPOINT_RENDER_DIRECTION_COUNT 4U
+
+static void check_combined_checkpoint_meshes(void)
+{
+	const struct TRACKOBJECT *gate = &trkObjectList[CHECKPOINT_START_FINISH_ID];
+	const struct SHAPE3D *details[] = {gate->ss_shapePtr, gate->ss_loShapePtr};
+	for (legacy_u8 detail = 0; detail < sizeof(details) / sizeof(details[0]); detail++) {
+		const struct SHAPE3D *source = details[detail];
+		assert(source != NULL);
+		size_t primitive_size = 0;
+		for (legacy_u16 index = 0; index < source->shape3d_numprimitives; index++) {
+			primitive_size += SHAPE3D_PRIMITIVE_HEADER_SIZE + source->shape3d_numpaints +
+							  source->shape3d_primitives[primitive_size];
+		}
+		legacy_u8 *original = malloc(primitive_size);
+		assert(original != NULL);
+		memcpy(original, source->shape3d_primitives, primitive_size);
+		for (legacy_u8 rotation = 0; rotation < CHECKPOINT_RENDER_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				struct SHAPE3D mesh;
+				assert(extended_geometry_transform_shape(source, &mesh,
+														 rotation * ANGLE_QUARTER_TURN, surface,
+														 PHYSICAL_MODEL_START_FINISH));
+				assert(checkpoint_shape_modify(&mesh, CSTRK_COMBINED_CHECKPOINT_ID));
+				const legacy_u8 *primitive = mesh.shape3d_primitives;
+				legacy_u16 blue = 0, red = 0;
+				for (legacy_u16 index = 0; index < mesh.shape3d_numprimitives; index++) {
+					legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+					assert(material != CHECKPOINT_SHAPE_WHITE_MATERIAL);
+					blue += material == CHECKPOINT_SHAPE_BLUE_MATERIAL;
+					red += material == CHECKPOINT_SHAPE_RED_MATERIAL;
+					if (material == CHECKPOINT_SHAPE_BLUE_MATERIAL ||
+						material == CHECKPOINT_SHAPE_RED_MATERIAL) {
+						assert(primitive[0] >= SHAPE3D_PRIMITIVE_POLYGON_FIRST &&
+							   primitive[0] <= SHAPE3D_PRIMITIVE_POLYGON_LAST);
+						for (legacy_u8 index = 0; index < primitive[0]; index++) {
+							struct VECTOR vertex;
+							shape3d_vertex_read(&mesh,
+												primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE +
+														  mesh.shape3d_numpaints + index],
+												&vertex);
+							assert(vertex.y >= CHECKPOINT_GATE_SIGN_BOTTOM &&
+								   vertex.y <= CHECKPOINT_GATE_SIGN_TOP);
+							if (material == CHECKPOINT_SHAPE_BLUE_MATERIAL) {
+								assert(vertex.y >= CHECKPOINT_GATE_SIGN_SPLIT);
+							} else {
+								assert(vertex.y <= CHECKPOINT_GATE_SIGN_SPLIT);
+							}
+						}
+					}
+					primitive +=
+						SHAPE3D_PRIMITIVE_HEADER_SIZE + mesh.shape3d_numpaints + primitive[0];
+				}
+				assert(blue != 0 && red != 0);
+				assert(memcmp(original, source->shape3d_primitives, primitive_size) == 0);
+				extended_geometry_free_shape(&mesh);
+			}
+		}
+		free(original);
+	}
+}
 
 static legacy_u16 check_checkpoint_pixels(void)
 {
@@ -4044,8 +4105,8 @@ static legacy_u16 check_checkpoint_pixels(void)
 	cstrk_init(&track);
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
 	track.horizon = CSTRK_HORIZON_COUNTRY;
-	static const legacy_u16 ids[CHECKPOINT_RENDER_COLOR_COUNT] = {CSTRK_BLUE_CHECKPOINT_ID,
-																  CSTRK_RED_CHECKPOINT_ID};
+	static const legacy_u16 ids[CHECKPOINT_RENDER_VARIANT_COUNT] = {
+		CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID, CSTRK_COMBINED_CHECKPOINT_ID};
 	static const legacy_u8 materials[CHECKPOINT_RENDER_COLOR_COUNT] = {
 		CHECKPOINT_SHAPE_BLUE_MATERIAL, CHECKPOINT_SHAPE_RED_MATERIAL};
 	struct CSTRK_OBJECT object = {0};
@@ -4074,35 +4135,47 @@ static legacy_u16 check_checkpoint_pixels(void)
 			custom_camera.azimuth_angle = rotation * ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN;
 			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 				object.surface = surface;
-				legacy_u32 *pixels[CHECKPOINT_RENDER_COLOR_COUNT];
-				size_t sizes[CHECKPOINT_RENDER_COLOR_COUNT];
-				for (legacy_u8 color = 0; color < CHECKPOINT_RENDER_COLOR_COUNT; color++) {
-					object.legacy_id = ids[color];
+				legacy_u32 *pixels[CHECKPOINT_RENDER_VARIANT_COUNT];
+				size_t sizes[CHECKPOINT_RENDER_VARIANT_COUNT];
+				for (legacy_u8 variant = 0; variant < CHECKPOINT_RENDER_VARIANT_COUNT; variant++) {
+					object.legacy_id = ids[variant];
 					track.object_count = 0;
 					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 					activate_render_track(&track, 1);
-					pixels[color] = capture_complete_render(&sizes[color]);
-					legacy_u32 expected = RENDER_CAPTURE_OPAQUE_ALPHA |
-										  (legacy_u32)material_clrlist_ptr_cpy[materials[color]] *
-											  RENDER_CAPTURE_INDEX_RGB_STEP;
-					size_t colored = 0;
-					for (size_t pixel = 0; pixel < sizes[color]; pixel++) {
-						colored += pixels[color][pixel] == expected;
+					pixels[variant] = capture_complete_render(&sizes[variant]);
+					for (legacy_u8 color = 0; color < CHECKPOINT_RENDER_COLOR_COUNT; color++) {
+						if (!(cstrk_checkpoint_colors(ids[variant]) & (1U << color))) {
+							continue;
+						}
+						legacy_u32 expected =
+							RENDER_CAPTURE_OPAQUE_ALPHA |
+							(legacy_u32)material_clrlist_ptr_cpy[materials[color]] *
+								RENDER_CAPTURE_INDEX_RGB_STEP;
+						size_t colored = 0;
+						for (size_t pixel = 0; pixel < sizes[variant]; pixel++) {
+							colored += pixels[variant][pixel] == expected;
+						}
+						if (!colored) {
+							fprintf(stderr,
+									"Checkpoint %u rotation %u surface %u grade %u lacks sign "
+									"color %u in %s mode.\n",
+									ids[variant], rotation, surface, grade, color,
+									renderer_active ? "HyperVision" : "classic");
+						}
+						assert(colored != 0);
 					}
-					if (!colored) {
-						fprintf(stderr,
-								"Checkpoint %u rotation %u surface %u grade %u lacks sign color in "
-								"%s mode.\n",
-								ids[color], rotation, surface, grade,
-								renderer_active ? "HyperVision" : "classic");
-					}
-					assert(colored != 0);
 					frames++;
 				}
-				assert(sizes[0] == sizes[1]);
-				assert(memcmp(pixels[0], pixels[1], sizes[0] * sizeof(*pixels[0])) != 0);
-				free(pixels[0]);
-				free(pixels[1]);
+				for (legacy_u8 variant = 0; variant < CHECKPOINT_RENDER_VARIANT_COUNT; variant++) {
+					for (legacy_u8 previous = 0; previous < variant; previous++) {
+						assert(sizes[previous] == sizes[variant]);
+						assert(memcmp(pixels[previous], pixels[variant],
+									  sizes[variant] * sizeof(*pixels[variant])) != 0);
+					}
+				}
+				for (legacy_u8 variant = 0; variant < CHECKPOINT_RENDER_VARIANT_COUNT; variant++) {
+					free(pixels[variant]);
+				}
 			}
 		}
 	}
@@ -5293,6 +5366,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_crop_field_pixels(CSTRK_WHEAT_FIELD_ID);
 		frames += check_crop_field_pixels(CSTRK_TULIP_FIELD_ID);
 		frames += check_crop_field_pixels(CSTRK_VINE_FIELD_ID);
+		check_combined_checkpoint_meshes();
 		frames += check_checkpoint_pixels();
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES

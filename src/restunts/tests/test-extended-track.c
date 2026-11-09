@@ -3483,7 +3483,8 @@ static void test_checkpoint_roads(void)
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 4U, 4U, error, sizeof(error)));
-	static const legacy_u16 colors[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID};
+	static const legacy_u16 colors[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID,
+										CSTRK_COMBINED_CHECKPOINT_ID};
 	for (legacy_u8 color = 0; color < sizeof(colors) / sizeof(colors[0]); color++) {
 		for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
 			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {

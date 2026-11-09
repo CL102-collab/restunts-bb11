@@ -287,7 +287,8 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 		}
 		assert(genghost_sim_step(replay.inputs[frame]) >= 0);
 		if (has_checkpoints && (checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID) ||
-								checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID))) {
+								checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID) ||
+								checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID))) {
 			captured_checkpoint = 1;
 		}
 		assert(genghost_sim_frame() == frame + 1U);
@@ -314,14 +315,16 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 	printf("{\"frames\":%u,\"finished\":%s,\"crashed\":%s,\"finish_frame\":%u,"
 		   "\"penalty_frames\":%u,\"total_frames\":%u,\"frames_per_second\":%u,"
 		   "\"maximum_x\":%d,\"maximum_z\":%d,\"barrel_present\":%s,"
-		   "\"barrel_complete\":%s,\"airborne_roll\":%d,\"blue_passed\":%u,\"red_passed\":%u}\n",
+		   "\"barrel_complete\":%s,\"airborne_roll\":%d,\"blue_passed\":%u,\"red_passed\":%u,"
+		   "\"shared_passed\":%u}\n",
 		   result.frames, result.finished ? "true" : "false", result.crashed ? "true" : "false",
 		   result.finish_frame, result.penalty_frames, result.total_frames,
 		   genghost_sim_frame_rate(), (legacy_int)(maximum_x / EXTENDED_TEST_POSITION_SCALE),
 		   (legacy_int)(maximum_z / EXTENDED_TEST_POSITION_SCALE), roll.present ? "true" : "false",
 		   roll.complete ? "true" : "false", (legacy_int)roll.maximum,
 		   checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID),
-		   checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID));
+		   checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID),
+		   checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID));
 }
 
 static legacy_int budget_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)

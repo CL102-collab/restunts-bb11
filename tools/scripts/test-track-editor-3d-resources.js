@@ -52,20 +52,27 @@ test('checkpoint icons recolor the native banner and replace its direction arrow
     const roadBitmap = resources.composeTileBitmap(road);
     const rgb = new Uint8Array(PALETTE_SIZE); rgb.set([85, 85, 85], roadColor * 3);
     rgb.set([85, 85, 255], 9 * 3); rgb.set([255, 85, 85], 12 * 3);
-    for (const [id, color] of [[model.BLUE_CHECKPOINT_ID, 9], [model.RED_CHECKPOINT_ID, 12]]) {
-        const bitmap = resources.composePieceTileBitmap(icons, id);
-        assert.equal(bitmap.width, interior); assert.equal(bitmap.height, interior);
-        for (let index = 0; index < original.pixels.length; index++) {
-            const row = Math.floor(index / interior), banner = row >= 6 && row <= 8;
-            const replaced = original.alpha[index] && original.pixels[index] === white;
-            assert.equal(bitmap.pixels[index], replaced ? banner ? color : roadBitmap.pixels[index] : original.pixels[index]);
-            assert.equal(bitmap.alpha[index], replaced && !banner ? roadBitmap.alpha[index] : original.alpha[index]);
+    for (const [id, colors] of [[model.BLUE_CHECKPOINT_ID, [9]], [model.RED_CHECKPOINT_ID, [12]], [model.COMBINED_CHECKPOINT_ID, [9, 12]]]) {
+        const bitmap = resources.composePieceTileBitmap(icons, id), scale = colors.length > 1 ? 2 : 1;
+        assert.equal(bitmap.width, interior * scale); assert.equal(bitmap.height, interior * scale);
+        for (let index = 0; index < bitmap.pixels.length; index++) {
+            const y = Math.floor(index / bitmap.width), x = index % bitmap.width, row = Math.floor(y / scale);
+            const source = row * interior + Math.floor(x / scale), banner = row >= 6 && row <= 8;
+            const color = colors.length > 1 && y >= 15 ? colors[1] : colors[0];
+            const replaced = original.alpha[source] && original.pixels[source] === white;
+            assert.equal(bitmap.pixels[index], replaced ? banner ? color : roadBitmap.pixels[source] : original.pixels[source]);
+            assert.equal(bitmap.alpha[index], replaced && !banner ? roadBitmap.alpha[source] : original.alpha[source]);
         }
+        if (colors.length > 1) assert.equal(bitmap.pixels.filter(pixel => pixel === colors[0]).length,
+            bitmap.pixels.filter(pixel => pixel === colors[1]).length, 'the combined banner divides evenly between blue and red');
         assert(!bitmap.pixels.includes(white), 'the direction arrow and white checks are gone');
         for (const surface of [0, 1, 2]) {
             const rgba = resources.tintTileBitmap(bitmap, rgb, surface);
-            const signPixel = bitmap.pixels.indexOf(color), roadPixel = bitmap.pixels.indexOf(roadColor);
-            assert.deepEqual([...rgba.slice(signPixel * 4, signPixel * 4 + 3)], [...rgb.slice(color * 3, color * 3 + 3)], 'surface paint preserves checkpoint color');
+            const roadPixel = bitmap.pixels.indexOf(roadColor);
+            for (const color of colors) {
+                const signPixel = bitmap.pixels.indexOf(color);
+                assert.deepEqual([...rgba.slice(signPixel * 4, signPixel * 4 + 3)], [...rgb.slice(color * 3, color * 3 + 3)], 'surface paint preserves checkpoint colors');
+            }
             if (surface) assert.notDeepEqual([...rgba.slice(roadPixel * 4, roadPixel * 4 + 3)], [...rgb.slice(roadColor * 3, roadColor * 3 + 3)], 'road still takes dirt or ice paint');
         }
         for (const flags of [[1, 0, 0], [0, 1, 0], [0, 0, 6]])

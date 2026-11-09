@@ -394,7 +394,10 @@ every blue checkpoint or every red checkpoint; a color absent from the track
 does not provide an empty alternative. Each complete color has its own search
 case, including when one physical path contains both colors. A case protects
 only its chosen color, so completing either set permits the remaining shortcuts.
-Tracks without checkpoints retain the usual finish rule.
+Blue / red checkpoints belong to both color sets and are mandatory in every
+color case. Passing a shared gate once satisfies that gate for both colors;
+it also makes both color alternatives present when no single-color gate of
+one color exists. Tracks without checkpoints retain the usual finish rule.
 The controller guides the car through mandatory checkpoint openings even when
 grass shortcuts or branch switching are enabled, and simulation snapshots
 preserve which gates the car has actually passed. The search explores alternatives and refines

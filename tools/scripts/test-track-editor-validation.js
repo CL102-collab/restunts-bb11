@@ -63,7 +63,7 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
-for (const id of [model.BLUE_CHECKPOINT_ID, model.RED_CHECKPOINT_ID]) {
+for (const id of [model.BLUE_CHECKPOINT_ID, model.RED_CHECKPOINT_ID, model.COMBINED_CHECKPOINT_ID]) {
     for (const surface of model.SURFACES.keys()) for (let direction = 0; direction < 4; direction++) {
         const doc = rectangle(), horizontal = direction % 2;
         replace(doc, horizontal ? 25 : 2, horizontal ? 4 : 8, id, direction, surface);

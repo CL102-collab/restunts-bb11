@@ -10,8 +10,10 @@
     const OVERPASS_VERTICAL_ICON = 101, OVERPASS_HORIZONTAL_ICON = 102;
     const ROAD_SURFACE_DIRT = 1, ROAD_SURFACE_ICE = 2;
     const START_FINISH_ICON = 1, STRAIGHT_ROAD_ICON = 4, CHECKPOINT_WHITE = 15;
-    const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219;
-    const CHECKPOINT_COLORS = new Map([[BLUE_CHECKPOINT_ID, 9], [RED_CHECKPOINT_ID, 12]]);
+    const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, COMBINED_CHECKPOINT_ID = 220;
+    const CHECKPOINT_BLUE = 9, CHECKPOINT_RED = 12, COMBINED_ICON_SCALE = 2;
+    const CHECKPOINT_COLORS = new Map([[BLUE_CHECKPOINT_ID, [CHECKPOINT_BLUE]], [RED_CHECKPOINT_ID, [CHECKPOINT_RED]],
+        [COMBINED_CHECKPOINT_ID, [CHECKPOINT_BLUE, CHECKPOINT_RED]]]);
     const TUNNEL_SLALOM_ICONS = new Map([[115, { tunnel: 66, road: 4 }], [116, { tunnel: 67, road: 5 }]]);
     const ROLL_RAMP_VERTICAL_ICON = 85, ROLL_RAMP_HORIZONTAL_ICON = 86, ROLL_RAMP_TILE_COUNT = 2;
     const ROLL_RAMP_HALF_WIDTH = 4, ROLL_RAMP_LIP_HALF_WIDTH = 2, ROLL_RAMP_GRID_STEP = 3;
@@ -315,7 +317,7 @@
         }
         return { width, height, pixels, alpha };
     }
-    function composeCheckpointBitmap(icons, color) {
+    function composeCheckpointBitmap(icons, colors) {
         const sign = composeTileBitmap(icons.get(START_FINISH_ICON));
         const road = composeTileBitmap(icons.get(STRAIGHT_ROAD_ICON));
         if (sign.width !== road.width || sign.height !== road.height) fail('Incompatible checkpoint artwork.');
@@ -328,13 +330,21 @@
                 firstSignRow = Math.min(firstSignRow, row); lastSignRow = Math.max(lastSignRow, row);
             }
         }
-        for (let index = 0; index < sign.pixels.length; index++) {
-            if (!sign.alpha[index] || sign.pixels[index] !== CHECKPOINT_WHITE) continue;
-            const row = Math.floor(index / sign.width);
-            if (row >= firstSignRow && row <= lastSignRow) sign.pixels[index] = color;
-            else { sign.pixels[index] = road.pixels[index]; sign.alpha[index] = road.alpha[index]; }
+        // Double the combined icon so an odd number of native banner rows
+        // can still divide into two equally tall color bands.
+        const scale = colors.length > 1 ? COMBINED_ICON_SCALE : 1;
+        const width = sign.width * scale, height = sign.height * scale;
+        const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
+        const midpoint = (firstSignRow + lastSignRow + 1) * scale / 2;
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+            const source = Math.floor(y / scale) * sign.width + Math.floor(x / scale), index = y * width + x;
+            pixels[index] = sign.pixels[source]; alpha[index] = sign.alpha[source];
+            if (!alpha[index] || pixels[index] !== CHECKPOINT_WHITE) continue;
+            if (y >= firstSignRow * scale && y < (lastSignRow + 1) * scale)
+                pixels[index] = colors.length > 1 && y >= midpoint ? colors[1] : colors[0];
+            else { pixels[index] = road.pixels[source]; alpha[index] = road.alpha[source]; }
         }
-        return sign;
+        return { width, height, pixels, alpha };
     }
     function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
         const checkpointColor = CHECKPOINT_COLORS.get(id);
