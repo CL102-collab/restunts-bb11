@@ -39,6 +39,7 @@
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
+    const RAISE_LOWER_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
     const VERSION = 14, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
@@ -467,6 +468,36 @@
                 return target;
             });
         }
+        adjustArea(x, y, size, delta = 1, visitedCorners = null) {
+            if (!RAISE_LOWER_BRUSH_SIZES.includes(size)) throw new Error('Invalid raise/lower brush size.');
+            integer(delta, -1, 1, 'terrain change');
+            this.cellIndex(x, y);
+            if (visitedCorners !== null && !(visitedCorners instanceof Set)) throw new Error('Invalid terrain brush stroke.');
+            if (delta === 0) return false;
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
+            return this.transaction(delta > 0 ? 'Raise terrain' : 'Lower terrain', () => {
+                const vertices = this.vertices.slice(), selected = [], stride = this.width + 1;
+                let changed = false;
+                for (let row = y; row <= bottom; row++) for (let column = x; column <= right; column++) {
+                    const index = row * stride + column;
+                    if (visitedCorners?.has(index)) continue;
+                    selected.push(index);
+                    const target = Math.max(0, Math.min(TERRAIN_DISPLAY_MAX_HEIGHT, vertices[index] + delta));
+                    changed ||= vertices[index] !== target;
+                    vertices[index] = target;
+                }
+                if (changed) {
+                    // Stage the complete patch before normalizing so overlapping
+                    // corner edits cannot amplify one another within a stamp.
+                    normalizeTerrain(vertices, this.width, this.height, delta);
+                    const invalid = this.objects.find(object => !this.supportsTerrain(object, vertices));
+                    if (invalid) throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.');
+                    this.vertices = vertices;
+                }
+                if (visitedCorners) for (const index of selected) visitedCorners.add(index);
+                return changed;
+            });
+        }
         paint(x, y, surface, halfWaterCorner = 0, cornerSurface = DEFAULT_CORNER_SURFACE) {
             integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
             integer(halfWaterCorner, 0, 4, 'surface corner');
@@ -827,5 +858,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, RAISE_LOWER_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

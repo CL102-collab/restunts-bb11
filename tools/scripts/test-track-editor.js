@@ -835,6 +835,102 @@ test('Level handles mixed slopes and map edges while Raise and Lower preserve su
         assert.deepEqual(doc.cells, cells);
     }
 });
+test('Raise and Lower area brushes shift their complete footprint and preserve paint and objects', () => {
+    assert.deepEqual(model.RAISE_LOWER_BRUSH_SIZES, [1, 2, 4, 8]);
+    for (const size of model.RAISE_LOWER_BRUSH_SIZES) for (const delta of [-1, 1]) {
+        const doc = new model.Document(15, 15), base = 2, x = 2, y = 2;
+        doc.vertices.fill(base); doc.paint(3, 3, 2, 1, 3); doc.place(4, 12, 12);
+        doc.setNotes('Keep terrain materials and track pieces'); doc.history = [];
+        const before = doc.snapshot();
+        assert(doc.adjustArea(x, y, size, delta));
+        for (let row = 0; row <= doc.height; row++) for (let column = 0; column <= doc.width; column++) {
+            const inside = column >= x && column <= x + size && row >= y && row <= y + size;
+            assert.equal(doc.vertices[doc.vertexIndex(column, row)], base + (inside ? delta : 0));
+        }
+        assert.deepEqual(doc.cells, before.cells); assert.deepEqual(doc.objects, before.objects);
+        assert.equal(doc.notes, before.notes); assert.deepEqual(doc.validate(), []);
+        const after = doc.snapshot();
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        assert.equal(doc.history.length, 1);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    }
+});
+test('Raise and Lower brushes clip to edges, clamp heights and retain legal hills', () => {
+    for (const size of model.RAISE_LOWER_BRUSH_SIZES) for (const delta of [-1, 1]) {
+        for (const [x, y] of [[0, 0], [4, 3], [3, 1], [0, 2]]) {
+            const doc = new model.Document(5, 4), base = 2; doc.vertices.fill(base);
+            doc.adjustArea(x, y, size, delta);
+            for (let row = 0; row <= doc.height; row++) for (let column = 0; column <= doc.width; column++) {
+                const inside = column >= x && column <= Math.min(doc.width, x + size) &&
+                    row >= y && row <= Math.min(doc.height, y + size);
+                assert.equal(doc.vertices[doc.vertexIndex(column, row)], base + (inside ? delta : 0));
+            }
+            assert.deepEqual(doc.validate(), []);
+        }
+        const slope = new model.Document(12, 12);
+        for (let row = 0; row <= slope.height; row++) for (let column = 0; column <= slope.width; column++)
+            slope.vertices[slope.vertexIndex(column, row)] = Math.min(4, Math.floor(column / 3));
+        const before = slope.snapshot(); slope.adjustArea(2, 2, size, delta);
+        for (let row = 2; row <= Math.min(slope.height, 2 + size); row++)
+            for (let column = 2; column <= Math.min(slope.width, 2 + size); column++) {
+                const index = slope.vertexIndex(column, row);
+                assert.equal(slope.vertices[index], Math.max(0, Math.min(4, before.vertices[index] + delta)));
+            }
+        assert.deepEqual(slope.validate(), []);
+    }
+    const tiny = new model.Document(1, 1); tiny.adjustArea(0, 0, 8, 1);
+    assert.deepEqual(Array.from(tiny.vertices), [1, 1, 1, 1]);
+    for (const [base, delta] of [[0, -1], [4, 1]]) {
+        const doc = new model.Document(3, 3); doc.vertices.fill(base);
+        doc.setNotes('future'); doc.undo(); const before = doc.snapshot();
+        assert.equal(doc.adjustArea(0, 0, 8, delta), false);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, 0); assert(doc.canRedo);
+        const visited = new Set(); assert.equal(doc.adjustArea(0, 0, 8, 0, visited), false);
+        assert.equal(visited.size, 0); assert(doc.canRedo);
+    }
+});
+test('overlapping Raise and Lower brush strokes adjust shared corners once and undo together', () => {
+    for (const delta of [-1, 1]) {
+        const doc = new model.Document(10, 8), base = 2; doc.vertices.fill(base);
+        const before = doc.snapshot(), visited = new Set();
+        doc.beginTransaction('Terrain stroke');
+        doc.adjustArea(1, 1, 4, delta, visited); doc.adjustArea(3, 2, 4, delta, visited);
+        assert.equal(doc.adjustArea(1, 1, 4, delta, visited), false);
+        doc.endTransaction();
+        for (let row = 0; row <= doc.height; row++) for (let column = 0; column <= doc.width; column++) {
+            const first = column >= 1 && column <= 5 && row >= 1 && row <= 5;
+            const second = column >= 3 && column <= 7 && row >= 2 && row <= 6;
+            assert.equal(doc.vertices[doc.vertexIndex(column, row)], base + (first || second ? delta : 0));
+        }
+        const after = doc.snapshot(); assert.equal(doc.history.length, 1);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+        doc.beginTransaction('Cancelled terrain'); doc.adjustArea(0, 0, 8, delta); doc.cancelTransaction();
+        assert.deepEqual(doc.snapshot(), after);
+    }
+});
+test('invalid or blocked Raise and Lower brushes preserve earlier stroke edits and corner tracking', () => {
+    const doc = new model.Document(18, 18); doc.place(4, 3, 3); doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot(), visited = new Set(), history = doc.history.length;
+    const invalid = [
+        ...[-1, 0, 3, 5, 16, 1.5, null, '2', NaN].map(size => [0, 0, size, 1]),
+        ...[-2, 2, .5, null, '1', NaN].map(delta => [0, 0, 2, delta]),
+        [-1, 0, 2, 1], [18, 0, 2, 1], [0, -1, 2, 1], [0, 18, 2, 1], [0, 0, 2, 1, []]
+    ];
+    for (const args of invalid) {
+        assert.throws(() => doc.adjustArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history); assert(doc.canRedo);
+    }
+    assert.throws(() => doc.adjustArea(2, 2, 4, 1, visited), /bend/);
+    assert.equal(visited.size, 0); assert.deepEqual(doc.snapshot(), before); assert(doc.canRedo);
+    doc.beginTransaction('Terrain stroke'); doc.adjustArea(12, 12, 2, 1, visited);
+    const earlier = doc.snapshot(), selected = [...visited];
+    assert.throws(() => doc.adjustArea(2, 2, 4, 1, visited), /bend/);
+    assert.deepEqual([...visited], selected); assert.deepEqual(doc.snapshot(), earlier);
+    doc.endTransaction(); assert.equal(doc.history.length, history + 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+});
 test('blocked Level leaves heights and surfaces atomic inside and outside a drag', () => {
     const doc = new model.Document(12, 12);
     doc.place(4, 3, 3); doc.setNotes('future'); doc.undo();

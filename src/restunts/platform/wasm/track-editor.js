@@ -15,7 +15,7 @@
         viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
         previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, pineSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, raiseLowerSize: 1, pineSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, pineBrushPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
@@ -59,6 +59,7 @@
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
         $('level-brush-row').hidden = state.tool !== 'level';
+        $('raise-lower-brush-row').hidden = state.tool !== 'raise' && state.tool !== 'lower';
         const cornerSurface = Number($('shore-surface').value);
         document.querySelectorAll('[data-surface-for="shore-surface"]').forEach(button => {
             button.hidden = Number(button.dataset.value) === surface;
@@ -80,6 +81,15 @@
             button.setAttribute('aria-label', button.title);
             button.setAttribute('aria-pressed', String(state.levelSize === size));
             drawBrushPreview(button.querySelector('canvas'), surface, size, level);
+        });
+        const raising = state.tool !== 'lower', action = raising ? 'Raise' : 'Lower';
+        $('raise-lower-brush-row').querySelector('[role="group"]').setAttribute('aria-label', action + ' brush size');
+        document.querySelectorAll('[data-raise-lower-size]').forEach(button => {
+            const size = Number(button.dataset.raiseLowerSize);
+            button.title = size === 1 ? action + ' the nearest corner by one level' : action + ' ' + size + 'x' + size + ' tiles by one level';
+            button.setAttribute('aria-label', action + ' ' + size + 'x' + size + (size === 1 ? ' corner' : ' tiles'));
+            button.setAttribute('aria-pressed', String(state.raiseLowerSize === size));
+            drawBrushPreview(button.querySelector('canvas'), surface, size, raising ? 1 : 0);
         });
         $('level-options-row').querySelectorAll('[data-level] canvas').forEach(preview => {
             drawTerrainPreview(preview, surface, Number(preview.parentElement.dataset.level));
@@ -317,7 +327,7 @@
         updateCanvasCursor();
         const lowerPainting = tool === 'paint' && state.lowerSurface !== null;
         const lowerMaterial = lowerPainting ? model.TERRAIN_SURFACES[state.lowerSurface].toLowerCase() : '';
-        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', select: 'Select track area', paste: 'Paste track area', paint: lowerPainting ? 'Lower ' + lowerMaterial + ' surface' : 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
+        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', select: 'Select track area', paste: 'Paste track area', paint: lowerPainting ? 'Lower ' + lowerMaterial + ' surface' : 'Paint terrain', raise: state.raiseLowerSize === 1 ? 'Raise terrain corner' : 'Raise terrain', lower: state.raiseLowerSize === 1 ? 'Lower terrain corner' : 'Lower terrain', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
         const glyphs = { place: 'build', erase: 'erase', pan: 'hand', select: 'select', paste: 'paste', paint: lowerPainting ? 'lower-' + lowerMaterial : 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
@@ -814,8 +824,10 @@
             try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
-        if (state.tool === 'level' || (state.tool === 'paint' && state.lowerSurface === null)) {
-            const brushSize = state.tool === 'level' ? state.levelSize : state.paintSize;
+        if (state.tool === 'level' || (state.tool === 'paint' && state.lowerSurface === null) ||
+            state.tool === 'raise' || state.tool === 'lower') {
+            const brushSize = state.tool === 'level' ? state.levelSize :
+                state.tool === 'paint' ? state.paintSize : state.raiseLowerSize;
             width = Math.min(brushSize, doc.width - h.x);
             height = Math.min(brushSize, doc.height - h.y);
         }
@@ -825,7 +837,7 @@
         if (pinePreview) { ctx.globalAlpha = .6; for (const object of pinePreview.objects) drawTrackObject(object, size); ctx.globalAlpha = 1; }
         if (preview && variant) { ctx.globalAlpha = .6; drawPiece(ctx, variant.piece, left, top, width * size, height * size, Number($('road-surface').value), variant.rotation); ctx.globalAlpha = 1; }
         ctx.strokeRect(left + 1, top + 1, width * size - 2, height * size - 2);
-        if (state.tool === 'raise' || state.tool === 'lower') {
+        if ((state.tool === 'raise' || state.tool === 'lower') && state.raiseLowerSize === 1) {
             const cx = view.x + h.cornerX * size, cy = view.y + h.cornerY * size;
             ctx.fillStyle = '#ffde90'; ctx.beginPath(); ctx.arc(cx, cy, Math.max(3, Math.min(6, size / 7)), 0, Math.PI * 2); ctx.fill();
         }
@@ -884,7 +896,8 @@
     function applyAt(point, tool = state.tool) {
         const doc = state.doc;
         if (!doc || point.x < 0 || point.y < 0 || point.x >= doc.width || point.y >= doc.height) return;
-        const key = tool + ':' + ((tool === 'raise' || tool === 'lower') ? point.cornerX + ':' + point.cornerY : point.x + ':' + point.y);
+        const cornerTool = (tool === 'raise' || tool === 'lower') && state.raiseLowerSize === 1;
+        const key = tool + ':' + (cornerTool ? point.cornerX + ':' + point.cornerY : point.x + ':' + point.y);
         if (state.drag && state.drag.visited.has(key)) return;
         if (state.drag) state.drag.visited.add(key);
         try {
@@ -898,7 +911,11 @@
                 doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0);
             }
             else if (tool === 'erase') doc.erase(point.x, point.y);
-            else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
+            else if (tool === 'raise' || tool === 'lower') {
+                const delta = tool === 'raise' ? 1 : -1;
+                if (state.raiseLowerSize === 1) doc.raise(point.cornerX, point.cornerY, delta);
+                else doc.adjustArea(point.x, point.y, state.raiseLowerSize, delta, state.drag?.adjustedCorners);
+            }
             else if (tool === 'paint' && state.lowerSurface !== null) doc.paintLowerSurface(point.x, point.y, state.lowerSurface);
             else if (tool === 'paint') doc.paintArea(point.x, point.y, state.paintSize, Number($('terrain-surface').value));
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
@@ -1058,6 +1075,11 @@
             if (!state.ready || !model.LEVEL_BRUSH_SIZES.includes(size)) return;
             finishDrag(); state.levelSize = size; updateTool('level');
         }));
+        document.querySelectorAll('[data-raise-lower-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.raiseLowerSize);
+            if (!state.ready || !model.RAISE_LOWER_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.raiseLowerSize = size; updateTool(state.tool === 'lower' ? 'lower' : 'raise');
+        }));
         document.querySelectorAll('[data-pine-size]').forEach(button => button.addEventListener('click', () => {
             const size = Number(button.dataset.pineSize);
             if (!state.ready || !state.selected?.pineCount || !model.PINE_BRUSH_SIZES.includes(size)) return;
@@ -1100,7 +1122,7 @@
             const selecting = !panning && state.tool === 'select', pasting = !panning && state.tool === 'paste';
             if (selecting && (p.x < 0 || p.y < 0 || p.x >= state.doc.width || p.y >= state.doc.height)) return;
             state.drag = { id: event.pointerId, buttonMask: [1, 4, 2][event.button], panning, selecting, pasting, anchor: p, previousSelection: state.selection,
-                x: event.clientX, y: event.clientY, visited: new Set(), editing: !panning && !selecting && !pasting, tool: state.tool };
+                x: event.clientX, y: event.clientY, visited: new Set(), adjustedCorners: new Set(), editing: !panning && !selecting && !pasting, tool: state.tool };
             canvas.setPointerCapture(event.pointerId);
             updateCanvasCursor();
             if (selecting) updateAreaSelection(p);

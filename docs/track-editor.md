@@ -73,9 +73,9 @@ before loading it; features from newer editors may not work correctly.
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
-Paint shows **1x1**, **2x2**, **4x4** and **8x8** tile choices, labeled below previews of
-the current grass, ice, dirt or water surface. Choose a size, then click or drag
-to paint that square starting at the hovered tile. The brush clips to the map
+Paint shows **Brush size** choices for **1x1**, **2x2**, **4x4** and **8x8** tiles,
+labeled below previews of the current grass, ice, dirt or water surface. Choose
+a size, then click or drag to paint that square starting at the hovered tile. The brush clips to the map
 edges, preserves terrain heights and track pieces, and each stroke undoes as one
 edit. The selected size applies to whole-tile painting; Lower surface and Shore
 keep their single-tile behavior.
@@ -98,7 +98,7 @@ stroke. Straight inclines and inner corners have no lower flat part and stay
 as they are.
 If an existing material boundary crosses the hill, Lower surface leaves that
 tile unchanged and explains that it cannot preserve both hill materials.
-Click a Paint tile size or a primary surface to paint whole tiles
+Click a Paint brush size or a primary surface to paint whole tiles
 again. Lower surface strokes support undo and redo and save in the existing
 track format.
 
@@ -114,7 +114,13 @@ Grass shades progress from the original ground green at level 0 to the original
 yellow-green at level 4, with evenly spaced colors for levels 1, 2 and 3. The map,
 elevation previews and navigator use the same gradient to distinguish heights.
 Height and material changes undo together; unrelated cells keep their materials.
-Raise and Lower change shared corners one level per click.
+Raise and Lower also show **Brush size** choices for **1x1**, **2x2**, **4x4**
+and **8x8**. The size is shared between Raise and Lower and remembered
+independently of Paint and Level. With **1x1**, each click changes the nearest
+shared corner by one level. Larger brushes raise or lower the corners of a
+square of tiles, starting at the hovered tile and clipping to the map edges.
+Overlapping brush areas change each selected corner only once per drag, and
+the whole stroke undoes as one edit. Raise and Lower preserve ground materials.
 Adjoining corners adjust to retain the original game's flat tiles, straight
 inclines, and inner and outer hill corners. Each tile spans at most one level;
 alternating high/low corners and two-level diagonal slopes are not supported.
