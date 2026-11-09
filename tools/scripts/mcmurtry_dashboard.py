@@ -45,11 +45,34 @@ CANOPY_WINDSCREEN_EDGE = tuple(
 CANOPY_ROOF_OUTLINE = ((0, 0), (WIDTH - 1, 0)) + tuple(reversed(CANOPY_WINDSCREEN_EDGE))
 CANOPY_TEXTURE_SCALE = 3
 INSTRUMENT_RECT = (111, 135, 99, 38)
-WHEEL_RECT = (78, 128, 164, 72)
+WHEEL_RECT = (72, 126, 176, 74)
 WHEEL_TURN_DEGREES = 10
 STEERING_INDICATOR_CENTER = (160, 126)
 WHEEL_CENTER = (160, 163)
 WHEEL_VERTICAL_SCALE = .72
+# One broad web joins each full palm grip to the central wheel body.
+GRIP_CONNECTOR = ((44, -12), (61, -15), (69, -8), (70, 7),
+                  (63, 15), (45, 12))
+GRIP_CONNECTOR_FACE = ((45, -9), (60, -12), (65, -7), (66, 7),
+                       (61, 12), (45, 10))
+GRIP_CONNECTOR_TOP = ((45, -10), (60, -13), (65, -8), (45, -5))
+GRIP_OUTLINE = ((59, -34), (67, -38), (76, -37), (81, -31),
+                (84, -20), (84, -3), (82, 16), (78, 30),
+                (71, 38), (61, 37), (54, 31), (55, 23),
+                (59, 14), (60, 3), (57, -7), (52, -17),
+                (52, -26), (55, -32))
+GRIP_PADDING = ((60, -32), (68, -35), (75, -33), (78, -28),
+                (80, -17), (80, -1), (78, 15), (74, 28),
+                (69, 34), (63, 33), (59, 29), (61, 22),
+                (64, 13), (65, 2), (62, -9), (57, -18), (57, -25))
+GRIP_PALM_FACE = ((70, -28), (76, -26), (78, -16), (78, 0),
+                  (75, 18), (71, 30), (67, 33), (63, 30),
+                  (67, 17), (69, 1), (66, -14), (64, -25))
+GRIP_CAP = ((56, -32), (65, -38), (75, -37), (81, -31),
+            (77, -27), (63, -27))
+GRIP_OUTER_EDGE = GRIP_OUTLINE[2:10]
+GRIP_CAP_HIGHLIGHT = ((59, -33), (66, -36), (74, -35), (78, -32))
+GRIP_INNER_EDGE = ((60, 29), (62, 23), (65, 13), (66, 2), (63, -8))
 CONTROL_CENTERS = ((-36, 28), (-19, 35), (0, 31), (23, 32), (37, 28))
 DIGIT_WIDTH, DIGIT_HEIGHT = 8, 12
 DIGIT_SPACING = 10
@@ -67,6 +90,9 @@ SPEED_FIXED_POINT_SHIFT = 8
 GEAR_RATIO_SHIFT = 16
 BRAND_TEXT = "MCMURTRY"
 BRAND_ORIGIN = (-15, 17)
+BRAND_SUPERSCRIPT_INDEX = 1
+BRAND_SUPERSCRIPT_RISE = 2
+BRAND_SUPERSCRIPT_C = ("011", "100", "011")
 FONT_GLYPH_HEIGHT, FONT_GLYPH_ADVANCE = 5, 4
 BLACK, CHARCOAL, CARBON, EDGE = 0, 31, 29, 27
 CANOPY_EDGE_SHADOW = CHARCOAL
@@ -111,7 +137,9 @@ DUCT_RIBS = (((50, 133), (51, 140)), ((59, 131), (60, 139)),
 DUCT_RIB_SHADE = 30
 # Nearly upright metal control plates stay ahead of the steering-column well.
 # A broad flat face and narrow bevels replace the swept carbon consoles.
-SIDE_PANEL_CURVE = ((27, 141), (23, 160), (26, 184), (35, 204))
+SIDE_PANEL_CURVE = (DUCT_LOWER_LIP[0], (31, 161), (32, 184), (39, 204))
+SIDE_PANEL_NECK_HALF_WIDTH = 4
+SIDE_PANEL_NECK_LENGTH = .16
 SIDE_PANEL_STEPS = 20
 SIDE_PANEL_HALF_WIDTH = 11
 SIDE_PANEL_FLARE = 1
@@ -139,7 +167,8 @@ DISPLAY_ARCH_HALF_WIDTH = 49
 DISPLAY_ARCH_DROP = 4
 CONTROL_RED_SHADOW, CONTROL_RED_FACE, CONTROL_RED_LIGHT = 37, 39, 41
 SIDE_BUTTON_RADIUS = 5
-SIDE_KNOB_RADIUS = 5
+POTENTIOMETER_RADIUS = 5
+POTENTIOMETER_BITMAP_HALF_SIZE = POTENTIOMETER_RADIUS + 2
 SCREW_RADIUS = 2
 TEXTURE_SEED = 0x4D434D55
 TEXTURE_HASH_X = 0x1F123BB5
@@ -175,6 +204,7 @@ MATERIAL_TONES = {
     "fascia_carbon": (31, 30, 29, 28, 27, 26),
     "recess": (31, 30),
     "grip": (31, 30, 28, 27),
+    "grip_face": (30, 29, 28, 27, 26),
     "paint": (127, 126, 125, 124, 123, 122),
     "fender": (126, 125, 124, 123, 122, 121, 120),
     "metal": (28, 26, 24, 22, 20, 18),
@@ -365,7 +395,13 @@ def _side_panel_point(t, across=0):
     dx, dy = (3 * u * u * (b[axis] - a[axis]) +
               6 * u * t * (c[axis] - b[axis]) +
               3 * t * t * (d[axis] - c[axis]) for axis in (0, 1))
-    radius = (SIDE_PANEL_HALF_WIDTH + SIDE_PANEL_FLARE * t) * across / math.hypot(dx, dy)
+    # A narrow neck meets the outlet corner before broadening around the
+    # controls; the metal stays clear of the opening and its lower lip.
+    neck = min(t / SIDE_PANEL_NECK_LENGTH, 1)
+    half_width = (SIDE_PANEL_NECK_HALF_WIDTH +
+                  (SIDE_PANEL_HALF_WIDTH - SIDE_PANEL_NECK_HALF_WIDTH) * neck +
+                  SIDE_PANEL_FLARE * t)
+    radius = half_width * across / math.hypot(dx, dy)
     return x - dy * radius, y + dx * radius
 
 
@@ -376,11 +412,11 @@ def _panel_screw(canvas, x, y):
     canvas.line((x - 1, y), (x + 1, y), BLACK)
 
 
-def _panel_knob(canvas, x, y):
+def _potentiometer(canvas, x, y):
     """Short black rotary control with a raised cap and fluted sidewall."""
-    _ellipse(canvas, x, y + 2, SIDE_KNOB_RADIUS + 1, SIDE_KNOB_RADIUS, BLACK)
-    _ellipse(canvas, x, y, SIDE_KNOB_RADIUS, SIDE_KNOB_RADIUS, EDGE)
-    _ellipse(canvas, x, y - 1, SIDE_KNOB_RADIUS - 1, SIDE_KNOB_RADIUS - 2, CHARCOAL)
+    _ellipse(canvas, x, y + 2, POTENTIOMETER_RADIUS + 1, POTENTIOMETER_RADIUS, BLACK)
+    _ellipse(canvas, x, y, POTENTIOMETER_RADIUS, POTENTIOMETER_RADIUS, EDGE)
+    _ellipse(canvas, x, y - 1, POTENTIOMETER_RADIUS - 1, POTENTIOMETER_RADIUS - 2, CHARCOAL)
     for offset in (-3, 0, 3):
         canvas.line((x + offset, y + 1), (x + offset, y + 3), CARBON)
     canvas.line((x - 2, y - 3), (x + 1, y - 3), EDGE)
@@ -428,7 +464,7 @@ def _side_panels(canvas):
             canvas.line((red_x - 3, red_y - 4), (red_x + 1, red_y - 3), CONTROL_RED_LIGHT)
             canvas.line((red_x - 1, red_y + 4), (red_x, red_y + 6), CONTROL_RED_SHADOW, 2)
         _panel_screw(canvas, screw_x, screw_y)
-        _panel_knob(canvas, knob_x, knob_y)
+        _potentiometer(canvas, knob_x, knob_y)
         for offset in (-SIDE_SCREW_PAIR_SPACING // 2, SIDE_SCREW_PAIR_SPACING // 2):
             _panel_screw(canvas, pair_x + offset, pair_y)
 
@@ -510,7 +546,7 @@ def transform_wheel_points(vertices, direction):
 
 
 def _wheel(canvas, direction):
-    """Draw independent open grips, connecting spokes and the five-knob plate."""
+    """Draw full open grips, one solid connector per side and five knobs."""
     angle = math.radians(direction * WHEEL_TURN_DEGREES)
     cosine, sine = math.cos(angle), math.sin(angle)
 
@@ -526,8 +562,9 @@ def _wheel(canvas, direction):
             raise ValueError("Rigid wheel geometry escapes its redraw rectangle")
         return transformed
 
-    def polygon(vertices, color):
-        material = {CARBON: "wheel_carbon", CHARCOAL: "grip", EDGE: "wheel_trim"}.get(color)
+    def polygon(vertices, color, material=None):
+        if material is None:
+            material = {CARBON: "wheel_carbon", CHARCOAL: "grip", EDGE: "wheel_trim"}.get(color)
         transformed = points(vertices)
         if material:
             _surface(canvas, transformed, material, local_coordinates)
@@ -537,69 +574,73 @@ def _wheel(canvas, direction):
     def line(vertices, color, thickness=1):
         canvas.line(*points(vertices), color, thickness)
 
-    # Dark textured grip sections meet the contrasting carbon/metal bridges.
+    def bitmap(source, origin):
+        """Turn a native-sized detail with the wheel without dropping black."""
+        origin_x, origin_y = origin
+        corners = points([(origin_x, origin_y), (origin_x + source.width, origin_y),
+                          (origin_x + source.width, origin_y + source.height / WHEEL_VERTICAL_SCALE),
+                          (origin_x, origin_y + source.height / WHEEL_VERTICAL_SCALE)])
+        for py in range(math.floor(min(y for _, y in corners)),
+                        math.ceil(max(y for _, y in corners)) + 1):
+            for px in range(math.floor(min(x for x, _ in corners)),
+                            math.ceil(max(x for x, _ in corners)) + 1):
+                local_x, local_y = local_coordinates(px, py)
+                sx = round(local_x - origin_x)
+                sy = round((local_y - origin_y) * WHEEL_VERTICAL_SCALE)
+                if 0 <= sx < source.width and 0 <= sy < source.height:
+                    color = source.pixels[sy * source.width + sx]
+                    if color != TRANSPARENT:
+                        canvas.point(px, py, color)
+
     for side in (-1, 1):
         def mirror(vertices):
             return [(side * x, y) for x, y in vertices]
 
-        # Exposed metal spokes and deep negative space around each handle.
-        polygon(mirror([(45, -10), (62, -15), (65, -8), (46, -4)]), EDGE)
-        polygon(mirror([(45, 6), (63, 11), (61, 17), (45, 11)]), EDGE)
-        grip = [(59, -27), (68, -29), (74, -24), (76, -11),
-                (75, 17), (70, 29), (61, 31), (55, 25),
-                (59, 16), (61, 4), (58, -7), (54, -19)]
-        polygon(mirror(grip), BLACK)
-        polygon(mirror([(60, -25), (67, -26), (71, -22), (72, -10),
-                        (71, 15), (67, 25), (62, 27), (59, 23),
-                        (63, 15), (65, 3), (62, -8), (58, -18)]), CHARCOAL)
-        for first, last in zip(grip[:6], grip[1:7]):
+        # The continuous web fills the former gap between the two spokes.
+        # Its upper bevel and broad face are facets of the same solid part.
+        polygon(mirror(GRIP_CONNECTOR), BLACK)
+        polygon(mirror(GRIP_CONNECTOR_FACE), CHARCOAL)
+        polygon(mirror(GRIP_CONNECTOR_TOP), CARBON)
+        polygon(mirror(GRIP_OUTLINE), BLACK)
+        polygon(mirror(GRIP_PADDING), CHARCOAL)
+        polygon(mirror(GRIP_PALM_FACE), CHARCOAL, material="grip_face")
+        for first, last in zip(GRIP_OUTER_EDGE, GRIP_OUTER_EDGE[1:]):
             line(mirror([first, last]), WHEEL_EDGE_HIGHLIGHT)
-        for y in range(-21, 24, 3):
-            for x in (65, 69):
-                line(mirror([(x, y), (x + 1, y + 1)]), CARBON)
-        line(mirror([(60, -25), (67, -26)]), SILVER)
-        line(mirror([(72, -9), (71, 12)]), EDGE)
-        line(mirror([(62, 27), (67, 25)]), EDGE)
-        polygon(mirror([(58, -26), (68, -29), (73, -24),
-                        (71, -21), (60, -21)]), CARBON)
-        line(mirror([(60, -25), (68, -27)]), SILVER)
+        for first, last in zip(GRIP_INNER_EDGE, GRIP_INNER_EDGE[1:]):
+            line(mirror([first, last]), EDGE)
+        # Broad, angled end caps sit level with the arched display top.
+        polygon(mirror(GRIP_CAP), EDGE)
+        for first, last in zip(GRIP_CAP_HIGHLIGHT, GRIP_CAP_HIGHLIGHT[1:]):
+            line(mirror([first, last]), SILVER)
 
     plate = [(-48, 8), (48, 8), (45, 26), (33, 41),
              (-23, 43), (-42, 29)]
     polygon(plate, BLACK)
     polygon([(x * .96, y * .97) for x, y in plate], CARBON)
     line([(-44, 10), (43, 10)], EDGE)
+    # The very same cap, index and fluted sidewall serve all seven controls.
+    half_size = POTENTIOMETER_BITMAP_HALF_SIZE
+    knob = Canvas(2 * half_size + 1, 2 * half_size + 1, color=TRANSPARENT)
+    _potentiometer(knob, half_size, half_size)
     for x, y in CONTROL_CENTERS:
-        # All five match the previous unlabelled second control: a dark face
-        # and fluted outer grip. There is no white interior mark or dial text.
-        surround = [(x + 8 * math.cos(a * math.pi / 4),
-                     y + 7 * math.sin(a * math.pi / 4)) for a in range(8)]
-        polygon(surround, EDGE)
-        polygon([(x + 6 * math.cos(a * math.pi / 4),
-                  y + 5 * math.sin(a * math.pi / 4)) for a in range(8)], BLACK)
-        for a in range(8):
-            theta = a * math.pi / 4
-            line([(x + 5 * math.cos(theta), y + 4 * math.sin(theta)),
-                  (x + 6 * math.cos(theta), y + 5 * math.sin(theta))], SILVER)
-    # Rasterize the branding in wheel-local coordinates so it turns rigidly
-    # with the plate, keeping the display bezel free of record inscriptions.
-    lettering = Canvas()
-    lettering.text(0, 0, BRAND_TEXT, WHITE)
+        bitmap(knob, (x - half_size, y - half_size / WHEEL_VERTICAL_SCALE))
+
+    # Give the smaller superscript C its own upper rows, while keeping the
+    # normal lettering at its established baseline below the display.
     text_width = len(BRAND_TEXT) * FONT_GLYPH_ADVANCE - 1
-    origin_x, origin_y = BRAND_ORIGIN
-    corners = points([(origin_x, origin_y), (origin_x + text_width, origin_y),
-                      (origin_x + text_width, origin_y + FONT_GLYPH_HEIGHT / WHEEL_VERTICAL_SCALE),
-                      (origin_x, origin_y + FONT_GLYPH_HEIGHT / WHEEL_VERTICAL_SCALE)])
-    for y in range(math.floor(min(py for _, py in corners)),
-                   math.ceil(max(py for _, py in corners)) + 1):
-        for x in range(math.floor(min(px for px, _ in corners)),
-                       math.ceil(max(px for px, _ in corners)) + 1):
-            local_x, local_y = local_coordinates(x, y)
-            glyph_x = round(local_x - origin_x)
-            glyph_y = round((local_y - origin_y) * WHEEL_VERTICAL_SCALE)
-            if (0 <= glyph_x < text_width and 0 <= glyph_y < FONT_GLYPH_HEIGHT and
-                    lettering.pixels[glyph_y * WIDTH + glyph_x]):
-                canvas.point(x, y, WHITE)
+    lettering = Canvas(text_width, FONT_GLYPH_HEIGHT + BRAND_SUPERSCRIPT_RISE,
+                       color=TRANSPARENT)
+    for index, letter in enumerate(BRAND_TEXT):
+        x = index * FONT_GLYPH_ADVANCE
+        if index == BRAND_SUPERSCRIPT_INDEX:
+            for row, pixels in enumerate(BRAND_SUPERSCRIPT_C):
+                for column, pixel in enumerate(pixels):
+                    if pixel == "1":
+                        lettering.point(x + column, row, WHITE)
+        else:
+            lettering.text(x, BRAND_SUPERSCRIPT_RISE, letter, WHITE)
+    bitmap(lettering, (BRAND_ORIGIN[0],
+                       BRAND_ORIGIN[1] - BRAND_SUPERSCRIPT_RISE / WHEEL_VERTICAL_SCALE))
 
 
 def instrument_transform(direction):

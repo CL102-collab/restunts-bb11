@@ -318,19 +318,21 @@ side pillars obstructing the windscreen.
 
 The upright side control panels have smooth dark-grey metal faces and
 beveled edges, with a slight inward curve beside the recessed central steering
-column. Each side has one rounded air scoop with a deep curved mouth and
-lower lip. The mostly open throat contains sparse, subdued internal ribs.
+column. Each panel joins the outer corner of its rounded air scoop, which has
+a deep curved mouth and lower lip. The mostly open throat contains sparse, subdued internal ribs.
 The left panel carries a red circular control, then a screw, a black
 potentiometer and two lower screws. The right panel uses the same vertical
 sequence with a red release handle at the top.
 
-The wheel has separate textured side grips and is open at the top and bottom.
+The wheel has substantial textured side grips, each joined to the central
+body by one broad connector. It remains open at the top and bottom.
 Its upper bezel and row of ten unlit LEDs follow a gentle arch.
 Its LCD shows a white digital speedometer in the middle, a live white vertical
 RPM bar on the left and a matching battery bar fixed at 90% on the right.
-McMurtry branding appears above five matching unlabelled fluted knobs. The
-record-holder inscription and adjacent text are omitted. The display, grips
-and controls rotate about the same hub in all three steering positions.
+McMurtry branding uses a superscript C above five unlabelled knobs. All five match
+the side-panel potentiometers: a raised black cap, fluted sidewall and short
+silver index mark. The record-holder inscription and adjacent text are omitted.
+The display, grips and controls rotate about the same hub in all three steering positions.
 
 Material shading, carbon weave and grip grain provide depth within the game
 palette. The deterministic texture stays attached to the wheel as it turns.
@@ -508,16 +510,16 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
-| Extracted STDA + STDB | 143,066 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 46,112 bytes | 66,176 bytes |
+| Extracted STDA + STDB | 146,714 bytes | 148,036 bytes |
+| Prepared STDA + STDB in the arena | 48,624 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **49,904 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **52,416 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
 99×38 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
-the common preallocated window table. MCMU therefore uses about 3% less
-extracted resource memory and 38% less resident dashboard arena memory.
+the common preallocated window table. MCMU therefore uses about 1% less
+extracted resource memory and 35% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The retained exterior contact sheet renders the classic encoded showroom and

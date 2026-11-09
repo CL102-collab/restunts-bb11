@@ -161,18 +161,20 @@ views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
 fender crowns frame the live road view; wheel-top openings are not visible
 from the cockpit. Upright side control panels have smooth dark-grey metal
 faces, beveled edges and a slight inward curve beside the recessed central
-steering column. Each side has one rounded air scoop with a deep curved mouth
-and lower lip. Its mostly open throat contains sparse, subdued internal ribs.
+steering column. Each panel joins the outer corner of its rounded air scoop.
+The scoop has a deep curved mouth and lower lip, with sparse, subdued ribs
+inside its mostly open throat.
 The left panel carries a red circular control, a screw, a black potentiometer
 and two lower screws; the right uses the same vertical sequence with a red
 release handle at the top.
 The white digital speedometer sits in the middle of the wheel display,
 between a live white vertical RPM bar on the left and a matching battery bar
-fixed at 90% on the right. Separate textured side grips
-leave the wheel open at the top and bottom. Its upper bezel and ten unlit
-LEDs follow a gentle arch. McMurtry branding appears above five matching
-unlabelled fluted knobs. Record-holder text and the adjacent inscriptions
-are omitted.
+fixed at 90% on the right. Substantial textured side grips each join the
+central body through one broad connector, leaving the wheel open at the top
+and bottom. Its upper bezel and ten unlit LEDs follow a gentle arch. McMurtry branding has a superscript C above five
+unlabelled knobs matching the side-panel potentiometers: raised black caps,
+fluted sidewalls and short silver index marks. Record-holder text and the
+adjacent inscriptions are omitted.
 The display, grips and controls turn around the same hub. Optional spdc centers
 the visible speed digits; imt1/imt3
 Q14 inverse transforms rotate the composed instrument bitmap, and revb fills
@@ -190,9 +192,9 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
-Extracted A+B: 143,066 vs 148,036 bytes.
-Prepared A+B: 46,112 vs 66,176 bytes.
-With scratch: 49,904 vs 80,304 bytes.
+Extracted A+B: 146,714 vs 148,036 bytes.
+Prepared A+B: 48,624 vs 66,176 bytes.
+With scratch: 52,416 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.
