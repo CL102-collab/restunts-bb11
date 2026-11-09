@@ -151,7 +151,7 @@ function(restunts_add_desktop_launcher)
             target_link_options(${desktop_gui} PRIVATE
                 "-Wl,--major-subsystem-version,${launcher_xp_subsystem_major},--minor-subsystem-version,${launcher_xp_subsystem_minor}")
             find_package(Python3 REQUIRED COMPONENTS Interpreter)
-            set(checker "${CMAKE_SOURCE_DIR}/tools/launcher-prototype/check_windows.py")
+            set(checker "${CMAKE_SOURCE_DIR}/tools/scripts/check-windows.py")
             set(audit "${CMAKE_CURRENT_BINARY_DIR}/${desktop_gui}-audit.json")
             set(instruction_policy)
             if(RESTUNTS_SSE2)

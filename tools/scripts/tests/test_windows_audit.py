@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 
-SCRIPT = Path(__file__).resolve().parents[2] / "launcher-prototype" / "check_windows.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "check-windows.py"
 SPEC = importlib.util.spec_from_file_location("windows_audit", SCRIPT)
 AUDIT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(AUDIT)
