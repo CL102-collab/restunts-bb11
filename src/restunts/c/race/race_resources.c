@@ -33,7 +33,7 @@
 #include "../car/car_resources.h"
 #include "../externs.h"
 #include "../video/video_pages.h"
-#include "../frame/frame_fps.h"
+#include "../frame/frame_mph.h"
 #ifdef RESTUNTS_AMIGA
 #include "../shape2d/shape2d_internal.h"
 #endif

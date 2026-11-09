@@ -173,7 +173,7 @@ generic_render_companions() {
         frame_car.c) printf '%s\n' frame/frame_context.c ;;
         frame_car_render.c) printf '%s\n' frame/frame_car.c ;;
         frame_objects.c) printf '%s\n' hires/frame_visibility.c frame/frame_context.c ;;
-        frame_overlay.c) printf '%s\n' frame/frame_fps.c hires/frame_overlay.c ;;
+        frame_overlay.c) printf '%s\n' frame/frame_fps.c frame/frame_mph.c hires/frame_overlay.c ;;
         frame_terrain.c) printf '%s\n' frame/frame_terrain.c ;;
         frame_visibility.c) printf '%s\n' frame/frame_terrain.c ;;
         hires.c) printf '%s\n' video/video_framebuffer.c ;;

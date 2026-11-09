@@ -289,7 +289,7 @@ set(game_sources
     hires/frame_overlay.c hires/intro_presentation.c hires/track_preview_scene.c
     hires/opponent_portrait_artwork.c hires/opponent_animation_artwork.c hires/menu_artwork.c
     hires/showroom.c hires/showroom_presentation.c hires/shape3d_pipeline.c hires/shape3d_queue.c hires/shape3d_render.c
-    hires/highscore_animation.c hires/skybox_scene.c video/video_framebuffer.c hires/video_framebuffer.c frame/frame_fps.c
+    hires/highscore_animation.c hires/skybox_scene.c video/video_framebuffer.c hires/video_framebuffer.c frame/frame_fps.c frame/frame_mph.c
     frame/frame_context.c
     supersight/frame_scene.c supersight/frame_visibility.c supersight/frame_integration.c
     supersight/frame_terrain.c supersight/settings.c supersight/frame_overlay.c

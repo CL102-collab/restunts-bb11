@@ -77,6 +77,7 @@ struct GHOST_CAMERA_STATE;
 #include "../renderer/frame_snapshot.h"
 #include "../renderer/frame_overlay.h"
 #include "frame_fps.h"
+#include "frame_mph.h"
 
 /* Prepare diagnostic redraw bounds before dashboard composition; paint it with
  * frame_fps_draw_text after the dashboard is complete. */

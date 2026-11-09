@@ -121,6 +121,7 @@
     "supersight_track_geometry",
     "frame_context",
     "frame_fps",
+    "frame_mph",
     "extended_math",
     "extended_frame_layout",
     "command_line",
@@ -153,7 +154,7 @@
     "stateio",
     "memory"
   ],
-  "functions": 2266,
+  "functions": 2270,
   "classes": 109,
   "external": [
     "RsDosAudioBindChannelContext",

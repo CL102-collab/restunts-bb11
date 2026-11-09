@@ -122,6 +122,7 @@
 #include "generated/SUPERSIGHT_TRAC_9C8083.HC"
 #include "generated/FRAME_CONTEXT.HC"
 #include "generated/FRAME_FPS.HC"
+#include "generated/FRAME_MPH.HC"
 #include "generated/EXTENDED_MATH.HC"
 #include "generated/EXTENDED_FRAME_LAYOUT.HC"
 #include "generated/COMMAND_LINE.HC"
