@@ -131,7 +131,11 @@ static void shape3d_hires_car_precise_wheel_bottom(struct CAR_GROUND_BOUNDS *bou
 		has_rim = 1;
 	}
 	if (has_rim) {
-		legacy_f64 center = fmin(vertices[0].y, vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y);
+		/* Wheel coordinates are finite; DJGPP's libm has no C99 fmin. */
+		legacy_f64 center = vertices[0].y;
+		if (vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y < center) {
+			center = vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y;
+		}
 		legacy_f64 tolerance = CAR_GROUND_ROUNDING_ULPS * DBL_EPSILON * (fabs(center) + radius + 1);
 		shape3d_hires_car_ground_bottom(bounds, (legacy_s32)floor(center - radius + tolerance));
 	}

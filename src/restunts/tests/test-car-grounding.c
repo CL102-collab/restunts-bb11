@@ -479,6 +479,37 @@ static void check_fractional_body_ground_height(void)
 	test_precise_vertices = NULL;
 }
 
+static void check_fractional_wheel_ground_height(void)
+{
+	enum { PRIMITIVE_PAINT = 1, EXPECTED_UNDERSIDE = -3 };
+	const legacy_f64 lower_center = 4.25;
+	const legacy_f64 higher_center = 6.75;
+	const legacy_f64 first_radius = 5.5;
+	const legacy_f64 second_radius = 7.25;
+	const legacy_f64 rim_centers[][2] = {
+		{lower_center, higher_center}, {higher_center, lower_center}, {lower_center, lower_center}};
+	legacy_u8 wheel[] = {SHAPE3D_PRIMITIVE_WHEEL, 0, PRIMITIVE_PAINT, 0, 1, 2, 3, 4, 5};
+	struct SHAPE3D shape = reset_shape();
+	shape.shape3d_numverts = CAR_WHEEL_VERTEX_GROUP_SIZE;
+	shape.shape3d_numprimitives = 1;
+	shape.shape3d_primitives = wheel;
+	for (legacy_u16 index = 0; index < sizeof(rim_centers) / sizeof(rim_centers[0]); index++) {
+		const struct SHAPE3D_HIRES_VECTOR precise[] = {
+			{0, rim_centers[index][0], 0},
+			{1, rim_centers[index][0] + first_radius, 0},
+			{0, rim_centers[index][0], 1},
+			{0, rim_centers[index][1], 0},
+			{1, rim_centers[index][1] + second_radius, 0},
+			{0, rim_centers[index][1], 1}};
+		test_precise_vertices = precise;
+		/* Either rim can have the lower center. Keep its fractional height
+		 * together with the larger radius until the final underside is rounded. */
+		assert(shape3d_hires_car_ground_height(&shape) == EXPECTED_UNDERSIDE);
+		assert(calculate_offset(&shape) == EXPECTED_UNDERSIDE - CAR_PHYSICS_TIRE_BOTTOM);
+	}
+	test_precise_vertices = NULL;
+}
+
 legacy_int main(void)
 {
 	check_wheel_clearance();
@@ -490,5 +521,6 @@ legacy_int main(void)
 	check_model_ground_height();
 	check_wide_model_ground_height();
 	check_fractional_body_ground_height();
+	check_fractional_wheel_ground_height();
 	return 0;
 }
