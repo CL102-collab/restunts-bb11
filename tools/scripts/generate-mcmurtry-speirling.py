@@ -501,6 +501,8 @@ def validate(outputs, repository):
         raise ValueError("Expected a 776-byte single-speed EV SIMD")
     if car.get("fand") != b"\x01" or car.get("adhs") != struct.pack("<BHHB", 1, 12, 8192, 15):
         raise ValueError("Expected enabled fan adhesion with explicit default settings")
+    if car.get("ster") != bytes((physics.STEERING_VERSION, physics.STEERING_RATE_MULTIPLIER)):
+        raise ValueError("Expected the authored McMurtry steering response rate")
     if struct.unpack_from("<H", simd, 0xAE)[0] != dashboard.WHITE | (dashboard.WHITE << 8):
         raise ValueError("Expected white dashboard instruments")
     for key in ("gnam", "gsna", "edes"):
@@ -629,6 +631,9 @@ def generate(repository):
         "performance_note": "The 2026 production-car claim of 1.55 s to 60 mph includes one-foot rollout. Both standing-start and rollout-adjusted game timings are recorded separately; native tuning is an approximation of the production figures.",
         "game_straight_line_performance": performance,
         "performance_measurement": "Full-throttle level-ground integer drivetrain update with all four tyres grounded; checked against native statecar.c. This isolates gearing and torque from track and steering effects. The native redline brake produces a small limiter sawtooth.",
+        "steering": {"resource": "ster", "version": physics.STEERING_VERSION,
+                     "rate_multiplier": physics.STEERING_RATE_MULTIPLIER,
+                     "note": "Threefold steering input and return-to-center rate in updated Restunts, retaining the speed-dependent response curve and maximum angle. The wheel and red dot follow the actual steering angle. Original Stunts ignores this resource. Replays require the same steering settings used when recording."},
         "sizing": {"millimetres_per_game_unit": model.MM_PER_UNIT, "showroom_scale": model.SHOWROOM_SCALE,
                    "showroom_y_offset": model.SHOWROOM_Y_OFFSET, "wheel_radius_game_units": model.WHEEL_RADIUS,
                    "wheel_centres_game_units": model.WHEEL_CENTERS,
@@ -699,6 +704,12 @@ alignment limit on paved, dirt, ice and grass. No water adhesion. This is
 a game approximation, not a physical aerodynamic simulation. The original
 DOS game ignores these extra resources. Use identical car resources when
 recording and playing back a replay.
+
+Steering uses ster=01 03 to build and recenter the steering angle three times
+faster in updated Restunts. The speed-dependent response and maximum angle
+are retained; the wheel and red dot follow the actual steering angle.
+Original Stunts ignores ster. Earlier McMurtry replays need their original
+car resources to retain the recorded trajectory.
 
 REAL CAR AND SCALE
 The driving specification targets the {specs['model_year']} production PURE:

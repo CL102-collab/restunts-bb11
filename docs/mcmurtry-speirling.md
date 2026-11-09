@@ -461,6 +461,25 @@ The engine's redline braking produces a small speed oscillation around the
 limit. These figures isolate the drivetrain with all tyres grounded; track
 geometry, steering and collisions can change a full driving run.
 
+The McMurtry uses `ster = 01 03` for threefold steering input and
+return-to-center rates in updated Restunts. Holding an arrow key builds the
+actual steering angle faster, and the wheel and red indicator follow it.
+The speed-dependent response curve and maximum steering angle are retained.
+This is game tuning, not a physical steering-rack specification. Original
+Stunts ignores `ster`. Replays recorded before this change need the previous
+car resources to preserve their trajectory.
+
+The optional `ster` resource contains exactly two bytes: version `1`, then
+an integer rate multiplier from `1` through `3`. Missing or invalid settings
+use the original rate (`1`), and loading another car resets the setting.
+The multiplier applies before the existing per-tick response limits; it does
+not raise those limits or alter grip. It is separate from the stock SIMD.
+
+With speed held constant at 20 Hz, neutral-to-full-lock steering now takes
+0.80 seconds at 60 mph (previously 2.40 seconds), and 1.35 seconds at 100 mph
+(previously 4.00 seconds). Both directions use the same rate. The native
+checks also cover 10 Hz, centering, reversing direction and switching cars.
+
 `fand = 01` enables adhesion. `adhs = 01 0C 00 00 20 0F` explicitly selects
 12 world units, a 60-degree alignment limit and paved/dirt/ice/grass surfaces.
 Updated Restunts reads those settings independently for player and opponent.

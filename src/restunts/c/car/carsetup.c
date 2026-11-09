@@ -144,6 +144,7 @@ static void opponent_route_write(legacy_u16 index, legacy_u16 value)
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)opponent_route_track_indices + offset, value);
 }
 
+legacy_u8 car_steering_rate[2] = {CAR_STEERING_RATE_DEFAULT, CAR_STEERING_RATE_DEFAULT};
 legacy_u8 car_surface_adhesion[2];
 struct CAR_SURFACE_ADHESION_SETTINGS car_surface_adhesion_settings[2] = {
 	{CAR_ADHESION_DEFAULT_DISTANCE, CAR_ADHESION_DEFAULT_ALIGNMENT, CAR_ADHESION_SURFACE_MASK},
@@ -161,6 +162,8 @@ void reset_car_capabilities(void)
 {
 	reset_car_surface_adhesion(0);
 	reset_car_surface_adhesion(1);
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
+	car_steering_rate[OPPONENT_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
 }
 
 static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opponent)
@@ -262,6 +265,67 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 	car_surface_adhesion[car_index] = 1;
 }
 
+static void setup_car_steering_rate(void far *car_resource, legacy_s16 is_opponent)
+{
+	legacy_s16 car_index = is_opponent != 0;
+	car_steering_rate[car_index] = CAR_STEERING_RATE_DEFAULT;
+	if (car_resource == 0) {
+		return;
+	}
+	const legacy_u8 huge *resource = car_resource;
+	legacy_u32 size = LEGACY_READ_U32_LE(resource + RESOURCE_FILE_SIZE_OFFSET);
+	legacy_u16 count = resource_file_count(car_resource);
+	legacy_u32 offsets_start =
+		RESOURCE_FILE_DIRECTORY_OFFSET + (legacy_u32)count * RESOURCE_FILE_IDENTIFIER_SIZE;
+	legacy_u32 data_start = offsets_start + (legacy_u32)count * RESOURCE_FILE_OFFSET_SIZE;
+	if (size <= data_start) {
+		return;
+	}
+	legacy_u32 data_size = size - data_start;
+	legacy_u32 start = data_size;
+	legacy_u32 end = data_size;
+	for (legacy_u16 index = 0; index < count; index++) {
+		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
+											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
+		if (offset > data_size) {
+			return;
+		}
+		const legacy_u8 huge *name = resource + RESOURCE_FILE_DIRECTORY_OFFSET +
+									 (legacy_u32)index * RESOURCE_FILE_IDENTIFIER_SIZE;
+		if (name[0] == 's' && name[1] == 't' && name[2] == 'e' && name[3] == 'r') {
+			if (start != data_size || offset == data_size) {
+				return;
+			}
+			start = offset;
+		}
+	}
+	if (start == data_size) {
+		return;
+	}
+	/* Directory order can differ from payload order. Reject aliases and use
+	 * the nearest later payload to bound the optional settings exactly. */
+	legacy_u16 aliases = 0;
+	for (legacy_u16 index = 0; index < count; index++) {
+		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
+											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
+		if (offset == start) {
+			aliases++;
+		} else if (offset > start && offset < end) {
+			end = offset;
+		}
+	}
+	if (aliases != 1 || end - start != CAR_STEERING_SETTINGS_SIZE) {
+		return;
+	}
+	const legacy_u8 huge *settings = resource + data_start + start;
+	legacy_u8 rate = settings[CAR_STEERING_SETTINGS_RATE_OFFSET];
+	if (settings[CAR_STEERING_SETTINGS_VERSION_OFFSET] != CAR_STEERING_SETTINGS_VERSION ||
+		rate < CAR_STEERING_RATE_DEFAULT || rate > CAR_STEERING_RATE_MAX) {
+		return;
+	}
+	car_steering_rate[car_index] = rate;
+}
+
 static legacy_s16 aero_resistance_at(legacy_s16 resistance, legacy_s16 speed_index)
 {
 	legacy_s32 product = LEGACY_S32_WRAP_MUL(resistance, speed_index);
@@ -273,6 +337,7 @@ void setup_aero_trackdata(void far *carresptr, legacy_s16 is_opponent)
 {
 	const legacy_u8 far *simd_resource = (const legacy_u8 far *)locate_shape_alt(carresptr, "simd");
 	setup_car_surface_adhesion(carresptr, is_opponent);
+	setup_car_steering_rate(carresptr, is_opponent);
 
 	if (is_opponent == 0) {
 		(void)simd_decode(&simd_player, simd_resource);

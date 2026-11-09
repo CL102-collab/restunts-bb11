@@ -220,6 +220,12 @@
     }
   ],
   "performance_measurement": "Full-throttle level-ground integer drivetrain update with all four tyres grounded; checked against native statecar.c. This isolates gearing and torque from track and steering effects. The native redline brake produces a small limiter sawtooth.",
+  "steering": {
+    "resource": "ster",
+    "version": 1,
+    "rate_multiplier": 3,
+    "note": "Threefold steering input and return-to-center rate in updated Restunts, retaining the speed-dependent response curve and maximum angle. The wheel and red dot follow the actual steering angle. Original Stunts ignores this resource. Replays require the same steering settings used when recording."
+  },
   "sizing": {
     "millimetres_per_game_unit": 44.0,
     "showroom_scale": 20,
@@ -679,8 +685,8 @@
   ],
   "files": {
     "CARMCMU.RES": {
-      "bytes": 1012,
-      "sha256": "e14060a6b6a7c3a3a162eb347bf18e1763d6d8649606ffdb4a2d4b1c5738339a"
+      "bytes": 1022,
+      "sha256": "bbfd0ccb55751e1d3abe1baa162e49758d4478d9639828baf8726093346f94ac"
     },
     "STMCMU.3SH": {
       "bytes": 19801,

@@ -4,6 +4,7 @@
 #include "../track/trackdata_layout.h"
 #include "../crash_state.h"
 #include "../car/car_speed.h"
+#include "../car/car_resources.h"
 #include "../track/track_types.h"
 #include "../track/track_objects.h"
 #include "opponent.h"
@@ -518,7 +519,8 @@ void update_opponent_tick(void)
 
 static legacy_s16 player_steering_response(const struct CARSTATE *carstate,
 										   legacy_s16 steering_angle, legacy_s16 response,
-										   legacy_u8 speed_index, const legacy_s8 *response_table)
+										   legacy_u8 speed_index, const legacy_s8 *response_table,
+										   legacy_u8 rate)
 {
 	/* Turning farther from center gets the original fourfold response. */
 	if ((response > 0 && steering_angle < -STEERING_AWAY_FROM_CENTER_THRESHOLD) ||
@@ -530,7 +532,8 @@ static legacy_s16 player_steering_response(const struct CARSTATE *carstate,
 	if (response == 0 && carstate->car_actual_speed != CAR_SPEED_STOPPED &&
 		steering_angle != CAR_STEERING_CENTERED) {
 		legacy_s16 centering_limit = LEGACY_S16_SHL(
-			(legacy_s16)response_table[speed_index + STEERING_CENTERING_SAMPLE_OFFSET],
+			LEGACY_S16_WRAP_MUL(
+				(legacy_s16)response_table[speed_index + STEERING_CENTERING_SAMPLE_OFFSET], rate),
 			STEERING_CENTERING_LIMIT_SHIFT);
 		if (steering_angle < 0) {
 			if (LEGACY_S16_WRAP_NEGATE(steering_angle) > centering_limit) {
@@ -550,7 +553,8 @@ static legacy_s16 player_steering_response(const struct CARSTATE *carstate,
 	return response;
 }
 
-static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering_input)
+legacy_s16 player_steering_next_angle(const struct CARSTATE *carstate, legacy_s8 steering_input,
+									  legacy_u8 rate)
 {
 	legacy_s8 *response_table = steerWhlRespTable_ptr;
 	legacy_s16 steering_angle = carstate->car_steeringAngle;
@@ -559,10 +563,10 @@ static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering
 					STEERING_RESPONSE_INDEX_MASK);
 	legacy_s16 response_index =
 		LEGACY_S16_WRAP_ADD((legacy_s16)speed_index, (legacy_s16)steering_input);
-	legacy_s16 response = response_table[response_index];
+	legacy_s16 response = LEGACY_S16_WRAP_MUL(response_table[response_index], rate);
 
-	response =
-		player_steering_response(carstate, steering_angle, response, speed_index, response_table);
+	response = player_steering_response(carstate, steering_angle, response, speed_index,
+										response_table, rate);
 
 	if (framespersec == GAME_FRAME_RATE_LOW) {
 		if (response > STEERING_LOW_RATE_RESPONSE_LIMIT) {
@@ -593,12 +597,13 @@ static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering
 		steering_angle = CAR_STEERING_CENTERED;
 	}
 
-	carstate->car_steeringAngle = steering_angle;
+	return steering_angle;
 }
 
 void update_player_steering_input(legacy_s8 steering_input)
 {
-	update_player_steering(&state.playerstate, steering_input);
+	state.playerstate.car_steeringAngle = player_steering_next_angle(
+		&state.playerstate, steering_input, car_steering_rate[PLAYER_CAR_INDEX]);
 }
 
 static legacy_s16 route_average(legacy_s16 first, legacy_s16 second)

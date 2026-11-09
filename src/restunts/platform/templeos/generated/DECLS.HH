@@ -204,6 +204,8 @@ extern legacy_void RsUpdateLegacyGripStackWords(CCarState *carstate,CSimd *simd,
     legacy_u16 speed_before_grip,legacy_u16 speed2_before_grip,legacy_s16 caller_si);
 extern legacy_void RsUpdatePlayerState(CCarState *carstate,CSimd *simd,CCarState *other_carstate,
     CSimd *other_simd,legacy_s16 car_index);
+extern legacy_s16 RsPlayerSteeringNextAngle(
+    CCarState *carstate,legacy_s8 steering_input,legacy_u8 rate);
 extern legacy_void RsUpdatePlayerSteeringInput(legacy_s8 steering_input);
 extern legacy_s16 RsSweepTrackUnderside(CVector *previous,CVector *current,legacy_s16 *fraction);
 extern legacy_s16 RsSweepTrackSolidObstacle(

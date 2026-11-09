@@ -8,6 +8,8 @@
 #include "../timing.h"
 #include "../crash_state.h"
 #include "../car/car_audio.h"
+#include "../car/car_resources.h"
+#include "../state_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_replay_runtime.h"
 #include "../../platform/sdl3/touch_game.h"
@@ -361,6 +363,31 @@ void replay_apply_analog_steering_history(void)
 	}
 
 	legacy_s16 target_angle = LEGACY_S8_FROM_BITS(input_steering_history[history_index]);
+	if (car_steering_rate[PLAYER_CAR_INDEX] != CAR_STEERING_RATE_DEFAULT) {
+		/* Faster cars choose the closest achievable replay input, including
+		 * neutral's centering step. Equal predictions keep neutral preferred. */
+		legacy_u16 best_distance = LEGACY_U16_MAX;
+		legacy_u8 action = 0;
+		for (legacy_u8 input = 0; input <= (INPUT_STEER_LEFT_FLAG >> INPUT_STEERING_SHIFT);
+			 input++) {
+			legacy_s16 predicted = player_steering_next_angle(&state.playerstate, input,
+															  car_steering_rate[PLAYER_CAR_INDEX]);
+			legacy_s16 difference = predicted - target_angle;
+			legacy_u16 distance = difference < 0 ? -difference : difference;
+			if (distance < best_distance) {
+				best_distance = distance;
+				action = input << INPUT_STEERING_SHIFT;
+			}
+		}
+#ifdef RESTUNTS_SDL3
+		if (!extended_replay_ui_or_input(action))
+#endif
+		{
+			replay_input_buffer[frame] |= action;
+		}
+		input_steering_history_valid[history_index] = 0;
+		return;
+	}
 	legacy_s16 steering_angle = state.playerstate.car_steeringAngle;
 	legacy_u16 speed_index = (state.playerstate.car_actual_speed >> STEERING_RESPONSE_SPEED_SHIFT) &
 							 STEERING_RESPONSE_SPEED_MASK;

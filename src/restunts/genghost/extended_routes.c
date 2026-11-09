@@ -8,6 +8,8 @@
 #include "extended_routes.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
+#include "../c/car/car_resources.h"
+#include "../c/state_internal.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
 #include "../c/track/track_collision.h"
@@ -2190,6 +2192,16 @@ legacy_u8 extended_genghost_steering_key(legacy_f64 wanted)
 	legacy_f64 best = DBL_MAX;
 	legacy_u8 key = 0U;
 	for (legacy_uint choice = 0U; choice < 3U; choice++) {
+		if (car_steering_rate[PLAYER_CAR_INDEX] != CAR_STEERING_RATE_DEFAULT) {
+			legacy_s16 predicted = player_steering_next_angle(car, (legacy_s8)choice,
+															  car_steering_rate[PLAYER_CAR_INDEX]);
+			legacy_f64 cost = fabs(predicted - wanted);
+			if (cost < best) {
+				best = cost;
+				key = (legacy_u8)(choice << INPUT_STEERING_SHIFT);
+			}
+			continue;
+		}
 		legacy_int response = steerWhlRespTable_ptr[speed_index + choice];
 		legacy_int angle = car->car_steeringAngle;
 		if ((response > 0 && angle < -1) || (response < 0 && angle > 1)) {

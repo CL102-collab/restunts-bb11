@@ -78,6 +78,8 @@ IDLE_TORQUE = 143
 BRAKING = 832
 GRIP = 1200
 COCKPIT_HEIGHT = 18
+STEERING_VERSION = 1
+STEERING_RATE_MULTIPLIER = 3
 
 ADHESION_VERSION = 1
 ADHESION_MAX_DISTANCE = 12
@@ -263,4 +265,5 @@ def build_car(repo: Path, dashboard_patch: dict[int, bytes]) -> bytes:
         b"edes": description.encode("ascii") + b"\0",
         b"fand": b"\x01",
         b"adhs": _adhesion_settings(),
+        b"ster": bytes((STEERING_VERSION, STEERING_RATE_MULTIPLIER)),
     })

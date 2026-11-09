@@ -8,6 +8,7 @@
 #include "../opponent/opponent.h"
 #include "../camera.h"
 #include "../externs.h"
+#include "../car/car_resources.h"
 #include "../fatal.h"
 #include "../fileio.h"
 #include "../platform.h"
@@ -370,6 +371,8 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_s16 saved_checkpoint_interval = checkpoint_frame_interval;
 	legacy_s16 saved_timer_ticks = timer_ticks_per_frame;
 	legacy_s8 *saved_steering_table = steerWhlRespTable_ptr;
+	legacy_u8 saved_player_steering_rate = car_steering_rate[PLAYER_CAR_INDEX];
+	legacy_u8 saved_opponent_steering_rate = car_steering_rate[OPPONENT_CAR_INDEX];
 	legacy_u8 saved_frame_countdown = frame_callback_countdown;
 	legacy_u8 saved_slow_countdown = slow_replay_countdown;
 	legacy_u8 saved_exit_request = race_exit_request;
@@ -427,6 +430,8 @@ legacy_s16 ghost_prepare_race(void)
 	checkpoint_frame_interval = saved_checkpoint_interval;
 	timer_ticks_per_frame = saved_timer_ticks;
 	steerWhlRespTable_ptr = saved_steering_table;
+	car_steering_rate[PLAYER_CAR_INDEX] = saved_player_steering_rate;
+	car_steering_rate[OPPONENT_CAR_INDEX] = saved_opponent_steering_rate;
 	frame_callback_countdown = saved_frame_countdown;
 	slow_replay_countdown = saved_slow_countdown;
 	race_exit_request = saved_exit_request;

@@ -38,6 +38,8 @@ CMemChunk *mmgr_last_live_chunk=0;
 legacy_u32 rs_numlib_legacy_rand_seed=0;
 legacy_u8 rs_kevinrnd_g_kevinrandom_seed[6];
 MemSet(&rs_kevinrnd_g_kevinrandom_seed,0,sizeof(rs_kevinrnd_g_kevinrandom_seed));
+legacy_u8 car_steering_rate[2];
+MemSet(&car_steering_rate,0,sizeof(car_steering_rate));
 legacy_u8 car_surface_adhesion[2];
 MemSet(&car_surface_adhesion,0,sizeof(car_surface_adhesion));
 CCarSurfaceAdhesionSettings car_surface_adhesion_settings[2];
@@ -166,6 +168,8 @@ CShape2D *rs_dashboard_dashboard_instrument_transforms[3];
 MemSet(&rs_dashboard_dashboard_instrument_transforms,0,
     sizeof(rs_dashboard_dashboard_instrument_transforms));
 legacy_u8 rs_dashboard_dashboard_instruments_follow_wheel=0;
+CShape2D *rs_dashboard_dashboard_rpm_bar=0;
+CShape2D *rs_dashboard_dashboard_speed_center=0;
 legacy_s16 rs_menu_common_menu_animation_counter=0;
 legacy_s16 rs_menu_common_menu_highlight_color=0;
 legacy_s16 menu_idle_counter=0;

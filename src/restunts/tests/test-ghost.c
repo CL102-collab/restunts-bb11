@@ -6,6 +6,7 @@
 
 #include "../c/ghost/ghost.h"
 #include "../c/externs.h"
+#include "../c/car/car_resources.h"
 #define EXTENDED_TEST_GHOST_STUBS
 #include "extended-replay-test-stubs.h"
 #include "../c/platform.h"
@@ -39,6 +40,7 @@ legacy_u16 elapsed_time2;
 legacy_s16 checkpoint_frame_interval;
 legacy_s16 timer_ticks_per_frame;
 legacy_s8 *steerWhlRespTable_ptr;
+legacy_u8 car_steering_rate[2] = {CAR_STEERING_RATE_DEFAULT, CAR_STEERING_RATE_DEFAULT};
 legacy_u8 frame_callback_countdown;
 legacy_u8 slow_replay_countdown;
 legacy_u8 race_exit_request;
@@ -184,6 +186,8 @@ void ghost_load_simulation_resources(void)
 {
 	assert(gameconfig.game_opponenttype == 3);
 	assert(memcmp(gameconfig.game_playercarid, "ANSX", REPLAY_CAR_ID_SIZE) == 0);
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
+	car_steering_rate[OPPONENT_CAR_INDEX] = CAR_STEERING_RATE_MAX;
 	simulation_loads++;
 	simd_player.car_height = 47;
 }
@@ -401,6 +405,8 @@ static void test_playback_timing_and_isolation(void)
 	random_seed[0] = 99;
 	legacy_execution_residue.penalty_route_word = 77;
 	legacy_render_player_headings_active = 5;
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_MAX;
+	car_steering_rate[OPPONENT_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
 	struct GAMESTATE before = state;
 	struct GAMEINFO config = gameconfig;
 	assert(ghost_prepare_race() == 0);
@@ -409,6 +415,8 @@ static void test_playback_timing_and_isolation(void)
 	assert(random_seed[0] == 99);
 	assert(legacy_execution_residue.penalty_route_word == 77);
 	assert(legacy_render_player_headings_active == 5);
+	assert(car_steering_rate[PLAYER_CAR_INDEX] == CAR_STEERING_RATE_MAX);
+	assert(car_steering_rate[OPPONENT_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
 	assert(game_replay_mode == REPLAY_MODE_PAUSED);
 	assert(is_in_replay == 0);
 	assert(replay_recording_flags == REPLAY_RECORDING_ACTIVE_FLAG);

@@ -253,6 +253,112 @@ static void test_resource_settings(void)
 	reset_car_capabilities();
 }
 
+enum STEERING_RESOURCE_TEST_CONSTANTS {
+	TEST_STEERING_RESOURCE_COUNT = 2,
+	TEST_STEERING_DATA_START =
+		RESOURCE_FILE_DIRECTORY_OFFSET +
+		TEST_STEERING_RESOURCE_COUNT * (RESOURCE_FILE_IDENTIFIER_SIZE + RESOURCE_FILE_OFFSET_SIZE),
+	TEST_STEERING_RESOURCE_SIZE = TEST_STEERING_DATA_START + 2 * CAR_STEERING_SETTINGS_SIZE
+};
+
+static void make_steering_resource(legacy_u8 resource[TEST_STEERING_RESOURCE_SIZE], legacy_u8 rate)
+{
+	memset(resource, 0, TEST_STEERING_RESOURCE_SIZE);
+	resource_file_set_size(resource, TEST_STEERING_RESOURCE_SIZE);
+	LEGACY_WRITE_U16_LE(resource + RESOURCE_FILE_COUNT_OFFSET, TEST_STEERING_RESOURCE_COUNT);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "sterdata",
+		   2 * RESOURCE_FILE_IDENTIFIER_SIZE);
+	resource_file_set_offset(resource, TEST_STEERING_RESOURCE_COUNT, 0, 0);
+	resource_file_set_offset(resource, TEST_STEERING_RESOURCE_COUNT, 1, CAR_STEERING_SETTINGS_SIZE);
+	resource[TEST_STEERING_DATA_START + CAR_STEERING_SETTINGS_VERSION_OFFSET] =
+		CAR_STEERING_SETTINGS_VERSION;
+	resource[TEST_STEERING_DATA_START + CAR_STEERING_SETTINGS_RATE_OFFSET] = rate;
+}
+
+static void assert_invalid_steering_resource(legacy_u8 *resource)
+{
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_MAX;
+	setup_car_steering_rate(resource, PLAYER_CAR_INDEX);
+	assert(car_steering_rate[PLAYER_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
+	assert(car_steering_rate[OPPONENT_CAR_INDEX] == CAR_STEERING_RATE_MAX);
+}
+
+static void test_steering_resource_settings(void)
+{
+	legacy_u8 resource[TEST_STEERING_RESOURCE_SIZE];
+	reset_car_capabilities();
+	assert(car_steering_rate[PLAYER_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
+	assert(car_steering_rate[OPPONENT_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	setup_car_steering_rate(resource, OPPONENT_CAR_INDEX);
+	for (legacy_u8 rate = CAR_STEERING_RATE_DEFAULT; rate <= CAR_STEERING_RATE_MAX; rate++) {
+		make_steering_resource(resource, rate);
+		setup_car_steering_rate(resource, PLAYER_CAR_INDEX);
+		assert(car_steering_rate[PLAYER_CAR_INDEX] == rate);
+		assert(car_steering_rate[OPPONENT_CAR_INDEX] == CAR_STEERING_RATE_MAX);
+	}
+
+	/* Resource ordering is independent of chunk payload ordering. */
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "dataster",
+		   2 * RESOURCE_FILE_IDENTIFIER_SIZE);
+	resource_file_set_offset(resource, TEST_STEERING_RESOURCE_COUNT, 0, CAR_STEERING_SETTINGS_SIZE);
+	resource_file_set_offset(resource, TEST_STEERING_RESOURCE_COUNT, 1, 0);
+	setup_car_steering_rate(resource, PLAYER_CAR_INDEX);
+	assert(car_steering_rate[PLAYER_CAR_INDEX] == CAR_STEERING_RATE_MAX);
+
+	static const legacy_u8 bad_versions[] = {0, CAR_STEERING_SETTINGS_VERSION + 1, LEGACY_U8_MAX};
+	for (legacy_u16 index = 0; index < sizeof(bad_versions); index++) {
+		make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+		resource[TEST_STEERING_DATA_START + CAR_STEERING_SETTINGS_VERSION_OFFSET] =
+			bad_versions[index];
+		assert_invalid_steering_resource(resource);
+	}
+	static const legacy_u8 bad_rates[] = {0, CAR_STEERING_RATE_MAX + 1, LEGACY_U8_MAX};
+	for (legacy_u16 index = 0; index < sizeof(bad_rates); index++) {
+		make_steering_resource(resource, bad_rates[index]);
+		assert_invalid_steering_resource(resource);
+	}
+
+	/* Reject aliases, wrong payload sizes, out-of-file offsets and duplicate
+	 * names, even when the first matching chunk contains valid settings. */
+	static const legacy_u32 bad_offsets[][TEST_STEERING_RESOURCE_COUNT] = {
+		{0, 0}, {0, 1}, {0, 3}, {0, 5}, {4, 2}, {LEGACY_U32_MAX, 2}};
+	for (legacy_u16 index = 0; index < sizeof(bad_offsets) / sizeof(bad_offsets[0]); index++) {
+		make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+		for (legacy_u16 chunk = 0; chunk < TEST_STEERING_RESOURCE_COUNT; chunk++) {
+			resource_file_set_offset(resource, TEST_STEERING_RESOURCE_COUNT, chunk,
+									 bad_offsets[index][chunk]);
+		}
+		assert_invalid_steering_resource(resource);
+	}
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "sterster",
+		   2 * RESOURCE_FILE_IDENTIFIER_SIZE);
+	assert_invalid_steering_resource(resource);
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	resource_file_set_size(resource, TEST_STEERING_DATA_START + CAR_STEERING_SETTINGS_SIZE - 1);
+	assert_invalid_steering_resource(resource);
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	resource_file_set_size(resource, TEST_STEERING_DATA_START);
+	assert_invalid_steering_resource(resource);
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	LEGACY_WRITE_U16_LE(resource + RESOURCE_FILE_COUNT_OFFSET, LEGACY_U16_MAX);
+	assert_invalid_steering_resource(resource);
+
+	/* Loading stock/missing resources resets only that car, and a complete
+	 * game/replay reset restores the default response for both drivers. */
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "gnam", RESOURCE_FILE_IDENTIFIER_SIZE);
+	assert_invalid_steering_resource(resource);
+	assert_invalid_steering_resource(0);
+	make_steering_resource(resource, CAR_STEERING_RATE_MAX);
+	setup_car_steering_rate(resource, PLAYER_CAR_INDEX);
+	reset_car_capabilities();
+	assert(car_steering_rate[PLAYER_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
+	assert(car_steering_rate[OPPONENT_CAR_INDEX] == CAR_STEERING_RATE_DEFAULT);
+}
+
 static void initialize_plane(legacy_s16 roll)
 {
 	memset(planes, 0, sizeof(planes));
@@ -626,6 +732,7 @@ legacy_int main(void)
 {
 	test_resource_capability();
 	test_resource_settings();
+	test_steering_resource_settings();
 	test_selected_car_capability();
 	test_configured_contacts();
 	test_stopped_inverted_and_vertical_contacts();
@@ -633,6 +740,6 @@ legacy_int main(void)
 	test_finite_loop_surface();
 	test_full_stopped_loop_update();
 	test_full_moving_loop_facets();
-	puts("car surface adhesion tests passed");
+	puts("car surface adhesion and steering resource tests passed");
 	return 0;
 }

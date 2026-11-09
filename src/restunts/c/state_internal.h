@@ -24,6 +24,9 @@ void update_player_state(struct CARSTATE *playerstate, struct SIMD *playersimd,
 						 struct CARSTATE *opponentstate, struct SIMD *opponentsimd,
 						 legacy_s16 car_index);
 
+/* Predict without changing car state; rate is a validated CAR_STEERING_RATE value. */
+legacy_s16 player_steering_next_angle(const struct CARSTATE *carstate, legacy_s8 steering_input,
+									  legacy_u8 rate);
 void update_player_steering_input(legacy_s8 steering_input);
 
 #endif

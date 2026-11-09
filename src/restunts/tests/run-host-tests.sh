@@ -491,6 +491,8 @@ run_host_test test-player-motion legacy.c \
     "$test_source_dir/physics/physics_grip.c" "$test_source_dir/physics/physics_collision.c" \
     "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-route-points opponent/opponent.c "$test_source_dir/trkutil.c" -Wno-missing-braces
+run_host_test test-genghost-steering opponent/opponent.c \
+    "$test_source_dir/../genghost/extended_routes.c" -DRESTUNTS_SDL3 -DRESTUNTS_EXTENDED_REPLAY -lm
 run_host_test test-memmgr-cache memmgr.c \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-opponent-route car/carsetup.c \
@@ -507,13 +509,13 @@ run_host_test test-pixldump-playback legacy.c -I"$test_source_dir" \
 run_host_test test-polygon-edges shape3d/shape3d_prerender.c \
     "$test_source_dir/data/full_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
-run_host_test test-input-record legacy.c \
+run_host_test test-input-record legacy.c "$test_source_dir/opponent/opponent.c" \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
-run_host_test test-input-record legacy.c \
+run_host_test test-input-record legacy.c "$test_source_dir/opponent/opponent.c" \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/data/full_data.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
-run_host_test test-input-record legacy.c \
+run_host_test test-input-record legacy.c "$test_source_dir/opponent/opponent.c" \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/hires/frame_adaptive.c" -DRESTUNTS_SDL3 \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"

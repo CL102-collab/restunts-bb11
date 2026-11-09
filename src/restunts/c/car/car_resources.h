@@ -11,6 +11,17 @@ extern legacy_s8 gnam_string[];
 extern legacy_s8 gsna_string[];
 extern legacy_s8 opponent_highscore_name[];
 
+/* Optional `ster` version 1 stores an integer steering-rate multiplier.
+ * Missing or invalid settings keep stock input response. SIMD stays unchanged. */
+#define CAR_STEERING_SETTINGS_VERSION 1U
+#define CAR_STEERING_SETTINGS_SIZE 2U
+#define CAR_STEERING_SETTINGS_VERSION_OFFSET 0U
+#define CAR_STEERING_SETTINGS_RATE_OFFSET 1U
+#define CAR_STEERING_RATE_DEFAULT 1U
+#define CAR_STEERING_RATE_MAX 3U
+
+extern legacy_u8 car_steering_rate[2];
+
 /* Optional one-byte `fand` enables adhesion. Optional `adhs` version 1 stores
  * max distance (u16 LE), minimum alignment cosine (u16 LE, Q14), and a material
  * mask (u8), after its version byte. Missing settings retain legacy defaults.

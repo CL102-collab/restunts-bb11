@@ -51,6 +51,8 @@ static void test_modal_refresh_restore(void)
 }
 #endif
 
+legacy_u8 car_steering_rate[2] = {CAR_STEERING_RATE_DEFAULT, CAR_STEERING_RATE_DEFAULT};
+
 static struct CARSTATE ghost_fixture;
 static legacy_s16 ghost_fixture_active;
 
@@ -384,6 +386,7 @@ static void reset_inputs(void)
 	replay_input_buffer = replay_bytes;
 	cvxptr = snapshots;
 	steerWhlRespTable_ptr = response_table;
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
 	memset(input_steering_history, 0, sizeof(input_steering_history));
 	memset(input_steering_history_valid, 0, sizeof(input_steering_history_valid));
 	input_steering_value = 0;
@@ -1166,6 +1169,47 @@ static void test_locked_display_shortcuts(void)
 }
 #endif
 
+static void test_custom_analog_steering(void)
+{
+	static const legacy_s16 angles[] = {-240, -127, -44, -1, 0, 1, 44, 127, 240};
+	static const legacy_s8 targets[] = {-127, -44, -1, 0, 1, 44, 127};
+	for (legacy_u16 low_rate = 0; low_rate < 2; low_rate++) {
+		for (legacy_u16 angle = 0; angle < sizeof(angles) / sizeof(angles[0]); angle++) {
+			for (legacy_u16 target = 0; target < sizeof(targets) / sizeof(targets[0]); target++) {
+				reset_inputs();
+				car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_MAX;
+				framespersec = low_rate ? GAME_FRAME_RATE_LOW : GAME_FRAME_RATE_NORMAL;
+				response_table[0] = 0;
+				response_table[1] = low_rate ? 16 : 8;
+				response_table[2] = -response_table[1];
+				state.playerstate.car_actual_speed = 1;
+				state.playerstate.car_steeringAngle = angles[angle];
+				input_steering_history[0] = targets[target];
+				input_steering_history_valid[0] = 1;
+				replay_bytes[0] = INPUT_ACCELERATE_FLAG;
+				replay_apply_analog_steering_history();
+				assert(input_steering_history_valid[0] == 0);
+				assert((replay_bytes[0] & INPUT_PEDAL_MASK) == INPUT_ACCELERATE_FLAG);
+				legacy_s8 chosen = (replay_bytes[0] & INPUT_STEERING_MASK) >> INPUT_STEERING_SHIFT;
+				assert(chosen >= 0 && chosen <= 2);
+				legacy_s16 predicted =
+					player_steering_next_angle(&state.playerstate, chosen, CAR_STEERING_RATE_MAX);
+				legacy_s16 delta = predicted - targets[target];
+				legacy_s16 distance = delta < 0 ? -delta : delta;
+				for (legacy_s8 choice = 0; choice <= 2; choice++) {
+					legacy_s16 alternative = player_steering_next_angle(&state.playerstate, choice,
+																		CAR_STEERING_RATE_MAX) -
+											 targets[target];
+					assert(distance <= (alternative < 0 ? -alternative : alternative));
+				}
+				update_player_steering_input(chosen);
+				assert(state.playerstate.car_steeringAngle == predicted);
+			}
+		}
+	}
+	reset_inputs();
+}
+
 int main(void)
 {
 	legacy_u32 input_hash = input_fingerprint();
@@ -1175,6 +1219,7 @@ int main(void)
 	legacy_u32 shortcut_hash = shortcut_fingerprint();
 	test_event_priority();
 	test_recording_input_modes();
+	test_custom_analog_steering();
 	test_ghost_view_shortcut();
 	test_display_shortcuts();
 	test_mph_shortcut();

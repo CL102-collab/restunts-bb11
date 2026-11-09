@@ -22,6 +22,12 @@ a game approximation, not a physical aerodynamic simulation. The original
 DOS game ignores these extra resources. Use identical car resources when
 recording and playing back a replay.
 
+Steering uses ster=01 03 to build and recenter the steering angle three times
+faster in updated Restunts. The speed-dependent response and maximum angle
+are retained; the wheel and red dot follow the actual steering angle.
+Original Stunts ignores ster. Earlier McMurtry replays need their original
+car resources to retain the recorded trajectory.
+
 REAL CAR AND SCALE
 The driving specification targets the 2026 production PURE:
 3815 x 1795 x 1056 mm,

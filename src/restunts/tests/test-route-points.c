@@ -4,6 +4,8 @@
 
 #include "../c/externs.h"
 #include "../c/state_internal.h"
+#include "../c/car/car_resources.h"
+#include "../c/game_input.h"
 #include "../c/track/track_objects.h"
 
 struct GAMESTATE state;
@@ -19,6 +21,7 @@ legacy_s8 far *track_route_rows;
 legacy_u8 far *track_terrain_map;
 legacy_u8 oppnentSped[16];
 legacy_s8 *steerWhlRespTable_ptr;
+legacy_u8 car_steering_rate[2] = {CAR_STEERING_RATE_DEFAULT, CAR_STEERING_RATE_DEFAULT};
 legacy_u16 framespersec;
 legacy_u16 elapsed_time2, legacy_closed_hihat_offset;
 
@@ -182,6 +185,70 @@ static legacy_u32 steering_fingerprint(void)
 	return hash;
 }
 
+/* Scaling changes response time, not the speed-dependent response curve,
+ * frame-rate caps, or full-lock angle. Zero-input centering cannot cross zero. */
+static void test_custom_steering_rate(void)
+{
+	enum {
+		TEST_BASE_RESPONSE = 8,
+		TEST_LOCK = 240,
+		TEST_RATE = 3,
+		TEST_TABLE_STRIDE = 4,
+		TEST_SPEED_SHIFT = 10,
+		TEST_RATE_MULTIPLIER = 2
+	};
+	steerWhlRespTable_ptr = steering;
+	car_steering_rate[PLAYER_CAR_INDEX] = TEST_RATE;
+	for (legacy_u16 low_rate = 0; low_rate < 2; low_rate++) {
+		framespersec = low_rate ? GAME_FRAME_RATE_LOW : GAME_FRAME_RATE_NORMAL;
+		for (legacy_u16 speed_band = 0; speed_band < 2; speed_band++) {
+			legacy_s16 base =
+				(TEST_BASE_RESPONSE >> speed_band) * (low_rate ? TEST_RATE_MULTIPLIER : 1);
+			legacy_u16 speed_index = speed_band * TEST_TABLE_STRIDE;
+			memset(steering, 0, sizeof(steering));
+			steering[speed_index + 1] = base;
+			steering[speed_index + 2] = -base;
+			for (legacy_s16 sign = -1; sign <= 1; sign += 2) {
+				legacy_s8 input = sign < 0 ? 2 : 1;
+				memset(&state.playerstate, 0, sizeof(state.playerstate));
+				state.playerstate.car_actual_speed = speed_index << TEST_SPEED_SHIFT;
+				update_player_steering_input(input);
+				assert(state.playerstate.car_steeringAngle == sign * base * TEST_RATE);
+				legacy_u16 ticks = 1;
+				while (state.playerstate.car_steeringAngle != sign * TEST_LOCK) {
+					update_player_steering_input(input);
+					assert(++ticks <= TEST_LOCK);
+				}
+				assert(ticks == TEST_LOCK / (base * TEST_RATE));
+				update_player_steering_input(input);
+				assert(state.playerstate.car_steeringAngle == sign * TEST_LOCK);
+				state.playerstate.car_actual_speed = (speed_index << TEST_SPEED_SHIFT) + 1;
+				legacy_s16 before = state.playerstate.car_steeringAngle;
+				update_player_steering_input(0);
+				assert(state.playerstate.car_steeringAngle == before - sign * base * TEST_RATE * 2);
+				while (state.playerstate.car_steeringAngle != 0) {
+					update_player_steering_input(0);
+					assert(state.playerstate.car_steeringAngle * sign >= 0);
+				}
+				state.playerstate.car_steeringAngle = sign * TEST_LOCK;
+				legacy_s16 predicted =
+					player_steering_next_angle(&state.playerstate, sign < 0 ? 1 : 2, TEST_RATE);
+				assert(state.playerstate.car_steeringAngle == sign * TEST_LOCK);
+				update_player_steering_input(sign < 0 ? 1 : 2);
+				assert(state.playerstate.car_steeringAngle == predicted);
+				legacy_s16 reversal = base * TEST_RATE * 4;
+				legacy_s16 cap = low_rate ? 160 : 80;
+				assert(predicted == sign * (TEST_LOCK - (reversal < cap ? reversal : cap)));
+			}
+		}
+	}
+	state.playerstate.car_actual_speed = 0;
+	state.playerstate.car_steeringAngle = TEST_LOCK;
+	update_player_steering_input(0);
+	assert(state.playerstate.car_steeringAngle == TEST_LOCK);
+	car_steering_rate[PLAYER_CAR_INDEX] = CAR_STEERING_RATE_DEFAULT;
+}
+
 int main(void)
 {
 	test_route_point_boundaries();
@@ -195,5 +262,6 @@ int main(void)
 	assert(route_hash == 0xdc6e8189UL);
 	assert(steering_hash == 0xc84980fdUL);
 #endif
+	test_custom_steering_rate();
 	return 0;
 }
