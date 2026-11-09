@@ -128,7 +128,7 @@ DUCT_UPPER_LIP = ((36, 138), (39, 133), (46, 129), (58, 126), (84, 125), (98, 12
 DUCT_LOWER_LIP = ((34, 146), (44, 150), (62, 150), (83, 146), (97, 137))
 DUCT_INNER_LIP = ((41, 145), (52, 148), (72, 146), (87, 142), (96, 136))
 DUCT_RIBS = (((50, 133), (51, 140)), ((59, 131), (60, 139)),
-             ((68, 130), (69, 135)))
+             ((68, 130), (69.6, 138)), ((80, 129), (81, 135)))
 DUCT_RIB_SHADE = 30
 # The front face follows both outlet lips and meets the same corner anchors
 # as the metal side plates. Its depth extends into the well, not the road.

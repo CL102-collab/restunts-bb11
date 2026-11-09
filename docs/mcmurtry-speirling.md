@@ -321,7 +321,7 @@ beveled edges, with a slight inward curve beside the recessed central steering
 column. The upper carbon fascia and its air outlets sit flush with the raised
 side panels, forming a continuous surround ahead of the steering-column well.
 Each panel joins the outer corner of its rounded air scoop, which has a deep
-curved mouth and lower lip. The mostly open throat contains sparse, subdued
+curved mouth and lower lip. The mostly open throat contains four subdued
 internal ribs.
 The left panel carries a red circular control, then a screw, a black
 potentiometer and two lower screws. The right panel uses the same vertical
@@ -515,15 +515,15 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
 | Extracted STDA + STDB | 146,714 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 50,304 bytes | 66,176 bytes |
+| Prepared STDA + STDB in the arena | 50,528 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **54,096 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **54,320 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
 99×38 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
 the common preallocated window table. MCMU therefore uses about 1% less
-extracted resource memory and 33% less resident dashboard arena memory.
+extracted resource memory and 32% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The retained exterior contact sheet renders the classic encoded showroom and

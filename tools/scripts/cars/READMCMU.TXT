@@ -164,7 +164,7 @@ faces, beveled edges and a slight inward curve beside the recessed central
 steering column. The upper carbon fascia and its air outlets sit flush with
 the raised side panels, forming a continuous surround ahead of the
 steering-column well. Each panel joins the outer corner of its rounded air scoop.
-The scoop has a deep curved mouth and lower lip, with sparse, subdued ribs
+The scoop has a deep curved mouth and lower lip, with four subdued ribs
 inside its mostly open throat.
 The left panel carries a red circular control, a screw, a black potentiometer
 and two lower screws; the right uses the same vertical sequence with a red
@@ -196,8 +196,8 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
 Extracted A+B: 146,714 vs 148,036 bytes.
-Prepared A+B: 50,304 vs 66,176 bytes.
-With scratch: 54,096 vs 80,304 bytes.
+Prepared A+B: 50,528 vs 66,176 bytes.
+With scratch: 54,320 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.
