@@ -304,53 +304,33 @@
     ],
     "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
   },
-  "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. A broad bowed dark-carbon roof header and rounded windscreen corners follow the supplied canopy photographs. One pair of pillars sits at the far screen edges around a wide forward windscreen; the high-FOV reference's side windows are omitted as requested. A native opaque roof strip and expanded dast/dasm masks preserve live scenery through the windscreen above the curved cowl and turquoise exterior fender crowns. Grouped horizontal carbon samples keep the native prepared dashboard within the existing DIA3 memory budget. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
+  "dashboard_note": "Original indexed artwork following the supplied left.png, middle.png and right.png cockpit views. Upright side control panels have smooth dark-grey metal faces, beveled edges and a slight inward curve beside the recessed central steering column. Each side has one rounded air scoop with a deep curved mouth and lower lip, and a mostly open throat with sparse subdued internal ribs. The left panel has a red circular control, a screw, a black potentiometer and two lower screws; the right substitutes a red release handle for the circular control. A centered white digital speedometer sits between a live white vertical RPM bar on the left and a matching battery bar fixed at 90% on the right. The wheel has separate textured side grips with no upper or lower connecting rim, and a gently arched upper bezel with ten unlit LEDs. McMurtry branding sits above five matching unlabelled fluted knobs; record-holder text and adjacent inscriptions are omitted. The display, grips, controls and deterministic material texture turn together. Optional spdc centers the visible speed digits; imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap. The optional revb descriptor fills the RPM bar from the bottom; original Stunts ignores these descriptors, keeps the display upright and draws a thin vertical white RPM indicator. A native steering dot shows the angle between wheel poses. The shallow dark-carbon roof edge is centered and symmetric, with no side pillars obstructing the forward view. Native roof and dast/dasm artwork preserve live scenery above the curved cowl and solid turquoise exterior fender crowns; wheel-top openings are not visible from the cockpit. Palette-reduced material shading and carbon weave retain the native DIA3 dashboard memory limits without redistributing photograph pixels.",
   "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
   "dashboard_reference_images": [
     {
-      "url": "https://www.topgear.com/car-reviews/speirling/first-drive",
-      "view": "September 2024 first-hand prototype review and photo gallery; single seat, single gear, fan and motor-power controls."
+      "file": "middle.png",
+      "view": "Primary driving-view reference, corrected to a centered symmetric projection: shallow bowed roof edge without side pillars, solid visible fender crowns, dark carbon fascia and open steering wheel. The white speedometer is centered between the left RPM bar and the right battery bar, fixed at 90% in the game."
     },
     {
-      "url": "https://www.topgear.com/sites/default/files/2024/09/DSC00094_3.jpg",
-      "view": "Prototype cockpit: central rectangular LCD wheel, five rotary knobs, textured hand grips, bare carbon tub and red release handle."
+      "file": "left.png",
+      "view": "Left cockpit and open grip detail, white vertical RPM bar, McMurtry branding above five fluted rotary controls. Record-holder and adjacent inscriptions are omitted."
+    },
+    {
+      "file": "right.png",
+      "view": "Right cockpit and open grip detail, white vertical battery bar and curved fender crown. The wheel-top opening is hidden from the driver's viewpoint."
+    },
+    {
+      "url": "https://www.topgear.com/car-reviews/speirling/first-drive",
+      "view": "September 2024 first-hand prototype review; single seat, single gear, fan and motor-power controls."
     },
     {
       "url": "https://www.topgear.com/sites/default/files/2024/09/DSC00356_3.jpg",
-      "view": "Detached prototype wheel close-up: eleven shift-lamp lenses, McMurtry/record-holder branding, TC/FAN/PWR/EPAS controls and textured grips."
-    },
-    {
-      "file": "1-1000005914.jpg",
-      "view": "User photograph: prototype carbon cockpit, curved upper trim, release handle, seams and fasteners."
-    },
-    {
-      "file": "2-1000005913.jpg",
-      "view": "User photograph: prototype LCD and five fluted rotary knobs; user requests all five match the unlabelled second knob."
-    },
-    {
-      "file": "3-1000005912.jpg",
-      "view": "Earlier user photograph: continuous shaped steering-wheel rim, padded carbon sills and front-fender crowns with upper openings."
-    },
-    {
-      "file": "6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg",
-      "view": "Dashboard layout reference: slim fascia, dark carbon cockpit, empty upright display mount and two dark passenger-side ducts. The user replaces the photo's tan suede with light-grey carbon whose weave runs opposite the rest of the dashboard; exterior fenders retain the requested turquoise finish and the central clock is omitted."
-    },
-    {
-      "file": "5-Speirling-Interior-3083165339.webp",
-      "view": "Canopy shape reference: broad bowed roof header and rounded windscreen corners. The high-FOV photograph's side windows are omitted as requested; one pair of pillars stays at the far screen edges around a wide forward windscreen. The surround uses the requested dark carbon, matching the dashboard; photograph pixels are not redistributed."
-    },
-    {
-      "file": "mcmurtry-speirling.7-614860014.jpg",
-      "view": "Open-canopy reference for the curved carbon roof ring, windscreen pillars and side-window surrounds."
-    },
-    {
-      "file": "OIP-943499069.jpg",
-      "view": "Open-canopy reference for the roof ring, dark side structure and glazing seals."
+      "view": "Supplementary detached wheel detail for unlit shift-lamp lenses and textured rotary controls. Lettering follows the user's requested omissions."
     }
   ],
   "dashboard_decompressed_bytes": {
     "A": {
-      "MCMU": 141515,
+      "MCMU": 141058,
       "DIA3": 146014
     },
     "B": {
@@ -359,13 +339,13 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "MCMU": 59472,
+    "MCMU": 46112,
     "DIA3": 66176
   },
   "dashboard_ram_bytes": {
     "MCMU": {
-      "extracted_resources_bytes": 143523,
-      "prepared_resources_bytes": 59472,
+      "extracted_resources_bytes": 143066,
+      "prepared_resources_bytes": 46112,
       "scratch_bitmap_bytes": 3792,
       "scratch_dimensions": [
         [
@@ -373,7 +353,7 @@
           38
         ]
       ],
-      "resident_arena_bytes": 63264
+      "resident_arena_bytes": 49904
     },
     "DIA3": {
       "extracted_resources_bytes": 148036,
@@ -700,19 +680,19 @@
   "files": {
     "CARMCMU.RES": {
       "bytes": 1012,
-      "sha256": "889603c55f5aeb717028b90155b8b873b2650d05b613eee747c679b09b03e7ac"
+      "sha256": "e14060a6b6a7c3a3a162eb347bf18e1763d6d8649606ffdb4a2d4b1c5738339a"
     },
     "STMCMU.3SH": {
       "bytes": 19801,
       "sha256": "e94316f1303ff78727e908b9fcf79c8ba63a08aaa2924c3378bc02b53d7b15b5"
     },
     "STDAMCMU.VSH": {
-      "bytes": 141515,
-      "sha256": "738a63854db3b4f2932b3451af0630834df590aa735b5e4c64348d46b973a501"
+      "bytes": 141058,
+      "sha256": "c614a02c45e3fc8d6e80dc23c08aef055f3a984c5fceedea2a6d282ab60f35f7"
     },
     "STDBMCMU.VSH": {
       "bytes": 2008,
-      "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
+      "sha256": "756564ce59b5a7914a08c1f107c04dd29cfd91d850b59a3cce069ab2b1ee8a56"
     },
     "STMCMU.H3D": {
       "bytes": 978800,

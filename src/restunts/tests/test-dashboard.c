@@ -17,7 +17,21 @@ static legacy_u32 trace;
 enum DASHBOARD_TEST_CONSTANTS {
 	TEST_TRANSFORM_LEFT_SHAPE = 40,
 	TEST_TRANSFORM_RIGHT_SHAPE = 41,
-	TEST_SHAPE_COUNT = 42,
+	TEST_RPM_BAR_SHAPE = 42,
+	TEST_SPEED_CENTER_SHAPE = 43,
+	TEST_SHAPE_COUNT = 44,
+	TEST_SPEED_CENTER_X = 6,
+	TEST_SPEED_TOP = 4,
+	TEST_SPEED_DIGIT_WIDTH = 2,
+	TEST_SPEED_DIGIT_HEIGHT = 3,
+	TEST_SPEED_DIGIT_SPACING = 3,
+	TEST_SPEED_INDEX_SHIFT = 8,
+	TEST_RPM_BAR_X = 1,
+	TEST_RPM_BAR_Y = 1,
+	TEST_RPM_BAR_WIDTH = 2,
+	TEST_RPM_BAR_HEIGHT = 8,
+	TEST_RPM_BAR_POINT_COUNT = 5,
+	TEST_RPM_INDEX_STEP = 128,
 	TEST_PANEL_WIDTH = 12,
 	TEST_GEARBOX_SIZE = 20,
 	TEST_PANEL_HEIGHT = 10,
@@ -42,6 +56,8 @@ static legacy_s32 capture_pixels;
 static legacy_u8 pixel_buffers[4][320 * 200];
 static legacy_s32 optional_shapes;
 static legacy_u16 optional_instrument_transforms;
+static legacy_u16 optional_rpm_bar;
+static legacy_u16 optional_speed_center;
 static legacy_s32 capture_live_pixels;
 static legacy_u32 transformed_panel_count;
 static legacy_u32 wheel_draw_count;
@@ -335,6 +351,21 @@ void preRender_line(legacy_u16 x, legacy_u16 y, legacy_u16 x2, legacy_u16 y2, le
 	record(y2);
 	record(color);
 }
+void sprite_fill_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+							  legacy_s16 color)
+{
+	assert(capture_live_pixels != 0);
+	struct SPRITE *target = &drawing_context[0];
+	legacy_u8 *pixels = pixels_for_shape(target->sprite_bitmapptr);
+	for (legacy_s16 row = y; row < y + height; row++) {
+		for (legacy_s16 column = x; column < x + width; column++) {
+			if (column >= target->sprite_left && column < target->sprite_right &&
+				row >= target->sprite_top && row < target->sprite_bottom) {
+				pixels[row * target->sprite_pitch + column] = (legacy_u8)color;
+			}
+		}
+	}
+}
 void shape2d_rle_or_far_pointer(legacy_u16 offset, legacy_u16 segment)
 {
 	record(32);
@@ -440,6 +471,12 @@ legacy_s8 *locate_shape_nofatal(legacy_s8 *data, const legacy_s8 *name)
 				   ? (legacy_s8 *)&shapes[TEST_TRANSFORM_RIGHT_SHAPE]
 				   : 0;
 	}
+	if (memcmp(name, "revb", 4) == 0) {
+		return optional_rpm_bar != 0 ? (legacy_s8 *)&shapes[TEST_RPM_BAR_SHAPE] : 0;
+	}
+	if (memcmp(name, "spdc", 4) == 0) {
+		return optional_speed_center != 0 ? (legacy_s8 *)&shapes[TEST_SPEED_CENTER_SHAPE] : 0;
+	}
 	legacy_u32 index = name == dashboard_roof_shape_id ? 31 : 32;
 	record(39);
 	record(index);
@@ -475,6 +512,8 @@ static void initialize_scenario(legacy_u32 scenario)
 	memset(sprites, 0, sizeof(sprites));
 	memset(drawing_context, 0, sizeof(drawing_context));
 	optional_instrument_transforms = 0;
+	optional_rpm_bar = 0;
+	optional_speed_center = 0;
 	for (legacy_u32 i = 0; i < TEST_SHAPE_COUNT; i++) {
 		shapes[i].width = i + 1;
 		shapes[i].height = i + 2;
@@ -724,7 +763,8 @@ static void initialize_transform_fixture(legacy_u32 mode, legacy_u16 descriptors
 		shapes[index].width = 2;
 		shapes[index].height = 3;
 	}
-	for (legacy_u16 index = TEST_TRANSFORM_LEFT_SHAPE; index < TEST_SHAPE_COUNT; index++) {
+	for (legacy_u16 index = TEST_TRANSFORM_LEFT_SHAPE; index <= TEST_TRANSFORM_RIGHT_SHAPE;
+		 index++) {
 		shapes[index].width = shapes[index].height = 1;
 		shapes[index].centre_x = 0;
 		shapes[index].centre_y = index == TEST_TRANSFORM_LEFT_SHAPE
@@ -860,6 +900,208 @@ static void test_rotating_instrument_panel(void)
 		capture_pixels = 0;
 	}
 }
+static void initialize_rpm_bar_fixture(legacy_u32 mode, legacy_u16 transforms)
+{
+	initialize_transform_fixture(mode, transforms);
+	optional_rpm_bar = 1;
+	simd_player.spdcenter.py = -1;
+	simd_player.revnumpoints = TEST_RPM_BAR_POINT_COUNT;
+	shapes[TEST_RPM_BAR_SHAPE].position_x = TEST_RPM_BAR_X;
+	shapes[TEST_RPM_BAR_SHAPE].position_y = TEST_RPM_BAR_Y;
+	shapes[TEST_RPM_BAR_SHAPE].width = TEST_RPM_BAR_WIDTH;
+	shapes[TEST_RPM_BAR_SHAPE].height = TEST_RPM_BAR_HEIGHT;
+}
+/* A falling reading must restore the unfilled background. Exercise both page
+ * paths, every steering pose, fixed panels, zero, full scale and clamped RPM. */
+static void test_rpm_bar_pixels(void)
+{
+	static const struct {
+		legacy_u16 rpm_index, filled;
+	} readings[] = {{0, 0}, {4, 8}, {2, 4}, {1, 2}, {0, 0}, {6, 8}};
+	static const legacy_s16 steering[] = {-TEST_FULL_STEERING, 0, TEST_FULL_STEERING};
+	for (legacy_u32 mode = 0; mode < 2; mode++) {
+		for (legacy_u16 transforms = 0; transforms <= 3; transforms += 3) {
+			initialize_rpm_bar_fixture(mode, transforms);
+			setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+			for (legacy_u16 pose = 0; pose < sizeof(steering) / sizeof(steering[0]); pose++) {
+				setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+				state.playerstate.car_steeringAngle = steering[pose];
+				for (legacy_u16 reading = 0; reading < sizeof(readings) / sizeof(readings[0]);
+					 reading++) {
+					state.playerstate.car_currpm =
+						readings[reading].rpm_index * TEST_RPM_INDEX_STEP;
+					needle_line_count = 0;
+					capture_needle_lines = 1;
+					setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+					capture_needle_lines = 0;
+					assert(needle_line_count == 0);
+					legacy_u8 *pixels = pixel_buffers[2 + mode];
+					for (legacy_s16 y = 0; y < TEST_PANEL_HEIGHT; y++) {
+						for (legacy_s16 x = 0; x < TEST_PANEL_WIDTH; x++) {
+							if (x == 0 && y == 0) {
+								continue;
+							}
+							legacy_u8 expected = instrument_pixel(x, y);
+							if (x >= TEST_RPM_BAR_X && x < TEST_RPM_BAR_X + TEST_RPM_BAR_WIDTH &&
+								y >= TEST_RPM_BAR_Y + TEST_RPM_BAR_HEIGHT -
+										 readings[reading].filled &&
+								y < TEST_RPM_BAR_Y + TEST_RPM_BAR_HEIGHT) {
+								expected = TEST_RPM_COLOR;
+							}
+							legacy_s16 tx = TEST_PANEL_X + x;
+							legacy_s16 ty = TEST_PANEL_Y + y;
+							if (transforms != 0 && pose != 1) {
+								legacy_s16 direction = pose == 0 ? -1 : 1;
+								tx = TEST_PANEL_X + TEST_PANEL_PIVOT_X -
+									 direction * (y - TEST_PANEL_PIVOT_Y);
+								ty = TEST_PANEL_Y + TEST_PANEL_PIVOT_Y +
+									 direction * (x - TEST_PANEL_PIVOT_X);
+							}
+							assert(pixels[ty * 320 + tx] == expected);
+						}
+					}
+				}
+			}
+			setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+			capture_live_pixels = 0;
+			capture_pixels = 0;
+		}
+	}
+}
+static void test_rpm_bar_fallback(void)
+{
+	static const struct {
+		legacy_u16 present, x, y, width, height, point_count;
+	} cases[] = {
+		{0, 1, 1, 2, 8, 2},
+		{1, 1, 1, 0, 8, 2},
+		{1, 1, 1, 2, 0, 2},
+		{1, TEST_PANEL_WIDTH, 1, 2, 8, 2},
+		{1, 1, TEST_PANEL_HEIGHT, 2, 8, 2},
+		{1, LEGACY_U16_MAX, 1, 2, 8, 2},
+		{1, 1, LEGACY_U16_MAX, 2, 8, 2},
+		{1, 1, 1, 2, 8, 1},
+	};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		initialize_rpm_bar_fixture(0, 0);
+		optional_rpm_bar = cases[index].present;
+		shapes[TEST_RPM_BAR_SHAPE].position_x = cases[index].x;
+		shapes[TEST_RPM_BAR_SHAPE].position_y = cases[index].y;
+		shapes[TEST_RPM_BAR_SHAPE].width = cases[index].width;
+		shapes[TEST_RPM_BAR_SHAPE].height = cases[index].height;
+		simd_player.revnumpoints = cases[index].point_count;
+		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+		setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+		needle_line_count = 0;
+		capture_needle_lines = 1;
+		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+		capture_needle_lines = 0;
+		assert(needle_line_count == 1);
+		assert(needle_lines[0].x == simd_player.revcenter.px);
+		assert(needle_lines[0].y == simd_player.revcenter.py);
+		assert(needle_lines[0].color == TEST_RPM_COLOR);
+		setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+		capture_live_pixels = 0;
+		capture_pixels = 0;
+	}
+}
+static void initialize_speed_center_fixture(legacy_u32 mode, legacy_u16 transforms)
+{
+	initialize_transform_fixture(mode, transforms);
+	optional_speed_center = 1;
+	shapes[TEST_SPEED_CENTER_SHAPE].width = shapes[TEST_SPEED_CENTER_SHAPE].height = 1;
+	shapes[TEST_SPEED_CENTER_SHAPE].position_x = TEST_SPEED_CENTER_X;
+	shapes[TEST_SPEED_CENTER_SHAPE].position_y = TEST_SPEED_TOP;
+}
+/* All significant digits stay centred together, including the single zero at
+ * rest. Crossing digit-count boundaries must erase the old, wider reading. */
+static void test_centered_speed_pixels(void)
+{
+	static const struct {
+		legacy_u16 speed, count, first_x;
+		legacy_u16 digits[3];
+	} readings[] = {
+		{0, 1, 5, {0}},			{9, 1, 5, {9}},			{10, 2, 4, {1, 0}},
+		{99, 2, 4, {9, 9}},		{100, 3, 2, {1, 0, 0}}, {150, 3, 2, {1, 5, 0}},
+		{199, 3, 2, {1, 9, 9}}, {200, 3, 2, {2, 0, 0}}, {255, 3, 2, {2, 5, 5}},
+		{10, 2, 4, {1, 0}},		{0, 1, 5, {0}},
+	};
+	static const legacy_s16 steering[] = {-TEST_FULL_STEERING, 0, TEST_FULL_STEERING};
+	for (legacy_u32 mode = 0; mode < 2; mode++) {
+		for (legacy_u16 transforms = 0; transforms <= 3; transforms += 3) {
+			initialize_speed_center_fixture(mode, transforms);
+			setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+			for (legacy_u16 pose = 0; pose < sizeof(steering) / sizeof(steering[0]); pose++) {
+				setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+				state.playerstate.car_steeringAngle = steering[pose];
+				for (legacy_u16 reading = 0; reading < sizeof(readings) / sizeof(readings[0]);
+					 reading++) {
+					state.playerstate.car_rev_speed = readings[reading].speed
+													  << TEST_SPEED_INDEX_SHIFT;
+					setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+					legacy_u8 *pixels = pixel_buffers[2 + mode];
+					for (legacy_s16 y = TEST_SPEED_TOP;
+						 y < TEST_SPEED_TOP + TEST_SPEED_DIGIT_HEIGHT; y++) {
+						for (legacy_s16 x = 0; x < TEST_PANEL_WIDTH; x++) {
+							legacy_u8 expected = instrument_pixel(x, y);
+							for (legacy_u16 digit = 0; digit < readings[reading].count; digit++) {
+								legacy_u16 left =
+									readings[reading].first_x + digit * TEST_SPEED_DIGIT_SPACING;
+								if (x >= left && x < left + TEST_SPEED_DIGIT_WIDTH) {
+									expected = TEST_DIGIT_COLOR + readings[reading].digits[digit];
+								}
+							}
+							legacy_s16 tx = TEST_PANEL_X + x;
+							legacy_s16 ty = TEST_PANEL_Y + y;
+							if (transforms != 0 && pose != 1) {
+								legacy_s16 direction = pose == 0 ? -1 : 1;
+								tx = TEST_PANEL_X + TEST_PANEL_PIVOT_X -
+									 direction * (y - TEST_PANEL_PIVOT_Y);
+								ty = TEST_PANEL_Y + TEST_PANEL_PIVOT_Y +
+									 direction * (x - TEST_PANEL_PIVOT_X);
+							}
+							assert(pixels[ty * 320 + tx] == expected);
+						}
+					}
+				}
+			}
+			setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+			capture_live_pixels = 0;
+			capture_pixels = 0;
+		}
+	}
+}
+static void test_centered_speed_fallback(void)
+{
+	static const struct {
+		legacy_u16 present, width, height, x, y;
+	} cases[] = {
+		{0, 1, 1, TEST_SPEED_CENTER_X, TEST_SPEED_TOP},
+		{1, 2, 1, TEST_SPEED_CENTER_X, TEST_SPEED_TOP},
+		{1, 1, 2, TEST_SPEED_CENTER_X, TEST_SPEED_TOP},
+		{1, 1, 1, 0, TEST_SPEED_TOP},
+		{1, 1, 1, LEGACY_U16_MAX, TEST_SPEED_TOP},
+		{1, 1, 1, TEST_SPEED_CENTER_X, TEST_PANEL_HEIGHT},
+	};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		initialize_speed_center_fixture(0, 0);
+		optional_speed_center = cases[index].present;
+		shapes[TEST_SPEED_CENTER_SHAPE].width = cases[index].width;
+		shapes[TEST_SPEED_CENTER_SHAPE].height = cases[index].height;
+		shapes[TEST_SPEED_CENTER_SHAPE].position_x = cases[index].x;
+		shapes[TEST_SPEED_CENTER_SHAPE].position_y = cases[index].y;
+		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+		setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+		legacy_u8 *pixels = pixel_buffers[2];
+		legacy_s16 y = TEST_PANEL_Y + TEST_SPEED_TOP;
+		assert(pixels[y * 320 + TEST_PANEL_X + 8] == TEST_DIGIT_COLOR);
+		assert(pixels[y * 320 + TEST_PANEL_X + 5] == instrument_pixel(5, TEST_SPEED_TOP));
+		setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+		capture_live_pixels = 0;
+		capture_pixels = 0;
+	}
+}
 int main(void)
 {
 	trace = 2166136261UL;
@@ -870,6 +1112,11 @@ int main(void)
 	test_needle_colors();
 	test_dashboard_scratch_pixels();
 	test_rotating_instrument_panel();
-	puts("Dashboard snapshots, needle colors, scratch pixels, and rotating instruments passed.");
+	test_rpm_bar_pixels();
+	test_rpm_bar_fallback();
+	test_centered_speed_pixels();
+	test_centered_speed_fallback();
+	puts("Dashboard snapshots, needle colors, scratch pixels, rotating instruments, RPM bars and "
+		 "centred speed passed.");
 	return 0;
 }

@@ -34,7 +34,7 @@ light gray.
 
 [2026 specifications in the car menu](cars/mcmurtry-menu.png)
 
-![MCMU cockpit showing live speed](cars/mcmurtry-cockpit.png)
+![MCMU cockpit with a centered white speedometer and white RPM and battery bars](cars/mcmurtry-cockpit.png)
 
 [Left steering](cars/mcmurtry-cockpit-left.png) ·
 [Right steering](cars/mcmurtry-cockpit-right.png)
@@ -310,63 +310,57 @@ model's animated wheel controls.
 
 ## Cockpit
 
-The cockpit is original indexed-colour artwork. Its dashboard layout follows
-the supplied
-`6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg` studio photo:
-a slim fascia in a dark carbon surround, an empty upright display mount on
-the left and two small recessed dark ducts on the right. This replaces the
-earlier teal pods and four large silver vents. The requested material override
-replaces the photo's tan trim with light grey carbon. Its diagonal weave slopes
-in the opposite direction from the rest of the dashboard.
+The cockpit is original indexed-colour artwork based on the supplied
+`left.png`, `middle.png` and `right.png` driver views. The roof edge and forward
+view are centered and symmetric, correcting the off-center camera in
+`middle.png`. A shallow curved dark-carbon header runs across the top without
+side pillars obstructing the windscreen.
 
-The retained wheel follows the supplied `1000005914.jpg`, `1000005913.jpg`
-and `1000005912.jpg` photographs and the earlier
-[wheel reference](https://www.topgear.com/car-reviews/speirling/first-drive).
-An LCD and unlit lamp row sit within a continuous shaped rim:
-textured side grips join contrasting carbon top and bottom bridges. Every rim
-section rotates about the same hub in each steering view, together with the
-complete display panel, live digital speedometer and motor needle. The five fluted
-knobs match and have blank interiors. The record-holder inscription is removed,
-and the live instrument needle is red. Stitched padding, carbon trim, seams,
-fasteners and release hardware add restrained detail on both sides. Speed and
-motor instruments update live in all three steering positions.
+The upright side control panels have smooth dark-grey metal faces and
+beveled edges, with a slight inward curve beside the recessed central steering
+column. Each side has one rounded air scoop with a deep curved mouth and
+lower lip. The mostly open throat contains sparse, subdued internal ribs.
+The left panel carries a red circular control, then a screw, a black
+potentiometer and two lower screws. The right panel uses the same vertical
+sequence with a red release handle at the top.
 
-Material shading, irregular carbon weave, suede and grip grain give the
-cockpit the finish of a palette-reduced photograph. The grain is deterministic
-and stays attached to the wheel as it turns, together
-with the live LCD. Brighter wheel carbon and trim, grey grip-edge
-highlights and a darker column recess keep its outline distinct. A native
-steering dot slides along a horizontal strip above the shaped wheel, as on the
-Pontiac Firebird, showing the steering angle between wheel poses.
+The wheel has separate textured side grips and is open at the top and bottom.
+Its upper bezel and row of ten unlit LEDs follow a gentle arch.
+Its LCD shows a white digital speedometer in the middle, a live white vertical
+RPM bar on the left and a matching battery bar fixed at 90% on the right.
+McMurtry branding appears above five matching unlabelled fluted knobs. The
+record-holder inscription and adjacent text are omitted. The display, grips
+and controls rotate about the same hub in all three steering positions.
+
+Material shading, carbon weave and grip grain provide depth within the game
+palette. The deterministic texture stays attached to the wheel as it turns.
+Brighter wheel trim, grey grip-edge highlights and a darker column recess keep
+its outline distinct. A native steering dot slides along a horizontal strip
+above the wheel, showing the steering angle between wheel poses.
 
 Optional `imt1` and `imt3` bitmap headers provide inverse Q14 transforms for
 left and right steering. Their anchor X/Y and position X/Y fields hold the
 matrix coefficients in row order; the `ins2` anchor is the source-local wheel
-pivot. Restunts composes the full display, live speed digits and motor needle
-in its scratch bitmap, then samples that bitmap through the selected transform
-inside the wheel sprite's redraw rectangle. The wheel background is restored
-before gauge updates, clearing the previous tilted digits. Dashboards without
-these descriptors keep the existing instrument path. Original Stunts ignores
-the extra descriptors and keeps the McMurtry display upright.
+pivot. Restunts composes the display, live speed digits and RPM bar in its
+scratch bitmap, then samples it through the selected transform inside the
+wheel sprite's redraw rectangle. Restoring the wheel background before each
+gauge update clears the previous tilted instruments. The optional `revb`
+descriptor defines the vertical RPM bar, which fills upward from its base.
+An optional 1×1 `spdc` marker positions the center and top of the visible speed
+digits, keeping one-, two- and three-digit speeds centered without leading zeros.
+Dashboards without these descriptors retain their existing rendering path.
+Original Stunts ignores the descriptors, keeps the display upright and draws
+a thin vertical white RPM indicator.
 
-The upper carbon cowl follows a gentle curve around the wheel, with a shaded
-lip. Native `dast`/`dasm` artwork and masks draw this crown and raised front
-fenders with dark top openings. The road remains live around the silhouettes.
-These bitmap fenders retain their turquoise finish in every exterior paint
-scheme, as with fixed-colour bodywork in stock Stunts dashboards.
-
-The enclosed canopy follows the supplied driver's-eye
-`5-Speirling-Interior-3083165339.webp` photograph, with the open-canopy
-`mcmurtry-speirling.7-614860014.jpg` and `OIP-943499069.jpg` views supplying
-the curved roof ring and side structure. A broad bowed dark-carbon header
-and rounded corners frame one wide forward windscreen. One pair of pillars
-stays at the far screen edges; the high-FOV photograph's side windows are
-omitted as requested. The surround uses the dashboard's darker carbon in
-every paint scheme. A native opaque `roof` strip covers the first 24 rows;
-expanded `dast`/`dasm` masks preserve live scenery through the windscreen
-below it. Grouped horizontal texture samples retain the carbon weave while
-keeping native RLE memory below the existing DIA3 limit. The dashboard and
-live wheel instruments keep their existing positions.
+The upper carbon cowl curves around the wheel. Native `dast`/`dasm` artwork and
+masks draw its crown, the roof edge and the solid front-fender silhouettes
+while keeping the road live around them. The fender-top openings are hidden
+from this cockpit viewpoint. These bitmap fenders retain their turquoise
+finish in every exterior paint scheme, as with fixed-colour bodywork in stock
+Stunts dashboards. The opaque `roof` strip covers the top 10 rows; the masked
+lower edge curves down to row 21 at the center without adding sidebars. Carbon
+texture and native RLE compression keep the dashboard within the DIA3 memory
+budget. Reference photograph pixels are not redistributed.
 
 ## Classic exterior rendering
 
@@ -497,7 +491,7 @@ The arch minima apply to both wheels on each axle. Only triangles attached
 to the matching wheel count as upper cover, so a change that loses the
 required native drawing order also fails generation.
 It validates cockpit bitmaps, the opaque roof strip, aligned canopy masks
-and needle colour.
+and white instrument colours, including the RPM-bar and speed-centering descriptors.
 Generation requires strictly less dashboard memory than DIA3, both after
 extraction and after native preparation, including instrument/gearbox scratch.
 `--check` compares generated bytes with the package and optional installed
@@ -514,16 +508,16 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
-| Extracted STDA + STDB | 143,523 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 59,472 bytes | 66,176 bytes |
+| Extracted STDA + STDB | 143,066 bytes | 148,036 bytes |
+| Prepared STDA + STDB in the arena | 46,112 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **63,264 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **49,904 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
 99×38 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
 the common preallocated window table. MCMU therefore uses about 3% less
-extracted resource memory and 21% less resident dashboard arena memory.
+extracted resource memory and 38% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The retained exterior contact sheet renders the classic encoded showroom and

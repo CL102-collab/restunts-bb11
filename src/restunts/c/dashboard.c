@@ -58,6 +58,7 @@ enum DASHBOARD_GAUGE_MODE {
 #define DASHBOARD_POINT_Y_OFFSET 1U
 #define DASHBOARD_STEERING_MIRROR_SHIFT 1U
 
+#define DASHBOARD_DIGITAL_DIGIT_COUNT 3U
 #define DASHBOARD_DECIMAL_BASE 10U
 #define DASHBOARD_ONE_HUNDRED 100U
 #define DASHBOARD_TWO_HUNDRED 200U
@@ -76,9 +77,12 @@ enum DASHBOARD_SPEED_COORDINATE_INDEX {
 #define DASHBOARD_TRANSFORM_DESCRIPTOR_WIDTH 1U
 #define DASHBOARD_TRANSFORM_DESCRIPTOR_HEIGHT 1U
 #define DASHBOARD_WHEEL_STATE_COUNT 3U
+#define DASHBOARD_RPM_BAR_MIN_POINTS 2
 
 static struct SHAPE2D far *dashboard_instrument_transforms[DASHBOARD_WHEEL_STATE_COUNT];
 static legacy_u8 dashboard_instruments_follow_wheel;
+static struct SHAPE2D far *dashboard_rpm_bar;
+static struct SHAPE2D far *dashboard_speed_center;
 
 static void dashboard_load_instrument_transforms(void)
 {
@@ -159,6 +163,41 @@ static void dashboard_load_resources(void)
 static legacy_u16 dashboard_panel_width(struct SHAPE2D far *shape)
 {
 	return LEGACY_U16_WRAP_MUL(shape2d_get_width(shape), (legacy_u16)video_shape_width_scale);
+}
+
+/* Optional revb uses its header as an instrument-local fill rectangle. The
+ * bitmap pixels are unused; stock dashboards without it retain their needle. */
+static void dashboard_load_rpm_bar(void)
+{
+	dashboard_rpm_bar = 0;
+	struct SHAPE2D far *shape = (struct SHAPE2D far *)locate_shape_nofatal(stdaresptr, "revb");
+	if (shape == 0 || simd_player.revnumpoints < DASHBOARD_RPM_BAR_MIN_POINTS) {
+		return;
+	}
+	struct SHAPE2D far *panel = whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
+	legacy_u16 width = shape2d_get_width(shape);
+	legacy_u16 height = shape2d_get_height(shape);
+	if (width == 0 || height == 0 ||
+		(legacy_u32)shape2d_get_pos_x(shape) + width > dashboard_panel_width(panel) ||
+		(legacy_u32)shape2d_get_pos_y(shape) + height > shape2d_get_height(panel)) {
+		return;
+	}
+	dashboard_rpm_bar = shape;
+}
+
+/* Optional spdc is a 1x1 marker: X centres the visible speed digits and Y
+ * sets their top, in instrument-local pixels. SIMD supplies their spacing. */
+static void dashboard_load_speed_center(void)
+{
+	dashboard_speed_center = 0;
+	if (simd_player.spdcenter.py != DASHBOARD_GAUGE_DIGITAL_CENTER_Y) {
+		return;
+	}
+	struct SHAPE2D far *shape = (struct SHAPE2D far *)locate_shape_nofatal(stdaresptr, "spdc");
+	if (shape != 0 && shape2d_get_width(shape) == DASHBOARD_TRANSFORM_DESCRIPTOR_WIDTH &&
+		shape2d_get_height(shape) == DASHBOARD_TRANSFORM_DESCRIPTOR_HEIGHT) {
+		dashboard_speed_center = shape;
+	}
 }
 
 static void dashboard_create_sprites(void)
@@ -247,6 +286,8 @@ static void dashboard_load(void)
 {
 	dashboard_load_resources();
 	dashboard_load_instrument_transforms();
+	dashboard_load_rpm_bar();
+	dashboard_load_speed_center();
 	dashboard_create_sprites();
 	dashboard_load_optional_shapes();
 }
@@ -279,6 +320,8 @@ static void dashboard_redraw_static(void)
 static void dashboard_unload(void)
 {
 	dashboard_instruments_follow_wheel = 0;
+	dashboard_rpm_bar = 0;
+	dashboard_speed_center = 0;
 	for (legacy_u16 index = 0; index < DASHBOARD_WHEEL_STATE_COUNT; index++) {
 		dashboard_instrument_transforms[index] = 0;
 	}
@@ -403,8 +446,58 @@ static void dashboard_select_gauges(struct DASHBOARD_UPDATE *update)
 	}
 }
 
+static legacy_u8 dashboard_draw_centered_speed(legacy_u16 speed_index)
+{
+	if (dashboard_speed_center == 0) {
+		return 0;
+	}
+	legacy_u16 digits[DASHBOARD_DIGITAL_DIGIT_COUNT];
+	legacy_u16 remaining = speed_index;
+	for (legacy_u16 index = DASHBOARD_DIGITAL_DIGIT_COUNT; index != 0; index--) {
+		digits[index - 1] = remaining % DASHBOARD_DECIMAL_BASE;
+		remaining /= DASHBOARD_DECIMAL_BASE;
+	}
+	legacy_u16 first = 0;
+	while (first < DASHBOARD_DIGITAL_DIGIT_COUNT - 1 && digits[first] == 0) {
+		first++;
+	}
+	struct SHAPE2D far *panel = whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
+	legacy_u16 top = shape2d_get_pos_y(dashboard_speed_center);
+	legacy_u16 left = LEGACY_U16_MAX;
+	legacy_u32 right = 0;
+	for (legacy_u16 index = first; index < DASHBOARD_DIGITAL_DIGIT_COUNT; index++) {
+		struct SHAPE2D far *digit = digshapes[digits[index]];
+		legacy_u16 width = dashboard_panel_width(digit);
+		legacy_u16 height = shape2d_get_height(digit);
+		if (width == 0 || height == 0 || (legacy_u32)top + height > shape2d_get_height(panel)) {
+			return 0;
+		}
+		legacy_u16 x = (legacy_u8)simd_player.spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
+		if (x < left) {
+			left = x;
+		}
+		if ((legacy_u32)x + width > right) {
+			right = (legacy_u32)x + width;
+		}
+	}
+	legacy_u32 width = right - left;
+	legacy_s32 centered_left =
+		(legacy_s32)shape2d_get_pos_x(dashboard_speed_center) - (legacy_s32)(width / 2);
+	if (centered_left < 0 || centered_left + (legacy_s32)width > dashboard_panel_width(panel)) {
+		return 0;
+	}
+	for (legacy_u16 index = first; index < DASHBOARD_DIGITAL_DIGIT_COUNT; index++) {
+		legacy_u16 x = (legacy_u8)simd_player.spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
+		sprite_putimage_or(digshapes[digits[index]], (legacy_u16)(centered_left + x - left), top);
+	}
+	return 1;
+}
+
 static void dashboard_draw_digital_speed(legacy_u16 speed_index)
 {
+	if (dashboard_draw_centered_speed(speed_index) != 0) {
+		return;
+	}
 	legacy_u16 digit_group = 0;
 	if (speed_index >= DASHBOARD_TWO_HUNDRED) {
 		digit_group = DASHBOARD_TWO_HUNDRED_DIGIT;
@@ -492,6 +585,25 @@ static legacy_u8 dashboard_copy_transformed_instruments(legacy_u8 wheel_state)
 	return 1;
 }
 
+static void dashboard_draw_rpm(legacy_u16 rpm_index, legacy_u8 color)
+{
+	if (dashboard_rpm_bar != 0) {
+		legacy_u16 height = shape2d_get_height(dashboard_rpm_bar);
+		legacy_u16 filled = (legacy_u16)((legacy_u32)height * rpm_index /
+										 (legacy_u16)(simd_player.revnumpoints - 1));
+		if (filled != 0) {
+			sprite_fill_rect_clipped(shape2d_get_pos_x(dashboard_rpm_bar),
+									 shape2d_get_pos_y(dashboard_rpm_bar) + height - filled,
+									 shape2d_get_width(dashboard_rpm_bar), filled, color);
+		}
+		return;
+	}
+	legacy_u16 dot_index = rpm_index * DASHBOARD_POINT_COORDINATE_STRIDE;
+	preRender_line(simd_player.revcenter.px, simd_player.revcenter.py,
+				   (legacy_u8)simd_player.revpoints[dot_index],
+				   (legacy_u8)simd_player.revpoints[dot_index + DASHBOARD_POINT_Y_OFFSET], color);
+}
+
 static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 {
 	legacy_u16 dot_index;
@@ -535,11 +647,7 @@ static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 						   speed_color);
 		}
 
-		dot_index = update->rpm_index * DASHBOARD_POINT_COORDINATE_STRIDE;
-		preRender_line(simd_player.revcenter.px, simd_player.revcenter.py,
-					   (legacy_u8)simd_player.revpoints[dot_index],
-					   (legacy_u8)simd_player.revpoints[dot_index + DASHBOARD_POINT_Y_OFFSET],
-					   rpm_color);
+		dashboard_draw_rpm(update->rpm_index, rpm_color);
 		legacy_u8 transformed = dashboard_instruments_follow_wheel != 0 &&
 								(dashboard_instrument_transforms[update->wheel_state] != 0 ||
 								 update->wheel_state == DASHBOARD_WHEEL_STATE_CENTER);

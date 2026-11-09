@@ -501,8 +501,8 @@ def validate(outputs, repository):
         raise ValueError("Expected a 776-byte single-speed EV SIMD")
     if car.get("fand") != b"\x01" or car.get("adhs") != struct.pack("<BHHB", 1, 12, 8192, 15):
         raise ValueError("Expected enabled fan adhesion with explicit default settings")
-    if struct.unpack_from("<H", simd, 0xAE)[0] != dashboard.RED | (dashboard.RED << 8):
-        raise ValueError("Expected red dashboard instrument needles")
+    if struct.unpack_from("<H", simd, 0xAE)[0] != dashboard.WHITE | (dashboard.WHITE << 8):
+        raise ValueError("Expected white dashboard instruments")
     for key in ("gnam", "gsna", "edes"):
         if not car[key].endswith(b"\0"):
             raise ValueError(f"Unterminated car text: {key}")
@@ -516,7 +516,7 @@ def validate(outputs, repository):
         else:
             _, _, metadata[name] = decode_model(shape, name)
     budgets = {}
-    for part, required in (("A", set("dash roof dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3".split())),
+    for part, required in (("A", set("dash roof dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3 revb spdc".split())),
                            ("B", {"dot ", "dota", "dot1", "dot2", "gnob", "gnab"} |
                             {f"dig{i}" for i in range(10)})):
         payload = outputs[f"STD{part}MCMU.VSH"]
@@ -652,7 +652,7 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. A broad bowed dark-carbon roof header and rounded windscreen corners follow the supplied canopy photographs. One pair of pillars sits at the far screen edges around a wide forward windscreen; the high-FOV reference's side windows are omitted as requested. A native opaque roof strip and expanded dast/dasm masks preserve live scenery through the windscreen above the curved cowl and turquoise exterior fender crowns. Grouped horizontal carbon samples keep the native prepared dashboard within the existing DIA3 memory budget. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
+        "dashboard_note": "Original indexed artwork following the supplied left.png, middle.png and right.png cockpit views. Upright side control panels have smooth dark-grey metal faces, beveled edges and a slight inward curve beside the recessed central steering column. Each side has one rounded air scoop with a deep curved mouth and lower lip, and a mostly open throat with sparse subdued internal ribs. The left panel has a red circular control, a screw, a black potentiometer and two lower screws; the right substitutes a red release handle for the circular control. A centered white digital speedometer sits between a live white vertical RPM bar on the left and a matching battery bar fixed at 90% on the right. The wheel has separate textured side grips with no upper or lower connecting rim, and a gently arched upper bezel with ten unlit LEDs. McMurtry branding sits above five matching unlabelled fluted knobs; record-holder text and adjacent inscriptions are omitted. The display, grips, controls and deterministic material texture turn together. Optional spdc centers the visible speed digits; imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap. The optional revb descriptor fills the RPM bar from the bottom; original Stunts ignores these descriptors, keeps the display upright and draws a thin vertical white RPM indicator. A native steering dot shows the angle between wheel poses. The shallow dark-carbon roof edge is centered and symmetric, with no side pillars obstructing the forward view. Native roof and dast/dasm artwork preserve live scenery above the curved cowl and solid turquoise exterior fender crowns; wheel-top openings are not visible from the cockpit. Palette-reduced material shading and carbon weave retain the native DIA3 dashboard memory limits without redistributing photograph pixels.",
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -834,34 +834,33 @@ Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
 to the exact car0 payload checksum. Classic meshes retain their
 original byte limits, wheel controls and driving specifications.
-The dashboard layout follows the supplied studio interior photograph,
-6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
-fascia, dark carbon surround, empty upright display mount on the left
-and two small dark ducts on the right. It replaces the earlier teal pods and
-four large silver vents. The requested material override replaces the photo's
-tan trim with light grey carbon. Its diagonal weave slopes in the opposite
-direction from the rest of the dashboard. The earlier 1000005914/5913/5912.jpg
-photographs and rectangular LCD wheel reference supply the retained wheel.
-Its continuous shaped rim joins textured grips with contrasting carbon bridges;
-every section rotates about the same hub, together with the complete display,
-live digital speedometer and motor needle. Optional imt1/imt3 Q14 inverse
-transforms turn the composed instrument bitmap; the original game ignores
-these descriptors and keeps its display upright. Five matching blank fluted knobs,
-a red instrument needle, stitched carbon trim and release hardware remain.
-A native steering dot slides along the strip above the wheel, as on the
-Pontiac Firebird, showing the angle between wheel poses. Palette-reduced
-shading, carbon weave, suede and grip grain give the cockpit a photographic
-finish. Repeatable texture follows the wheel as it turns together with the
-live LCD. Brighter wheel carbon and trim, highlighted
-grip edges and a darker column recess keep the wheel distinct. Native
-roof artwork and dast/dasm masks show a broad bowed dark-carbon header
-and rounded windscreen corners, following 5-Speirling-Interior-3083165339.webp
-and the open-canopy photographs. One pillar pair stays at the far screen
-edges around a wide forward windscreen; the high-FOV reference's side windows
-are omitted as requested. The curved cowl and turquoise fender crowns frame
-live scenery. Grouped horizontal carbon samples retain the existing native
-dashboard memory limit. The earlier wheel reference:
-https://www.topgear.com/car-reviews/speirling/first-drive
+The cockpit artwork follows the supplied left.png, middle.png and right.png
+views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
+fender crowns frame the live road view; wheel-top openings are not visible
+from the cockpit. Upright side control panels have smooth dark-grey metal
+faces, beveled edges and a slight inward curve beside the recessed central
+steering column. Each side has one rounded air scoop with a deep curved mouth
+and lower lip. Its mostly open throat contains sparse, subdued internal ribs.
+The left panel carries a red circular control, a screw, a black potentiometer
+and two lower screws; the right uses the same vertical sequence with a red
+release handle at the top.
+The white digital speedometer sits in the middle of the wheel display,
+between a live white vertical RPM bar on the left and a matching battery bar
+fixed at 90% on the right. Separate textured side grips
+leave the wheel open at the top and bottom. Its upper bezel and ten unlit
+LEDs follow a gentle arch. McMurtry branding appears above five matching
+unlabelled fluted knobs. Record-holder text and the adjacent inscriptions
+are omitted.
+The display, grips and controls turn around the same hub. Optional spdc centers
+the visible speed digits; imt1/imt3
+Q14 inverse transforms rotate the composed instrument bitmap, and revb fills
+the RPM bar upward from its base. Original Stunts ignores these descriptors,
+keeps its display upright and shows RPM as a thin vertical white indicator.
+A native steering dot shows the angle between wheel poses. Palette-reduced
+shading and carbon weave follow the wheel as it turns. Native roof artwork
+and dast/dasm masks preserve live scenery around the roof edge, curved cowl
+and fender silhouettes. The original artwork stays within the native DIA3
+dashboard memory limits; reference photograph pixels are not redistributed.
 
 REBUILD
 python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
