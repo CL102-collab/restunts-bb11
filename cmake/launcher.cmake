@@ -112,7 +112,9 @@ function(restunts_add_desktop_launcher)
     endif()
     add_executable(restunts-launcher WIN32
         "${launcher_directory}/main.cpp" "${launcher_directory}/options.cpp"
-        "${launcher_directory}/game_data.cpp")
+        "${launcher_directory}/game_data.cpp" "${launcher_directory}/host_environment.cpp"
+        "${launcher_directory}/browser.cpp" "${launcher_directory}/browser_command.cpp"
+        "${launcher_directory}/editor_export.cpp")
     add_executable(genghost-gui WIN32
         "${genghost_gui_directory}/main.cpp" "${genghost_gui_directory}/options.cpp"
         "${genghost_gui_directory}/extended_options.cpp"
@@ -209,7 +211,7 @@ function(restunts_add_desktop_launcher)
             RENAME restunts.svg COMPONENT Runtime)
     endif()
     if(RESTUNTS_BUILD_TESTS)
-        foreach(check options game_data)
+        foreach(check options game_data host_environment browser_command editor_export)
             string(REPLACE "_" "-" test_suffix "${check}")
             add_executable(test-launcher-${test_suffix}
                 "${launcher_directory}/test_${check}.cpp" "${launcher_directory}/${check}.cpp")

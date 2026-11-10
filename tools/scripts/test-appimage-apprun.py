@@ -19,6 +19,12 @@ ELF_CLASS_64 = 2
 GUEST_PROBE_TIMEOUT_SECONDS = 30
 GUI_FAILURE_EXIT_CODE = 23
 APPRUN_PROBE_TIMEOUT_SECONDS = 10
+HOST_ENVIRONMENT_PREFIX = "RESTUNTS_APPIMAGE_HOST_"
+HOST_ENVIRONMENT_VARIABLES = (
+    "LD_LIBRARY_PATH", "PANGO_RC_FILE", "GDK_PIXBUF_MODULE_FILE", "FONTCONFIG_PATH",
+    "FONTCONFIG_FILE", "LIBTHAI_DICTDIR", "GIO_EXTRA_MODULES", "RESTUNTS_ALSA_CONFIG_DIR",
+    "ALSA_CONFIG_PATH", "PULSE_RUNTIME_PATH",
+)
 
 
 class AppRunTests(unittest.TestCase):
@@ -35,7 +41,7 @@ class AppRunTests(unittest.TestCase):
 import json, os, sys
 print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:],
                   "environment": {key: value for key, value in os.environ.items()
-                                  if key.startswith(("PULSE_", "ALSA_", "RESTUNTS_ALSA"))
+                                  if key.startswith(("PULSE_", "ALSA_", "RESTUNTS_ALSA", "RESTUNTS_APPIMAGE_HOST_"))
                                   or key in ("LD_LIBRARY_PATH", "XLOCALEDIR", "PANGO_RC_FILE",
                                              "GDK_PIXBUF_MODULE_FILE", "FONTCONFIG_PATH",
                                              "FONTCONFIG_FILE", "LIBTHAI_DICTDIR",
@@ -70,6 +76,42 @@ print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:]
         output = subprocess.check_output([str(self.appdir / "AppRun"), *arguments],
                                          env=environment, text=True)
         return json.loads(output)
+
+    def test_host_environment_snapshot_preserves_absent_empty_and_original_values(self):
+        # Flatpak/xdg-open must not inherit the old AppImage GTK/GLib libraries.
+        # Snapshot exactly what the caller provided, including explicit empties.
+        for mode in ("absent", "empty", "original"):
+            for arguments in ((), ("--genghost",), ("--help",)):
+                with self.subTest(mode=mode, arguments=arguments):
+                    for name in HOST_ENVIRONMENT_VARIABLES:
+                        self.environment.pop(name, None)
+                    if mode != "absent":
+                        for name in HOST_ENVIRONMENT_VARIABLES:
+                            self.environment[name] = ("" if mode == "empty" else
+                                "/caller árvíz & spaces/" + name + ":'quoted'\nsecond line")
+                    result = self.run_app(arguments)
+                    actual = result["environment"]
+                    self.assertEqual(actual[HOST_ENVIRONMENT_PREFIX + "ENVIRONMENT"], "1")
+                    for name in HOST_ENVIRONMENT_VARIABLES:
+                        expected = ("0" if mode == "absent" else
+                                    "1" + self.environment[name])
+                        self.assertEqual(actual[HOST_ENVIRONMENT_PREFIX + name], expected)
+                    expected_path = str(self.appdir / "usr/lib")
+                    if self.environment.get("LD_LIBRARY_PATH"):
+                        expected_path += os.pathsep + self.environment["LD_LIBRARY_PATH"]
+                    self.assertEqual(actual["LD_LIBRARY_PATH"], expected_path)
+                    if not arguments or arguments[0] == "--genghost":
+                        self.assertEqual(actual["FONTCONFIG_PATH"],
+                                         str(self.appdir / "usr/etc/fonts"))
+                        self.assertEqual(actual["GIO_EXTRA_MODULES"],
+                                         str(self.appdir / "usr/lib/gio/modules"))
+
+    def test_host_snapshot_is_taken_before_audio_socket_discovery(self):
+        self.environment.pop("PULSE_RUNTIME_PATH", None)
+        result = self.run_app(())
+        actual = result["environment"]
+        self.assertEqual(actual["PULSE_RUNTIME_PATH"], str(self.runtime / "pulse"))
+        self.assertEqual(actual[HOST_ENVIRONMENT_PREFIX + "PULSE_RUNTIME_PATH"], "0")
 
     def test_modern_session_socket_is_discovered_for_game(self):
         result = self.run_app(("--data-dir", "folder with spaces", "--audio:on"))

@@ -8,6 +8,9 @@
 #include <wx/utils.h>
 #include "options.h"
 #include "game_data.h"
+#include "host_environment.h"
+#include "browser.h"
+#include "editor_export.h"
 #ifdef __WXQT__
 #include <QtGui/QKeyEvent>
 #include <QtWidgets/QApplication>
@@ -309,17 +312,36 @@ class LauncherDialog : public wxDialog
 			return;
 		}
 		legacy_bool opened;
+		wxString browser_error;
 		{
 			wxLogNull quiet;
+#ifdef __linux__
+			wxFileName persistent;
+			const wxString export_error = launcher_export_editor(
+				editor, wxStandardPaths::Get().GetUserDir(wxStandardPaths::Dir_Downloads),
+				persistent);
+			if (!export_error.empty()) {
+				set_status(export_error);
+				return;
+			}
+			editor = persistent;
+			wxExecuteEnv browser_environment;
+			wxGetEnvMap(&browser_environment.env);
+			launcher_restore_host_environment(browser_environment.env);
+			opened = launcher_open_web_browser(editor, browser_environment, &browser_error);
+#else
 #ifdef __WXQT__
 			opened = wxLaunchDefaultApplication(editor.GetFullPath());
 #else
 			opened = wxLaunchDefaultBrowser(wxFileName::FileNameToURL(editor));
 #endif
+#endif
 		}
 		if (!opened) {
-			set_status("Cannot open the track editor in your default browser: " +
-					   editor.GetFullPath());
+			set_status(browser_error.empty()
+						   ? "Cannot open the track editor in your default browser: " +
+								 editor.GetFullPath()
+						   : browser_error);
 			return;
 		}
 		set_status("Track editor opened in your default browser. Choose your game folder there.");

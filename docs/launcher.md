@@ -20,6 +20,12 @@ separate application-menu entries on Linux and BSD and `Genghost.app` on macOS.
 `tracked.html` in your default browser. The startup window stays open. Select
 your game folder in the editor; you can open it before choosing a folder in
 the startup window.
+On Linux, this opens a persistent copy under your Downloads folder at
+`Chocolate Stunts/Track Editor/tracked.html`, with a home-folder fallback when
+Downloads is not configured. The launcher refreshes that copy from the package
+when it changes. It remains usable after the launcher exits or the AppImage is
+unmounted. Flatpak browser entries are granted explicit read access through the
+document portal.
 
 **New MIDI** starts enabled and **HyperVision** starts at **Auto**. **Fullscreen**
 controls the game's initial window state. Selections, including the game folder,

@@ -101,6 +101,23 @@ by default.
 pinned source. This option is incompatible with `RESTUNTS_SSE2=OFF`, because
 CMake cannot control the instruction set of a prebuilt SDL library.
 
+Linux launchers open **Track editor…** with the configured web browser,
+independently of the application associated with local HTML files. AppImages
+restore the caller's original library and desktop settings for browser launches. This keeps bundled GTK libraries
+out of external browsers, including browsers installed through Flatpak.
+The launcher keeps a persistent, self-contained editor at
+`Downloads/Chocolate Stunts/Track Editor/tracked.html`, using your configured
+Downloads folder (or the home-folder fallback). It refreshes the copy when the
+packaged editor changes, and the file remains available after the AppImage exits.
+For Flatpak browser entries, the launcher explicitly exports this file through
+the document portal and grants that browser read access. Modern
+desktops launch the browser's desktop entry through host GIO; older desktops
+use its `Exec` command without requiring newer system libraries.
+The real-button browser regression is
+`python3 tools/scripts/test-appimage-browser.py path/to/restunts.AppImage`.
+It uses Xvfb, XTest, a host C compiler, and GLib 2.32+ to check absent, empty,
+and custom library paths with an isolated desktop-opener fixture.
+
 The Linux AppImage SDKs bundle a PulseAudio client for desktop audio,
 including PipeWire's PulseAudio service, with ALSA as a fallback. AppImages find
 the per-user socket through `XDG_RUNTIME_DIR` while preserving explicit
