@@ -164,8 +164,11 @@ Debian 13 for RISC-V64. The shared `tools/scripts/test-appimage-arm.sh` driver
 checks AppImage extraction, ELF architecture/ABI, dependency resolution,
 information commands, menu startup, a replay frame checksum and non-silent
 ALSA output. It records logs and `result.json` compatibility evidence. These
-are userspace tests on the build host's kernel; target kernels, FUSE mounting
-and physical graphics/audio devices require separate testing.
+are userspace tests on the CI host's kernel; target kernels, FUSE mounting
+and physical graphics/audio devices require separate testing. RISC-V64 has a
+separate `Test linux-appimage-riscv64 on debian13` job that downloads and
+verifies the uploaded package before running these checks against a fresh
+pinned Debian 13 runtime sysroot. ARM checks run within their package jobs.
 
 PR and Release CI build all six AppImage variants. The three x86 variants test
 the exact uploaded archive bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest

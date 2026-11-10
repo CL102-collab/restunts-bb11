@@ -191,6 +191,7 @@ CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
 SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
+RUN_ATTEMPT_PATTERN = re.compile(r"[1-9][0-9]*")
 DOS_RUNTIME_NAME_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,8}(?:\.[A-Za-z0-9_-]{1,3})?")
 ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 FILE_MODE = 0o644
@@ -882,6 +883,7 @@ def archive_contents(archive):
 
 
 def verify_package(archive, target, commit, run_id=None, run_attempt=None):
+    """Allow earlier producer attempts only when their workflow run also matches."""
     expected_checksum = f"{sha256(archive.read_bytes())}  {archive.name}\n"
     actual_checksum = archive.with_name(archive.name + ".sha256").read_text(encoding="ascii")
     require(actual_checksum == expected_checksum, f"SHA256 mismatch or malformed checksum: {archive.name}")
@@ -892,9 +894,18 @@ def verify_package(archive, target, commit, run_id=None, run_attempt=None):
     require(manifest.get("target") == target, f"Wrong target in {archive.name}")
     require(manifest.get("source_commit") == commit, f"Wrong source commit in {archive.name}")
     if run_id is not None:
-        require(manifest.get("github_run_id") == run_id, f"Wrong workflow run in {archive.name}")
+        require(run_id and manifest.get("github_run_id") == run_id,
+                f"Wrong workflow run in {archive.name}")
     if run_attempt is not None:
-        require(manifest.get("github_run_attempt") == run_attempt, f"Wrong run attempt in {archive.name}")
+        require(isinstance(run_attempt, str) and RUN_ATTEMPT_PATTERN.fullmatch(run_attempt),
+                "Run attempt must be a positive decimal integer")
+        producer_attempt = manifest.get("github_run_attempt")
+        require(isinstance(producer_attempt, str) and RUN_ATTEMPT_PATTERN.fullmatch(producer_attempt),
+                f"Invalid producer run attempt in {archive.name}")
+        if run_id is not None:
+            require(int(producer_attempt) <= int(run_attempt), f"Wrong run attempt in {archive.name}")
+        else:
+            require(producer_attempt == run_attempt, f"Wrong run attempt in {archive.name}")
     inventory = manifest.get("files")
     require(isinstance(inventory, list), f"Missing file inventory in {archive.name}")
     names = []
@@ -949,8 +960,9 @@ def main():
     group.add_argument("--all", action="store_true")
     verify.add_argument("--directory", required=True, type=Path)
     verify.add_argument("--commit", required=True)
-    verify.add_argument("--run-id")
-    verify.add_argument("--run-attempt")
+    verify.add_argument("--run-id", help="Require this workflow run ID")
+    verify.add_argument("--run-attempt", help="Current positive workflow attempt; accept matching or "
+                        "earlier producer attempts with --run-id (exact match without --run-id)")
     args = parser.parse_args()
     try:
         if args.command == "create":

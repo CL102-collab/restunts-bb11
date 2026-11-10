@@ -14,6 +14,7 @@ import shutil
 import stat
 import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -269,7 +270,7 @@ class ReleasePackageTests(unittest.TestCase):
         elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
         return self.elf_data(elf_class, machine)
 
-    def create(self, target, asset_data=None):
+    def create(self, target, asset_data=None, run_attempt=RUN_ATTEMPT, run_id=RUN_ID):
         runtime = self.root / target
         for name in PACKAGES.required_files(target) - {PACKAGES.README}:
             path = runtime / name
@@ -286,7 +287,7 @@ class ReleasePackageTests(unittest.TestCase):
             path.write_bytes(content)
         arguments = argparse.Namespace(target=target, runtime=runtime,
                                        directory=self.output, commit=COMMIT)
-        environment = {"GITHUB_RUN_ID": RUN_ID, "GITHUB_RUN_ATTEMPT": RUN_ATTEMPT}
+        environment = {"GITHUB_RUN_ID": run_id, "GITHUB_RUN_ATTEMPT": run_attempt}
         with mock.patch.object(subprocess, "check_output", return_value=COMMIT + "\n"), \
                 mock.patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()):
             PACKAGES.create_package(arguments)
@@ -296,9 +297,9 @@ class ReleasePackageTests(unittest.TestCase):
         archive.with_name(archive.name + ".sha256").write_text(
             f"{PACKAGES.sha256(archive.read_bytes())}  {archive.name}\n", encoding="ascii")
 
-    def test_complete_matrix_and_executable_permissions_survive_archiving(self):
-        for target in PACKAGES.TARGETS:
-            self.create(target)
+    def test_complete_matrix_from_mixed_attempts_preserves_executable_permissions(self):
+        for index, target in enumerate(PACKAGES.TARGETS):
+            self.create(target, run_attempt="1" if index % 2 else RUN_ATTEMPT)
         arguments = argparse.Namespace(directory=self.output, commit=COMMIT, all=True,
                                        run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
         with contextlib.redirect_stdout(io.StringIO()):
@@ -1166,14 +1167,14 @@ class ReleasePackageTests(unittest.TestCase):
                 saved.rename(archive)
 
     def test_modified_archive_fails_checksum(self):
-        archive = self.create("dos16")
+        archive = self.create("dos16", run_attempt="1")
         with archive.open("ab") as output:
             output.write(b"modified after upload")
         with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
-            PACKAGES.verify_package(archive, "dos16", COMMIT)
+            PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, RUN_ATTEMPT)
 
     def test_repackaged_binary_fails_file_manifest_even_with_new_archive_checksum(self):
-        archive = self.create("linux-x64")
+        archive = self.create("linux-x64", run_attempt="1")
         files, modes = PACKAGES.archive_contents(archive)
         files["bin/restunts"] = b"substituted executable"
         with tarfile.open(archive, "w:gz") as output:
@@ -1184,7 +1185,7 @@ class ReleasePackageTests(unittest.TestCase):
                 output.addfile(info, io.BytesIO(data))
         self.checksum(archive)
         with self.assertRaisesRegex(ValueError, "File differs from manifest"):
-            PACKAGES.verify_package(archive, "linux-x64", COMMIT)
+            PACKAGES.verify_package(archive, "linux-x64", COMMIT, RUN_ID, RUN_ATTEMPT)
 
     def test_wrong_source_run_and_attempt_are_rejected(self):
         archive = self.create("dos16")
@@ -1194,6 +1195,80 @@ class ReleasePackageTests(unittest.TestCase):
             PACKAGES.verify_package(archive, "dos16", COMMIT, "unrelated-run", RUN_ATTEMPT)
         with self.assertRaisesRegex(ValueError, "Wrong run attempt"):
             PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, "1")
+
+    def test_earlier_attempt_still_requires_the_same_commit_and_workflow_run(self):
+        archive = self.create("dos16", run_attempt="1")
+        with self.assertRaisesRegex(ValueError, "Wrong source commit"):
+            PACKAGES.verify_package(archive, "dos16", OTHER_COMMIT, RUN_ID, RUN_ATTEMPT)
+        with self.assertRaisesRegex(ValueError, "Wrong workflow run"):
+            PACKAGES.verify_package(archive, "dos16", COMMIT, "unrelated-run", RUN_ATTEMPT)
+
+    def test_attempts_are_compared_numerically_and_producer_provenance_is_preserved(self):
+        archive = self.create("dos16", run_attempt="9")
+        PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, "10")
+        files, _ = PACKAGES.archive_contents(archive)
+        self.assertEqual(json.loads(files[PACKAGES.MANIFEST])["github_run_attempt"], "9")
+        with self.assertRaisesRegex(ValueError, "Wrong run attempt"):
+            PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, "8")
+
+    def test_attempt_without_workflow_run_requires_an_exact_match(self):
+        archive = self.create("dos16")
+        PACKAGES.verify_package(archive, "dos16", COMMIT, run_attempt=RUN_ATTEMPT)
+        with self.assertRaisesRegex(ValueError, "Wrong run attempt"):
+            PACKAGES.verify_package(archive, "dos16", COMMIT, run_attempt="3")
+
+    def test_empty_workflow_run_cannot_authorize_earlier_attempts(self):
+        archive = self.create("dos16", run_attempt="1", run_id="")
+        for run_id in ("", RUN_ID):
+            with self.subTest(run_id=run_id), \
+                    self.assertRaisesRegex(ValueError, "Wrong workflow run"):
+                PACKAGES.verify_package(archive, "dos16", COMMIT, run_id, RUN_ATTEMPT)
+
+    def test_missing_and_malformed_producer_attempts_are_rejected(self):
+        archive = self.create("dos16")
+        files, modes = PACKAGES.archive_contents(archive)
+        original = json.loads(files[PACKAGES.MANIFEST])
+        missing = object()
+        attempts = (missing, None, "", "0", "-1", "+1", "01", "1.0", "1e0", " 1", "1\n",
+                    "one", "\u0661", 1, 1.0, True, [], {})
+        for attempt in attempts:
+            manifest = original.copy()
+            if attempt is missing:
+                manifest.pop("github_run_attempt")
+            else:
+                manifest["github_run_attempt"] = attempt
+            files[PACKAGES.MANIFEST] = json.dumps(manifest).encode()
+            with zipfile.ZipFile(archive, "w") as output:
+                for name, content in files.items():
+                    entry = zipfile.ZipInfo(name, FIXTURE_ZIP_TIMESTAMP)
+                    entry.external_attr = (stat.S_IFREG | modes[name]) << 16
+                    output.writestr(entry, content)
+            self.checksum(archive)
+            with self.subTest(attempt=attempt), \
+                    self.assertRaisesRegex(ValueError, "Invalid producer run attempt"):
+                PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, RUN_ATTEMPT)
+
+    def test_malformed_current_attempts_are_rejected(self):
+        archive = self.create("dos16")
+        for attempt in ("", "0", "-1", "+2", "02", "2.0", "2e0", " 2", "2\n",
+                        "two", "\u0662", 2, 2.0, True, [], {}):
+            with self.subTest(attempt=attempt), \
+                    self.assertRaisesRegex(ValueError, "Run attempt must be a positive decimal integer"):
+                PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, attempt)
+
+    def test_verify_cli_accepts_mixed_attempts_and_rejects_future_attempts(self):
+        for target, producer in (("dos16", "1"), ("dos32", RUN_ATTEMPT)):
+            self.create(target, run_attempt=producer)
+            command = [sys.executable, str(SCRIPT), "verify", "--target", target,
+                       "--directory", str(self.output), "--commit", COMMIT,
+                       "--run-id", RUN_ID, "--run-attempt", RUN_ATTEMPT]
+            result = subprocess.run(command, capture_output=True, text=True)
+            with self.subTest(target=target, producer=producer):
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        command[-1] = "1"
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Wrong run attempt", result.stderr)
 
     def test_original_data_unknown_suffixes_and_other_extra_files_are_rejected(self):
         files = {name: self.runtime_data("dos32", name) for name in PACKAGES.required_files("dos32")}
