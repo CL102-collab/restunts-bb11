@@ -486,8 +486,8 @@ jobs:
   bsd:
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
-    # Foreign-architecture VMs use software CPU emulation on the x64 runner.
-    timeout-minutes: ${{ matrix.arch == 'x86_64' && 90 || 360 }}
+    # Compile on x64; foreign-architecture VMs only test the finished archives.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -505,54 +505,57 @@ jobs:
           - {target: netbsd-riscv64, arch: riscv64, release: '11.0'}
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
-      RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.arch == 'x86_64' && 1 || 4 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - name: Build the FreeBSD ${{ matrix.release }} ${{ matrix.arch }} package
+      - name: Build the FreeBSD ${{ matrix.release }} package on x64
         if: startsWith(matrix.target, 'freebsd-')
         uses: vmactions/freebsd-vm@a2f9a41fa97f6848b8c3b791087dfcdaa5b473ff # v1.5.8
         with:
           release: ${{ matrix.release }}
-          arch: ${{ matrix.arch }}
+          arch: x86_64
           sync: rsync
-          envs: PACKAGE_TARGET RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
-          prepare: |
-            if [ "$PACKAGE_TARGET" = freebsd-riscv64 ]; then
-              # The VM supplies a signed RISC-V repository; keep its trust anchor pinned.
-              repository_key_sha256=a9e2f84083b916f0f9f2bda18ebf9cc581cfb28aaadb6827836f1ddc672a3040
-              test "$(sha256 -q /usr/local/etc/pkg/keys/anyvm.pub)" = "$repository_key_sha256"
-            fi
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           run: |
             set -eu
             export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
-            sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+            if [ "$PACKAGE_TARGET" = freebsd-x64 ]; then
+              sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+            else
+              export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
+              sh tools/scripts/prepare-freebsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
+            fi
             bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
 
-      - name: Build the OpenBSD ${{ matrix.release }} ${{ matrix.arch }} package
+      - name: Build the OpenBSD ${{ matrix.release }} package on x64
         if: startsWith(matrix.target, 'openbsd-')
         uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
         with:
           release: ${{ matrix.release }}
-          arch: ${{ matrix.arch }}
+          arch: x86_64
           sync: rsync
-          envs: PACKAGE_TARGET RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           run: |
             set -eu
             export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
-            sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+            if [ "$PACKAGE_TARGET" = openbsd-x64 ]; then
+              sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+            else
+              export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
+              sh tools/scripts/prepare-openbsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
+            fi
             bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
 
-      - name: Build the NetBSD ${{ matrix.release }} ${{ matrix.arch }} package in its native userspace
+      - name: Build the NetBSD ${{ matrix.release }} package on x64
         if: startsWith(matrix.target, 'netbsd-')
         uses: vmactions/netbsd-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
         with:
           release: ${{ matrix.release }}
-          arch: ${{ matrix.arch }}
+          arch: x86_64
           sync: rsync
-          envs: PACKAGE_TARGET RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           prepare: |
             # Refresh older dependencies already installed in the VM image.
             /usr/sbin/pkg_add -u curl git-base mozilla-rootcerts-openssl
@@ -562,6 +565,10 @@ jobs:
             export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
             if [ "$PACKAGE_TARGET" = netbsd-x86 ] || [ "$PACKAGE_TARGET" = netbsd-x86-no-sse2 ]; then
               sh tools/scripts/build-netbsd-x86-package.sh "$PACKAGE_TARGET"
+            elif [ "$PACKAGE_TARGET" = netbsd-arm64 ] || [ "$PACKAGE_TARGET" = netbsd-riscv64 ]; then
+              export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
+              sh tools/scripts/prepare-netbsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
+              bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
             else
               sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
               bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
@@ -581,6 +588,70 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: dist/packages/*
+
+  bsd-cross-compatibility:
+    name: Test cross-compiled ${{ matrix.target }}
+    needs: bsd
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: freebsd-arm64, arch: aarch64, release: '14.4'}
+          - {target: freebsd-riscv64, arch: riscv64, release: '15.0'}
+          - {target: openbsd-arm64, arch: aarch64, release: '7.9'}
+          - {target: openbsd-riscv64, arch: riscv64, release: '7.9'}
+          - {target: netbsd-arm64, arch: aarch64, release: '10.2'}
+          - {target: netbsd-riscv64, arch: riscv64, release: '11.0'}
+    env:
+      PACKAGE_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: packages-${{ matrix.target }}
+          path: dist/packages
+
+      - name: Test the cross-compiled FreeBSD archive on ${{ matrix.arch }}
+        if: startsWith(matrix.target, 'freebsd-')
+        uses: vmactions/freebsd-vm@a2f9a41fa97f6848b8c3b791087dfcdaa5b473ff # v1.5.8
+        with:
+          release: ${{ matrix.release }}
+          arch: ${{ matrix.arch }}
+          sync: rsync
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
+          prepare: |
+            if [ "$PACKAGE_TARGET" = freebsd-riscv64 ]; then
+              repository_key_sha256=a9e2f84083b916f0f9f2bda18ebf9cc581cfb28aaadb6827836f1ddc672a3040
+              test "$(sha256 -q /usr/local/etc/pkg/keys/anyvm.pub)" = "$repository_key_sha256"
+            fi
+          run: sh tools/scripts/test-bsd-cross-package.sh "$PACKAGE_TARGET"
+
+      - name: Test the cross-compiled OpenBSD archive on ${{ matrix.arch }}
+        if: startsWith(matrix.target, 'openbsd-')
+        uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        with:
+          release: ${{ matrix.release }}
+          arch: ${{ matrix.arch }}
+          sync: rsync
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
+          run: sh tools/scripts/test-bsd-cross-package.sh "$PACKAGE_TARGET"
+
+      - name: Test the cross-compiled NetBSD archive on ${{ matrix.arch }}
+        if: startsWith(matrix.target, 'netbsd-')
+        uses: vmactions/netbsd-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
+        with:
+          release: ${{ matrix.release }}
+          arch: ${{ matrix.arch }}
+          sync: rsync
+          envs: PACKAGE_TARGET GITHUB_SHA GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
+          prepare: |
+            /usr/sbin/pkg_add -u curl git-base mozilla-rootcerts-openssl
+          run: sh tools/scripts/test-bsd-cross-package.sh "$PACKAGE_TARGET"
 
   haiku:
     name: Package ${{ matrix.target }}

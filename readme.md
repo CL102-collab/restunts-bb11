@@ -1175,7 +1175,7 @@ See the [Linux build instructions](docs/sdl3.md#linux) and
 
 The shared SDL3 backend has these native release targets:
 
-| Target | Build environment |
+| Target | Runtime baseline |
 | --- | --- |
 | `freebsd-x64` | FreeBSD 14.4, amd64 |
 | `freebsd-arm64` | FreeBSD 14.4, AArch64 |
@@ -1189,13 +1189,14 @@ The shared SDL3 backend has these native release targets:
 | `netbsd-x86` | NetBSD 10.2, i386 userspace; SSE2 enabled |
 | `netbsd-x86-no-sse2` | NetBSD 10.2, i386 userspace; SSE2 disabled |
 
-Each target produces a separate `.tar.gz` archive. Build on the matching BSD;
-Linux binaries and libraries cannot be used for these native targets. See the
-[BSD build instructions](docs/sdl3.md#bsd) for dependencies, local builds, and
-package creation. CI uses BSD virtual machines; the NetBSD x86 jobs build in
-an i386 userspace inside the amd64 VM. ARM64 and RISC-V64 jobs use matching
-emulated native userspaces. Build and relocated-startup checks do not establish
-graphics/audio support or game performance on every physical board.
+Each target produces a separate `.tar.gz` archive. CI compiles on x64 BSD
+virtual machines running the matching OS release. ARM64 and RISC-V64 builds
+use verified target SDKs and dependency packages; target architecture VMs then
+verify the exact archives and relocated startup. Native x64 jobs compile
+directly; NetBSD x86 uses an i386 userspace inside the amd64 VM.
+See the [BSD build instructions](docs/sdl3.md#bsd) for dependencies, native and
+cross builds, and package creation. Build and relocated-startup checks do not
+establish graphics/audio support or game performance on every physical board.
 
 #### Haiku hosts: x86-64 and x86
 

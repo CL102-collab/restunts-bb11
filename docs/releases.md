@@ -56,16 +56,18 @@ for setup, signing and device testing.
 These are build baselines, not a claim that CI exercises every OS version and
 CPU. The full golden replay suites run on native Linux SDL3 and/or 16-bit DOS,
 as selected by the `platforms` input. That selection never reduces the package
-matrix. BSD packages build in native virtual machines; the NetBSD x86 packages
-use an i386 userspace inside the amd64 VM. ARM64 and RISC-V64 BSD jobs use
-matching native userspaces under emulation. BSD jobs validate architecture and
-relocated startup without game data; they do not verify physical-board graphics
-or audio support. Haiku x64 and x86 build in Haiku R1/beta6 VMs
+matrix. BSD packages compile in x64 virtual machines running the matching
+OS release. ARM64 and RISC-V64 cross-compile against checksum-verified target
+SDKs and target dependency packages; target architecture VMs only verify the
+exact finished archives and relocated startup without game data. Native x64
+jobs compile directly; NetBSD x86 uses an i386 userspace inside the amd64 VM.
+BSD jobs validate architecture and startup; they do not verify
+physical-board graphics or audio support. Haiku x64 and x86 build in Haiku R1/beta6 VMs
 and run native regressions, including relocated-package and Nuked replacement tests. ARM32 targets ARMv7; it does not cover
 the original Pi 1 or Pi Zero. The no-SSE2 option controls the game, bundled SDL,
 and Nuked library; system libraries retain their own CPU requirements.
 
-The FreeBSD 15.0 RISC-V64 VM installs signed dependencies from the
+The FreeBSD 15.0 RISC-V64 SDK and startup VM use signed dependencies from the
 [anyvm-org package repository](https://github.com/anyvm-org/freebsd-pkg-repo).
 That target uses a GTK 2 launcher because the repository does not provide GTK 3;
 other ordinary Linux/BSD packages use GTK 3. AppImages bundle GTK 2.

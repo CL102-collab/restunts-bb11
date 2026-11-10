@@ -23,11 +23,11 @@ All platforms use the same revision; no separate SDL fork is required.
 | Linux ARM32 and ARM64 | Debian 12 cross-compilers; ARMv7 hard-float (Pi 2+) or AArch64. Debian/Raspbian 12+ baseline. |
 | Linux ARM AppImages | ARMv7: Raspbian Wheezy/glibc 2.13; ARM64: Debian Jessie/glibc 2.19. Historical userspace checks run under QEMU; see [release packages](releases.md). |
 | Linux RISC-V64 and AppImage | Debian 13 Trixie, glibc 2.41; `rv64gc`/`lp64d`, without required vector extensions. |
-| FreeBSD x64 and ARM64 | Native compiler, FreeBSD 14.4 amd64/AArch64 build baseline. |
-| FreeBSD RISC-V64 | Native compiler, FreeBSD 15.0 RISC-V64 build baseline; GTK 2 launcher. |
-| OpenBSD x64, ARM64 and RISC-V64 | Native Clang, OpenBSD 7.9 build baseline. |
-| NetBSD x64, x86 and ARM64 | Native GCC, NetBSD 10.2 build baseline; separate x86 SSE2 and no-SSE2 packages. |
-| NetBSD RISC-V64 | Native GCC, NetBSD 11.0 RISC-V64 build baseline. |
+| FreeBSD x64 and ARM64 | Clang on FreeBSD 14.4 x64; ARM64 cross-compiles against the AArch64 SDK. |
+| FreeBSD RISC-V64 | Clang on FreeBSD 15.0 x64 with the RISC-V64 SDK; GTK 2 launcher. |
+| OpenBSD x64, ARM64 and RISC-V64 | OpenBSD 7.9 x64; native Clang for x64, packaged LLVM for ARM64/RISC-V64 cross builds. |
+| NetBSD x64, x86 and ARM64 | NetBSD 10.2; native GCC for x64/x86, LLVM on x64 for ARM64 cross builds; separate x86 SSE2 variants. |
+| NetBSD RISC-V64 | LLVM on NetBSD 11.0 x64 with the RISC-V64 SDK and GCC runtime. |
 | Haiku x64 and x86 | Native modern GCC/G++, Haiku R1/beta6; x86 uses the hybrid system’s modern GCC ABI and SSE2. |
 | macOS arm64 and x86_64 | Apple Clang and macOS SDK; helper scripts target macOS 11.0+. Universal builds are available. |
 | Windows x86 | MinGW-w64 with MSVCRT; Windows XP SP2+ runtime, XP API target; separate SSE2 and no-SSE2 packages. |
@@ -132,12 +132,15 @@ FreeBSD, OpenBSD, and NetBSD use the same SDL3 backend as the other desktop
 builds. Each OS has x64, ARM64 and RISC-V64 targets with its own binary archive
 and system dependencies. FreeBSD x64/ARM64 use 14.4 and RISC-V64 uses 15.0;
 OpenBSD uses 7.9 for all three. NetBSD x64/x86/ARM64 use 10.2 and RISC-V64 uses
-11.0. ARM64 and RISC-V64 CI jobs build in matching emulated native userspaces.
-The FreeBSD RISC-V64 VM uses the signed
-[anyvm-org package repository](https://github.com/anyvm-org/freebsd-pkg-repo)
-and builds its launcher with GTK 2; its package repository does not provide GTK 3.
+11.0. ARM64 and RISC-V64 CI jobs cross-compile on matching-release x64 BSD
+VMs using checksum-verified target SDKs and target dependency packages. Target
+architecture VMs then verify the exact archives and startup after relocation.
+The FreeBSD RISC-V64 SDK and startup VM use the signed
+[anyvm-org package repository](https://github.com/anyvm-org/freebsd-pkg-repo).
+The target builds its launcher with GTK 2 because that repository does not
+provide GTK 3.
 
-Install the build dependencies on the matching BSD using
+For native builds, install dependencies on the matching BSD and CPU using
 `tools/scripts/install-bsd-package-dependencies.sh` as root, with the desired
 release target: `freebsd-{x64,arm64,riscv64}`, `openbsd-{x64,arm64,riscv64}`,
 `netbsd-{x64,arm64,riscv64}`, `netbsd-x86`, or `netbsd-x86-no-sse2`. Choose one
@@ -157,8 +160,8 @@ cmake --install out/sdl3-freebsd-x64 --prefix "$PWD/out/package-freebsd-x64" \
 out/package-freebsd-x64/bin/restunts --data-dir "$PWD/stunts"
 ```
 
-Use a corresponding output directory on OpenBSD. For ARM64 or RISC-V64, use
-the compiler and libraries of the matching native BSD userspace. For FreeBSD
+Use a corresponding output directory on OpenBSD. A native ARM64 or RISC-V64
+build uses the compiler and libraries of that BSD userspace. For FreeBSD
 RISC-V64, add `-DRESTUNTS_WX_TOOLKIT=gtk2` to the configure command; its package
 helper selects this automatically. On NetBSD, include the pkgsrc and X11
 prefixes and disable precompiled headers, which conflict with the native
@@ -196,12 +199,30 @@ export GITHUB_SHA="$(git rev-parse HEAD)"
 bash tools/scripts/build-package.sh freebsd-x64
 ```
 
+For an ARM64 or RISC-V64 cross build, run the SDK preparation helper as root
+on a native x64 host running the target's matching BSD release. Choose an empty
+SDK directory. For example, in a root shell on FreeBSD 14.4:
+
+```sh
+export RESTUNTS_BSD_SYSROOT=/tmp/restunts-freebsd-arm64
+sh tools/scripts/prepare-freebsd-cross.sh freebsd-arm64 "$RESTUNTS_BSD_SYSROOT"
+export GITHUB_SHA="$(git rev-parse HEAD)"
+bash tools/scripts/build-package.sh freebsd-arm64
+```
+
+On OpenBSD or NetBSD, use `prepare-openbsd-cross.sh` or
+`prepare-netbsd-cross.sh` from `tools/scripts/` with the corresponding target
+and OS release listed above. Each helper supports both `arm64` and `riscv64`,
+installs native build tools, and prepares target libraries without executing
+target programs. Unset `RESTUNTS_BSD_SYSROOT` before returning to native builds.
+
 Replace the target for the other BSD packages. Archives and checksums appear
 under `dist/packages/`. The release workflow also supplies build-run provenance
 and attestations. Keep `bin/`, `lib/`, and `share/` together when moving an
 extracted package. The executables find Nuked relative to their location;
 artwork discovery works without requiring NetBSD's optional `/proc` mount.
-BSD CI checks executable architecture, package contents and startup after
+BSD CI checks executable architecture and package contents. For cross builds,
+the target architecture VM verifies the exact archive and checks startup after
 relocation. Interactive graphics/audio and older hardware require native testing.
 
 ## Haiku
@@ -616,10 +637,12 @@ original music behavior.
 The shared **Build release packages** workflow builds all distribution targets for
 **PR validation** and **Release**, using Debian 12 for existing Linux targets
 and Debian 13 for RISC-V64. The matrix includes Linux ARMv7, ARM64, RISC-V64,
-both x86 SSE2 variants, Windows ARM64, and a Universal macOS 11+ package. Native
-BSD VM jobs add FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64, plus
-NetBSD x86 with and without SSE2. They check package contents, binary architecture,
-and relocated startup without game data. Haiku R1/beta6 VM jobs build
+both x86 SSE2 variants, Windows ARM64, and a Universal macOS 11+ package. BSD
+VM jobs add FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64, plus NetBSD
+x86 with and without SSE2. ARM64 and RISC-V64 compile on matching-release x64
+VMs with verified target SDKs; target architecture VMs only verify the finished
+archives and relocated startup without game data. Native x64 and NetBSD i386
+builds compile and check startup in their own userspaces. Haiku R1/beta6 VM jobs build
 and check the x64 and x86 packages. Ordinary cross-built archives do not run
 the full game regression suites. ARM and RISC-V64 AppImages additionally run pinned-userspace
 compatibility checks under QEMU, including replay rendering and ALSA output;

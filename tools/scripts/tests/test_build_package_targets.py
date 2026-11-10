@@ -55,11 +55,12 @@ class BuildPackageTargetTests(unittest.TestCase):
             "BUILD_TARGET_TEST_SENTINEL": str(CONFIGURE_SENTINEL),
         })
 
-    def configure_target(self, target, system="Linux", machine="x86_64", processor=None):
+    def configure_target(self, target, system="Linux", machine="x86_64", processor=None, extra=None):
         self.events.unlink(missing_ok=True)
         environment = dict(self.environment, BUILD_TARGET_TEST_SYSTEM=system,
                            BUILD_TARGET_TEST_MACHINE=machine,
                            BUILD_TARGET_TEST_PROCESSOR=processor or machine)
+        environment.update(extra or {})
         result = subprocess.run(["bash", str(self.helper), target], cwd=self.root,
                                 env=environment, text=True, capture_output=True,
                                 timeout=15, check=False)
@@ -124,6 +125,56 @@ class BuildPackageTargetTests(unittest.TestCase):
         result, events = self.configure_target("freebsd-riscv64", "FreeBSD", "riscv", "riscv64")
         configuration = self.require_configure(result, events)
         self.assertIn("-DRESTUNTS_WX_TOOLKIT=gtk2", configuration["arguments"])
+
+    def prepare_bsd_sdk(self, target):
+        sdk = self.root / "cross SDK with spaces"
+        sdk.mkdir(exist_ok=True)
+        (sdk / "restunts-target").write_text(target + "\n", encoding="utf-8")
+        return sdk
+
+    def test_bsd_cross_targets_use_prepared_sdk_with_native_x64_tools(self):
+        for system in ("FreeBSD", "OpenBSD", "NetBSD"):
+            for architecture in ("arm64", "riscv64"):
+                target = system.lower() + "-" + architecture
+                sdk = self.prepare_bsd_sdk(target)
+                with self.subTest(target=target):
+                    result, events = self.configure_target(
+                        target, system, "amd64", extra={"RESTUNTS_BSD_SYSROOT": str(sdk)})
+                    configuration = self.require_configure(result, events)
+                    self.assertIn("-DRESTUNTS_BSD_SYSROOT=" + str(sdk), configuration["arguments"])
+                    self.assertIn("-DRESTUNTS_BSD_TARGET=" + target, configuration["arguments"])
+                    self.assertIn("-DCMAKE_TOOLCHAIN_FILE=" + str(self.root / "cmake/toolchains/bsd-cross.cmake"),
+                                  configuration["arguments"])
+                    if target == "freebsd-riscv64":
+                        self.assertIn("-DRESTUNTS_WX_TOOLKIT=gtk2", configuration["arguments"])
+
+    def test_bsd_cross_sdk_rejects_wrong_host_cpu_or_system_before_building(self):
+        sdk = self.prepare_bsd_sdk("openbsd-arm64")
+        for system, machine in (("Linux", "x86_64"), ("FreeBSD", "amd64"),
+                                ("OpenBSD", "arm64")):
+            with self.subTest(system=system, machine=machine):
+                result, events = self.configure_target(
+                    "openbsd-arm64", system, machine, extra={"RESTUNTS_BSD_SYSROOT": str(sdk)})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotEqual(result.returncode, CONFIGURE_SENTINEL)
+                self.assertIn("requires a matching x64 BSD host", result.stderr)
+                self.assertEqual(events, [])
+
+    def test_bsd_cross_sdk_rejects_missing_or_mismatched_marker_before_building(self):
+        sdk = self.prepare_bsd_sdk("netbsd-riscv64")
+        for marker in (None, "freebsd-riscv64\n"):
+            with self.subTest(marker=marker):
+                path = sdk / "restunts-target"
+                if marker is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_text(marker, encoding="utf-8")
+                result, events = self.configure_target(
+                    "netbsd-riscv64", "NetBSD", "amd64", extra={"RESTUNTS_BSD_SYSROOT": str(sdk)})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotEqual(result.returncode, CONFIGURE_SENTINEL)
+                self.assertIn("Missing or mismatched BSD cross SDK", result.stderr)
+                self.assertEqual(events, [])
 
     def test_linux_riscv64_selects_the_riscv_cross_toolchain(self):
         result, events = self.configure_target("linux-riscv64")

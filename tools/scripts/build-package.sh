@@ -16,6 +16,7 @@ test_timeout_seconds=${RESTUNTS_TEST_TIMEOUT_SECONDS:-$default_test_timeout_seco
 default_genghost_test_timeout_multiplier=1
 cmake_options=(-DCMAKE_BUILD_TYPE=Release -DRESTUNTS_BUILD_TESTS=OFF)
 python_command=${PYTHON:-python3}
+bsd_cross_sysroot=${RESTUNTS_BSD_SYSROOT:-}
 
 verify_bsd_host() {
     local host_system host_architecture
@@ -24,6 +25,25 @@ verify_bsd_host() {
     case "$host_architecture" in
         evbarm|riscv) host_architecture=$(uname -p) ;;
     esac
+    if [[ -n "$bsd_cross_sysroot" ]]; then
+        case "$target:$host_system:$host_architecture" in
+            freebsd-arm64:FreeBSD:amd64|freebsd-arm64:FreeBSD:x86_64|\
+            freebsd-riscv64:FreeBSD:amd64|freebsd-riscv64:FreeBSD:x86_64|\
+            openbsd-arm64:OpenBSD:amd64|openbsd-arm64:OpenBSD:x86_64|\
+            openbsd-riscv64:OpenBSD:amd64|openbsd-riscv64:OpenBSD:x86_64|\
+            netbsd-arm64:NetBSD:amd64|netbsd-arm64:NetBSD:x86_64|\
+            netbsd-riscv64:NetBSD:amd64|netbsd-riscv64:NetBSD:x86_64) ;;
+            *) echo "$target cross-compilation requires a matching x64 BSD host." >&2; exit 1 ;;
+        esac
+        if [[ ! -f "$bsd_cross_sysroot/restunts-target" ]] ||
+                [[ "$(cat "$bsd_cross_sysroot/restunts-target")" != "$target" ]]; then
+            echo "Missing or mismatched BSD cross SDK: $bsd_cross_sysroot" >&2
+            exit 1
+        fi
+        cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$repo_dir/cmake/toolchains/bsd-cross.cmake"
+            "-DRESTUNTS_BSD_TARGET=$target" "-DRESTUNTS_BSD_SYSROOT=$bsd_cross_sysroot")
+        return
+    fi
     case "$target:$host_system:$host_architecture" in
         freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64|\
         freebsd-arm64:FreeBSD:arm64|freebsd-arm64:FreeBSD:aarch64|\
@@ -150,7 +170,9 @@ case "$target" in
             netbsd-x64|netbsd-x86|netbsd-x86-no-sse2|netbsd-arm64|netbsd-riscv64)
                 # NetBSD's ASLR prevents GCC from reusing SDL's precompiled header.
                 cmake_options+=('-DCMAKE_PREFIX_PATH=/usr/pkg;/usr/X11R7' -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON)
-                export PKG_CONFIG_PATH="/usr/pkg/lib/pkgconfig:/usr/X11R7/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+                if [[ -z "$bsd_cross_sysroot" ]]; then
+                    export PKG_CONFIG_PATH="/usr/pkg/lib/pkgconfig:/usr/X11R7/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+                fi
                 if [[ "$target" == netbsd-x86 ]]; then
                     cmake_options+=(-DRESTUNTS_SSE2=ON)
                 elif [[ "$target" == netbsd-x86-no-sse2 ]]; then
@@ -199,14 +221,10 @@ fi
 
 case "$target" in
     freebsd-*|openbsd-*|netbsd-*|haiku-*)
-        # Check the installed loader paths after moving the complete runtime.
-        # --licenses does not require a display, audio device, or game data.
-        smoke_dir=$(mktemp -d "${TMPDIR:-/tmp}/restunts-runtime.XXXXXX")
-        trap 'rm -rf -- "$smoke_dir"' EXIT
-        cp -RP "$package_dir/." "$smoke_dir/"
-        (unset LD_LIBRARY_PATH LIBRARY_PATH ADDON_PATH; "$smoke_dir/bin/restunts" --licenses > /dev/null)
-        rm -rf -- "$smoke_dir"
-        trap - EXIT
+        if [[ -z "$bsd_cross_sysroot" ]]; then
+            # Cross packages run this check in their target VM before release.
+            sh "$script_dir/test-relocated-runtime.sh" "$package_dir"
+        fi
         ;;
 esac
 
