@@ -46,8 +46,8 @@ class BuildPagesTests(unittest.TestCase):
         for name in PACKAGES.required_files("browser") - {PACKAGES.README}:
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            car_source = PACKAGES.custom_car_source(name)
-            path.write_bytes(car_source.read_bytes() if car_source is not None else FIXTURE_DATA)
+            source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
+            path.write_bytes(source.read_bytes() if source is not None else FIXTURE_DATA)
         args = argparse.Namespace(target="browser", runtime=runtime,
                                   directory=self.root / "packages", commit=COMMIT)
         with mock.patch.object(PACKAGES.subprocess, "check_output", return_value=COMMIT + "\n"), \
