@@ -2,11 +2,15 @@
 #include "../c/legacy.h"
 #include <wx/datetime.h>
 #include <wx/ffile.h>
+#include <wx/file.h>
 #include <wx/init.h>
 #include <wx/log.h>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#ifdef __UNIX__
+#include <sys/stat.h>
+#endif
 
 static const std::string FIRST_PAYLOAD = "<!doctype html>\r\n<html>First \xc3\xa9 snow</html>\r\n";
 static const std::string SECOND_PAYLOAD =
@@ -80,6 +84,28 @@ static void scenarios(const wxString &root)
 				read_bytes(exported) == SECOND_PAYLOAD,
 			"Empty source replaced a working export");
 
+	const wxFileName source_directory(root, "packaged-directory.html");
+	require(wxFileName::Mkdir(source_directory.GetFullPath()),
+			"Cannot create packaged editor directory fixture");
+	repeated = sentinel;
+	require(!launcher_export_editor(source_directory, downloads.GetPath(), repeated).empty() &&
+				repeated.GetFullPath() == sentinel.GetFullPath() &&
+				read_bytes(exported) == SECOND_PAYLOAD,
+			"Directory source damaged a working export");
+#ifdef __UNIX__
+	const wxFileName source_fifo(root, "packaged-pipe.html");
+	require(::mkfifo(source_fifo.GetFullPath().fn_str(), wxS_IRUSR | wxS_IWUSR) == 0,
+			"Cannot create packaged editor pipe fixture");
+	// Keep both ends open so a missing regular-file check cannot block in open().
+	wxFile fifo_holder(source_fifo.GetFullPath(), wxFile::read_write);
+	require(fifo_holder.IsOpened(), "Cannot open packaged editor pipe fixture");
+	require(!launcher_export_editor(source_fifo, downloads.GetPath(), repeated).empty() &&
+				repeated.GetFullPath() == sentinel.GetFullPath() &&
+				read_bytes(exported) == SECOND_PAYLOAD,
+			"Pipe source damaged a working export");
+	require(fifo_holder.Close(), "Cannot close packaged editor pipe fixture");
+#endif
+
 	write_bytes(source, FIRST_PAYLOAD);
 	require(!launcher_export_editor(source, "", repeated).empty() &&
 				!launcher_export_editor(source, "relative-downloads", repeated).empty(),
@@ -96,8 +122,9 @@ static void scenarios(const wxString &root)
 	require(wxFileName::Mkdir(exported.GetFullPath()), "Cannot create export failure fixture");
 	const wxFileName keep(exported.GetFullPath(), "keep.txt");
 	write_bytes(keep, "preserved");
+	repeated = sentinel;
 	require(!launcher_export_editor(source, downloads.GetPath(), repeated).empty() &&
-				read_bytes(keep) == "preserved",
+				repeated.GetFullPath() == sentinel.GetFullPath() && read_bytes(keep) == "preserved",
 			"Failed commit damaged the existing destination");
 }
 

@@ -1,6 +1,13 @@
 #include <wx/init.h>
 #include <cstdio>
 #include "host_environment.h"
+#if defined(__UNIX__)
+#include <cerrno>
+#include <spawn.h>
+#include <string>
+#include <sys/wait.h>
+#include <vector>
+#endif
 
 static legacy_int failures;
 static const legacy_char *const HOST_KEYS[] = {
@@ -58,15 +65,41 @@ static void check_child_process()
 	}
 	child.env["RESTUNTS_KEEP_DESKTOP_SESSION"] = "untouched";
 	check(launcher_restore_host_environment(child.env), "Child environment was not restored");
-	const wxString shell = "/bin/sh";
-	const wxString option = "-c";
-	const wxString script = "test \"${LD_LIBRARY_PATH+x}\" != x && "
-							"test \"${FONTCONFIG_PATH+x}\" != x && "
-							"test \"${GIO_EXTRA_MODULES+x}\" != x && "
-							"test \"${RESTUNTS_APPIMAGE_HOST_ENVIRONMENT+x}\" != x && "
-							"test \"$RESTUNTS_KEEP_DESKTOP_SESSION\" = untouched";
-	const wxChar *arguments[] = {shell.c_str(), option.c_str(), script.c_str(), nullptr};
-	check(wxExecute(arguments, wxEXEC_SYNC | wxEXEC_NOEVENTS, nullptr, &child) == 0,
+	// wxExecute's synchronous wait dispatches SIGCHLD through a wake-up pipe.
+	// TSan defers that callback while the dispatcher waits for the same pipe.
+	// Spawn with the restored map directly, then wait without an event loop.
+	std::vector<std::string> values;
+	values.reserve(child.env.size());
+	for (const auto &entry : child.env) {
+		values.emplace_back((entry.first + "=" + entry.second).utf8_str().data());
+	}
+	std::vector<legacy_char *> environment;
+	environment.reserve(values.size() + 1);
+	for (auto &value : values) {
+		environment.push_back(&value[0]);
+	}
+	environment.push_back(nullptr);
+	legacy_char shell[] = "/bin/sh";
+	legacy_char option[] = "-c";
+	legacy_char script[] = "test \"${LD_LIBRARY_PATH+x}\" != x && "
+						   "test \"${FONTCONFIG_PATH+x}\" != x && "
+						   "test \"${GIO_EXTRA_MODULES+x}\" != x && "
+						   "test \"${RESTUNTS_APPIMAGE_HOST_ENVIRONMENT+x}\" != x && "
+						   "test \"$RESTUNTS_KEEP_DESKTOP_SESSION\" = untouched";
+	legacy_char *arguments[] = {shell, option, script, nullptr};
+	pid_t process;
+	const auto spawned =
+		posix_spawn(&process, shell, nullptr, nullptr, arguments, environment.data());
+	check(spawned == 0, "Could not start desktop environment child");
+	if (spawned != 0) {
+		return;
+	}
+	legacy_int status = 0;
+	pid_t waited;
+	do {
+		waited = waitpid(process, &status, 0);
+	} while (waited == -1 && errno == EINTR);
+	check(waited == process && WIFEXITED(status) && WEXITSTATUS(status) == 0,
 		  "Desktop child inherited bundled settings");
 #endif
 }

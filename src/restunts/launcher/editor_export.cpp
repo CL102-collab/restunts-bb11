@@ -11,6 +11,10 @@ typedef std::vector<legacy_u8> EditorBytes;
 
 static legacy_int editor_read_bytes(const wxFileName &path, EditorBytes &bytes)
 {
+	// Directories and special files do not have a reliable seek-based byte length.
+	if (!path.FileExists()) {
+		return 0;
+	}
 	wxFile input(path.GetFullPath(), wxFile::read);
 	if (!input.IsOpened()) {
 		return 0;
