@@ -82,6 +82,10 @@ case "$target" in
         ;;
     haiku-*)
         verify_haiku_host
+        # Haiku has en_US.UTF-8, but not C.UTF-8. wxWidgets needs a UTF-8
+        # locale to use consistent encodings for non-ASCII filesystem paths.
+        export LANG=en_US.UTF-8
+        export LC_ALL="$LANG"
         if [[ "$target" == haiku-x86 ]]; then
             # Hybrid Haiku defaults to GCC 2; select the modern x86 toolchain.
             PATH=$(setarch -p x86)

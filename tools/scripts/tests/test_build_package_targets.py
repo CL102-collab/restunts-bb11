@@ -21,10 +21,14 @@ if command == "uname":
     print({"-s": os.environ["BUILD_TARGET_TEST_SYSTEM"],
            "-m": os.environ["BUILD_TARGET_TEST_MACHINE"],
            "-p": os.environ["BUILD_TARGET_TEST_PROCESSOR"]}[sys.argv[1]])
+elif command == "setarch":
+    print(os.environ["PATH"])
 else:
     with open(os.environ["BUILD_TARGET_TEST_EVENTS"], "a") as output:
         output.write(json.dumps({"command": command, "arguments": sys.argv[1:],
-                                 "pkg_config_path": os.environ.get("PKG_CONFIG_PATH")}) + "\\n")
+                                 "pkg_config_path": os.environ.get("PKG_CONFIG_PATH"),
+                                 "lang": os.environ.get("LANG"),
+                                 "lc_all": os.environ.get("LC_ALL")}) + "\\n")
     if command == "cmake":
         sys.exit(int(os.environ["BUILD_TARGET_TEST_SENTINEL"]))
 """
@@ -41,7 +45,7 @@ class BuildPackageTargetTests(unittest.TestCase):
         shutil.copy2(ROOT / "tools/scripts/build-package.sh", self.helper)
         self.commands = self.root / "commands"
         self.commands.mkdir()
-        for name in ("uname", "git", "cmake"):
+        for name in ("uname", "git", "cmake", "setarch"):
             command = self.commands / name
             command.write_text(MOCK_COMMAND, encoding="utf-8")
             command.chmod(0o755)
@@ -125,6 +129,17 @@ class BuildPackageTargetTests(unittest.TestCase):
         result, events = self.configure_target("freebsd-riscv64", "FreeBSD", "riscv", "riscv64")
         configuration = self.require_configure(result, events)
         self.assertIn("-DRESTUNTS_WX_TOOLKIT=gtk2", configuration["arguments"])
+
+    def test_haiku_builds_use_a_supported_utf8_locale_for_unicode_paths(self):
+        for target, machine in (("haiku-x86", "BePC"), ("haiku-x64", "x86_64")):
+            for inherited_locale in ("C", "C.UTF-8"):
+                with self.subTest(target=target, inherited_locale=inherited_locale):
+                    result, events = self.configure_target(
+                        target, "Haiku", machine,
+                        extra={"LANG": inherited_locale, "LC_ALL": inherited_locale})
+                    configuration = self.require_configure(result, events)
+                    self.assertEqual(configuration["lang"], "en_US.UTF-8")
+                    self.assertEqual(configuration["lc_all"], "en_US.UTF-8")
 
     def prepare_bsd_sdk(self, target):
         sdk = self.root / "cross SDK with spaces"
