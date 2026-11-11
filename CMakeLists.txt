@@ -859,6 +859,20 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
 endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    if(UNIX)
+        add_executable(test-genghost-ipc src/restunts/tests/test-genghost-ipc.c)
+        target_compile_options(test-genghost-ipc PRIVATE
+            -UNDEBUG -fvisibility=hidden -ffunction-sections -fdata-sections)
+        target_link_libraries(test-genghost-ipc PRIVATE restunts_options)
+        # The test includes the private packet reader; hide and discard unrelated
+        # process/planner functions, including on Haiku where executables export globals.
+        if(APPLE)
+            target_link_options(test-genghost-ipc PRIVATE -Wl,-dead_strip)
+        else()
+            target_link_options(test-genghost-ipc PRIVATE -Wl,--gc-sections)
+        endif()
+        add_test(NAME genghost-ipc COMMAND test-genghost-ipc)
+    endif()
     add_executable(test-genghost-simulation ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c

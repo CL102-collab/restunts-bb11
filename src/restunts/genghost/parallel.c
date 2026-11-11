@@ -817,6 +817,8 @@ cleanup:
 
 #define COOPERATIVE_MAX_RECORD (1024U * 1024U)
 #define COOPERATIVE_PACKET_RECORDS 32U
+#define COOPERATIVE_FILE_ATTEMPTS 20U
+#define COOPERATIVE_RETRY_MS 2U
 
 struct cooperative_header {
 	legacy_char magic[8];
@@ -872,12 +874,12 @@ static legacy_int cooperative_publish(const legacy_char *path, legacy_u64 sequen
 	if (!failed) {
 		operation = "replace record";
 		failed = 1;
-		for (legacy_uint attempt = 0; attempt < 20U; ++attempt) {
+		for (legacy_uint attempt = 0; attempt < COOPERATIVE_FILE_ATTEMPTS; ++attempt) {
 			if (SDL_RenamePath(temporary, path)) {
 				failed = 0;
 				break;
 			}
-			SDL_Delay(2U);
+			SDL_Delay(COOPERATIVE_RETRY_MS);
 		}
 	}
 	if (failed) {
@@ -891,7 +893,7 @@ static legacy_int cooperative_publish(const legacy_char *path, legacy_u64 sequen
 	return failed ? -1 : 0;
 }
 
-static FILE *cooperative_open_read(const legacy_char *path)
+static FILE *cooperative_open_read_once(const legacy_char *path)
 {
 #ifdef _WIN32
 	/* CRT fopen does not share deletion. A polling reader can therefore block
@@ -929,17 +931,33 @@ static FILE *cooperative_open_read(const legacy_char *path)
 #endif
 }
 
+static FILE *cooperative_open_read(const legacy_char *path)
+{
+	/* Publication and consumption already tolerate transient filesystem errors.
+	 * A polling open can fail too (Haiku reports B_ERROR during packet handoff).
+	 * Retry it within the same bound; a missing inbox is normal and must return
+	 * immediately, while persistent failures still reach the caller. */
+	for (legacy_uint attempt = 0U; attempt < COOPERATIVE_FILE_ATTEMPTS; ++attempt) {
+		FILE *file = cooperative_open_read_once(path);
+		if (file || errno == ENOENT || attempt + 1U == COOPERATIVE_FILE_ATTEMPTS) {
+			return file;
+		}
+		SDL_Delay(COOPERATIVE_RETRY_MS);
+	}
+	return NULL;
+}
+
 static legacy_int cooperative_consume(const legacy_char *path)
 {
 	/* Each direction has exactly one packet in flight. The consumer removes
 	 * it before acknowledging it through the other direction, so the next
 	 * publication targets an empty inbox instead of replacing a polled file.
 	 * This also avoids Windows/Wine replacement denial on busy filesystems. */
-	for (legacy_uint attempt = 0U; attempt < 20U; ++attempt) {
+	for (legacy_uint attempt = 0U; attempt < COOPERATIVE_FILE_ATTEMPTS; ++attempt) {
 		if (!remove(path) || errno == ENOENT) {
 			return 0;
 		}
-		SDL_Delay(2U);
+		SDL_Delay(COOPERATIVE_RETRY_MS);
 	}
 	fprintf(stderr, "genghost: cooperative IPC cannot consume record %s: %s\n", path,
 			strerror(errno));
