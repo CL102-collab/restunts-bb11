@@ -54,10 +54,28 @@ def extract_package(sysroot, archive_path):
         if contents is None:
             raise ValueError(f"Package has no packing list: {archive_path}")
         files, links = package_files(contents.read().decode("utf-8"))
+        recorded_links = {filename: (directive, target, current_directory)
+                          for filename, directive, target, current_directory in links}
         for member in archive:
             if member.name.startswith("+"):
                 continue
-            if member.name not in files or not member.isfile():
+            if member.name not in files:
+                raise ValueError(f"Unexpected package payload: {member.name}")
+            link = recorded_links.get(files[member.name])
+            if link is not None:
+                directive, target, current_directory = link
+                if directive == "@symlink":
+                    matches = member.issym() and member.linkname == target
+                else:
+                    # OpenBSD tar hardlinks are relative to @cwd, while @link
+                    # normally records the absolute installed source filename.
+                    matches = member.islnk() and posixpath.normpath(posixpath.join(
+                        current_directory, member.linkname)) == posixpath.normpath(
+                            posixpath.join(current_directory, target))
+                if not matches:
+                    raise ValueError(f"Package link differs from packing list: {member.name}")
+                continue
+            if not member.isfile():
                 raise ValueError(f"Unexpected package payload: {member.name}")
             destination = rooted_path(sysroot, files[member.name])
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -65,7 +83,8 @@ def extract_package(sysroot, archive_path):
                 shutil.copyfileobj(source, output)
             destination.chmod(member.mode & 0o777)
 
-        # OpenBSD records links in +CONTENTS rather than as tar members.
+        # Some packages also store link tar members. Restore every link from
+        # +CONTENTS after regular files, including targets later in the archive.
         for filename, directive, target, current_directory in links:
             destination = rooted_path(sysroot, filename)
             destination.parent.mkdir(parents=True, exist_ok=True)

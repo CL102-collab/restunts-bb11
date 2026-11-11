@@ -92,11 +92,20 @@ class OpenbsdCrossPackagesTests(unittest.TestCase):
     def write_package(self, contents, files):
         with tarfile.open(self.package, "w:gz") as archive:
             for name, data in {"+CONTENTS": contents, **files}.items():
+                if isinstance(data, tarfile.TarInfo):
+                    archive.addfile(data)
+                    continue
                 data = data.encode("utf-8")
                 member = tarfile.TarInfo(name)
                 member.size = len(data)
                 member.mode = 0o644
                 archive.addfile(member, io.BytesIO(data))
+
+    def archive_link(self, name, target, kind):
+        member = tarfile.TarInfo(name)
+        member.type = kind
+        member.linkname = target
+        return member
 
     def test_installs_headers_libraries_and_metadata_under_each_target_prefix(self):
         self.write_package("""@name sdk-1.0
@@ -135,6 +144,79 @@ include/absolute.h
                          (include / "source.h").stat().st_ino)
         self.assertEqual((include / "relative.h").readlink(), Path("source.h"))
         self.assertFalse((include / "absolute.h").readlink().is_absolute())
+
+    def test_accepts_matching_archive_links_before_their_regular_payloads(self):
+        arrow = "share/icons/Adwaita/cursors/arrow"
+        default = "share/icons/Adwaita/cursors/default"
+        self.write_package(f"""@cwd /usr/local
+{arrow}
+@symlink default
+include/hard-relative.h
+@link /usr/local/include/source.h
+include/hard-absolute.h
+@link include/source.h
+include/source.h
+{default}
+""", {arrow: self.archive_link(arrow, "default", tarfile.SYMTYPE),
+      "include/hard-relative.h": self.archive_link(
+          "include/hard-relative.h", "include/./source.h", tarfile.LNKTYPE),
+      "include/hard-absolute.h": self.archive_link(
+          "include/hard-absolute.h", "/usr/local/include/source.h", tarfile.LNKTYPE),
+      "include/source.h": "target header", default: "cursor data"})
+        PACKAGES.extract_package(self.sdk, self.package)
+        include = self.sdk / "usr/local/include"
+        for name in ("hard-relative.h", "hard-absolute.h"):
+            self.assertEqual((include / name).read_text(), "target header")
+            self.assertEqual((include / name).stat().st_ino,
+                             (include / "source.h").stat().st_ino)
+        self.assertEqual((self.sdk / "usr/local" / arrow).readlink(), Path("default"))
+        self.assertEqual((self.sdk / "usr/local" / arrow).read_text(), "cursor data")
+
+    def test_rejects_undeclared_mismatched_and_wrong_type_archive_links(self):
+        filename = "include/alias.h"
+        for declaration, target, kind in (
+                ("", "source.h", tarfile.SYMTYPE),
+                ("@symlink source.h\n", "other.h", tarfile.SYMTYPE),
+                ("@symlink source.h\n", "include/source.h", tarfile.LNKTYPE),
+                ("@link /usr/local/include/source.h\n", "source.h", tarfile.SYMTYPE),
+                ("@link /usr/local/include/source.h\n", "include/other.h", tarfile.LNKTYPE)):
+            with self.subTest(declaration=declaration, target=target, kind=kind):
+                self.write_package(f"@cwd /usr/local\n{filename}\n{declaration}",
+                                   {filename: self.archive_link(filename, target, kind)})
+                with self.assertRaises(ValueError):
+                    PACKAGES.extract_package(self.sdk, self.package)
+                self.assertFalse((self.sdk / "usr/local" / filename).exists())
+        self.write_package(f"@cwd /usr/local\n{filename}\n@symlink source.h\n",
+                           {filename: "regular data in place of a link"})
+        with self.assertRaisesRegex(ValueError, "link differs from packing list"):
+            PACKAGES.extract_package(self.sdk, self.package)
+
+    def test_rejects_special_archive_members(self):
+        filename = "include/special.h"
+        member = tarfile.TarInfo(filename)
+        member.type = tarfile.FIFOTYPE
+        self.write_package(f"@cwd /usr/local\n{filename}\n", {filename: member})
+        with self.assertRaisesRegex(ValueError, "Unexpected package payload"):
+            PACKAGES.extract_package(self.sdk, self.package)
+        self.assertFalse((self.sdk / "usr/local" / filename).exists())
+
+    def test_archive_links_cannot_follow_existing_targets_outside_sdk(self):
+        host_file = self.directory / "host.h"
+        host_file.write_text("host data")
+        include = self.sdk / "usr/local/include"
+        include.mkdir(parents=True)
+        (include / "source.h").symlink_to(host_file)
+        filename = "include/alias.h"
+        for directive, target, kind in (
+                ("@symlink", "source.h", tarfile.SYMTYPE),
+                ("@link", "/usr/local/include/source.h", tarfile.LNKTYPE)):
+            with self.subTest(directive=directive):
+                self.write_package(f"@cwd /usr/local\n{filename}\n{directive} {target}\n",
+                                   {filename: self.archive_link(filename, target, kind)})
+                with self.assertRaisesRegex(ValueError, "escapes the SDK"):
+                    PACKAGES.extract_package(self.sdk, self.package)
+                self.assertFalse((include / "alias.h").exists())
+                self.assertEqual(host_file.read_text(), "host data")
 
     def test_accepts_absolute_rcscript_paths_but_does_not_run_package_actions(self):
         marker = self.directory / "package-action-ran"
