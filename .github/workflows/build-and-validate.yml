@@ -122,7 +122,8 @@ jobs:
   sanitizers:
     name: Native sanitizer (${{ matrix.name }})
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ matrix.sanitizer == 'thread' && 240 || 45 }}
+    # GitHub-hosted jobs cannot exceed six hours.
+    timeout-minutes: ${{ matrix.sanitizer == 'thread' && 360 || 90 }}
     strategy:
       fail-fast: false
       matrix:
@@ -134,74 +135,74 @@ jobs:
             compiler: clang-18
             cxx-compiler: clang++-18
             linker-flags: -Wl,-z,start-stop-gc
-            timeout-multiplier: 4
+            timeout-multiplier: 8
           # Split the expensive TSan suite without changing its test coverage.
           - name: thread
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             exclude-regex: '^genghost-|^(extended-render|render-replay)$'
           - name: thread-genghost-extended-1
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-extended-1$'
           - name: thread-genghost-extended-2
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-extended-2$'
           - name: thread-genghost-extended-3
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-extended-3$'
           - name: thread-genghost-search
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-search$'
           - name: thread-genghost-fine-tune
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-fine-tune$'
           - name: thread-genghost-parallel
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-parallel$'
           - name: thread-extended-render
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^extended-render$'
           - name: thread-render-replay
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^render-replay$'
           - name: thread-genghost-other
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 20
+            timeout-multiplier: 40
             include-regex: '^genghost-'
             exclude-regex: '^genghost-(extended-[123]|search|fine-tune|parallel)$'
           - name: undefined
             sanitizer: undefined
             compiler: gcc
             cxx-compiler: g++
-            timeout-multiplier: 2
+            timeout-multiplier: 4
     env:
       CC: ${{ matrix.compiler }}
       CXX: ${{ matrix.cxx-compiler }}
@@ -212,11 +213,11 @@ jobs:
       ASAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
       TSAN_OPTIONS: halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-      RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS: 600
+      RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS: 1200
       # Sanitizers slow fixed-work native ghost and rendering regressions.
       # Apply matching limits in CTest and its Python subprocesses.
       RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.timeout-multiplier }}
-      CTEST_TIMEOUT_SECONDS: 1800
+      CTEST_TIMEOUT_SECONDS: 3600
       CTEST_INCLUDE_REGEX: ${{ matrix.include-regex || '.*' }}
       CTEST_EXCLUDE_REGEX: ${{ matrix.exclude-regex || '^$' }}
       SDL_VIDEODRIVER: dummy

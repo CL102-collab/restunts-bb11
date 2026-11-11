@@ -1822,11 +1822,12 @@ SDL D-Bus support because the headless dummy drivers do not need desktop IPC.
 Test logs are retained in `sanitizer-<variant>-logs` artifacts, including on
 failure. Dedicated TSan variants use `thread-<test-name>`; the remaining suites
 use `thread` and `thread-genghost-other`. TSan's runner lowers ASLR mapping
-entropy to keep its shadow-memory range available. Sanitizer jobs allow ten
-minutes per replay subprocess and use a thirty-minute default CTest timeout,
-with scaled limits for ghost and rendering regressions. Normal replay tests
-retain their two-minute limit (five minutes with `--full`); set
-`RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS` to override it with a positive integer.
+entropy to keep its shadow-memory range available. Sanitizer jobs allow twenty
+minutes per replay subprocess and use a sixty-minute default CTest timeout,
+with scaled limits for ghost and rendering regressions. ASan and UBSan jobs
+allow ninety minutes; TSan jobs use the six-hour GitHub-hosted runner limit.
+Normal replay tests retain their two-minute limit (five minutes with `--full`);
+set `RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS` to a positive integer to override it.
 
 To reproduce ASan locally on Linux, install `clang-18`, `libclang-rt-18-dev`,
 and `llvm-18`. Use matching C and C++ compilers with the same sanitizer flags.
@@ -1844,19 +1845,19 @@ export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1
 export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-18
 export TSAN_OPTIONS=halt_on_error=1
 export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
-export RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS=600
-export RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=4
+export RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS=1200
+export RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=8
 cmake -S . -B out/sanitizer-address -G Ninja -DCMAKE_BUILD_TYPE=Debug \
     -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF \
     -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
 cmake --build out/sanitizer-address --parallel 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    ctest --test-dir out/sanitizer-address --output-on-failure --no-tests=error --timeout 1800
+    ctest --test-dir out/sanitizer-address --output-on-failure --no-tests=error --timeout 3600
 ```
 
 Replace `address` with `thread` or `undefined` in both the flag and build
 directory for the other sanitizers, and use `CC=gcc` and `CXX=g++` to match CI.
-Set `RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=2` for UBSan or `20` for TSan,
+Set `RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=4` for UBSan or `40` for TSan,
 using the same value for the environment and CMake option. These budgets keep
 the complete evaluation counts and replay assertions under instrumentation, and
 also scale the native rendering fixture deadlines.
