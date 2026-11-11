@@ -3,8 +3,9 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "../shape2d/shape2d.h"
-#include "../externs.h"
+/* Host headers must precede the legacy CRT aliases in externs.h. */
 #include <SDL3/SDL.h>
+#include "../externs.h"
 
 #define HORIZON_NO_IMAGES_FLAG 8U
 #define HORIZON_GROUND_MATERIAL 16U
