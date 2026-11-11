@@ -93,6 +93,13 @@ set(CMAKE_PREFIX_PATH /usr/local /usr/pkg /usr/X11R6 /usr/X11R7)
 foreach(kind EXE SHARED MODULE)
     set(CMAKE_${kind}_LINKER_FLAGS_INIT "-fuse-ld=${CMAKE_LINKER}")
 endforeach()
+if(CMAKE_SYSTEM_NAME STREQUAL "NetBSD" AND CMAKE_SYSTEM_VERSION VERSION_LESS 11)
+    # Older NetBSD loaders require exactly two PT_LOAD segments in DSOs. LLD
+    # must merge read-only/code segments and disable RELRO to avoid an extra load.
+    foreach(kind SHARED MODULE)
+        string(APPEND CMAKE_${kind}_LINKER_FLAGS_INIT " -Wl,--no-rosegment,-z,norelro")
+    endforeach()
+endif()
 # pkg-config runs on the build host, but must describe only target libraries.
 set(ENV{PKG_CONFIG_PATH} "")
 set(ENV{PKG_CONFIG_SYSROOT_DIR} "${CMAKE_SYSROOT}")

@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -68,6 +69,16 @@ Path(os.environ["BSD_SMOKE_EVENTS"]).write_text(json.dumps({
 sys.exit(int(os.environ.get("BSD_SMOKE_EXIT", "0")))
 '''
 FAILURE_EXIT_CODE = 37
+LEGACY_NETBSD_LOAD_SEGMENTS = 2
+ELF_MAGIC = b"\x7fELF"
+SHARED_LIBRARY_PROBE = '''typedef __INT32_TYPE__ legacy_s32;
+static legacy_s32 initialized = 7;
+legacy_s32 probe(void)
+{
+    return initialized;
+}
+legacy_s32 (*const callback)(void) = probe;
+'''
 
 
 class BsdCrossToolchainTests(unittest.TestCase):
@@ -131,7 +142,54 @@ class BsdCrossToolchainTests(unittest.TestCase):
                 self.assertEqual(lines[7], str(self.sdk / "usr/local/include"))
                 if system == "NetBSD":
                     self.assertIn("-stdlib=libstdc++", lines[8])
-                self.assertEqual(lines[9:12], ["-fuse-ld=" + sys.executable] * 3)
+                self.assertEqual(lines[9], "-fuse-ld=" + sys.executable)
+                if target != "netbsd-arm64":
+                    self.assertEqual(lines[10:12], [lines[9]] * 2)
+
+    def test_netbsd_10_shared_and_module_libraries_match_loader_segment_limit(self):
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        linker = shutil.which("ld.lld")
+        readelf = shutil.which("readelf")
+        if not compiler or not linker or not readelf:
+            self.skipTest("A C compiler, LLD and readelf are needed for ELF layout checks")
+        source = self.root / "probe.c"
+        source.write_text(SHARED_LIBRARY_PROBE, encoding="utf-8")
+        object_file = self.root / "probe.o"
+        subprocess.run([compiler, "-fPIC", "-c", str(source), "-o", str(object_file)],
+                       check=True, text=True, capture_output=True, timeout=30)
+        if not object_file.read_bytes().startswith(ELF_MAGIC):
+            self.skipTest("ELF object output is needed for the LLD layout check")
+
+        def link_library(name, flags):
+            library = self.root / name
+            subprocess.run([linker, "-shared", "-z", "relro", *flags,
+                            "-o", str(library), str(object_file)],
+                           check=True, text=True, capture_output=True, timeout=30)
+            headers = subprocess.check_output([readelf, "--wide", "--program-headers",
+                                               str(library)], text=True, timeout=15)
+            loads = sum(line.strip().startswith("LOAD ") for line in headers.splitlines())
+            return loads, "GNU_RELRO" in headers
+
+        # Exercise real ELF output: a relocation-bearing constant and writable
+        # data make LLD's usual RELRO split exceed the old loader's two loads.
+        baseline = link_library("baseline.so", [])
+        self.assertGreater(baseline[0], LEGACY_NETBSD_LOAD_SEGMENTS)
+        self.assertTrue(baseline[1])
+        for target, _, _, _ in TARGETS:
+            result = self.probe_target(target)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            lines = self.output.read_text().splitlines()
+            for kind, command in zip(("shared", "module"), lines[10:12]):
+                with self.subTest(target=target, kind=kind):
+                    # The probe supplies a harmless compiler path; pass only
+                    # its configured driver-to-linker options to the real LLD.
+                    flags = [argument for option in shlex.split(command)
+                             if option.startswith("-Wl,")
+                             for argument in option.removeprefix("-Wl,").split(",")]
+                    actual = link_library(target + "-" + kind + ".so", flags)
+                    expected = ((LEGACY_NETBSD_LOAD_SEGMENTS, False)
+                                if target == "netbsd-arm64" else baseline)
+                    self.assertEqual(actual, expected)
 
     def test_freebsd_ports_metadata_is_found_in_libdata_pkgconfig(self):
         # FreeBSD ports put GTK and its dependency metadata in libdata, while
