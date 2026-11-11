@@ -3,6 +3,8 @@
 import importlib.util
 import io
 from pathlib import Path
+import shutil
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -12,6 +14,70 @@ SCRIPT = Path(__file__).resolve().parents[1] / "extract-openbsd-sdk-packages.py"
 SPEC = importlib.util.spec_from_file_location("openbsd_cross_packages", SCRIPT)
 PACKAGES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PACKAGES)
+DOWNLOADER = SCRIPT.with_name("download-openbsd-sdk-packages.pl")
+
+
+class OpenbsdSdkResolverTests(unittest.TestCase):
+    """Exercise the native package metadata/cache code, when it is available."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.perl = shutil.which("perl")
+        if cls.perl is None:
+            raise unittest.SkipTest("Perl is needed for OpenBSD package resolver checks")
+        probe = subprocess.run([
+            cls.perl, "-MOpenBSD::AddDelete", "-MOpenBSD::PackingList",
+            "-MOpenBSD::Dependencies::SolverBase", "-e", "1",
+        ], text=True, capture_output=True, check=False)
+        if probe.returncode:
+            raise unittest.SkipTest("Native OpenBSD package modules are not installed")
+
+    def run_perl(self, source):
+        result = subprocess.run([
+            self.perl, "-e",
+            "use v5.36; require $ARGV[0]; "
+            "require OpenBSD::Dependencies::SolverBase; "
+            "Restunts::OpenBSDSdk::configure_download_only();\n" + source,
+            str(DOWNLOADER),
+        ], text=True, capture_output=True, timeout=15, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+
+    def test_tag_provider_remains_resolvable_after_dry_run_registration(self):
+        self.run_perl(r'''
+my $contents = "\@name sdk-tag-provider-1.0\n"
+    . "\@define-tag sdk-fixture at-end false\n\@cwd /usr/local\n";
+open my $fh, '<', \$contents or die $!;
+my $provider = OpenBSD::PackingList->read($fh);
+$provider->to_cache;
+my $cached = OpenBSD::PackingList->from_installation('sdk-tag-provider-1.0',
+    \&OpenBSD::PackingList::DependOnly);
+my $lookup = bless {}, 'OpenBSD::lookup::tag';
+$lookup->find_in_plist($cached, 'sdk-tag-provider-1.0');
+my $tag = OpenBSD::PackingElement::Tag->new('sdk-fixture');
+my $state = bless {}, 'SdkTestState';
+die "Tag provider disappeared after caching\n"
+    unless $lookup->find_in_already_done(undef, $state, $tag) eq 'sdk-tag-provider-1.0';
+die "Tag action was not retained\n"
+    unless $tag->{definition_list}[0]->command eq 'false';
+my $missing = OpenBSD::PackingElement::Tag->new('missing-sdk-tag');
+die "Unknown tag was accepted\n"
+    if $lookup->find_in_already_done(undef, $state, $missing);
+sub SdkTestState::verbose($) { 0 }
+''')
+
+    def test_library_tracking_never_chroots_or_runs_target_ldconfig(self):
+        self.run_perl(r'''
+no warnings qw(redefine once);
+local *OpenBSD::Paths::chroot = sub { die "Target execution attempted\n"; };
+my $ldconfig = OpenBSD::LdConfig->new({not => 1, destdir => '/foreign-sdk'});
+$ldconfig->mark_directory('/usr/local/lib/libfixture.so.1.0');
+$ldconfig->ensure;
+die "SDK requested a runtime cache update\n" if $ldconfig->{todo};
+my $install = OpenBSD::LdConfig->new({not => 0, destdir => '/foreign-sdk'});
+eval { $install->init; };
+die "Adapter allowed installation\n" unless $@ =~ /requires dry-run mode/;
+''')
 
 
 class OpenbsdCrossPackagesTests(unittest.TestCase):

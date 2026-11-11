@@ -60,12 +60,14 @@ done
 "$python_command" "$script_dir/extract-openbsd-sdk-packages.py" \
     "$sysroot" --normalize-links-only
 
-# Dry-run mode fetches and verifies the complete dependency closure into
-# PKG_CACHE. It does not run the target's package scripts or ldconfig.
+# The download-only adapter retains tag definitions between dry-run packages
+# and prevents pkg_add's ldconfig probe from executing a target program.
+# Native dependency and signature checks still verify the complete closure.
 mkdir -p "$download_dir/packages"
 PKG_PATH="https://cdn.openbsd.org/pub/OpenBSD/$release/packages/$package_architecture/" \
     PKG_CACHE="$download_dir/packages" \
-    pkg_add -n -I -A "$package_architecture" -B "$sysroot" gtk+3
+    perl "$script_dir/download-openbsd-sdk-packages.pl" \
+        "$package_architecture" "$sysroot" gtk+3
 "$python_command" "$script_dir/extract-openbsd-sdk-packages.py" \
     "$sysroot" "$download_dir/packages"
 printf '%s\n' "$target" > "$sysroot/restunts-target"
