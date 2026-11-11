@@ -2,6 +2,8 @@
 
 import importlib.util
 import io
+import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -15,6 +17,103 @@ SPEC = importlib.util.spec_from_file_location("openbsd_cross_packages", SCRIPT)
 PACKAGES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PACKAGES)
 DOWNLOADER = SCRIPT.with_name("download-openbsd-sdk-packages.pl")
+
+
+class OpenbsdSdkDownloaderTests(unittest.TestCase):
+    def test_direct_download_ignores_host_database_before_loading_package_modules(self):
+        perl = shutil.which("perl")
+        if perl is None:
+            self.skipTest("Perl is needed for the SDK downloader check")
+        with tempfile.TemporaryDirectory(prefix="OpenBSD resolver with spaces ") as directory:
+            root = Path(directory)
+            host_database = root / "host packages"
+            host_package = host_database / "libffi-host"
+            host_package.mkdir(parents=True)
+            (host_package / "+CONTENTS").write_text("host package must remain untouched\n")
+            modules = root / "modules/OpenBSD"
+            modules.mkdir(parents=True)
+            # PackageInfo captures PKG_DBDIR when loaded, as the native module
+            # does. A database change after importing it cannot isolate the SDK.
+            (modules / "PackageInfo.pm").write_text(r'''
+use v5.36;
+package OpenBSD::PackageInfo;
+our $database = $ENV{PKG_DBDIR};
+opendir my $db, $database or die "Missing package database: $!\n";
+our @installed = grep { !/^\./ } readdir $db;
+closedir $db;
+1;
+''')
+            (modules / "AddDelete.pm").write_text(r'''
+use v5.36;
+package OpenBSD::AddDelete;
+use OpenBSD::PackageInfo;
+package OpenBSD::LdConfig;
+sub init($self) { die "Target program execution attempted\n"; }
+1;
+''')
+            (modules / "PackingList.pm").write_text(r'''
+use v5.36;
+package OpenBSD::PackingList;
+use OpenBSD::PackageInfo;
+our @cache_categories = ('libraries', 'dependencies');
+1;
+''')
+            (modules / "PkgAdd.pm").write_text(r'''
+use v5.36;
+use JSON::PP;
+use OpenBSD::PackageInfo;
+package OpenBSD::PkgAdd;
+no warnings 'once';
+sub parse_and_run($class, $command)
+{
+    # A host-installed dependency would suppress the foreign package download.
+    if (!grep { /^libffi-/ } @OpenBSD::PackageInfo::installed) {
+        open my $package, '>', "$ENV{PKG_CACHE}/libffi-target.tgz" or die $!;
+        print $package "foreign package fixture\n";
+        close $package;
+    }
+    open my $record, '>', $ENV{SDK_DB_RECORD} or die $!;
+    print $record JSON::PP->new->encode({
+        command => $command, arguments => [@ARGV],
+        database => $OpenBSD::PackageInfo::database,
+        installed => [@OpenBSD::PackageInfo::installed],
+        cache_categories => [@OpenBSD::PackingList::cache_categories],
+    });
+    close $record;
+    return 0;
+}
+1;
+''')
+            sdk = root / "target SDK"
+            sdk.mkdir()
+            for architecture in ("aarch64", "riscv64"):
+                with self.subTest(architecture=architecture):
+                    cache = root / (architecture + " cache")
+                    cache.mkdir()
+                    record = root / (architecture + ".json")
+                    environment = dict(os.environ, PKG_DBDIR=str(host_database),
+                                       PKG_CACHE=str(cache), SDK_DB_RECORD=str(record))
+                    result = subprocess.run([
+                        perl, "-I", str(modules.parent), str(DOWNLOADER),
+                        architecture, str(sdk), "gtk+3", "extra-fixture",
+                    ], env=environment, text=True, capture_output=True, timeout=15, check=False)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(result.stderr, "")
+                    observed = json.loads(record.read_text())
+                    self.assertEqual(observed["command"], "pkg_add")
+                    self.assertEqual(observed["arguments"],
+                                     ["-n", "-I", "-A", architecture, "-B", str(sdk),
+                                      "gtk+3", "extra-fixture"])
+                    self.assertEqual(observed["installed"], [])
+                    self.assertIn("tags_definitions", observed["cache_categories"])
+                    self.assertTrue((cache / "libffi-target.tgz").is_file())
+                    database = Path(observed["database"])
+                    self.assertNotEqual(database, host_database)
+                    self.assertTrue(observed["database"].endswith("/"))
+                    self.assertFalse(database.exists(), "Resolver database was not cleaned up")
+            self.assertEqual((host_package / "+CONTENTS").read_text(),
+                             "host package must remain untouched\n")
+            self.assertEqual(list(sdk.iterdir()), [])
 
 
 class OpenbsdSdkResolverTests(unittest.TestCase):
@@ -42,6 +141,40 @@ class OpenbsdSdkResolverTests(unittest.TestCase):
         ], text=True, capture_output=True, timeout=15, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stderr, "")
+
+    def test_native_package_info_starts_empty_instead_of_using_host_packages(self):
+        with tempfile.TemporaryDirectory(prefix="OpenBSD native resolver ") as directory:
+            root = Path(directory)
+            host_database = root / "host packages"
+            host_package = host_database / "libffi-3.5.2p0"
+            host_package.mkdir(parents=True)
+            (host_package / "+CONTENTS").write_text("@name libffi-3.5.2p0\n@cwd /usr/local\n")
+            source = r'''
+use v5.36;
+require $ARGV[0];
+# Keep the actual PackageInfo/AddDelete/PackingList code, replacing only the
+# network resolver entry so this check needs no repository or signing key.
+$INC{'OpenBSD/PkgAdd.pm'} = 'SDK database fixture';
+my $database_seen;
+no warnings 'once';
+*OpenBSD::PkgAdd::parse_and_run = sub($class, $command) {
+    $database_seen = $ENV{PKG_DBDIR};
+    die "Resolver database disappeared too early\n" unless -d $database_seen;
+    my @installed = OpenBSD::PackageInfo::installed_packages();
+    die "Host packages satisfied target dependencies\n" if @installed;
+    return 0;
+};
+die "Resolver failed\n"
+    if Restunts::OpenBSDSdk::download_packages('aarch64', $ARGV[1], 'gtk+3');
+die "Temporary resolver database was retained\n" if -d $database_seen;
+'''
+            result = subprocess.run([
+                self.perl, "-e", source, str(DOWNLOADER), str(root / "SDK"),
+            ], env=dict(os.environ, PKG_DBDIR=str(host_database)), text=True,
+                capture_output=True, timeout=15, check=False)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stderr, "")
+            self.assertTrue(host_package.is_dir())
 
     def test_tag_provider_remains_resolvable_after_dry_run_registration(self):
         self.run_perl(r'''
