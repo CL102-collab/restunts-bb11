@@ -174,6 +174,7 @@ ORIGINAL_SUFFIXES = {
     ".cod", ".dif", ".hig", ".bin", ".bni", ".pdo", ".pdd",
 }
 NUKED_FILES = ("opl2.c", "opl2.h", "CMakeLists.txt", "LICENSE", "README.md")
+NUKED_TOOLCHAIN_PATTERNS = ("*.cmake", "*.h")
 SKYBOX_THEMES = ("desert", "tropical", "alpine", "city", "country")
 SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
 OPPONENT_COUNT = 6
@@ -290,8 +291,11 @@ def nuked_source_files():
     required = {f"{prefix}/{name}" for name in NUKED_FILES}
     required |= {f"{prefix}/nuked-build-info.txt", f"{prefix}/build-context/CMakeLists.txt",
                  f"{prefix}/build-context/cmake/nuked-build-info.txt.in"}
+    # Match the recursive source-context install in CMakeLists.txt, including
+    # compatibility headers that are required to use the bundled toolchains.
     required |= {f"{prefix}/build-context/" + path.relative_to(ROOT).as_posix()
-                 for path in (ROOT / "cmake/toolchains").glob("*.cmake")}
+                 for pattern in NUKED_TOOLCHAIN_PATTERNS
+                 for path in (ROOT / "cmake/toolchains").rglob(pattern) if path.is_file()}
     return required
 
 

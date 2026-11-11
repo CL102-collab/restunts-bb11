@@ -308,6 +308,44 @@ class ReleasePackageTests(unittest.TestCase):
         self.assertTrue(modes["bin/restunts"] & stat.S_IXUSR)
         self.assertEqual(files["bin/restunts"], FILE_DATA)
 
+    def test_nuked_build_context_includes_nested_toolchain_sources_only(self):
+        source = self.root / "source"
+        toolchains = source / "cmake/toolchains"
+        toolchains.mkdir(parents=True)
+        included = ("target.cmake", "compat.h", "nested/target.cmake", "nested/compat.h")
+        for name in (*included, "notes.txt", "nested/private.key"):
+            path = toolchains / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(FILE_DATA)
+        (toolchains / "directory.h").mkdir()
+        prefix = "share/restunts/nuked-opl2-lite"
+        expected = {f"{prefix}/{name}" for name in PACKAGES.NUKED_FILES}
+        expected |= {f"{prefix}/nuked-build-info.txt", f"{prefix}/build-context/CMakeLists.txt",
+                     f"{prefix}/build-context/cmake/nuked-build-info.txt.in"}
+        expected |= {f"{prefix}/build-context/cmake/toolchains/{name}" for name in included}
+        with mock.patch.object(PACKAGES, "ROOT", source):
+            self.assertEqual(PACKAGES.nuked_source_files(), expected)
+
+    def test_native_packages_require_installed_toolchain_headers_and_reject_unknown_headers(self):
+        header = "cmake/toolchains/netbsd-clang-compat.h"
+        packaged_header = f"share/restunts/nuked-opl2-lite/build-context/{header}"
+        unexpected = "share/restunts/nuked-opl2-lite/build-context/cmake/toolchains/private.h"
+        for target in sorted(PACKAGES.SDL3_TARGETS - {"browser", "dos32"}):
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            # Add the actual installed header independently of required_files:
+            # fixtures derived only from that inventory concealed this mismatch.
+            files[packaged_header] = (PACKAGES.ROOT / header).read_bytes()
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            with self.subTest(target=target, complete=True):
+                PACKAGES.validate_contents(target, files, modes)
+            with self.subTest(target=target, missing=packaged_header), \
+                    self.assertRaisesRegex(ValueError, "missing packaged files"):
+                PACKAGES.validate_contents(target, {name: data for name, data in files.items()
+                                                   if name != packaged_header}, modes)
+            with self.subTest(target=target, unexpected=unexpected), \
+                    self.assertRaisesRegex(ValueError, "Unexpected package file"):
+                PACKAGES.validate_contents(target, {**files, unexpected: FILE_DATA}, modes)
+
     def test_every_sdl3_archive_contains_one_standalone_track_editor(self):
         for target in PACKAGES.TARGETS:
             if target in PORTED_TARGETS | {"dos16"}:
