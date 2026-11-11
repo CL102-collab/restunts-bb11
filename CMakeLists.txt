@@ -451,7 +451,7 @@ if(TARGET nuked_opl2 AND NOT EMSCRIPTEN)
             COMPONENT ${component} ${exclude_from_default})
         install(DIRECTORY cmake/toolchains/
             DESTINATION share/restunts/nuked-opl2-lite/build-context/cmake/toolchains
-            COMPONENT ${component} ${exclude_from_default} FILES_MATCHING PATTERN "*.cmake")
+            COMPONENT ${component} ${exclude_from_default} FILES_MATCHING PATTERN "*.cmake" PATTERN "*.h")
     endforeach()
 endif()
 if(NOT RESTUNTS_SYSTEM_SDL AND NOT EMSCRIPTEN)
