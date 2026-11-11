@@ -53,5 +53,5 @@ printf '#include <signal.h>\n#include <string>\nint main() { return std::string(
 /usr/pkg/bin/clang++ --target="$architecture-unknown-netbsd$release" \
     --sysroot="$sysroot" -fuse-ld=/usr/pkg/bin/ld.lld -stdlib=libstdc++ \
     -include "$script_dir/../../cmake/toolchains/netbsd-clang-compat.h" \
-    "$downloads/compiler-check.cpp" -o "$downloads/compiler-check"
+    "$downloads/compiler-check.cpp" -lgcc_s -o "$downloads/compiler-check"
 printf '%s\n' "$target" > "$sysroot/restunts-target"

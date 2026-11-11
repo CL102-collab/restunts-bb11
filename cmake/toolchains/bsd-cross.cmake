@@ -46,6 +46,8 @@ else()
     set(restunts_netbsd_compat "${CMAKE_CURRENT_LIST_DIR}/netbsd-clang-compat.h")
     set(CMAKE_C_FLAGS_INIT "-include \"${restunts_netbsd_compat}\"")
     set(CMAKE_CXX_FLAGS_INIT "${CMAKE_C_FLAGS_INIT} -stdlib=libstdc++")
+    # Clang's NetBSD driver omits libgcc_s even when using GCC's C++ runtime.
+    set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "-lgcc_s")
 endif()
 set(restunts_c_compiler clang)
 set(restunts_cxx_compiler clang++)
