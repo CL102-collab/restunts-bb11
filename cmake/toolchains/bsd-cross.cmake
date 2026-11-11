@@ -98,6 +98,7 @@ set(restunts_pkgconfig_dirs)
 foreach(prefix usr/local usr/pkg usr/X11R6 usr/X11R7 usr)
     list(APPEND restunts_pkgconfig_dirs
         "${CMAKE_SYSROOT}/${prefix}/lib/pkgconfig"
+        "${CMAKE_SYSROOT}/${prefix}/libdata/pkgconfig"
         "${CMAKE_SYSROOT}/${prefix}/share/pkgconfig")
 endforeach()
 list(JOIN restunts_pkgconfig_dirs ":" restunts_pkgconfig_path)

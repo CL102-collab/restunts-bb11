@@ -133,6 +133,21 @@ class BsdCrossToolchainTests(unittest.TestCase):
                     self.assertIn("-stdlib=libstdc++", lines[8])
                 self.assertEqual(lines[9:12], ["-fuse-ld=" + sys.executable] * 3)
 
+    def test_freebsd_ports_metadata_is_found_in_libdata_pkgconfig(self):
+        # FreeBSD ports put GTK and its dependency metadata in libdata, while
+        # libraries remain in lib. Exercise pkg-config and FindPkgConfig with
+        # that actual layout instead of assuming the Linux lib/pkgconfig path.
+        prefix = self.sdk / "usr/local"
+        (prefix / "libdata").mkdir()
+        (prefix / "lib/pkgconfig").rename(prefix / "libdata/pkgconfig")
+        for target in ("freebsd-arm64", "freebsd-riscv64"):
+            with self.subTest(target=target):
+                result = self.probe_target(target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                flags = self.output.read_text().splitlines()[5]
+                self.assertIn(str(prefix / "include"), flags)
+                self.assertIn(str(prefix / "lib"), flags)
+
 
 class RelocatedRuntimeTests(unittest.TestCase):
     def setUp(self):
