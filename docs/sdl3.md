@@ -425,6 +425,41 @@ over files in `cars/`; duplicate IDs appear only once in the car menu. Source
 builds also search `assets/cars/`. Browser and Android builds bundle these same
 car resources automatically.
 
+### ZIP car resources
+
+SDL3 builds load custom cars directly from ZIP archives named after the four-character
+car ID, for example `CDOR.ZIP`. Store `CARCDOR.RES` (or `.PRE`), `STCDOR.3SH`
+(or `.P3S`), and `STDACDOR`/`STDBCDOR` dashboard resources at the archive root.
+An optional `STCDOR.H3D` HyperVision model can be included. Filenames are matched
+without case. Adding or removing the ZIP is sufficient; the game does not extract files.
+Browser folder import and the Android ghost generator also recognize these archives.
+
+Location priority stays the same. Within each location, loose resources precede ZIP
+members, giving this search order:
+
+1. Game-data folder: loose files, then the matching ZIP.
+2. Executable folder: loose files, then the matching ZIP.
+3. Game-data `cars/`: loose files, then the matching ZIP.
+4. Executable `cars/`: loose files, then the matching ZIP.
+5. Bundled car directory (`assets/cars/` in source builds): loose files, then the ZIP.
+
+A complete duplicate car uses the first source above. Resource families are resolved
+independently, preserving partial overrides: physics, classic model and dashboard
+resources can come from different sources when a higher-priority source is incomplete.
+Packed and unpacked alternatives are selected within each source before looking further;
+a loose `.PRE` therefore overrides a `.RES` in a ZIP beside it. A replacement classic
+model blocks a lower-priority `.H3D` companion unless that source supplies its own.
+Duplicate car IDs appear only once in the menu. Timestamps and ZIP entry order do not
+choose between copies.
+
+Archives support ordinary single-disk ZIP with stored or deflated entries. Members must
+be flat resource filenames; subdirectories, encrypted entries, ZIP64 and other
+compression methods are unsupported. Each compressed or expanded resource is limited
+to 16 MiB, and corrupt resources fail validation. These archives are for SDL3 builds;
+the separate 16-bit DOS, Amiga and TempleOS ports still require loose resources.
+
+### Track resources
+
 Custom tracks are discovered in `tracks/` inside the game-data folder and beside
 the executable. Place `.TRK` files there, or `.CSTRK` files for Chocolate Stunts
 tracks. Optional `.HIG` and `.CSHIG` high score tables can accompany them.

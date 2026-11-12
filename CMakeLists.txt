@@ -294,7 +294,8 @@ set(game_sources
     extended/extended_frame_layout.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")
-set(platform_common ${platform}/memory.c ${platform}/file.c ${platform}/runtime.c
+set(platform_files ${platform}/file.c ${platform}/car_zip.c third_party/puff/puff.c)
+set(platform_common ${platform}/memory.c ${platform_files} ${platform}/runtime.c
     ${core}/extended/extended_file_dialog.c)
 set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c
 ${platform}/timer.c
@@ -417,6 +418,9 @@ foreach(component Runtime Tests)
     endif()
     install(FILES third_party/stb/LICENSE
         DESTINATION share/licenses/restunts RENAME stb-LICENSE
+        COMPONENT ${component} ${exclude_from_default})
+    install(FILES third_party/puff/LICENSE
+        DESTINATION share/licenses/restunts RENAME puff-LICENSE
         COMPONENT ${component} ${exclude_from_default})
     install(FILES THIRD-PARTY-NOTICES.txt
         DESTINATION . COMPONENT ${component} ${exclude_from_default})
@@ -662,11 +666,23 @@ if(RESTUNTS_BUILD_TESTS)
     enable_testing()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
-            ${platform}/file.c ${core}/extended/extended_file_dialog.c)
+            ${platform_files} ${core}/extended/extended_file_dialog.c)
         target_compile_definitions(test-sdl3-file-replace PRIVATE RESTUNTS_SDL3 __EMSCRIPTEN__)
         target_include_directories(test-sdl3-file-replace PRIVATE src/restunts/tests/stubs)
         target_compile_options(test-sdl3-file-replace PRIVATE -UNDEBUG -Wno-pointer-sign)
         add_test(NAME browser-file-replace COMMAND test-sdl3-file-replace)
+    endif()
+    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+        add_executable(test-car-zip src/restunts/tests/test-car-zip.c ${platform_files}
+            ${platform}/memory.c ${core}/fileio.c ${core}/file_car.c ${core}/file_decomp.c
+            ${core}/extended/extended_fileio.c ${core}/extended/extended_file_dialog.c
+            ${core}/legacy.c ${core}/strlib.c ${core}/memmgr.c)
+        target_compile_definitions(test-car-zip PRIVATE RESTUNTS_SDL3 RESTUNTS_HEADLESS
+            RESTUNTS_CAR_DIRECTORY="../Bundled")
+        target_compile_options(test-car-zip PRIVATE -UNDEBUG -Wno-pointer-sign
+            ${restunts_test_section_options})
+        target_link_options(test-car-zip PRIVATE ${restunts_test_gc_sections})
+        add_test(NAME car-zip COMMAND test-car-zip)
     endif()
     add_executable(test-extended-hiscore-ui src/restunts/tests/test-extended-hiscore-ui.c
         ${core}/extended/extended_highscore_ui.c ${core}/extended/extended_menu_runtime.c
@@ -723,7 +739,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${restunts_test_section_options})
     target_link_options(test-extended-file-dialog PRIVATE ${restunts_test_gc_sections})
     add_test(NAME extended-file-dialog COMMAND test-extended-file-dialog)
-    add_executable(test-extended-fileio src/restunts/tests/test-extended-fileio.c ${platform}/file.c
+    add_executable(test-extended-fileio src/restunts/tests/test-extended-fileio.c ${platform_files}
         ${core}/extended/extended_file_dialog.c)
     target_compile_definitions(test-extended-fileio PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-fileio PRIVATE -UNDEBUG -Wno-pointer-sign

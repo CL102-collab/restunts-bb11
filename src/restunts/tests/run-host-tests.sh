@@ -80,7 +80,8 @@ extended_companions() {
     case "$1" in
         extended_cstrk.c) echo extended/extended_cstrk_horizon.c ;;
         fileio.c) echo extended/extended_fileio.c ;;
-        file.c) echo extended/extended_file_dialog.c ;;
+        file.c) printf '%s\n' extended/extended_file_dialog.c ../platform/sdl3/car_zip.c ;;
+        car_zip.c) echo ../../../third_party/puff/puff.c ;;
         gameinit.c) echo extended/extended_gameinit.c ;;
         gamestep.c) printf '%s\n' extended/extended_gamestep.c extended/extended_checkpoint.c ;;
         trkutil.c|replinit.c|race_resources.c) echo extended/extended_trkutil.c ;;
@@ -483,6 +484,11 @@ run_host_test test-end-hiscore highscore/highscore.c \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless/headless_data.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-car-resource-paths fileio.c \
+    "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/memmgr.c" \
+    "$test_source_dir/../platform/sdl3/file.c" "$test_source_dir/../platform/sdl3/memory.c" \
+    -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -DRESTUNTS_CAR_DIRECTORY='"../Bundled"' \
+    -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
+run_host_test test-car-zip fileio.c \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/memmgr.c" \
     "$test_source_dir/../platform/sdl3/file.c" "$test_source_dir/../platform/sdl3/memory.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -DRESTUNTS_CAR_DIRECTORY='"../Bundled"' \

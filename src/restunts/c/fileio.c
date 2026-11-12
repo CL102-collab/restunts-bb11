@@ -73,12 +73,18 @@ struct file_find_dos {
 	legacy_s8 *dirdelim;
 } g_find;
 static legacy_u16 file_find_tracks;
+#ifdef RESTUNTS_SDL3
+static legacy_u16 file_find_single_resource;
+#endif
 
 // Find file matching given query. Returns pointer to first matched filename
 // including path from the query. NULL is returned on error/no hits.
 // FIXME: DOS specific implementation.
 const legacy_s8 *file_find(const legacy_s8 *query)
 {
+#ifdef RESTUNTS_SDL3
+	file_find_single_resource = 0;
+#endif
 	file_find_tracks = file_track_query(query) != 0;
 	if (file_find_tracks) {
 		return file_track_find_first(query);
@@ -86,8 +92,16 @@ const legacy_s8 *file_find(const legacy_s8 *query)
 	legacy_s8 car_path[FILE_CAR_PATH_SIZE];
 	const legacy_s8 *found_name = dos_file_find_first(query);
 	if (found_name == 0 && file_car_resolve(query, car_path)) {
+#ifdef RESTUNTS_SDL3
+		/* Archive members are logical files, outside native enumeration. Exact
+		 * car resource lookups have one result even when a loose path resolves. */
+		strcpy(g_find.path, car_path);
+		file_find_single_resource = 1;
+		return g_find.path;
+#else
 		query = car_path;
 		found_name = dos_file_find_first(query);
+#endif
 	}
 	if (found_name == 0) {
 		return 0;
@@ -119,6 +133,11 @@ const legacy_s8 *file_find(const legacy_s8 *query)
 // FIXME: DOS specific implementation.
 const legacy_s8 *file_find_next(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (file_find_single_resource) {
+		return 0;
+	}
+#endif
 	if (file_find_tracks) {
 		return file_track_find_next();
 	}

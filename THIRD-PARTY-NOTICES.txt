@@ -135,3 +135,10 @@ The internal filename suggests an earlier prototype despite its 2026 title.
 The original high-polygon GLB and its textures are not included. Attribution
 and source hashes are also recorded in MCMU.json and READMCMU.TXT. These
 changes do not imply endorsement by the source author.
+
+
+puff raw DEFLATE decoder
+-----------------------
+SDL3 ZIP car loading uses puff from zlib v1.3.1, copyright Mark Adler.
+The source and its license notice are in third_party/puff/; the full license
+is installed at share/licenses/restunts/puff-LICENSE. No system zlib is required.

@@ -28,6 +28,10 @@ enum FILE_CAR_ROOT {
 	FILE_CAR_ROOT_COUNT
 };
 
+#ifdef RESTUNTS_SDL3
+enum FILE_CAR_SOURCE { FILE_CAR_SOURCE_LOOSE, FILE_CAR_SOURCE_ARCHIVE, FILE_CAR_SOURCE_COUNT };
+#endif
+
 enum FILE_CAR_FAMILY { FILE_CAR_NONE, FILE_CAR_PHYSICS, FILE_CAR_MODEL, FILE_CAR_DASHBOARD };
 #ifdef RESTUNTS_SDL3
 #define FILE_CAR_HYPERVISION_MODEL (FILE_CAR_DASHBOARD + 1U)
@@ -190,6 +194,97 @@ static legacy_u16 file_car_path(legacy_u16 root, const legacy_s8 *filename,
 	);
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_u16 file_car_archive_id_valid(const legacy_s8 *id)
+{
+	static const legacy_s8 forbidden[] = ".\"*/:<>?\\|";
+	for (legacy_u16 index = 0; index < FILE_CAR_ID_LENGTH; index++) {
+		if (id[index] < '!' || id[index] > '~') {
+			return 0;
+		}
+		for (legacy_u16 character = 0; forbidden[character] != 0; character++) {
+			if (id[index] == forbidden[character]) {
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+static legacy_u16 file_car_source_exists(legacy_u16 root, legacy_u16 source,
+										 const legacy_s8 *filename, legacy_u16 stem_length,
+										 legacy_s8 path[FILE_CAR_PATH_SIZE])
+{
+	legacy_s8 member[FILE_CAR_ID_LENGTH + sizeof(".zip/") + DOS_FILENAME_LENGTH];
+	if (source == FILE_CAR_SOURCE_ARCHIVE) {
+		const legacy_s8 *id = filename + stem_length - FILE_CAR_ID_LENGTH;
+		if (!file_car_archive_id_valid(id)) {
+			return 0;
+		}
+		for (legacy_u16 index = 0; index < FILE_CAR_ID_LENGTH; index++) {
+			member[index] = id[index];
+		}
+		member[FILE_CAR_ID_LENGTH] = 0;
+		if (!file_car_append(member, sizeof(member), ".zip/") ||
+			!file_car_append(member, sizeof(member), filename)) {
+			return 0;
+		}
+		filename = member;
+	}
+	if (!file_car_path(root, filename, path)) {
+		return 0;
+	}
+	fileio_handle handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
+	if (handle == FILEIO_INVALID_HANDLE) {
+		return 0;
+	}
+	dos_file_close(handle);
+	return 1;
+}
+
+/* Choose a source before a packed/unpacked representation. Loose resources
+ * precede the matching archive in each directory, and both precede later roots. */
+legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE])
+{
+	legacy_u16 stem_length;
+	legacy_u16 family = file_car_family(filename, &stem_length);
+	if (family == FILE_CAR_NONE) {
+		return 0;
+	}
+	const legacy_s8 *const *extensions = file_car_extensions(family);
+	legacy_s8 alternate[DOS_FILENAME_LENGTH];
+	for (legacy_u16 index = 0; index < stem_length; index++) {
+		alternate[index] = filename[index];
+	}
+	for (legacy_u16 root = FILE_CAR_DATA_LOOSE; root < FILE_CAR_ROOT_COUNT; root++) {
+		for (legacy_u16 source = FILE_CAR_SOURCE_LOOSE; source < FILE_CAR_SOURCE_COUNT; source++) {
+			if (file_car_source_exists(root, source, filename, stem_length, path)) {
+				return 1;
+			}
+			for (legacy_u16 index = 0; extensions[index] != 0; index++) {
+				alternate[stem_length] = 0;
+				if (file_car_append(alternate, sizeof(alternate), extensions[index]) &&
+					file_car_source_exists(root, source, alternate, stem_length, path)) {
+					return 0;
+				}
+			}
+			/* A replacement classic model masks enhanced companions from later
+			 * sources, including an archive beside a loose classic override. */
+			if (family == FILE_CAR_HYPERVISION_MODEL) {
+				for (legacy_u16 index = 0; file_car_model_extensions[index] != 0; index++) {
+					alternate[stem_length] = 0;
+					if (file_car_append(alternate, sizeof(alternate),
+										file_car_model_extensions[index]) &&
+						file_car_source_exists(root, source, alternate, stem_length, path)) {
+						return 0;
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+#else
 /* Select a directory before choosing a packed/unpacked representation. This
  * keeps a loose PRE/P3S/PVS override ahead of a bundled RES/3SH/VSH, too. */
 legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE])
@@ -247,6 +342,8 @@ legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_P
 	}
 	return 0;
 }
+
+#endif
 
 /* Track names use the same loose-before-subdirectory precedence as cars. An
  * explicitly selected directory remains isolated from the automatic search. */
@@ -362,6 +459,91 @@ legacy_u16 file_open_resource(const legacy_s8 *filename)
 	return handle;
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_u16 file_car_add_id(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity,
+								  legacy_u16 count, const legacy_s8 *source)
+{
+	legacy_s8 id[FILE_CAR_ID_BUFFER_SIZE];
+	for (legacy_u16 index = 0; index < FILE_CAR_ID_LENGTH; index++) {
+		id[index] = file_car_upper(source[index]);
+	}
+	id[FILE_CAR_ID_LENGTH] = 0;
+	for (legacy_u16 index = 0; index < count; index++) {
+		if (file_car_equal(id, car_ids[index])) {
+			return count;
+		}
+	}
+	if (count < capacity) {
+		for (legacy_u16 index = 0; index < FILE_CAR_ID_BUFFER_SIZE; index++) {
+			car_ids[count][index] = id[index];
+		}
+		count++;
+	}
+	return count;
+}
+
+static legacy_u16 file_car_archive_has_physics(legacy_u16 root, const legacy_s8 *archive)
+{
+	legacy_u16 length = 0;
+	while (archive[length] != 0) {
+		length++;
+	}
+	if (length != FILE_CAR_ID_LENGTH + sizeof(".zip") - 1U ||
+		!file_car_equal(archive + FILE_CAR_ID_LENGTH, ".zip") ||
+		!file_car_archive_id_valid(archive)) {
+		return 0;
+	}
+	legacy_s8 resource[DOS_FILENAME_LENGTH] = "car";
+	for (legacy_u16 index = 0; index < FILE_CAR_ID_LENGTH; index++) {
+		resource[sizeof("car") - 1U + index] = archive[index];
+	}
+	const legacy_u16 stem_length = sizeof("car") - 1U + FILE_CAR_ID_LENGTH;
+	legacy_s8 path[FILE_CAR_PATH_SIZE];
+	for (legacy_u16 index = 0; file_car_physics_extensions[index] != 0; index++) {
+		resource[stem_length] = 0;
+		if (file_car_append(resource, sizeof(resource), file_car_physics_extensions[index]) &&
+			file_car_source_exists(root, FILE_CAR_SOURCE_ARCHIVE, resource, stem_length, path)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity)
+{
+	legacy_u16 count = 0;
+	legacy_s8 query[FILE_CAR_PATH_SIZE];
+	for (legacy_u16 root = FILE_CAR_DATA_LOOSE; root < FILE_CAR_ROOT_COUNT; root++) {
+		for (legacy_u16 extension = 0; file_car_physics_extensions[extension] != 0; extension++) {
+			legacy_s8 pattern[DOS_FILENAME_LENGTH] = "car????";
+			if (!file_car_append(pattern, sizeof(pattern),
+								 file_car_physics_extensions[extension]) ||
+				!file_car_path(root, pattern, query)) {
+				continue;
+			}
+			const legacy_s8 *found = dos_file_find_first(query);
+			while (found != 0 && count < capacity) {
+				legacy_u16 stem_length;
+				if (file_car_family(found, &stem_length) == FILE_CAR_PHYSICS) {
+					count = file_car_add_id(car_ids, capacity, count, found + sizeof("car") - 1U);
+				}
+				found = dos_file_find_next();
+			}
+		}
+		if (!file_car_path(root, "????.zip", query)) {
+			continue;
+		}
+		const legacy_s8 *found = dos_file_find_first(query);
+		while (found != 0 && count < capacity) {
+			if (file_car_archive_has_physics(root, found)) {
+				count = file_car_add_id(car_ids, capacity, count, found);
+			}
+			found = dos_file_find_next();
+		}
+	}
+	return count;
+}
+#else
 legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity)
 {
 	legacy_u16 count = 0;
@@ -403,3 +585,4 @@ legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legac
 	}
 	return count;
 }
+#endif

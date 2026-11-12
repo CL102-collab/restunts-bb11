@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include "../../c/platform.h"
 #include "../../c/extended/extended_file_dialog.h"
+#include "car_zip.h"
 #if defined(__ANDROID__) && !defined(RESTUNTS_HEADLESS)
 #include <jni.h>
 #include <SDL3/SDL.h>
@@ -119,6 +120,11 @@ void android_saved_file_written(const legacy_s8 *path)
 enum FILE_IO_DIRECTION { FILE_IO_NONE, FILE_IO_READ, FILE_IO_WRITE };
 
 static FILE *files[FILE_HANDLE_COUNT];
+static struct FILE_MEMORY {
+	legacy_u8 *bytes;
+	legacy_u32 length;
+	legacy_u32 position;
+} memory_files[FILE_HANDLE_COUNT];
 static legacy_u8 file_directions[FILE_HANDLE_COUNT];
 #ifdef __EMSCRIPTEN__
 static legacy_u8 file_modified[FILE_HANDLE_COUNT];
@@ -245,6 +251,43 @@ static legacy_s32 resolve_path(const legacy_char *source, legacy_char result[FIL
 	return 1;
 }
 
+/* Archive members are ordinary read-only handles to the resource callers.
+ * Each open owns its bytes and position; no files are extracted to disk. */
+static struct FILE_MEMORY *get_memory_file(legacy_u16 handle)
+{
+	return handle >= FILE_FIRST_HANDLE && handle < FILE_HANDLE_COUNT &&
+				   memory_files[handle].bytes != NULL
+			   ? &memory_files[handle]
+			   : NULL;
+}
+
+static legacy_u8 *open_archive_member(legacy_char path[FILE_PATH_SIZE], legacy_u32 *length)
+{
+	legacy_char *separator = strrchr(path, '/');
+	const legacy_char extension[] = ".zip";
+	if (separator == NULL || (size_t)(separator - path) < sizeof(extension) - 1U) {
+		return NULL;
+	}
+	const legacy_char *suffix = separator - (sizeof(extension) - 1U);
+	for (size_t index = 0; index < sizeof(extension) - 1U; index++) {
+		if (lower_ascii(suffix[index]) != extension[index]) {
+			return NULL;
+		}
+	}
+	*separator = 0;
+	FILE *archive = native_file_open(path, DOS_FILE_OPEN_EXISTING);
+	*separator = '/';
+	if (archive == NULL) {
+		return NULL;
+	}
+	legacy_u8 *bytes = sdl3_car_zip_read(archive, (const legacy_s8 *)(separator + 1), length);
+	if (fclose(archive) != 0) {
+		free(bytes);
+		return NULL;
+	}
+	return bytes;
+}
+
 static FILE *get_file(legacy_u16 handle)
 {
 	if (handle < FILE_FIRST_HANDLE || handle >= FILE_HANDLE_COUNT || files[handle] == NULL) {
@@ -279,7 +322,7 @@ legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 		return 0;
 	}
 	for (legacy_u16 handle = FILE_FIRST_HANDLE; handle < FILE_HANDLE_COUNT; handle++) {
-		if (files[handle] == NULL) {
+		if (files[handle] == NULL && memory_files[handle].bytes == NULL) {
 			files[handle] = native_file_open(resolved, create);
 			if (files[handle] != NULL) {
 				file_directions[handle] = FILE_IO_NONE;
@@ -288,6 +331,14 @@ legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 				strcpy(file_paths[handle], resolved);
 #endif
 				return handle;
+			}
+			if (create == DOS_FILE_OPEN_EXISTING) {
+				memory_files[handle].bytes =
+					open_archive_member(resolved, &memory_files[handle].length);
+				if (memory_files[handle].bytes != NULL) {
+					memory_files[handle].position = 0;
+					return handle;
+				}
 			}
 			break;
 		}
@@ -298,6 +349,12 @@ legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 
 legacy_s16 dos_file_close(legacy_u16 handle)
 {
+	struct FILE_MEMORY *memory = get_memory_file(handle);
+	if (memory != NULL) {
+		free(memory->bytes);
+		memset(memory, 0, sizeof(*memory));
+		return 0;
+	}
 	FILE *file = get_file(handle);
 	if (file == NULL) {
 		return -1;
@@ -327,6 +384,17 @@ legacy_s16 dos_file_close(legacy_u16 handle)
 
 legacy_u16 dos_file_read(legacy_u16 handle, void *destination, legacy_u16 length)
 {
+	struct FILE_MEMORY *memory = get_memory_file(handle);
+	if (memory != NULL) {
+		legacy_u32 remaining =
+			memory->position < memory->length ? memory->length - memory->position : 0;
+		legacy_u16 count = remaining < length ? (legacy_u16)remaining : length;
+		if (count != 0) {
+			memcpy(destination, memory->bytes + memory->position, count);
+			memory->position += count;
+		}
+		return count;
+	}
 	FILE *file = get_file_for_io(handle, FILE_IO_READ);
 	if (file == NULL) {
 		return 0;
@@ -340,6 +408,10 @@ legacy_u16 dos_file_read(legacy_u16 handle, void *destination, legacy_u16 length
 
 legacy_u16 dos_file_write(legacy_u16 handle, const void *source, legacy_u16 length)
 {
+	if (get_memory_file(handle) != NULL) {
+		file_error = 1;
+		return 0;
+	}
 	FILE *file = get_file_for_io(handle, FILE_IO_WRITE);
 	if (file == NULL) {
 		return 0;
@@ -358,6 +430,25 @@ legacy_u16 dos_file_write(legacy_u16 handle, const void *source, legacy_u16 leng
 
 legacy_s16 dos_file_seek(legacy_u16 handle, legacy_s32 offset, legacy_s16 origin)
 {
+	struct FILE_MEMORY *memory = get_memory_file(handle);
+	if (memory != NULL) {
+		if (origin < DOS_FILE_SEEK_BEGIN || origin > DOS_FILE_SEEK_END) {
+			file_error = 1;
+			return -1;
+		}
+		legacy_s64 position = offset;
+		if (origin == DOS_FILE_SEEK_CURRENT) {
+			position += memory->position;
+		} else if (origin == DOS_FILE_SEEK_END) {
+			position += memory->length;
+		}
+		if (position < 0 || position > (legacy_s64)LEGACY_S32_MAX) {
+			file_error = 1;
+			return -1;
+		}
+		memory->position = (legacy_u32)position;
+		return 0;
+	}
 	FILE *file = get_file(handle);
 	legacy_s32 origins[] = {SEEK_SET, SEEK_CUR, SEEK_END};
 	if (file == NULL || origin < 0 || origin > DOS_FILE_SEEK_END ||
@@ -371,6 +462,10 @@ legacy_s16 dos_file_seek(legacy_u16 handle, legacy_s32 offset, legacy_s16 origin
 
 legacy_s32 dos_file_tell(legacy_u16 handle)
 {
+	struct FILE_MEMORY *memory = get_memory_file(handle);
+	if (memory != NULL) {
+		return (legacy_s32)memory->position;
+	}
 	FILE *file = get_file(handle);
 	/* Preserve the full ftell result until its legacy-range check. */
 	legacy_s64 position = file != NULL ? ftell(file) : -1;

@@ -464,17 +464,20 @@ async function exerciseDirectoryLoading(browser, url) {
             ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
             'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM', 'CARTERR.RES', 'StMcMu.H3d',
             'Cars/CaRTerR.ReS', 'cars/STMCMU.3SH', 'Cars/StMcMu.H3D', 'cars/STDAMCMU.VSH',
-            'cars/CARCSTM.PRE', 'cars/STCSTM.P3S', 'cars/STDBCSTM.PVS',
+            'cars/CARCSTM.PRE', 'cars/STCSTM.P3S', 'cars/STDBCSTM.PVS', 'CdOr.ZiP', 'Cars/McMu.ZiP',
             'Tracks/MiXeD.TrK', 'tracks/TRACK0.TRK', 'tracks/EXTENDED.CSTRK',
             'tracks/MIXED.HIG', 'tracks/EXTENDED.CSHIG',
             'ignored.exe', 'archive/MAIN.RES', 'opponents/animations/opp7win.webm',
             'cars/IGNORE.TRK', 'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES',
-            'tracks/IGNORE.RES', 'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK']
+            'tracks/IGNORE.RES', 'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK',
+            'CARCDOR.ZIP', 'ABC.ZIP', 'ABCDE.ZIP', 'cars/CARCDOR.ZIP', 'cars/nested/CDOR.ZIP',
+            'tracks/CDOR.ZIP']
             .map(path => ({ path, bytes: path === 'tracks/TRACK0.TRK' ? [4, 5, 6] : [1, 2, 3] }));
         const accepted = specs.filter(spec => !['ignored.exe', 'archive/MAIN.RES',
             'opponents/animations/opp7win.webm', 'cars/IGNORE.TRK',
             'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES', 'tracks/IGNORE.RES',
-            'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK'].includes(spec.path));
+            'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK', 'CARCDOR.ZIP', 'ABC.ZIP',
+            'ABCDE.ZIP', 'cars/CARCDOR.ZIP', 'cars/nested/CDOR.ZIP', 'tracks/CDOR.ZIP'].includes(spec.path));
         const metadataCount = accepted.length;
         const fileCount = new Set(accepted.map(spec => spec.path.toLowerCase())).size;
         await installLoadingFixture(page, specs);
@@ -526,6 +529,9 @@ async function exerciseDirectoryLoading(browser, url) {
         assert.ok(imported.files.includes('/stunts/cars/carcstm.pre'));
         assert.ok(imported.files.includes('/stunts/cars/stcstm.p3s'));
         assert.ok(imported.files.includes('/stunts/cars/stdbcstm.pvs'));
+        assert.ok(imported.files.includes('/stunts/cdor.zip'), 'Four-character ZIP cars must import from the game root');
+        assert.ok(imported.files.includes('/stunts/cars/mcmu.zip'), 'ZIP cars must import from the mixed-case car folder');
+        assert.ok(!imported.baseline.some(name => name.endsWith('.zip')), 'Imported ZIP cars must remain read-only assets');
         assert.ok(imported.files.includes('/stunts/tracks/mixed.trk'), 'Mixed-case track folders must load');
         assert.ok(imported.files.includes('/stunts/tracks/extended.cstrk'));
         assert.ok(imported.files.includes('/stunts/tracks/mixed.hig'));
@@ -627,7 +633,7 @@ async function exerciseFallbackLoading(browser, url, temporary) {
     await fs.mkdir(directory);
     const names = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'CARTERR.RES',
         ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
-        'CaRs/CaRMcmu.ReS', 'CaRs/STMCMU.3SH', 'CaRs/STDAMCMU.VSH',
+        'CaRs/CaRMcmu.ReS', 'CaRs/STMCMU.3SH', 'CaRs/STDAMCMU.VSH', 'CdOr.ZIP', 'CaRs/McMu.ZiP',
         'TrAcKs/CUSTOM.TRK', 'TrAcKs/EXTENDED.CSTRK', 'TrAcKs/CUSTOM.HIG', 'TrAcKs/EXTENDED.CSHIG'];
     await fs.mkdir(path.join(directory, 'CaRs'));
     await fs.mkdir(path.join(directory, 'TrAcKs'));
@@ -668,6 +674,8 @@ async function exerciseFallbackLoading(browser, url, temporary) {
         assert.ok(actual.files.includes('/stunts/cars/stmcmu.3sh'));
         assert.ok(actual.files.includes('/stunts/cars/stdamcmu.vsh'));
         assert.ok(actual.files.includes('/stunts/carterr.res'));
+        assert.ok(actual.files.includes('/stunts/cdor.zip'));
+        assert.ok(actual.files.includes('/stunts/cars/mcmu.zip'));
         assert.ok(actual.files.includes('/stunts/tracks/custom.trk'));
         assert.ok(actual.files.includes('/stunts/tracks/extended.cstrk'));
         assert.ok(actual.files.includes('/stunts/tracks/custom.hig'));

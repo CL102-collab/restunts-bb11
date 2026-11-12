@@ -756,6 +756,11 @@ The generator's `--install stunts` option writes the four resources to
 `stunts/cars/`. Restunts discovers compatible cars there automatically and
 continues to load loose cars from the game-data and executable folders.
 
+SDL3 builds also load cars directly from four-character ZIP archives such as
+`CDOR.ZIP` in any car search directory. Put the matching car resources at the
+archive root; adding or removing the ZIP installs or removes that car. See
+[ZIP car resources and conflict priority](docs/sdl3.md#zip-car-resources).
+
 Tracks can likewise be placed in `tracks/` inside the game-data folder or beside
 the executable. The game discovers `.TRK` tracks there automatically; SDL3 builds
 also support `.CSTRK` tracks. Loose game-data files take priority, followed by

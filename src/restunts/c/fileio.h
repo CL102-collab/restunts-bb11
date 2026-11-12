@@ -28,7 +28,8 @@ extern "C" {
 #endif
 
 /* Preserve the executable/asset directory before selecting the game-data dir.
- * Loose game data takes priority over cars/, tracks/ and bundled replacement assets. */
+ * Loose game data takes priority over cars/, tracks/ and bundled replacement assets.
+ * SDL3 car archives follow loose car resources within each search directory. */
 void file_car_set_base(const legacy_s8 *directory);
 legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity);
 /* Resolve classic/extended tracks and score sidecars using the car root order.

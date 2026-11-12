@@ -13,7 +13,7 @@ MemSet(&rs_file_car_file_car_model_extensions,0,sizeof(rs_file_car_file_car_mode
 legacy_s8 *rs_file_car_file_car_dashboard_extensions[6];
 MemSet(&rs_file_car_file_car_dashboard_extensions,0,
     sizeof(rs_file_car_file_car_dashboard_extensions));
-CRsAnon326a22075848 rs_file_car_file_track_search;
+CRsAnon822eebe59e50 rs_file_car_file_track_search;
 MemSet(&rs_file_car_file_track_search,0,sizeof(rs_file_car_file_track_search));
 CMatrix rs_math_math_mat_z_rot;
 MemSet(&rs_math_math_mat_z_rot,0,sizeof(rs_math_math_mat_z_rot));
