@@ -71,8 +71,14 @@ The HyperVision showroom imports the detailed exterior directly from that
 GLB. A compressed transformed source mesh is retained in
 tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
 regeneration without the upload or third-party Python packages. Racing meshes
-are reduced directly from the current H3D car0, preserving palette seams,
-open boundaries and the native wheel clearance. All models
+are reduced from the current H3D car0 body before the final rear-lamp pass,
+preserving palette seams, open boundaries and the native wheel clearance.
+HyperVision car0 and car1 then receive four enlarged red annuli with black
+centres and a central kite-shaped red rim with shorter upper sides. All five brighten on braking
+using material 45. The lamps sit ahead of the rear housings in rear views
+and survive simplification, remaining visible at F3 chase presets 2 and 3.
+The near mesh reserves 104 extra vertices for these lamps; its body budget
+and the distant car2 remain unchanged. All models
 use the game's four animated wheels, palette materials and seven paints. H3D does not store
 textures or transparency. The original GLB, textures and manufacturer
 photographs are not included.
@@ -126,7 +132,7 @@ the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
 STMCMU.H3D retains the detailed imported showroom and derives both racing
-meshes directly from that car0 payload. The near mesh has connected source-sampled
+meshes from that car0 body before procedural rear lamps. The near mesh has connected source-sampled
 hood, wheel-vent recesses and bumper panels. Its complete body is built from
 one half and mirrored, including all paint tables. The painted canopy sill
 joins the body skin, and the rear shoulder, arch lips and bumper corners follow
@@ -137,12 +143,14 @@ palette boundaries while removing small separate fittings. The showroom scale
 and height offset are removed before racing coordinates are quantized.
 Wheel-arch chords are checked after encoding
 and locally expanded only as needed to retain the native steering clearance.
-The racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
-including bounds and wheel controls. Deterministic cached geometry
+The base racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
+including bounds and wheel controls. Final car1 adds up to
+104 lamp vertices, for a total limit of
+1304. Deterministic cached geometry
 keeps each mesh within H3D version 3's
 65,535-vertex and 65,535-primitive limits:
-car0: 21648 vertices, 33507 primitives;
-car1: 1199 vertices, 2143 primitives;
+car0: 21752 vertices, 33653 primitives;
+car1: 1303 vertices, 2289 primitives;
 car2: 499 vertices, 810 primitives.
 All three H3D models display at 74.405% of their authored size,
 using one exact uniform scale (125/168) for bodywork, bounds and animated wheels.
@@ -160,7 +168,7 @@ counts include four native wheels. Bounds and wheel controls retain native
 integer coordinates. Simplified panels omit tiny source features.
 Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
-to the exact car0 payload checksum. Classic meshes retain their
+to the car0 body checksum before procedural lamps. Classic meshes retain their
 original byte limits, wheel controls and driving specifications.
 The cockpit artwork follows the supplied left.png, middle.png and right.png
 views, with a centered, symmetric roof edge and no side pillars. Solid turquoise

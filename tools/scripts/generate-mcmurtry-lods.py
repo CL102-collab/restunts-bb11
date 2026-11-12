@@ -6,6 +6,7 @@ cache using only the standard library. The source showroom payload is unchanged.
 """
 
 import argparse
+import copy
 import gzip
 import hashlib
 import importlib.util
@@ -30,8 +31,21 @@ NEAR_REAR_BASE_VERTICES = 1_000
 
 
 def source_geometry(path):
-    """Decode the installed showroom, preserving original face paint tables."""
+    """Decode the showroom shell before its procedural lamps are attached.
+
+    The installed car0 includes final lamps that must not consume the QEM
+    body budget. Validate it against current authoring, then use the unchanged
+    source shell; normal generation attaches the lamps after simplification.
+    """
     payload = generator.hypervision_resources(Path(path).read_bytes())["car0"]
+    source = detailed.load_source()
+    base = detailed._showroom_shape({**source, **source["lods"]["car0"]}, model)
+    final = copy.deepcopy(base)
+    detailed.lamps.apply(final, model, showroom=True)
+    detailed._fit_bounds(final, model)
+    if payload not in (base.encode_hypervision(), final.encode_hypervision()):
+        raise ValueError("Source showroom does not match current authoring inputs")
+    payload = base.encode_hypervision()
     points, _, _ = generator.decode_model(payload, "car0", hypervision=True)
     vertices, primitives, paints, header, index_size = generator.model_layout(
         payload, "car0", hypervision=True)

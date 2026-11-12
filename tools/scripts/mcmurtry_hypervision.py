@@ -19,6 +19,8 @@ import struct
 import zipfile
 from dataclasses import dataclass, field
 
+import mcmurtry_rear_lamps as lamps
+
 
 SOURCE_PATH = Path(__file__).with_name("cars") / "mcmurtry_hypervision_source.json.gz"
 SOURCE_SHA256 = "c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013"
@@ -45,6 +47,9 @@ QEM_TARGETS = {"car0": 32_000, "car1": 12_000}
 SHOWROOM_CLUSTER = .05
 RACING_VERTEX_TARGETS = {"car1": 1_200, "car2": 500}
 RACING_VERTEX_LIMITS = {"car1": (1_000, 1_200), "car2": (400, 500)}
+FINAL_RACING_VERTEX_LIMITS = {
+    name: (lower, upper + (lamps.DETAIL_VERTEX_ALLOWANCE if name == "car1" else 0))
+    for name, (lower, upper) in RACING_VERTEX_LIMITS.items()}
 RACING_SOURCE_PATH = Path(__file__).with_name("cars") / "mcmurtry_racing_lods.json.gz"
 RACING_CACHE_VERSION = 1
 TRIANGLE_VERTICES = 3
@@ -414,7 +419,7 @@ def _showroom_shape(source, model):
     return shape
 
 
-def build_shapes(model=None):
+def build_shapes(model=None, *, rear_lamps=True):
     if model is None:
         import mcmurtry_model as model
     source = load_source()
@@ -445,6 +450,12 @@ def build_shapes(model=None):
         if not lower <= len(shape.vertices) <= upper:
             raise ValueError(f"{name} exceeds its racing vertex budget")
         shapes[name] = shape
+    if rear_lamps:
+        for name in ("car0", "car1"):
+            lamps.apply(shapes[name], model, showroom=name == "car0")
+            _fit_bounds(shapes[name], model)
+        if len(shapes["car1"].vertices) > FINAL_RACING_VERTEX_LIMITS["car1"][1]:
+            raise ValueError("car1 exceeds its body and rear-lamp vertex budget")
     return shapes
 
 
@@ -522,8 +533,15 @@ def metadata():
             "cluster_spacing_game_units": {"car0": SHOWROOM_CLUSTER},
             "cluster_spacing_mm": {"car0": SHOWROOM_CLUSTER * model.MM_PER_UNIT},
             "racing_vertex_targets_including_controls": RACING_VERTEX_TARGETS,
-            "racing_vertex_limits_including_controls": RACING_VERTEX_LIMITS,
-            "racing_authoring_source": "STMCMU.H3D/car0",
+            "racing_body_vertex_limits_including_controls": RACING_VERTEX_LIMITS,
+            "racing_vertex_limits_including_controls": FINAL_RACING_VERTEX_LIMITS,
+            "racing_authoring_source": "STMCMU.H3D/car0 before procedural rear lamps",
+            "rear_lamps": {
+                "shapes": ["car0", "car1"],
+                "construction": "Four 12-segment red annuli with black centres and a central red kite rim with shorter upper sides. Added after body simplification; original rear lens faces become black housings.",
+                "brake_material": model.BRAKE_LIGHT,
+                "additional_vertex_limit": lamps.DETAIL_VERTEX_ALLOWANCE,
+                "source": "tools/scripts/mcmurtry_rear_lamps.py"},
             "racing_source_car0_sha256": cached["source_car0_sha256"],
             "racing_compact_source": "tools/scripts/cars/mcmurtry_racing_lods.json.gz",
             "racing_surface_construction": cached["simplification"],

@@ -482,8 +482,8 @@ def validate_hypervision_geometry(shape, name, classic, simd):
     metadata["animated_wheels"] = len(model.WHEEL_CENTERS)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
         points, triangles, scale, shift, name)
-    if name in detailed_model.RACING_VERTEX_LIMITS:
-        lower, upper = detailed_model.RACING_VERTEX_LIMITS[name]
+    if name in detailed_model.FINAL_RACING_VERTEX_LIMITS:
+        lower, upper = detailed_model.FINAL_RACING_VERTEX_LIMITS[name]
         if not lower <= metadata["vertices"] <= upper:
             raise ValueError(f"HyperVision {name} exceeds its racing vertex budget")
     # Imported car0 has open wheel-top vents. Its derived LODs share those
@@ -754,8 +754,14 @@ The HyperVision showroom imports the detailed exterior directly from that
 GLB. A compressed transformed source mesh is retained in
 tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
 regeneration without the upload or third-party Python packages. Racing meshes
-are reduced directly from the current H3D car0, preserving palette seams,
-open boundaries and the native wheel clearance. All models
+are reduced from the current H3D car0 body before the final rear-lamp pass,
+preserving palette seams, open boundaries and the native wheel clearance.
+HyperVision car0 and car1 then receive four enlarged red annuli with black
+centres and a central kite-shaped red rim with shorter upper sides. All five brighten on braking
+using material 45. The lamps sit ahead of the rear housings in rear views
+and survive simplification, remaining visible at F3 chase presets 2 and 3.
+The near mesh reserves {detailed_model.lamps.DETAIL_VERTEX_ALLOWANCE} extra vertices for these lamps; its body budget
+and the distant car2 remain unchanged. All models
 use the game's four animated wheels, palette materials and seven paints. H3D does not store
 textures or transparency. The original GLB, textures and manufacturer
 photographs are not included.
@@ -809,7 +815,7 @@ the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
 STMCMU.H3D retains the detailed imported showroom and derives both racing
-meshes directly from that car0 payload. The near mesh has connected source-sampled
+meshes from that car0 body before procedural rear lamps. The near mesh has connected source-sampled
 hood, wheel-vent recesses and bumper panels. Its complete body is built from
 one half and mirrored, including all paint tables. The painted canopy sill
 joins the body skin, and the rear shoulder, arch lips and bumper corners follow
@@ -820,8 +826,10 @@ palette boundaries while removing small separate fittings. The showroom scale
 and height offset are removed before racing coordinates are quantized.
 Wheel-arch chords are checked after encoding
 and locally expanded only as needed to retain the native steering clearance.
-The racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
-including bounds and wheel controls. Deterministic cached geometry
+The base racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
+including bounds and wheel controls. Final car1 adds up to
+{detailed_model.lamps.DETAIL_VERTEX_ALLOWANCE} lamp vertices, for a total limit of
+{detailed_model.FINAL_RACING_VERTEX_LIMITS['car1'][1]}. Deterministic cached geometry
 keeps each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
 65,535-vertex and 65,535-primitive limits:
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
@@ -843,7 +851,7 @@ counts include four native wheels. Bounds and wheel controls retain native
 integer coordinates. Simplified panels omit tiny source features.
 Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
-to the exact car0 payload checksum. Classic meshes retain their
+to the car0 body checksum before procedural lamps. Classic meshes retain their
 original byte limits, wheel controls and driving specifications.
 The cockpit artwork follows the supplied left.png, middle.png and right.png
 views, with a centered, symmetric roof edge and no side pillars. Solid turquoise

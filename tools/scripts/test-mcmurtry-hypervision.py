@@ -26,7 +26,16 @@ SPEC.loader.exec_module(generator)
 CONTROLS_END = model.WHEEL_CONTROL_START + detailed.WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
 SOURCE_LENGTH_TOLERANCE = .1
 MINIMUM_SOURCE_TRIANGLES = 100_000
-RACING_VERTEX_BUDGETS = {"car1": (1_000, 1_200), "car2": (400, 500)}
+# The connected base shell retains its original 1,200-vertex cap. The near
+# mesh has a separate bounded allowance for four rings and a kite-shaped lamp.
+RACING_VERTEX_BUDGETS = {"car1": (1_000, 1_304), "car2": (400, 500)}
+REAR_LAMP_COUNT = 5
+REAR_SPOT_COUNT = 4
+REAR_SPOT_MINIMUM_DIAMETER = 1.0
+REAR_HOLE_SAMPLE_OFFSET = .2
+REAR_RIM_SAMPLE_FRACTION = .75
+REAR_LAMP_NEAR_CENTRE_X = 3.0
+REAR_LAMP_MAXIMUM_Z = -30.0
 SOURCE_EXTENT_TOLERANCE = 1.5
 WING_SAMPLE_X = (-12., 12.)
 WING_SAMPLE_Z = (-40., -42.)
@@ -83,10 +92,11 @@ CANOPY_SILL_OBLIQUE_Z = (-8., -4., -3., 0.)
 CANOPY_SILL_OBLIQUE_XY = (10.5, 11.)
 CANOPY_SILL_MINIMUM_PAINTED_RAYS = 6
 SHOWROOM_PAYLOAD_SHA256 = "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03"
-ACCEPTED_PAYLOAD_SHA256 = {
+DISTANT_PAYLOAD_SHA256 = "6b12bbd7432b693c6802c0b5ba7fdeaf3e690bc94b5d13787dfdbcfffa0a96bb"
+BASE_PAYLOAD_SHA256 = {
     "car0": SHOWROOM_PAYLOAD_SHA256,
     "car1": "58f411141b3a7b99f2360ec0c5c0e80e96bebe1e90ab08fa85d4e74579032215",
-    "car2": "6b12bbd7432b693c6802c0b5ba7fdeaf3e690bc94b5d13787dfdbcfffa0a96bb",
+    "car2": DISTANT_PAYLOAD_SHA256,
 }
 PLANAR_HEIGHT = 2.0
 NEARBY_LAYER_GAP = 1 / (1 << detailed.RACING_FRACTION_BITS)
@@ -135,6 +145,26 @@ class SourceImportTests(unittest.TestCase):
             with mock.patch.object(detailed, "RACING_SOURCE_PATH", stale):
                 with self.assertRaisesRegex(ValueError, "rebuilt from the current car0"):
                     detailed.build_shapes()
+
+    def test_lod_authoring_uses_the_base_shell_of_a_detailed_showroom(self):
+        spec = importlib.util.spec_from_file_location(
+            "mcmurtry_lod_generator", Path(__file__).with_name("generate-mcmurtry-lods.py"))
+        lod_generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lod_generator)
+        companion = Path(__file__).resolve().parents[2] / "assets/cars/STMCMU.H3D"
+        points, triangles, materials, digest = lod_generator.source_geometry(companion)
+        source = detailed.load_source()
+        base = detailed._showroom_shape({**source, **source["lods"]["car0"]}, model)
+        self.assertEqual(SHOWROOM_PAYLOAD_SHA256, digest)
+        self.assertEqual([(x / model.SHOWROOM_SCALE,
+                           (y - model.SHOWROOM_Y_OFFSET) / model.SHOWROOM_SCALE,
+                           z / model.SHOWROOM_SCALE)
+                          for x, y, z in base.vertices[CONTROLS_END:]], points)
+        self.assertEqual([tuple(index - CONTROLS_END for index in indices)
+                          for kind, _, _, indices in base.primitives
+                          if kind != model.WHEEL_PRIMITIVE], triangles)
+        self.assertEqual([palette for kind, _, palette, _ in base.primitives
+                          if kind != model.WHEEL_PRIMITIVE], materials)
 
 
 class RacingSurfaceTests(unittest.TestCase):
@@ -665,12 +695,122 @@ class DetailedGeometryTests(unittest.TestCase):
             with self.subTest(shape=name):
                 self.assertEqual(shape.encode_hypervision(), self.installed_shapes[name])
 
-    def test_showroom_payload_stays_byte_identical(self):
-        payloads = {"generated": self.shapes["car0"].encode_hypervision(),
-                    "installed": self.installed_shapes["car0"]}
-        for source, payload in payloads.items():
-            with self.subTest(source=source):
-                self.assertEqual(SHOWROOM_PAYLOAD_SHA256, hashlib.sha256(payload).hexdigest())
+    @staticmethod
+    def rear_brake_components(faces, scale):
+        """Group brake surfaces by shared encoded positions, independently of authoring."""
+        brake = (model.BRAKE_LIGHT,) * model.PAINT_COUNT
+        neighbors = {}
+        for _, _, materials, triangle in faces:
+            if materials != brake or max(point[2] for point in triangle) / scale >= REAR_LAMP_MAXIMUM_Z:
+                continue
+            for point in triangle:
+                neighbors.setdefault(point, set()).update(triangle)
+        remaining = set(neighbors)
+        components = []
+        while remaining:
+            pending = {remaining.pop()}
+            component = set(pending)
+            while pending:
+                point = pending.pop()
+                adjacent = neighbors[point] & remaining
+                remaining.difference_update(adjacent)
+                component.update(adjacent)
+                pending.update(adjacent)
+            components.append(component)
+        return components
+
+    @staticmethod
+    def rear_ray_materials(faces, x, y):
+        """Sample the rear surface without assuming the lamp's triangulation."""
+        hits = []
+        for _, _, materials, polygon in faces:
+            for corner in range(1, len(polygon) - 1):
+                a, b, c = polygon[0], polygon[corner], polygon[corner + 1]
+                ux, uy = b[0] - a[0], b[1] - a[1]
+                vx, vy = c[0] - a[0], c[1] - a[1]
+                determinant = ux * vy - uy * vx
+                if abs(determinant) <= generator.GEOMETRY_TOLERANCE:
+                    continue
+                px, py = x - a[0], y - a[1]
+                u = (px * vy - py * vx) / determinant
+                v = (ux * py - uy * px) / determinant
+                if min(u, v, 1 - u - v) >= -generator.GEOMETRY_TOLERANCE:
+                    hits.append((a[2] + u * (b[2] - a[2]) + v * (c[2] - a[2]), materials))
+        if not hits:
+            return None
+        depth = min(hit[0] for hit in hits)
+        return {materials for z, materials in hits
+                if abs(z - depth) <= generator.GEOMETRY_TOLERANCE}
+
+    def test_rear_lamps_have_four_visible_sized_rings_and_a_centre_kite(self):
+        for name in ("car0", "car1"):
+            scale = self.shapes[name].scale
+            for source, payload in (("generated", self.shapes[name].encode_hypervision()),
+                                    ("installed", self.installed_shapes[name])):
+                _, faces = self.encoded_body_faces(payload, name)
+                components = self.rear_brake_components(faces, scale)
+                with self.subTest(shape=name, source=source):
+                    self.assertEqual(REAR_LAMP_COUNT, len(components))
+                    spots, kites = [], []
+                    for component in components:
+                        lower = tuple(min(p[axis] for p in component) for axis in range(detailed.AXES))
+                        upper = tuple(max(p[axis] for p in component) for axis in range(detailed.AXES))
+                        center = tuple((a + b) / 2 for a, b in zip(lower, upper))
+                        target = kites if abs(center[0] / scale) < REAR_LAMP_NEAR_CENTRE_X else spots
+                        target.append((component, lower, upper, center))
+                    self.assertEqual(REAR_SPOT_COUNT, len(spots))
+                    self.assertEqual(1, len(kites))
+                    self.assertEqual(2, sum(center[0] < 0 for _, _, _, center in spots))
+                    self.assertEqual(2, sum(center[0] > 0 for _, _, _, center in spots))
+                    for component, lower, upper, center in spots:
+                        self.assertGreaterEqual((upper[0] - lower[0]) / scale,
+                                                REAR_SPOT_MINIMUM_DIAMETER)
+                        self.assertAlmostEqual(upper[0] - lower[0], upper[1] - lower[1],
+                                               delta=scale / (1 << detailed.FRACTION_BITS[name]))
+                        radius = (upper[0] - lower[0]) * REAR_RIM_SAMPLE_FRACTION / 2
+                        for dx, dy in ((radius, 0.), (-radius, 0.), (0., radius), (0., -radius)):
+                            self.assertEqual({(model.BRAKE_LIGHT,) * model.PAINT_COUNT},
+                                             self.rear_ray_materials(faces, center[0] + dx,
+                                                                     center[1] + dy))
+                        for dx, dy in ((0., 0.), (REAR_HOLE_SAMPLE_OFFSET, 0.),
+                                       (-REAR_HOLE_SAMPLE_OFFSET, 0.), (0., REAR_HOLE_SAMPLE_OFFSET),
+                                       (0., -REAR_HOLE_SAMPLE_OFFSET)):
+                            self.assertEqual({(model.BLACK,) * model.PAINT_COUNT},
+                                             self.rear_ray_materials(faces, center[0] + dx * scale,
+                                                                     center[1] + dy * scale))
+                    component, lower, upper, center = kites[0]
+                    self.assertAlmostEqual(0., center[0])
+                    self.assertGreater(upper[1] - lower[1], upper[0] - lower[0])
+                    # The horizontal extrema sit between the pointed upper and
+                    # lower ends. Its upper sides must be shorter than the
+                    # lower sides, distinguishing the deltoid from a rhombus.
+                    for x in (lower[0], upper[0]):
+                        for point in component:
+                            if point[0] == x:
+                                self.assertGreater(point[1], lower[1])
+                                self.assertLess(point[1], upper[1])
+                                upper_side = math.dist(point, (center[0], upper[1], point[2]))
+                                lower_side = math.dist(point, (center[0], lower[1], point[2]))
+                                self.assertLess(upper_side, lower_side)
+
+    def test_base_meshes_and_unrelated_surfaces_stay_unchanged(self):
+        for name, base in detailed.build_shapes(rear_lamps=False).items():
+            with self.subTest(shape=name):
+                self.assertEqual(BASE_PAYLOAD_SHA256[name],
+                                 hashlib.sha256(base.encode_hypervision()).hexdigest())
+                if name in detailed.RACING_VERTEX_LIMITS:
+                    self.assertLessEqual(len(base.vertices), detailed.RACING_VERTEX_LIMITS[name][1])
+                final = self.shapes[name]
+                self.assertEqual(base.vertices, final.vertices[:len(base.vertices)])
+                self.assertGreaterEqual(len(final.primitives), len(base.primitives))
+                for before, after in zip(base.primitives, final.primitives):
+                    kind, flags, materials, indices = before
+                    self.assertEqual((kind, flags, indices), (after[0], after[1], after[3]))
+                    if materials != after[2]:
+                        self.assertEqual((model.BRAKE_LIGHT,) * model.PAINT_COUNT, materials)
+                        self.assertEqual((model.BLACK,) * model.PAINT_COUNT, after[2])
+                        self.assertTrue(all(base.vertices[index][2] / base.scale < REAR_LAMP_MAXIMUM_Z
+                                            for index in indices))
 
     def test_envelope_contains_all_geometry_and_stays_above_ground(self):
         for name, shape in self.shapes.items():
@@ -711,13 +851,12 @@ class DetailedGeometryTests(unittest.TestCase):
     def test_container_is_deterministic(self):
         self.assertEqual(detailed.build_container(), detailed.build_container())
 
-    def test_presentation_scale_preserves_all_accepted_mesh_payloads(self):
+    def test_distant_payload_stays_byte_identical(self):
         generated = generator.hypervision_resources(detailed.build_container())
-        for name, digest in ACCEPTED_PAYLOAD_SHA256.items():
-            for source, payload in (("installed", self.installed_shapes[name]),
-                                    ("generated", generated[name])):
-                with self.subTest(shape=name, source=source):
-                    self.assertEqual(digest, hashlib.sha256(payload).hexdigest())
+        for source, payload in (("installed", self.installed_shapes["car2"]),
+                                ("generated", generated["car2"])):
+            with self.subTest(source=source):
+                self.assertEqual(DISTANT_PAYLOAD_SHA256, hashlib.sha256(payload).hexdigest())
 
     def test_presentation_scale_matches_audi_height_reference(self):
         data = detailed.build_container()

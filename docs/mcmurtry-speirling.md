@@ -199,13 +199,26 @@ collision sizes retain their existing units. The factory specification section
 below retains the manufacturer's 1,056 mm production height; Wikipedia's
 1,050 mm is the requested visual comparison reference.
 
-Both racing meshes are reduced directly from that current H3D `car0` geometry.
+Both racing meshes are reduced from the current H3D `car0` body before
+the final procedural rear-lamp pass.
 The conversion removes its showroom scale and vertical offset to restore
 racing coordinates, then simplifies the body triangles. The total vertex
-budgets are **1,000–1,200 for `car1`** and **400–500 for `car2`**, including the
+body budgets are **1,000–1,200 for `car1`** and **400–500 for `car2`**, including the
 eight bounding vertices and 24 animated wheel controls. These limits bound
 the vertex transformation work performed by the CPU renderer. The generator
-rejects racing meshes outside those ranges.
+rejects base racing meshes outside those ranges. The final `car1` reserves an
+additional **104 vertices** for rear lamps (1,304 total maximum).
+
+HyperVision `car0` and `car1` have four 12-segment red rings, arranged as upper
+and lower pairs at the rear corners, and a taller central kite-shaped red
+rim, with shorter upper sides and a longer lower point. Their black centres are separate, non-overlapping faces; material 45
+brightens only the red rims when braking. The rings have a 1.25-unit diameter
+and a 0.625-unit black inner diameter, intentionally enlarged for chase-camera
+visibility. The lamp faces sit just behind the rear housings at Z=-41, avoiding
+body occlusion. They are authored after simplification so neither lower lamp
+can disappear from the racing mesh. Native 1280×800 renders verify five separate
+brake responses at F3 presets 2 and 3. Classic `.3SH` lamps and the distant
+HyperVision `car2` are unchanged.
 
 All models retain the native animated wheels, steering, suspension and classic
 physics controls. The racing meshes retain the source palette materials and
@@ -221,9 +234,11 @@ The two reduced racing meshes are retained separately in
 [`mcmurtry_racing_lods.json.gz`](../tools/scripts/cars/mcmurtry_racing_lods.json.gz).
 [`mcmurtry_hypervision.py`](../tools/scripts/mcmurtry_hypervision.py) reads both
 compact files using Python's standard library. The racing cache records the
-SHA-256 of its exact source `car0` payload. If the showroom model changes,
+SHA-256 of its source `car0` body payload before the rear-lamp pass. If that
+showroom body changes,
 normal generation rejects the stale cache until the racing meshes are rebuilt
-from the updated `car0`. The older imported racing detail levels inside the
+from the updated `car0` body. Lamp-only changes do not invalidate this body
+cache. The older imported racing detail levels inside the
 showroom source file are retained for provenance and are not used.
 
 Normal car generation needs neither the original GLB nor external modeling
@@ -240,13 +255,13 @@ python3 tools/scripts/mcmurtry_hypervision.py --source /path/2026-mcmurtry-speir
 
 The requirements pin `fast-simplification==0.2.0` and `numpy==2.5.4`; ordinary
 car generation does not import either package. Reimporting the showroom input
-also requires rebuilding the racing cache if its encoded `car0` changes.
+also requires rebuilding the racing cache if its encoded `car0` body changes.
 
 The `--source` argument also accepts the extracted GLB. The importer verifies
 its SHA-256 against the attributed source before applying scene transforms.
 Running the module without arguments reports the current companion mesh counts.
 
-To rebuild the racing cache directly from the current installed H3D `car0`,
+To rebuild the racing cache from the current installed H3D `car0`,
 install the separate offline LOD dependencies, then regenerate the car assets:
 
 ```sh
@@ -259,7 +274,9 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check
 The LOD authoring pass uses material-constrained quadric edge collapse for
 `car2` and the rear of `car1`. It retains palette seams and the rear wing,
 removing small disconnected fittings. Thin wing blades use closed convex
-envelopes of their source vertices. Both levels start from `car0`.
+envelopes of their source vertices. Both levels start from the `car0` body.
+The authoring tool verifies the installed showroom against its source and
+excludes the final lamps before reduction; normal generation reapplies them.
 
 The near mesh rebuilds the front as connected panels sampled from the source
 hood, canopy and nose. Shared edges join the hood, bounded wheel-vent recesses,
@@ -280,8 +297,8 @@ retaining the cached distant mesh.
 
 | HyperVision shape | Vertices | Primitives | Body coordinate step |
 | --- | ---: | ---: | ---: |
-| `car0` showroom | 21,648 | 33,507 | 2.2 mm |
-| `car1` racing | 1,199 | 2,143 | 2.75 mm |
+| `car0` showroom | 21,752 | 33,653 | 2.2 mm |
+| `car1` racing | 1,303 | 2,289 | 2.75 mm |
 | `car2` distant racing | 499 | 810 | 2.75 mm |
 
 Vertex counts include the eight bounds and 24 animated wheel controls;

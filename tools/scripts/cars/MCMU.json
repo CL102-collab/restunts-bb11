@@ -514,7 +514,7 @@
         "car1": 1200,
         "car2": 500
       },
-      "racing_vertex_limits_including_controls": {
+      "racing_body_vertex_limits_including_controls": {
         "car1": [
           1000,
           1200
@@ -524,7 +524,27 @@
           500
         ]
       },
-      "racing_authoring_source": "STMCMU.H3D/car0",
+      "racing_vertex_limits_including_controls": {
+        "car1": [
+          1000,
+          1304
+        ],
+        "car2": [
+          400,
+          500
+        ]
+      },
+      "racing_authoring_source": "STMCMU.H3D/car0 before procedural rear lamps",
+      "rear_lamps": {
+        "shapes": [
+          "car0",
+          "car1"
+        ],
+        "construction": "Four 12-segment red annuli with black centres and a central red kite rim with shorter upper sides. Added after body simplification; original rear lens faces become black housings.",
+        "brake_material": 45,
+        "additional_vertex_limit": 104,
+        "source": "tools/scripts/mcmurtry_rear_lamps.py"
+      },
       "racing_source_car0_sha256": "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03",
       "racing_compact_source": "tools/scripts/cars/mcmurtry_racing_lods.json.gz",
       "racing_surface_construction": {
@@ -596,8 +616,8 @@
     },
     "models": {
       "car0": {
-        "vertices": 21648,
-        "primitives": 33507,
+        "vertices": 21752,
+        "primitives": 33653,
         "paint_jobs": 7,
         "dimensions_game_units": {
           "length": 86.7,
@@ -621,8 +641,8 @@
         "displayed_wheelbase_game_units": 37.202380952380956
       },
       "car1": {
-        "vertices": 1199,
-        "primitives": 2143,
+        "vertices": 1303,
+        "primitives": 2289,
         "paint_jobs": 7,
         "dimensions_game_units": {
           "length": 86.4375,
@@ -701,8 +721,8 @@
       "sha256": "756564ce59b5a7914a08c1f107c04dd29cfd91d850b59a3cce069ab2b1ee8a56"
     },
     "STMCMU.H3D": {
-      "bytes": 978800,
-      "sha256": "e8a7f3db1b699f96072df8ee2f297924bbe9a8bcb8703c71c52bb11241eeb429"
+      "bytes": 986764,
+      "sha256": "4cbbcebee02136507f168d17c968caf0f1453feb78996b219df5d2be0cd69f2b"
     },
     "MCMU.obj": {
       "bytes": 27742,
