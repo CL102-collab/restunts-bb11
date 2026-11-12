@@ -50,7 +50,7 @@ from `assets/cars/` into its `cars/` subfolder. Restunts release packages includ
 the car automatically, and loose files in the game-data or executable folder
 remain supported. Install the four files together. Add the optional
 `STMCMU.H3D` companion beside them for HyperVision's detailed source-derived
-exterior meshes. Classic rendering and original Stunts use the unchanged `.3SH` models.
+exterior meshes. Classic rendering and original Stunts use the resized `.3SH` models.
 `tools/scripts/cars/` retains
 `MCMU.json` with reference URLs, dimensions and resource hashes, and
 `READMCMU.TXT` with installation instructions. `MCMU.obj` and `MCMU.mtl`
@@ -155,8 +155,8 @@ within its 255-vertex and 255-primitive limits.
 | Shape | Vertices | Primitives |
 | --- | ---: | ---: |
 | `car0` showroom | 255 | 247 |
-| `car1` racing | 255 | 247 |
-| `car2` distant racing | 247 | 243 |
+| `car1` racing | 252 | 244 |
+| `car2` distant racing | 244 | 240 |
 
 ### Detailed HyperVision companion
 
@@ -167,13 +167,19 @@ mesh. Source node transforms, uniform scaling and precomputed quadric error
 reduction place it in the car's coordinate system. The `car0` showroom payload
 remains byte-identical after rebuilding the racing detail levels.
 
-All three HyperVision models display at **125/168 of their authored size**
-(74.405%, a 25.595% reduction), with exactly the same factor on X, Y and Z.
-This includes the body, animated wheels and bounds. The accepted mesh payloads,
-topology, materials, symmetry and vertex counts are byte-identical. The scale
-is stored in the H3D version 3 container header and applied after decoding,
-avoiding distortion from rounding the integer wheel controls. Body coordinates
-are scaled once when loaded; only wheel controls need refreshing during animation.
+All three classic and HyperVision models are generated at **125/168 of the
+original authoring size** (74.405%, a 25.595% reduction). The offline generator
+applies the same factor to X, Y and Z, including the body, animated wheel
+controls and bounds. Classic surfaces and wheel controls are authored at the
+smaller size before integer quantization; the HyperVision body uses finer
+fixed-point coordinates. Small differences from the ideal factor follow from
+the classic renderer's whole-unit coordinates.
+
+Both model families store their final dimensions. H3D uses a version 2
+container with no presentation-scale fields, and the game performs no per-car
+size adjustment when loading or rendering. Toggling HyperVision changes model
+detail while retaining the smaller overall size. The classic assets also
+retain that size in ports without HyperVision or when the companion is absent.
 
 The height reference is the stock Audi in `STAUDI.P3S`, whose showroom is 26
 game units tall after removing its 20× showroom scale. The unscaled McMurtry
@@ -186,21 +192,24 @@ showroom is 27.3 units tall. Wikipedia was checked on 2026-11-09:
 | Height | 1,344 mm | 1,050 mm |
 | Wheelbase | 2,204 mm | 2,200 mm |
 
-The uniform scale is `(26 × 1050 / 1344) / 27.3 = 125/168`, giving a showroom
-height of 20.3125 units, or 78.125% of the Audi's height. Stock model proportions
-prevent matching both real height and wheelbase ratios with a single scale;
-height is the selected reference. The displayed McMurtry wheelbase is 37.2024
-units, versus the Audi's 46. No dimension is stretched independently.
+The offline size factor is `(26 × 1050 / 1344) / 27.3 = 125/168`, targeting a
+showroom height of 20.3125 units, or 78.125% of the Audi's height, before final
+coordinate quantization. Stock model proportions prevent matching both real
+height and wheelbase ratios with a single factor; height is the selected
+reference. The ideal resized wheelbase is 37.2024 units, versus the Audi's 46;
+the stored racing wheel centres round to Z=±19, giving a 38-unit wheelbase.
+No dimension is stretched independently.
 
-Showroom tyres stay on Y=0; racing tyres stay on Y=-6. Bounds, shadows and
-rendered wheel clearances follow the scaled geometry. This adjustment applies
-to H3D presentation; classic fallback assets, physics contact points and
-collision sizes retain their existing units. The factory specification section
-below retains the manufacturer's 1,056 mm production height; Wikipedia's
-1,050 mm is the requested visual comparison reference.
+Showroom tyres stay on Y=0; racing tyres stay on Y=-6. The baked racing wheel
+centres are `(±12, 0, ±19)` with six-unit radii, shared by classic and HyperVision
+meshes. Bounds, shadows and rendered wheel clearances follow the stored
+geometry. `CARMCMU.RES`, including physics contact points and collision sizes,
+is unchanged. The factory specification section below retains the manufacturer's
+1,056 mm production height; Wikipedia's 1,050 mm is the requested visual
+comparison reference.
 
-Both racing meshes are reduced from the current H3D `car0` body before
-the final procedural rear-lamp pass.
+Both racing meshes are reduced from the source `car0` body in its original
+authoring units, before the procedural rear-lamp and final sizing passes.
 The conversion removes its showroom scale and vertical offset to restore
 racing coordinates, then simplifies the body triangles. The total vertex
 body budgets are **1,000–1,200 for `car1`** and **400–500 for `car2`**, including the
@@ -211,14 +220,18 @@ additional **104 vertices** for rear lamps (1,304 total maximum).
 
 HyperVision `car0` and `car1` have four 12-segment red rings, arranged as upper
 and lower pairs at the rear corners, and a taller central kite-shaped red
-rim, with shorter upper sides and a longer lower point. Their black centres are separate, non-overlapping faces; material 45
-brightens only the red rims when braking. The rings have a 1.25-unit diameter
-and a 0.625-unit black inner diameter, intentionally enlarged for chase-camera
-visibility. The lamp faces sit just behind the rear housings at Z=-41, avoiding
-body occlusion. They are authored after simplification so neither lower lamp
-can disappear from the racing mesh. Native 1280×800 renders verify five separate
-brake responses at F3 presets 2 and 3. Classic `.3SH` lamps and the distant
-HyperVision `car2` are unchanged.
+rim, with shorter upper sides and a longer lower point. Their black centres
+are separate, non-overlapping faces; material 45 brightens only the red rims
+when braking. Before final sizing, the rings have a 1.25-unit diameter and a
+0.625-unit black inner diameter. The baked diameters are approximately 0.9301
+and 0.4650 units, with final differences from coordinate quantization. The
+lamp faces lie just behind the rear housings at authoring Z=-41 (about -30.506
+in the baked model), avoiding body occlusion. They are authored after
+simplification so neither lower lamp can disappear from the racing mesh.
+Native 1280×800 renders verify five separate brake responses at F3 presets 2
+and 3. The new lamp geometry is specific to HyperVision `car0` and `car1`;
+the classic lamps and distant HyperVision `car2` receive only the overall
+model sizing change.
 
 All models retain the native animated wheels, steering, suspension and classic
 physics controls. The racing meshes retain the source palette materials and
@@ -234,11 +247,12 @@ The two reduced racing meshes are retained separately in
 [`mcmurtry_racing_lods.json.gz`](../tools/scripts/cars/mcmurtry_racing_lods.json.gz).
 [`mcmurtry_hypervision.py`](../tools/scripts/mcmurtry_hypervision.py) reads both
 compact files using Python's standard library. The racing cache records the
-SHA-256 of its source `car0` body payload before the rear-lamp pass. If that
-showroom body changes,
-normal generation rejects the stale cache until the racing meshes are rebuilt
-from the updated `car0` body. Lamp-only changes do not invalidate this body
-cache. The older imported racing detail levels inside the
+SHA-256 of its source `car0` body payload before the rear-lamp and sizing
+passes. Its original coordinate precision remains zero fraction bits for
+`car0` and four for the racing meshes. If that showroom body changes, normal
+generation rejects the stale cache until the racing meshes are rebuilt from
+the updated `car0` body. Lamp-only and final sizing changes do not invalidate
+this body cache. The older imported racing detail levels inside the
 showroom source file are retained for provenance and are not used.
 
 Normal car generation needs neither the original GLB nor external modeling
@@ -275,8 +289,9 @@ The LOD authoring pass uses material-constrained quadric edge collapse for
 `car2` and the rear of `car1`. It retains palette seams and the rear wing,
 removing small disconnected fittings. Thin wing blades use closed convex
 envelopes of their source vertices. Both levels start from the `car0` body.
-The authoring tool verifies the installed showroom against its source and
-excludes the final lamps before reduction; normal generation reapplies them.
+The authoring tool verifies the installed, resized showroom against its
+source, then reduces the original body in authoring units. Normal generation
+adds the lamps and bakes the final size after reading the cached geometry.
 
 The near mesh rebuilds the front as connected panels sampled from the source
 hood, canopy and nose. Shared edges join the hood, bounded wheel-vent recesses,
@@ -297,30 +312,32 @@ retaining the cached distant mesh.
 
 | HyperVision shape | Vertices | Primitives | Body coordinate step |
 | --- | ---: | ---: | ---: |
-| `car0` showroom | 21,752 | 33,653 | 2.2 mm |
-| `car1` racing | 1,303 | 2,289 | 2.75 mm |
-| `car2` distant racing | 499 | 810 | 2.75 mm |
+| `car0` showroom | 21,752 | 33,653 | 0.06875 mm |
+| `car1` racing | 1,303 | 2,289 | 0.171875 mm |
+| `car2` distant racing | 499 | 810 | 0.171875 mm |
 
 Vertex counts include the eight bounds and 24 animated wheel controls;
 primitive counts include four native wheels. Body positions retain fractional
 precision during simplification, then round to the stored coordinate step.
 H3D uses native palette surfaces without interpolated shading normals.
 
-The companion uses H3D version 3 with signed 16-bit body-coordinate storage
-and wide vertex indices above 255 vertices. Showroom bodies use whole model
-coordinates at the stock 20× scale, approximately 2.2 mm per stored step.
-Racing bodies use four fraction bits, giving 1/16-unit coordinates or about
-2.75 mm per stored step. The first eight bounds and 24 animated wheel controls
-retain native whole units in the payload; the presentation scale applies after
-decoding. The precision figures above describe authored coordinates.
-See the [H3D format](hypervision-meshes.md#container-format-versions-2-and-3).
+The companion uses H3D version 2 with signed 16-bit body-coordinate storage
+and wide vertex indices above 255 vertices. Final showroom bodies use five
+fraction bits at the stock 20× scale: 44 / (20 × 32) = 0.06875 mm per stored
+step. Final racing bodies use eight fraction bits: 44 / 256 = 0.171875 mm per
+stored step. These figures use the 44 mm authoring-unit conversion. The
+first eight bounds and 24 animated wheel controls retain native whole units
+and match the resized classic controls. The loader only decodes fixed-point
+body coordinates; there is no runtime presentation scaling.
+See the [H3D format](hypervision-meshes.md#container-format-version-2).
 
 Mesh reduction and coordinate quantization can still merge or remove small
 source features. H3D uses native palette surfaces; source UVs, textures and
 smooth-shading normals are omitted. HyperVision selects the detailed meshes
-when available; turning it off immediately restores the unchanged classic
-shapes. The loader accepts H3D versions 2 and 3; invalid or unsupported companions
-use the classic models. Ports without HyperVision ignore it.
+when available; turning it off immediately selects the resized classic
+shapes. The loader accepts H3D version 2 only; version 3 and other invalid or
+unsupported companions use the classic models. Ports without HyperVision
+ignore the companion and use the baked classic geometry.
 
 The first eight car vertices are bounds; the following 24 are the classic
 model's animated wheel controls.
@@ -431,20 +448,22 @@ A uniform **44 mm per racing-model unit** follows the stock Corvette's
 4,506 mm / 103 units and the NSX's 4,405 mm / 100 units. Stock cars have
 stylized proportions, so no new car can match every stock car exactly.
 
-The downloaded mesh is uniformly scaled to the nominal 3,815 mm car length
-at that scale. Its width and height preserve the source aspect ratio; they
-are not adjusted to the production specification. The unrounded visual
-envelope is approximately 86.7 × 38.8 × 27.3 game units (length × width ×
-height). The classic rounded wheel areas deliberately adapt that reference. The
-showroom uses the stock 20× scale, and both racing detail levels share the
-same overall size and wheel controls.
+The downloaded mesh's original authoring size matches the nominal 3,815 mm
+car length at that conversion. Width and height preserve the source aspect
+ratio rather than being adjusted independently to production specifications.
+The unrounded authoring envelope is approximately 86.7 × 38.8 × 27.3 game
+units (length × width × height); the classic rounded wheel areas adapt that
+reference. Final assets bake the additional 125/168 visual size factor
+described above. The showroom uses the stock 20× scale, and both racing
+detail levels share the same smaller overall size and wheel controls.
 
-The native car origin is centered between its axles. At 44 mm per game unit,
-the specified 2,200 mm wheelbase is exactly 50 units: visual front centres
-are `(±16, 2, 25)` and rear centres are `(±16, 2, -25)`, with eight-unit radii
-and three-unit half-widths. Tyre bottoms meet the engine's `y = -6` contact
-plane. The ignored SIMD wheel Y fields are zero, while its X/Z coordinates
-match the visual wheel controls exactly.
+The car origin is centered between its axles. In original authoring and
+physics units, the specified 2,200 mm wheelbase is exactly 50 units: wheel
+centres are `(±16, 2, ±25)`, with eight-unit radii and three-unit half-widths.
+The SIMD wheel Y fields are zero. Those physics values remain unchanged in
+`CARMCMU.RES`; they are independent of the baked visual wheel centres
+`(±12, 0, ±19)` and six-unit radii. Both visual model families place racing
+tyre bottoms on the engine's `y = -6` contact plane.
 
 The classic source body shifts by 1.5 units along Z before native rounding.
 Wheel arches follow the adapted axles, OBJ tyres use the same centered coordinates,
@@ -511,24 +530,25 @@ recording and replay playback.
 
 The generator validates DSI directories, the 776-byte SIMD, car text,
 seven model resources, polygon indices and normals, animated wheel slots,
-bounding boxes, visual/physical wheel agreement, contact height and uniform
-source scaling. Classic visible height follows the canopy ridge after removing
-the centre fin; the original source bounds remain recorded separately.
+bounding boxes, agreement between classic and HyperVision wheel controls,
+contact height, unchanged physics resources and offline uniform sizing.
+Classic visible height follows the canopy ridge after removing the centre fin;
+the original source bounds remain recorded separately.
 For the classic meshes it samples the encoded upper tyre envelope against the
 body surface and measures the actual side-facing triangles around each outer
 tyre face. This catches arch chords or filled openings that intersect a tyre
 after integer rounding, even when the roof clears it. Front-wheel checks
 include a conservative projected envelope for the full steering range.
-Every encoded outer arch must leave at least **one game unit (44 mm)** of
-gap. Current minimum clearances, in game units, are:
+The original authoring meshes require at least one game unit of arch gap.
+Final-size validation checks that the encoded body does not intersect the
+smaller native tyres; integer rounding can alter the resized gaps. Current
+minimum clearances in the generated assets, in game units, are:
 
 | Shape | Front arches | Rear arches | Upper cover |
 | --- | ---: | ---: | ---: |
-| `car0` showroom | 1.108 | 1.317 | 1.688 |
-| `car1` / `car2` racing | 1.262 | 1.191 | 1.738 |
+| `car0` showroom | 0.816 | 0.977 | 1.255 |
+| `car1` / `car2` racing | 0.316 | 0.499 | 0.761 |
 
-The lower front crown retains the same side-arch gaps and more than one
-game unit of upper tyre clearance after native integer rounding.
 The arch minima apply to both wheels on each axle. Only triangles attached
 to the matching wheel count as upper cover, so a change that loses the
 required native drawing order also fails generation.
@@ -543,8 +563,8 @@ channel faces, steering envelopes and both coordinate scales. The generator
 also validates the detailed companion directory, shape limits, palette
 materials, wide indices and matching animated wheel controls. Both racing
 companions are checked separately against the encoded native tyre
-clearance envelope. The classic wheel-cover assertions describe the unchanged
-low-polygon fallback and its native drawing order.
+clearance envelope. The classic wheel-cover assertions also check the resized
+low-polygon models and their native drawing order.
 
 The classic 320×200 native loader and allocator give these dashboard sizes:
 

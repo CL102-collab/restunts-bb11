@@ -25,6 +25,13 @@ generator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(generator)
 CONTROLS_END = model.WHEEL_CONTROL_START + detailed.WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
 SOURCE_LENGTH_TOLERANCE = .1
+EXPECTED_MODEL_SIZE_FACTOR = 125 / 168
+EXPECTED_OUTPUT_FRACTION_BITS = {"car0": 5, "car1": 8, "car2": 8}
+SCALE_FREE_CONTAINER_HEADER = struct.Struct("<4sHH")
+SCALE_FREE_CONTAINER_VERSION = 2
+REMOVED_SCALE_CONTAINER_VERSION = 3
+CONTAINER_VERSION_OFFSET = 4
+CONTAINER_RESOURCE_NAME_SIZE = 4
 MINIMUM_SOURCE_TRIANGLES = 100_000
 # The connected base shell retains its original 1,200-vertex cap. The near
 # mesh has a separate bounded allowance for four rings and a kite-shaped lamp.
@@ -261,7 +268,10 @@ class DetailedGeometryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = detailed.load_source()
-        cls.shapes = detailed.build_shapes()
+        # Source-profile sightlines remain in the offline authoring frame. Final
+        # payload checks below verify that baking preserves every body surface.
+        cls.shapes = detailed.build_shapes(authored=True)
+        cls.final_shapes = detailed.build_shapes()
         companion = Path(__file__).resolve().parents[2] / "assets/cars/STMCMU.H3D"
         cls.installed_shapes = generator.hypervision_resources(companion.read_bytes())
 
@@ -269,6 +279,10 @@ class DetailedGeometryTests(unittest.TestCase):
     def encoded_body_faces(payload, name):
         """Read coordinates and complete paint tables from the serialized asset."""
         points, _, _ = generator.decode_model(payload, name, hypervision=True)
+        ground = 0 if name == "car0" else model.CONTACT_Y
+        points = [(x / model.MODEL_SIZE_FACTOR,
+                   ground + (y - ground) / model.MODEL_SIZE_FACTOR,
+                   z / model.MODEL_SIZE_FACTOR) for x, y, z in points]
         vertices, primitives, paints, header_size, index_size = generator.model_layout(
             payload, name, hypervision=True)
         cursor = header_size + vertices * struct.calcsize("<3h") + primitives * struct.calcsize("<II")
@@ -286,7 +300,7 @@ class DetailedGeometryTests(unittest.TestCase):
         return points[CONTROLS_END:], faces
 
     def test_encoded_near_body_is_exactly_mirrored_with_all_paint_jobs(self):
-        payloads = {"generated": self.shapes["car1"].encode_hypervision(),
+        payloads = {"generated": self.final_shapes["car1"].encode_hypervision(),
                     "installed": self.installed_shapes["car1"]}
         for source, payload in payloads.items():
             vertices, faces = self.encoded_body_faces(payload, "car1")
@@ -305,7 +319,7 @@ class DetailedGeometryTests(unittest.TestCase):
                 self.assertEqual(original, reflected)
 
     def test_encoded_near_front_has_no_open_surface_edges(self):
-        payloads = {"generated": self.shapes["car1"].encode_hypervision(),
+        payloads = {"generated": self.final_shapes["car1"].encode_hypervision(),
                     "installed": self.installed_shapes["car1"]}
         for source, payload in payloads.items():
             _, faces = self.encoded_body_faces(payload, "car1")
@@ -609,7 +623,7 @@ class DetailedGeometryTests(unittest.TestCase):
 
     def test_racing_body_has_no_unused_vertices_or_collapsed_duplicate_faces(self):
         for name in RACING_VERTEX_BUDGETS:
-            shape = self.shapes[name]
+            shape = self.final_shapes[name]
             used, faces = set(), set()
             for kind, _, _, indices in shape.primitives:
                 if kind == model.WHEEL_PRIMITIVE:
@@ -652,9 +666,9 @@ class DetailedGeometryTests(unittest.TestCase):
                                 model.CONTACT_Y * detailed.SOURCE_UNITS)
 
     def test_all_lods_have_wide_indices_with_classic_wheel_controls(self):
-        for name, shape in self.shapes.items():
+        for name, shape in self.final_shapes.items():
             with self.subTest(shape=name):
-                classic = model._showroom_car() if name == "car0" else model._car(simple=name == "car2")
+                classic = model._classic_car(name)
                 self.assertEqual(classic.vertices[model.WHEEL_CONTROL_START:CONTROLS_END],
                                  shape.vertices[model.WHEEL_CONTROL_START:CONTROLS_END])
                 wheels = [p for p in shape.primitives if p[0] == model.WHEEL_PRIMITIVE]
@@ -676,7 +690,7 @@ class DetailedGeometryTests(unittest.TestCase):
 
     def test_racing_vertex_budgets_include_bounds_and_wheel_controls(self):
         for name, (lower, upper) in RACING_VERTEX_BUDGETS.items():
-            payloads = {"generated": self.shapes[name].encode_hypervision(),
+            payloads = {"generated": self.final_shapes[name].encode_hypervision(),
                         "installed": self.installed_shapes[name]}
             for source, payload in payloads.items():
                 with self.subTest(shape=name, source=source):
@@ -691,7 +705,7 @@ class DetailedGeometryTests(unittest.TestCase):
                 self.assertLessEqual(len(self.shapes[name].vertices), upper)
 
     def test_installed_meshes_match_their_authoring_inputs(self):
-        for name, shape in self.shapes.items():
+        for name, shape in self.final_shapes.items():
             with self.subTest(shape=name):
                 self.assertEqual(shape.encode_hypervision(), self.installed_shapes[name])
 
@@ -745,7 +759,7 @@ class DetailedGeometryTests(unittest.TestCase):
     def test_rear_lamps_have_four_visible_sized_rings_and_a_centre_kite(self):
         for name in ("car0", "car1"):
             scale = self.shapes[name].scale
-            for source, payload in (("generated", self.shapes[name].encode_hypervision()),
+            for source, payload in (("generated", self.final_shapes[name].encode_hypervision()),
                                     ("installed", self.installed_shapes[name])):
                 _, faces = self.encoded_body_faces(payload, name)
                 components = self.rear_brake_components(faces, scale)
@@ -794,7 +808,7 @@ class DetailedGeometryTests(unittest.TestCase):
                                 self.assertLess(upper_side, lower_side)
 
     def test_base_meshes_and_unrelated_surfaces_stay_unchanged(self):
-        for name, base in detailed.build_shapes(rear_lamps=False).items():
+        for name, base in detailed.build_shapes(rear_lamps=False, authored=True).items():
             with self.subTest(shape=name):
                 self.assertEqual(BASE_PAYLOAD_SHA256[name],
                                  hashlib.sha256(base.encode_hypervision()).hexdigest())
@@ -813,7 +827,7 @@ class DetailedGeometryTests(unittest.TestCase):
                                             for index in indices))
 
     def test_envelope_contains_all_geometry_and_stays_above_ground(self):
-        for name, shape in self.shapes.items():
+        for name, shape in self.final_shapes.items():
             with self.subTest(shape=name):
                 bounds = shape.vertices[:model.WHEEL_CONTROL_START]
                 lower = tuple(min(p[a] for p in bounds) for a in range(detailed.AXES))
@@ -834,63 +848,79 @@ class DetailedGeometryTests(unittest.TestCase):
                                                                        shape.scale, shift, name)
                 self.assertGreaterEqual(min(clearances), generator.WHEEL_ARCH_MIN_CLEARANCE)
 
-    def test_racing_precision_survives_encoding_and_controls_stay_native(self):
-        for name in ("car1", "car2"):
-            shape = self.shapes[name]
+    def test_baked_precision_survives_encoding_and_controls_stay_native(self):
+        self.assertEqual(EXPECTED_OUTPUT_FRACTION_BITS, detailed.OUTPUT_FRACTION_BITS)
+        for name, shape in self.final_shapes.items():
             payload = shape.encode_hypervision()
             points, _, _ = generator.decode_model(payload, name, hypervision=True)
-            self.assertEqual(shape.vertices, points)
-            self.assertEqual(detailed.RACING_FRACTION_BITS, struct.unpack_from("<H", payload, 6)[0])
-        near = self.shapes["car1"]
-        self.assertTrue(any(c != round(c) for point in near.vertices[CONTROLS_END:] for c in point))
+            with self.subTest(shape=name):
+                self.assertEqual(shape.vertices, points)
+                self.assertEqual(EXPECTED_OUTPUT_FRACTION_BITS[name],
+                                 struct.unpack_from("<H", payload, generator.HYPERVISION_FRACTION_BITS_OFFSET)[0])
+                self.assertTrue(all(c == round(c)
+                                    for point in points[:CONTROLS_END] for c in point))
+                self.assertTrue(any(c != round(c)
+                                    for point in points[CONTROLS_END:] for c in point))
 
-    def test_classic_model_bytes_stay_unchanged(self):
+    def test_installed_classic_models_match_baked_authoring(self):
         classic = Path(__file__).resolve().parents[2] / "assets/cars/STMCMU.3SH"
         self.assertEqual(classic.read_bytes(), model.build_models())
 
     def test_container_is_deterministic(self):
         self.assertEqual(detailed.build_container(), detailed.build_container())
 
-    def test_distant_payload_stays_byte_identical(self):
-        generated = generator.hypervision_resources(detailed.build_container())
-        for source, payload in (("installed", self.installed_shapes["car2"]),
-                                ("generated", generated["car2"])):
-            with self.subTest(source=source):
-                self.assertEqual(DISTANT_PAYLOAD_SHA256, hashlib.sha256(payload).hexdigest())
+    def test_baked_geometry_preserves_topology_and_changes_actual_dimensions(self):
+        expected_factor = EXPECTED_MODEL_SIZE_FACTOR
+        self.assertEqual(expected_factor, model.MODEL_SIZE_FACTOR)
+        for name, source in self.shapes.items():
+            final = self.final_shapes[name]
+            ground = 0 if name == "car0" else model.CONTACT_Y
+            tolerance = .5 / (1 << detailed.OUTPUT_FRACTION_BITS[name])
+            with self.subTest(shape=name):
+                self.assertEqual(source.primitives, final.primitives)
+                self.assertEqual(len(source.vertices), len(final.vertices))
+                for original, baked in zip(source.vertices[CONTROLS_END:],
+                                           final.vertices[CONTROLS_END:]):
+                    expected = (original[0] * expected_factor,
+                                ground + (original[1] - ground) * expected_factor,
+                                original[2] * expected_factor)
+                    for actual, target in zip(baked, expected):
+                        self.assertAlmostEqual(target, actual, delta=tolerance)
+                for axis in range(detailed.AXES):
+                    original_extent = (max(p[axis] for p in source.vertices[CONTROLS_END:]) -
+                                       min(p[axis] for p in source.vertices[CONTROLS_END:]))
+                    baked_extent = (max(p[axis] for p in final.vertices[CONTROLS_END:]) -
+                                    min(p[axis] for p in final.vertices[CONTROLS_END:]))
+                    self.assertAlmostEqual(expected_factor * original_extent, baked_extent,
+                                           delta=2 * tolerance)
+                    self.assertLess(baked_extent, original_extent)
 
-    def test_presentation_scale_matches_audi_height_reference(self):
-        data = detailed.build_container()
-        _, _, scale = detailed.container_header(data)
-        shape = self.shapes["car0"]
+    def test_baked_showroom_height_matches_audi_reference(self):
+        shape = self.final_shapes["car0"]
         height = max(point[1] for point in shape.vertices[CONTROLS_END:]) / model.SHOWROOM_SCALE
-        self.assertAlmostEqual(1050 / 1344, height * scale / 26)
-        self.assertLess(scale, 1)
+        coordinate_step = 1 / (1 << detailed.OUTPUT_FRACTION_BITS["car0"])
+        self.assertAlmostEqual(1050 / 1344, height / 26,
+                               delta=coordinate_step / model.SHOWROOM_SCALE / 26)
 
-    def test_legacy_unscaled_container_remains_readable(self):
-        resources = list(self.installed_shapes.items())
-        offset = model.HYPERVISION_CONTAINER_HEADER_SIZE + len(resources) * model.HYPERVISION_CONTAINER_ENTRY_SIZE
-        directory, payloads = bytearray(), bytearray()
-        for name, payload in resources:
-            directory.extend(struct.pack("<4sII", name.encode("ascii"), offset, len(payload)))
-            payloads.extend(payload)
-            offset += len(payload)
-        legacy = (struct.pack("<4sHH", model.HYPERVISION_CONTAINER_MAGIC,
-                              detailed.LEGACY_CONTAINER_VERSION, len(resources)) + directory + payloads)
-        self.assertEqual(1, detailed.container_header(legacy)[2])
-        self.assertEqual(self.installed_shapes, generator.hypervision_resources(legacy))
+    def test_container_uses_eight_byte_header_without_runtime_scale_metadata(self):
+        generated = detailed.build_container()
+        companion = Path(__file__).resolve().parents[2] / "assets/cars/STMCMU.H3D"
+        for source, data in (("generated", generated), ("installed", companion.read_bytes())):
+            with self.subTest(source=source):
+                header_size = SCALE_FREE_CONTAINER_HEADER.size
+                offset_field = header_size + CONTAINER_RESOURCE_NAME_SIZE
+                self.assertEqual((model.HYPERVISION_CONTAINER_MAGIC, SCALE_FREE_CONTAINER_VERSION,
+                                  len(self.final_shapes)), SCALE_FREE_CONTAINER_HEADER.unpack_from(data))
+                self.assertEqual(b"car0", data[header_size:offset_field])
+                self.assertEqual(header_size + len(self.final_shapes) * model.HYPERVISION_CONTAINER_ENTRY_SIZE,
+                                 struct.unpack_from("<I", data, offset_field)[0])
+                self.assertEqual(self.installed_shapes, generator.hypervision_resources(data))
 
-    def test_invalid_presentation_scale_is_rejected(self):
-        for numerator, denominator in ((0, 1), (1, 0), (0, 0)):
-            header = detailed.CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
-                                                    detailed.CONTAINER_VERSION, 1,
-                                                    numerator, denominator)
-            with self.subTest(numerator=numerator, denominator=denominator):
-                with self.assertRaisesRegex(ValueError, "presentation scale"):
-                    generator.hypervision_resources(header)
-        header = detailed.CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
-                                                detailed.CONTAINER_VERSION, 1, 1, 1)
-        with self.assertRaisesRegex(ValueError, "Truncated HyperVision scale header"):
-            detailed.container_header(header[:-1])
+    def test_runtime_scale_container_version_is_rejected(self):
+        data = bytearray(detailed.build_container())
+        struct.pack_into("<H", data, CONTAINER_VERSION_OFFSET, REMOVED_SCALE_CONTAINER_VERSION)
+        with self.assertRaises(ValueError):
+            generator.hypervision_resources(data)
 
     def test_lods_reduce_the_actual_geometry(self):
         counts = [len(self.shapes[name].primitives) for name in ("car0", "car1", "car2")]

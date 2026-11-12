@@ -2,7 +2,7 @@
 """Reduce the current H3D car0 into cached near and distant racing geometry.
 
 Offline authoring requires NumPy and SciPy. Normal car regeneration reads the resulting
-cache using only the standard library. The source showroom payload is unchanged.
+cache using only the standard library. The source showroom body remains in its original authoring units.
 """
 
 import argparse
@@ -33,9 +33,9 @@ NEAR_REAR_BASE_VERTICES = 1_000
 def source_geometry(path):
     """Decode the showroom shell before its procedural lamps are attached.
 
-    The installed car0 includes final lamps that must not consume the QEM
-    body budget. Validate it against current authoring, then use the unchanged
-    source shell; normal generation attaches the lamps after simplification.
+    The installed car0 includes final lamps and the baked model size. Validate
+    it against current authoring, then use the original source shell and units
+    for the QEM body budget; normal generation resizes after simplification.
     """
     payload = generator.hypervision_resources(Path(path).read_bytes())["car0"]
     source = detailed.load_source()
@@ -43,7 +43,8 @@ def source_geometry(path):
     final = copy.deepcopy(base)
     detailed.lamps.apply(final, model, showroom=True)
     detailed._fit_bounds(final, model)
-    if payload not in (base.encode_hypervision(), final.encode_hypervision()):
+    final = detailed._bake_shape(final, "car0", model)
+    if payload != final.encode_hypervision():
         raise ValueError("Source showroom does not match current authoring inputs")
     payload = base.encode_hypervision()
     points, _, _ = generator.decode_model(payload, "car0", hypervision=True)

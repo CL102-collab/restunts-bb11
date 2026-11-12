@@ -31,18 +31,14 @@ SOURCE_URL = "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bd
 SOURCE_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 SOURCE_UNITS = 1000
 SOURCE_FORMAT_VERSION = 2
-LEGACY_CONTAINER_VERSION = 2
-CONTAINER_VERSION = 3
-CONTAINER_HEADER = struct.Struct("<4sHHHH")
-# Stock Audi car0 is 26 units tall; the accepted McMurtry car0 is 27.3.
-# Match Wikipedia's 1050/1344 height ratio with one scale for every axis.
-# Keep the authored payloads unchanged, including native wheel controls.
-PRESENTATION_SCALE_NUMERATOR = 125
-PRESENTATION_SCALE_DENOMINATOR = 168
-PRESENTATION_SCALE = PRESENTATION_SCALE_NUMERATOR / PRESENTATION_SCALE_DENOMINATOR
+CONTAINER_VERSION = 2
+CONTAINER_HEADER = struct.Struct("<4sHH")
 MAX_FRACTION_BITS = 8
 RACING_FRACTION_BITS = 4
+# The source/cache use their existing authoring grid. The final smaller mesh
+# needs finer storage to keep narrow source triangles from rounding away.
 FRACTION_BITS = {"car0": 0, "car1": RACING_FRACTION_BITS, "car2": RACING_FRACTION_BITS}
+OUTPUT_FRACTION_BITS = {"car0": 5, "car1": MAX_FRACTION_BITS, "car2": MAX_FRACTION_BITS}
 QEM_TARGETS = {"car0": 32_000, "car1": 12_000}
 SHOWROOM_CLUSTER = .05
 RACING_VERTEX_TARGETS = {"car1": 1_200, "car2": 500}
@@ -419,7 +415,31 @@ def _showroom_shape(source, model):
     return shape
 
 
-def build_shapes(model=None, *, rear_lamps=True):
+def _bake_shape(shape, name, model):
+    """Write the final model size into geometry before H3D serialization.
+
+    Preserve the source/cache coordinate system for offline simplification.
+    Native wheel controls come from the final classic mesh, so both formats
+    use exactly the same animated wheel coordinates at runtime.
+    """
+    result = _DetailedShape(shape.scale, OUTPUT_FRACTION_BITS[name])
+    controls_end = model.WHEEL_CONTROL_START + WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
+    classic = model._classic_car(name)
+    result.vertices = list(classic.vertices[:controls_end])
+    factor = 1 << result.coordinate_fraction_bits
+    ground = 0 if name == "car0" else model.CONTACT_Y
+    for x, y, z in shape.vertices[controls_end:]:
+        point = (x * model.MODEL_SIZE_FACTOR,
+                 ground + (y - ground) * model.MODEL_SIZE_FACTOR,
+                 z * model.MODEL_SIZE_FACTOR)
+        result.vertices.append(tuple(round(value * factor) / factor for value in point))
+    result.primitives = list(shape.primitives)
+    _fit_bounds(result, model)
+    return result
+
+
+def build_shapes(model=None, *, rear_lamps=True, authored=False):
+    """Build final-sized models, or the original authoring meshes for LOD work."""
     if model is None:
         import mcmurtry_model as model
     source = load_source()
@@ -456,7 +476,9 @@ def build_shapes(model=None, *, rear_lamps=True):
             _fit_bounds(shapes[name], model)
         if len(shapes["car1"].vertices) > FINAL_RACING_VERTEX_LIMITS["car1"][1]:
             raise ValueError("car1 exceeds its body and rear-lamp vertex budget")
-    return shapes
+    if authored:
+        return shapes
+    return {name: _bake_shape(shape, name, model) for name, shape in shapes.items()}
 
 
 def build_container(model=None):
@@ -471,36 +493,27 @@ def build_container(model=None):
         payload.extend(data)
         offset += len(data)
     return (CONTAINER_HEADER.pack(model.HYPERVISION_CONTAINER_MAGIC,
-                                  CONTAINER_VERSION, len(resources),
-                                  PRESENTATION_SCALE_NUMERATOR,
-                                  PRESENTATION_SCALE_DENOMINATOR) + directory + payload)
+                                  CONTAINER_VERSION, len(resources)) + directory + payload)
 
 
 def container_header(data):
-    """Read presentation scale without transforming the authored payloads."""
+    """Validate the scale-free H3D directory header."""
     import mcmurtry_model as model
-    if len(data) < model.HYPERVISION_CONTAINER_HEADER_SIZE:
-        raise ValueError("Truncated HyperVision container")
-    magic, version, count = struct.unpack_from("<4sHH", data)
-    if (magic != model.HYPERVISION_CONTAINER_MAGIC or
-            version not in (LEGACY_CONTAINER_VERSION, CONTAINER_VERSION)):
-        raise ValueError("Invalid HyperVision container signature or version")
-    if version == LEGACY_CONTAINER_VERSION:
-        return model.HYPERVISION_CONTAINER_HEADER_SIZE, count, 1.0
     if len(data) < CONTAINER_HEADER.size:
-        raise ValueError("Truncated HyperVision scale header")
-    _, _, _, numerator, denominator = CONTAINER_HEADER.unpack_from(data)
-    if not numerator or not denominator:
-        raise ValueError("Invalid HyperVision presentation scale")
-    return CONTAINER_HEADER.size, count, numerator / denominator
+        raise ValueError("Truncated HyperVision container")
+    magic, version, count = CONTAINER_HEADER.unpack_from(data)
+    if magic != model.HYPERVISION_CONTAINER_MAGIC or version != CONTAINER_VERSION:
+        raise ValueError("Invalid HyperVision container signature or version")
+    return CONTAINER_HEADER.size, count
 
 
-def presentation_metadata():
-    """Record the visual reference separately from authoring/physics units."""
+def sizing_metadata():
+    """Record the offline geometry resize separately from physics units."""
+    import mcmurtry_model as model
     return {
-        "numerator": PRESENTATION_SCALE_NUMERATOR,
-        "denominator": PRESENTATION_SCALE_DENOMINATOR,
-        "uniform_factor": PRESENTATION_SCALE,
+        "numerator": model.MODEL_SIZE_NUMERATOR,
+        "denominator": model.MODEL_SIZE_DENOMINATOR,
+        "uniform_factor": model.MODEL_SIZE_FACTOR,
         "reference": "Audi Sport Quattro S1 E2 height ratio",
         "verified_date": "2026-11-09",
         "sources": ["https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2",
@@ -514,7 +527,7 @@ def presentation_metadata():
             "audi": {"length": 83, "body_width": 34, "height": 26, "wheelbase": 46},
             "mcmurtry": {"length": 86.7, "body_width": 37.9, "height": 27.3, "wheelbase": 50}},
         "calculation": "(26 * 1050 / 1344) / 27.3 = 125 / 168",
-        "application": "All H3D body, bounds and animated wheel coordinates use the same factor. Scale about Y=0 in the showroom and Y=-6 during driving; scale X and Z about the car origin. Mesh payloads, source caches and topology are unchanged. Physics and classic fallback assets retain their existing units.",
+        "application": "The generators bake this factor into classic and H3D body, bounds and wheel coordinates. Resize about Y=0 in the showroom and Y=-6 during driving, and about the car origin in X/Z. H3D contains final-sized geometry with no runtime scale metadata. Source caches keep their authoring units; physics resources remain unchanged.",
         "reference_tradeoff": "Stock Audi proportions do not match both real height and wheelbase ratios. Height is the visual reference; no axis is adjusted independently to force the wheelbase or length to match.",
     }
 
@@ -527,7 +540,8 @@ def metadata():
             "retained_source_triangles": len(source["triangles"]), "retained_meshes": len(source["meshes"]),
             "compact_source": "tools/scripts/cars/mcmurtry_hypervision_source.json.gz",
             "author": source["author"], "source_url": source["source_url"], "license": source["license"],
-            "container_version": CONTAINER_VERSION, "coordinate_fraction_bits": FRACTION_BITS,
+            "container_version": CONTAINER_VERSION, "coordinate_fraction_bits": OUTPUT_FRACTION_BITS,
+            "authoring_coordinate_fraction_bits": FRACTION_BITS,
             "simplification": source["simplification"],
             "lod_source_triangles": {"car0": len(source["lods"]["car0"]["triangles"])},
             "cluster_spacing_game_units": {"car0": SHOWROOM_CLUSTER},
@@ -535,7 +549,7 @@ def metadata():
             "racing_vertex_targets_including_controls": RACING_VERTEX_TARGETS,
             "racing_body_vertex_limits_including_controls": RACING_VERTEX_LIMITS,
             "racing_vertex_limits_including_controls": FINAL_RACING_VERTEX_LIMITS,
-            "racing_authoring_source": "STMCMU.H3D/car0 before procedural rear lamps",
+            "racing_authoring_source": "Source car0 body before procedural rear lamps and final geometry resize",
             "rear_lamps": {
                 "shapes": ["car0", "car1"],
                 "construction": "Four 12-segment red annuli with black centres and a central red kite rim with shorter upper sides. Added after body simplification; original rear lens faces become black housings.",
@@ -547,7 +561,7 @@ def metadata():
             "racing_surface_construction": cached["simplification"],
             "showroom_arch_target_radius_game_units": ARCH_TARGET_RADIUS["car0"],
             "showroom_arch_blend_radius_game_units": ARCH_BLEND_RADIUS,
-            "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."}
+            "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. The final geometry is resized offline, retaining native animated wheels and integer controls shared with the resized classic meshes; original textures, hidden cockpit and alpha decals are omitted."}
 
 
 def main():

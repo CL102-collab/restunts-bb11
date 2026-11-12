@@ -6,7 +6,7 @@
   "specifications_verified_date": "2026-10-21",
   "game_name": "McMurtry Speirling PURE",
   "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
-  "geometry_revision": "The car origin is centered between native axles at Z=+25 and Z=-25, matching the specified 2200 mm wheelbase. The source body is translated by 1.5 units before quantization, and the arches follow the adapted wheel controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+  "geometry_revision": "The source car origin is centered between axles at Z=+25 and Z=-25, matching the specified 2200 mm physical wheelbase. The source body is translated by 1.5 units to that origin. Final classic and H3D geometry bake in the smaller Audi-relative size; racing wheel centres round to Z=+19 and Z=-19, with arches following the resized controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Source side panels and upper covers maintain a one-unit authoring tyre gap. Final resized and quantized models retain positive clearances around the conservative steering envelope, recorded per model below. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
   "downloaded_model": {
     "title": "2026 McMurtry Spéirling",
     "author": "Dave Love SketchFab",
@@ -23,7 +23,7 @@
     "source_materials": 43,
     "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
     "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
-    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and native wheel controls and arches are adapted to a centered 50-unit wheelbase. The original GLB and textures are not included."
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and source wheel controls and arches are adapted to a centered 50-unit authoring wheelbase. Final classic and H3D geometry bake in the smaller Audi-relative size, including native wheel controls. The original GLB and textures are not included."
   },
   "historical_exterior_reference_images": [
     {
@@ -127,7 +127,7 @@
   "rear_lamps": {
     "count": 4,
     "layout": "Upper and lower circular red ring with a dark centre at each outer rear corner.",
-    "centres_game_units": [
+    "authoring_centres_game_units": [
       [
         -14.251000000000001,
         8.477,
@@ -149,7 +149,7 @@
         -40.55
       ]
     ],
-    "nominal_outer_diameter_mm": 79.2,
+    "authoring_nominal_outer_diameter_mm": 79.2,
     "size_scale": 0.9,
     "inner_diameter_ratio": 0.6,
     "quantization_note": "Whole-unit racing coordinates can round outer diameters back to their previous size; dark centres still reduce the filled red area.",
@@ -229,9 +229,9 @@
   "sizing": {
     "millimetres_per_game_unit": 44.0,
     "showroom_scale": 20,
-    "showroom_y_offset": 120,
-    "wheel_radius_game_units": 8,
-    "wheel_centres_game_units": [
+    "authoring_showroom_y_offset": 120,
+    "authoring_wheel_radius_game_units": 8,
+    "authoring_wheel_centres_game_units": [
       [
         -16,
         2,
@@ -274,16 +274,59 @@
       "width": 38.814116794457526,
       "height": 27.334551643505907
     },
-    "adapted_body_height_game_units": 25.9,
+    "authoring_body_height_game_units": 25.9,
+    "baked_model_size": {
+      "numerator": 125,
+      "denominator": 168,
+      "uniform_factor": 0.7440476190476191,
+      "reference": "Audi Sport Quattro S1 E2 height ratio",
+      "verified_date": "2026-11-09",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2",
+        "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling"
+      ],
+      "wikipedia_dimensions_mm": {
+        "audi_sport_quattro_s1_e2": {
+          "length": 4240,
+          "width": 1860,
+          "height": 1344,
+          "wheelbase": 2204
+        },
+        "mcmurtry_speirling": {
+          "length": 3815,
+          "width": 1795,
+          "height": 1050,
+          "wheelbase": 2200
+        }
+      },
+      "unscaled_showroom_dimensions_game_units": {
+        "audi": {
+          "length": 83,
+          "body_width": 34,
+          "height": 26,
+          "wheelbase": 46
+        },
+        "mcmurtry": {
+          "length": 86.7,
+          "body_width": 37.9,
+          "height": 27.3,
+          "wheelbase": 50
+        }
+      },
+      "calculation": "(26 * 1050 / 1344) / 27.3 = 125 / 168",
+      "application": "The generators bake this factor into classic and H3D body, bounds and wheel coordinates. Resize about Y=0 in the showroom and Y=-6 during driving, and about the car origin in X/Z. H3D contains final-sized geometry with no runtime scale metadata. Source caches keep their authoring units; physics resources remain unchanged.",
+      "reference_tradeoff": "Stock Audi proportions do not match both real height and wheelbase ratios. Height is the visual reference; no axis is adjusted independently to force the wheelbase or length to match."
+    },
     "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-    "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. The source body is translated to the axle midpoint before quantization. The wheelbase is adapted to the specified 2200 mm using centered integer controls at Z=+25 and Z=-25; arches use those same centers. Ignored SIMD wheel Y fields are zero; visual tyre bottoms meet the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling and collision bounds enclose the recentered geometry."
+    "rounding": "Source authoring uses the nominal car length and a centered 50-unit wheelbase. Both classic and H3D outputs bake the smaller model size into geometry before serialization. Native racing wheel centres round to X=+/-12, Y=0, Z=+/-19, with a six-unit tyre radius; classic and H3D controls match exactly. Showroom wheels use the same offline resize at the stock 20x authoring size. Tyre bottoms meet Y=0 in the showroom and Y=-6 while driving. Body coordinates use native integers for classic models and fixed-point precision for H3D. Physical contacts, collision bounds and vehicle tuning retain their original units regardless of renderer."
   },
   "wheel_arch_clearance": {
-    "minimum_game_units": 1.0,
-    "minimum_mm": 44.0,
+    "source_minimum_game_units": 1.0,
+    "baked_minimum_game_units": 0.0,
+    "source_minimum_mm": 44.0,
     "authored_arch_radius_game_units": 10.0,
-    "tyre_radius_game_units": 8,
-    "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread."
+    "authored_tyre_radius_game_units": 8,
+    "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread. The source has a one-unit authoring margin. Resizing and native rounding reduce it; final models must retain a positive gap, with actual per-model measurements recorded below."
   },
   "paint_jobs": [
     "Turquoise",
@@ -381,17 +424,17 @@
       "primitives": 247,
       "paint_jobs": 7,
       "dimensions_game_units": {
-        "length": 86.7,
-        "width": 38.5,
-        "height": 25.9,
-        "wheelbase": 50.0
+        "length": 64.5,
+        "width": 28.6,
+        "height": 19.25,
+        "wheelbase": 37.2
       },
-      "minimum_upper_tyre_clearance_game_units": 1.688,
+      "minimum_upper_tyre_clearance_game_units": 1.255,
       "minimum_side_arch_tyre_clearance_game_units": [
-        1.108,
-        1.108,
-        1.317,
-        1.317
+        0.816,
+        0.816,
+        0.977,
+        0.977
       ],
       "wheel_cover_triangles_attached_to_each_wheel": [
         27,
@@ -401,21 +444,21 @@
       ]
     },
     "car1": {
-      "vertices": 255,
-      "primitives": 247,
+      "vertices": 252,
+      "primitives": 244,
       "paint_jobs": 7,
       "dimensions_game_units": {
-        "length": 87.0,
-        "width": 38.0,
-        "height": 26.0,
-        "wheelbase": 50.0
+        "length": 64.0,
+        "width": 28.0,
+        "height": 19.0,
+        "wheelbase": 38.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.831,
+      "minimum_upper_tyre_clearance_game_units": 0.761,
       "minimum_side_arch_tyre_clearance_game_units": [
-        1.262,
-        1.262,
-        1.191,
-        1.191
+        0.316,
+        0.316,
+        0.499,
+        0.499
       ],
       "wheel_cover_triangles_attached_to_each_wheel": [
         27,
@@ -425,21 +468,21 @@
       ]
     },
     "car2": {
-      "vertices": 247,
-      "primitives": 243,
+      "vertices": 244,
+      "primitives": 240,
       "paint_jobs": 7,
       "dimensions_game_units": {
-        "length": 87.0,
-        "width": 38.0,
-        "height": 26.0,
-        "wheelbase": 50.0
+        "length": 64.0,
+        "width": 28.0,
+        "height": 19.0,
+        "wheelbase": 38.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.831,
+      "minimum_upper_tyre_clearance_game_units": 0.761,
       "minimum_side_arch_tyre_clearance_game_units": [
-        1.262,
-        1.262,
-        1.191,
-        1.191
+        0.316,
+        0.316,
+        0.499,
+        0.499
       ],
       "wheel_cover_triangles_attached_to_each_wheel": [
         27,
@@ -471,10 +514,10 @@
   },
   "hypervision": {
     "resource": "STMCMU.H3D",
-    "format_version": 3,
+    "format_version": 2,
     "maximum_vertices_per_shape": 65535,
     "maximum_primitives_per_shape": 65535,
-    "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
+    "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts use the resized STMCMU.3SH shapes.",
     "geometry": "Detailed exterior geometry imported from the supplied Sketchfab GLB, with transformed source bodywork, canopy, wing and underbody. Source wheel assemblies are replaced with the classic animated wheels. Source materials are mapped into the native palette and seven paint schemes; welded, quantized meshes provide separate showroom, near and distant racing detail levels.",
     "source_mesh": {
       "source_sha256": "c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013",
@@ -485,8 +528,13 @@
       "author": "Dave Love SketchFab",
       "source_url": "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
       "license": "https://creativecommons.org/licenses/by/4.0/",
-      "container_version": 3,
+      "container_version": 2,
       "coordinate_fraction_bits": {
+        "car0": 5,
+        "car1": 8,
+        "car2": 8
+      },
+      "authoring_coordinate_fraction_bits": {
         "car0": 0,
         "car1": 4,
         "car2": 4
@@ -534,7 +582,7 @@
           500
         ]
       },
-      "racing_authoring_source": "STMCMU.H3D/car0 before procedural rear lamps",
+      "racing_authoring_source": "Source car0 body before procedural rear lamps and final geometry resize",
       "rear_lamps": {
         "shapes": [
           "car0",
@@ -570,49 +618,7 @@
       },
       "showroom_arch_target_radius_game_units": 10.0,
       "showroom_arch_blend_radius_game_units": 16.0,
-      "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."
-    },
-    "presentation_scale": {
-      "numerator": 125,
-      "denominator": 168,
-      "uniform_factor": 0.7440476190476191,
-      "reference": "Audi Sport Quattro S1 E2 height ratio",
-      "verified_date": "2026-11-09",
-      "sources": [
-        "https://en.wikipedia.org/wiki/Audi_Quattro#Sport_Quattro_S1_E2",
-        "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling"
-      ],
-      "wikipedia_dimensions_mm": {
-        "audi_sport_quattro_s1_e2": {
-          "length": 4240,
-          "width": 1860,
-          "height": 1344,
-          "wheelbase": 2204
-        },
-        "mcmurtry_speirling": {
-          "length": 3815,
-          "width": 1795,
-          "height": 1050,
-          "wheelbase": 2200
-        }
-      },
-      "unscaled_showroom_dimensions_game_units": {
-        "audi": {
-          "length": 83,
-          "body_width": 34,
-          "height": 26,
-          "wheelbase": 46
-        },
-        "mcmurtry": {
-          "length": 86.7,
-          "body_width": 37.9,
-          "height": 27.3,
-          "wheelbase": 50
-        }
-      },
-      "calculation": "(26 * 1050 / 1344) / 27.3 = 125 / 168",
-      "application": "All H3D body, bounds and animated wheel coordinates use the same factor. Scale about Y=0 in the showroom and Y=-6 during driving; scale X and Z about the car origin. Mesh payloads, source caches and topology are unchanged. Physics and classic fallback assets retain their existing units.",
-      "reference_tradeoff": "Stock Audi proportions do not match both real height and wheelbase ratios. Height is the visual reference; no axis is adjusted independently to force the wheelbase or length to match."
+      "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Both racing LODs derive from that exact showroom payload in racing coordinates, with source palette materials and seven paints. The near mesh has connected source-sampled front panels, joined canopy and rear shoulder seams, source-profile rear fenders and exact mirrored body geometry. The final geometry is resized offline, retaining native animated wheels and integer controls shared with the resized classic meshes; original textures, hidden cockpit and alpha decals are omitted."
     },
     "models": {
       "car0": {
@@ -620,79 +626,61 @@
         "primitives": 33653,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.7,
-          "width": 38.0,
-          "height": 27.3
+          "length": 64.509375,
+          "width": 28.3,
+          "height": 20.3125
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.277,
-          1.277,
-          1.743,
-          1.743
+          0.948,
+          0.948,
+          1.297,
+          1.297
         ],
-        "coordinate_fraction_bits": 0,
-        "coordinate_step_mm": 2.2,
-        "displayed_dimensions_game_units": {
-          "length": 64.50892857142857,
-          "width": 28.273809523809526,
-          "height": 20.3125
-        },
-        "displayed_wheelbase_game_units": 37.202380952380956
+        "coordinate_fraction_bits": 5,
+        "coordinate_step_mm": 0.06875
       },
       "car1": {
         "vertices": 1303,
         "primitives": 2289,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.4375,
-          "width": 38.0,
-          "height": 26.25
+          "length": 64.31640625,
+          "width": 28.0859375,
+          "height": 19.53125
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.383,
-          1.383,
-          1.163,
-          1.163
+          0.667,
+          0.667,
+          0.331,
+          0.331
         ],
-        "coordinate_fraction_bits": 4,
-        "coordinate_step_mm": 2.75,
-        "displayed_dimensions_game_units": {
-          "length": 64.31361607142857,
-          "width": 28.273809523809526,
-          "height": 19.53125
-        },
-        "displayed_wheelbase_game_units": 37.202380952380956
+        "coordinate_fraction_bits": 8,
+        "coordinate_step_mm": 0.171875
       },
       "car2": {
         "vertices": 499,
         "primitives": 810,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.3125,
-          "width": 38.0,
-          "height": 27.1875
+          "length": 64.22265625,
+          "width": 28.1796875,
+          "height": 20.23046875
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.147,
-          1.081,
-          1.163,
-          1.181
+          0.604,
+          0.632,
+          0.95,
+          0.95
         ],
-        "coordinate_fraction_bits": 4,
-        "coordinate_step_mm": 2.75,
-        "displayed_dimensions_game_units": {
-          "length": 64.22061011904762,
-          "width": 28.273809523809526,
-          "height": 20.228794642857142
-        },
-        "displayed_wheelbase_game_units": 37.202380952380956
+        "coordinate_fraction_bits": 8,
+        "coordinate_step_mm": 0.171875
       }
     }
   },
-  "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
+  "obj_export": "Resized classic car0 showroom geometry with explicit tyres and annular rear lamps.",
   "sources": [
     "https://mcmurtry.com/speirling-pure/",
     "https://mcmurtry.com/mcmurtry-speirling-production-form/",
@@ -709,8 +697,8 @@
       "sha256": "bbfd0ccb55751e1d3abe1baa162e49758d4478d9639828baf8726093346f94ac"
     },
     "STMCMU.3SH": {
-      "bytes": 19801,
-      "sha256": "e94316f1303ff78727e908b9fcf79c8ba63a08aaa2924c3378bc02b53d7b15b5"
+      "bytes": 19645,
+      "sha256": "fb1e2c86534dda797eabb5d780b35d46e8c9ccef8676ac913f1031dc3c08085c"
     },
     "STDAMCMU.VSH": {
       "bytes": 144706,
@@ -721,12 +709,12 @@
       "sha256": "756564ce59b5a7914a08c1f107c04dd29cfd91d850b59a3cce069ab2b1ee8a56"
     },
     "STMCMU.H3D": {
-      "bytes": 986764,
-      "sha256": "4cbbcebee02136507f168d17c968caf0f1453feb78996b219df5d2be0cd69f2b"
+      "bytes": 986760,
+      "sha256": "ea5df2064d37ea367b9be9d64448eb63b10252cd3a752628c96fd7d47966592f"
     },
     "MCMU.obj": {
       "bytes": 27742,
-      "sha256": "76979da1474eba11c2afe66f18d6dadcb474e069c77966c19d9a3c7c4231fba6"
+      "sha256": "198ef442ea4780137d172ba3fbc6b9f9d10f36d38e5d60152e2b6e16107e0447"
     },
     "MCMU.mtl": {
       "bytes": 837,

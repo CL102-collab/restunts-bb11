@@ -132,8 +132,11 @@ class WheelArchClearanceTests(unittest.TestCase):
                                    ("car2", *QUANTIZATIONS[0])):
             with self.subTest(shape=name):
                 points, triangles, _ = generator.decode_model(shapes[name], name)
-                self.assertGreaterEqual(min(self.validate(points, triangles, scale, shift)),
-                                        generator.WHEEL_ARCH_MIN_CLEARANCE)
+                clearances = generator.validate_wheel_arch_clearance(
+                    points, triangles, scale, shift, name,
+                    minimum_clearance=generator.BAKED_WHEEL_MIN_CLEARANCE)
+                self.assertEqual(len(model.WHEEL_CENTERS), len(clearances))
+                self.assertGreater(min(clearances), generator.BAKED_WHEEL_MIN_CLEARANCE)
 
 
 PHYSICAL_WHEEL_OFFSET = 0xD2
@@ -169,20 +172,28 @@ class WheelContactGeometryTests(unittest.TestCase):
         self.assertEqual(generator.physics.REAL_SPECIFICATIONS["wheelbase_mm"] /
                          model.MM_PER_UNIT, wheelbase)
 
-    def test_generated_physical_and_visual_wheels_share_their_grounded_geometry(self):
+    def validate_contacts(self, simd, points, scale, shift, name):
+        return generator.validate_wheel_contacts(simd, points, scale, shift, name,
+                                                  visual_factor=model.MODEL_SIZE_FACTOR)
+
+    def test_resized_visual_wheels_are_grounded_with_original_physical_contact_units(self):
         contacts = self.contacts()
         for name, points, scale, shift in self.cases():
             with self.subTest(shape=name):
-                generator.validate_wheel_contacts(self.simd, points, scale, shift, name)
+                self.validate_contacts(self.simd, points, scale, shift, name)
                 for wheel, contact in enumerate(contacts):
                     first = model.WHEEL_CONTROL_START + wheel * model.WHEEL_CONTROL_COUNT
                     inner, radial, outer = [points[first + index] for index in (0, 1, 3)]
                     for axis in (0, 2):
-                        self.assertEqual((inner[axis] + outer[axis]) * PHYSICAL_POSITION_SCALE,
-                                         2 * contact[axis] * scale)
+                        physical = contact[axis] / PHYSICAL_POSITION_SCALE
+                        self.assertAlmostEqual((inner[axis] + outer[axis]) / 2,
+                                               physical * scale * model.MODEL_SIZE_FACTOR,
+                                               delta=generator.NATIVE_COORDINATE_HALF_STEP)
                     self.assertEqual(model.CONTACT_Y * scale + shift,
                                      inner[1] - (radial[1] - inner[1]))
-                    self.assertEqual(model.WHEEL_RADIUS * scale, radial[1] - inner[1])
+                    self.assertAlmostEqual(model.WHEEL_RADIUS * scale * model.MODEL_SIZE_FACTOR,
+                                           radial[1] - inner[1],
+                                           delta=generator.NATIVE_COORDINATE_STEP)
 
     def test_translating_both_physics_and_visual_wheels_cannot_hide_an_offset_origin(self):
         for name, points, scale, shift in self.cases():
@@ -200,7 +211,7 @@ class WheelContactGeometryTests(unittest.TestCase):
                             point[axis] += scale
                             translated[index] = tuple(point)
                     with self.assertRaises(ValueError):
-                        generator.validate_wheel_contacts(simd, translated, scale, shift, name)
+                        self.validate_contacts(simd, translated, scale, shift, name)
 
     def test_every_physical_wheel_requires_zero_y_even_when_the_average_is_zero(self):
         simd = bytearray(self.simd)
@@ -210,7 +221,7 @@ class WheelContactGeometryTests(unittest.TestCase):
         for name, points, scale, shift in self.cases():
             with self.subTest(shape=name):
                 with self.assertRaises(ValueError):
-                    generator.validate_wheel_contacts(simd, points, scale, shift, name)
+                    self.validate_contacts(simd, points, scale, shift, name)
 
     def test_visual_wheel_offsets_are_rejected_with_centered_physics(self):
         for name, points, scale, shift in self.cases():
@@ -223,7 +234,7 @@ class WheelContactGeometryTests(unittest.TestCase):
                         point[axis] += scale
                         displaced[index] = tuple(point)
                     with self.assertRaises(ValueError):
-                        generator.validate_wheel_contacts(self.simd, displaced, scale, shift, name)
+                        self.validate_contacts(self.simd, displaced, scale, shift, name)
 
     def test_visual_tyres_cannot_float_above_the_engine_contact_plane(self):
         for name, points, scale, shift in self.cases():
@@ -234,7 +245,7 @@ class WheelContactGeometryTests(unittest.TestCase):
                     x, y, z = displaced[index]
                     displaced[index] = (x, y + scale, z)
                 with self.assertRaises(ValueError):
-                    generator.validate_wheel_contacts(self.simd, displaced, scale, shift, name)
+                    self.validate_contacts(self.simd, displaced, scale, shift, name)
 
     def test_changed_tyres_cannot_hide_behind_the_same_contact_plane(self):
         for name, points, scale, shift in self.cases():
@@ -247,7 +258,7 @@ class WheelContactGeometryTests(unittest.TestCase):
                                           model.WHEEL_CONTROL_START + 4) else 1
                     changed[index] = (x, y + extra * scale, z)
                 with self.assertRaises(ValueError):
-                    generator.validate_wheel_contacts(self.simd, changed, scale, shift, name)
+                    self.validate_contacts(self.simd, changed, scale, shift, name)
 
 
 if __name__ == "__main__":

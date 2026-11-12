@@ -33,6 +33,11 @@ SIMD_COLLISION_BOUNDS_OFFSET = 0xC8
 GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH", "STMCMU.H3D")
 HYPERVISION_SHAPE_HEADER_SIZE = struct.calcsize("<4H")
 HYPERVISION_FRACTION_BITS_OFFSET = struct.calcsize("<3H")
+NATIVE_COORDINATE_STEP = 1.0
+NATIVE_COORDINATE_HALF_STEP = NATIVE_COORDINATE_STEP / 2
+# Final integer models must never intersect their tyres. The original source
+# retains its one-unit authoring margin; native rounding reduces the visible gap.
+BAKED_WHEEL_MIN_CLEARANCE = 0.0
 CAR_BODY_VERTEX_START = (model.WHEEL_CONTROL_START +
                          model.WHEEL_CONTROL_COUNT * len(model.WHEEL_CENTERS))
 DOWNLOADED_MODEL = {
@@ -49,7 +54,7 @@ DOWNLOADED_MODEL = {
     "source_triangles": 211145, "source_meshes": 110, "source_materials": 43,
     "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
     "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
-    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and native wheel controls and arches are adapted to a centered 50-unit wheelbase. The original GLB and textures are not included.",
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and source wheel controls and arches are adapted to a centered 50-unit authoring wheelbase. Final classic and H3D geometry bake in the smaller Audi-relative size, including native wheel controls. The original GLB and textures are not included.",
 }
 SOURCES = list(dict.fromkeys(physics.REAL_SPECIFICATIONS["sources"] + [
     DOWNLOADED_MODEL["source_url"],
@@ -102,7 +107,7 @@ def resources(data):
 
 def hypervision_resources(data):
     """Validate the optional companion directory before decoding its meshes."""
-    cursor, count, _ = detailed_model.container_header(data)
+    cursor, count = detailed_model.container_header(data)
     directory_end = cursor + count * model.HYPERVISION_CONTAINER_ENTRY_SIZE
     if directory_end > len(data):
         raise ValueError("Truncated HyperVision directory")
@@ -217,7 +222,8 @@ def wheel_cover_groups(data, points):
     return groups
 
 
-def validate_wheel_covers(points, triangles, scale, shift, name, *, wheel_groups=None):
+def validate_wheel_covers(points, triangles, scale, shift, name, *, wheel_groups=None,
+                          minimum_clearance=WHEEL_ARCH_MIN_CLEARANCE):
     """Ray-test the encoded fenders against the entire upper tyre envelope.
 
     Side-view arches can look correct while their sloping top panels cut
@@ -267,14 +273,15 @@ def validate_wheel_covers(points, triangles, scale, shift, name, *, wheel_groups
                     if min(u, v, 1 - u - v) >= -1e-8:
                         heights.append(a[1] + u * (b[1] - a[1]) + v * (c[1] - a[1]))
                 clearance = max(heights, default=-math.inf) - tyre_top
-                if clearance < WHEEL_ARCH_MIN_CLEARANCE:
+                if clearance < minimum_clearance:
                     raise ValueError(f"Tyre protrudes through {name} wheel {wheel + 1} "
                                      f"at X={x:g}, Z={z:g}: clearance {clearance:.3f}")
                 minimum = min(minimum, clearance)
     return round(minimum, 3)
 
 
-def validate_wheel_arch_clearance(points, triangles, scale, shift, name):
+def validate_wheel_arch_clearance(points, triangles, scale, shift, name, *,
+                                  minimum_clearance=WHEEL_ARCH_MIN_CLEARANCE):
     """Measure the encoded side panels against the swept tyre silhouette.
 
     Upper-cover rays do not detect a wheel arch whose vertices clear the tyre
@@ -347,10 +354,10 @@ def validate_wheel_arch_clearance(points, triangles, scale, shift, name):
                 minimum = min(minimum, projected_distance(polygon, cy, cz) - swept_radius)
         if not math.isfinite(minimum):
             raise ValueError(f"No encoded wheel-arch side panels in {name} wheel {wheel + 1}")
-        if minimum + GEOMETRY_TOLERANCE < WHEEL_ARCH_MIN_CLEARANCE:
+        if minimum + GEOMETRY_TOLERANCE < minimum_clearance:
             raise ValueError(f"Wheel arch intersects the tyre clearance envelope in {name} "
                              f"wheel {wheel + 1}: clearance {minimum:.3f}, "
-                             f"required {WHEEL_ARCH_MIN_CLEARANCE:g}")
+                             f"required {minimum_clearance:g}")
         clearances.append(round(minimum, 3))
     return clearances
 
@@ -385,8 +392,8 @@ def dashboard_ram_usage(primary, secondary):
     }
 
 
-def validate_wheel_contacts(simd, points, scale, shift, label):
-    """Enforce the original engine's centered-wheel asset contract."""
+def validate_wheel_contacts(simd, points, scale, shift, label, *, visual_factor=1):
+    """Check centred physical contacts and quantized visual wheel controls."""
     contacts = [struct.unpack_from("<3h", simd, SIMD_WHEEL_COORDINATE_OFFSET +
                                    wheel * SIMD_WHEEL_COORDINATE_SIZE)
                 for wheel in range(len(model.WHEEL_CENTERS))]
@@ -399,14 +406,15 @@ def validate_wheel_contacts(simd, points, scale, shift, label):
         inner, radial, outer = [points[model.WHEEL_CONTROL_START +
                                       model.WHEEL_CONTROL_COUNT * wheel + index]
                                  for index in (0, 1, 3)]
-        # SIMD Y is unused by native suspension. Horizontal contact locations
-        # must match the animated wheel controls exactly at either model scale.
+        # Physical contacts keep their original units; model generation bakes
+        # the visual size before rounding each control to a native integer.
         for axis in (0, 2):
-            if ((inner[axis] + outer[axis]) * (PHYSICS_POSITION_SCALE // 2) !=
-                    contact[axis] * scale):
-                raise ValueError(f"Physical and visual wheel centres disagree in {label}")
+            centre = (inner[axis] + outer[axis]) / 2
+            expected = contact[axis] * scale * visual_factor / PHYSICS_POSITION_SCALE
+            if abs(centre - expected) > NATIVE_COORDINATE_HALF_STEP:
+                raise ValueError(f"Incorrect resized visual wheel centre in {label}")
         radius = radial[1] - inner[1]
-        if radius != model.WHEEL_RADIUS * scale:
+        if abs(radius - model.WHEEL_RADIUS * scale * visual_factor) > NATIVE_COORDINATE_STEP:
             raise ValueError(f"Incorrect visual wheel radius in {label}")
         if inner[1] - radius != floor or outer[1] - radius != floor:
             raise ValueError(f"Wheel does not meet engine contact plane in {label}")
@@ -418,7 +426,8 @@ def validate_car_geometry(shape, name, simd):
     scale = model.SHOWROOM_SCALE if name == "car0" else 1
     shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
     floor = shift + model.CONTACT_Y * scale
-    contacts = validate_wheel_contacts(simd, points, scale, shift, name)
+    validate_wheel_contacts(simd, points, scale, shift, name,
+                            visual_factor=model.MODEL_SIZE_FACTOR)
     half_width, _, half_length, collision_radius = struct.unpack_from(
         "<4h", simd, SIMD_COLLISION_BOUNDS_OFFSET)
     if any(abs(point[0]) > half_width * scale or abs(point[2]) > half_length * scale
@@ -432,19 +441,21 @@ def validate_car_geometry(shape, name, simd):
         "length": (max(p[2] for p in points[8:]) - min(p[2] for p in points[8:])) / scale,
         "width": (max(p[0] for p in points[8:]) - min(p[0] for p in points[8:])) / scale,
         "height": (max(p[1] for p in points[8:]) - floor) / scale,
-        "wheelbase": (contacts[0][2] - contacts[3][2]) / 64,
+        "wheelbase": (points[model.WHEEL_CONTROL_START][2] -
+                      points[model.WHEEL_CONTROL_START + 3 * model.WHEEL_CONTROL_COUNT][2]) / scale,
     }
     expected = {"length": model.LENGTH, "width": model.WIDTH, "height": model.BODY_HEIGHT,
                 "wheelbase": model.WHEEL_CENTERS[0][2] - model.WHEEL_CENTERS[3][2]}
     for axis, value in expected.items():
-        if abs(dimensions[axis] - value) > MODEL_DIMENSION_TOLERANCE:
+        if abs(dimensions[axis] - value * model.MODEL_SIZE_FACTOR) > MODEL_DIMENSION_TOLERANCE:
             raise ValueError(f"Incorrect adapted model dimensions for {axis} in {name}: {dimensions}")
     metadata["dimensions_game_units"] = dimensions
     wheel_groups = wheel_cover_groups(shape, points)
     metadata["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
-        points, triangles, scale, shift, name, wheel_groups=wheel_groups)
+        points, triangles, scale, shift, name, wheel_groups=wheel_groups,
+        minimum_clearance=BAKED_WHEEL_MIN_CLEARANCE)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
-        points, triangles, scale, shift, name)
+        points, triangles, scale, shift, name, minimum_clearance=BAKED_WHEEL_MIN_CLEARANCE)
     metadata["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
     return metadata
 
@@ -465,7 +476,8 @@ def validate_hypervision_geometry(shape, name, classic, simd):
         raise ValueError(f"Expected a detailed mesh within H3D limits in {name}")
     scale = model.SHOWROOM_SCALE if name == "car0" else 1
     shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
-    validate_wheel_contacts(simd, points, scale, shift, name)
+    validate_wheel_contacts(simd, points, scale, shift, name,
+                            visual_factor=model.MODEL_SIZE_FACTOR)
     floor = shift + model.CONTACT_Y * scale
     if min(point[1] for point in points[CAR_BODY_VERTEX_START:]) < floor:
         raise ValueError(f"HyperVision body below tyre contact plane in {name}")
@@ -481,7 +493,7 @@ def validate_hypervision_geometry(shape, name, classic, simd):
     }
     metadata["animated_wheels"] = len(model.WHEEL_CENTERS)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
-        points, triangles, scale, shift, name)
+        points, triangles, scale, shift, name, minimum_clearance=BAKED_WHEEL_MIN_CLEARANCE)
     if name in detailed_model.FINAL_RACING_VERTEX_LIMITS:
         lower, upper = detailed_model.FINAL_RACING_VERTEX_LIMITS[name]
         if not lower <= metadata["vertices"] <= upper:
@@ -580,12 +592,6 @@ def generate(repository):
     hypervision_models = {name: validate_hypervision_geometry(
                              shape, name, classic_models[name], simd)
                           for name, shape in enhanced.items()}
-    _, _, presentation_scale = detailed_model.container_header(outputs["STMCMU.H3D"])
-    for metadata in hypervision_models.values():
-        metadata["displayed_dimensions_game_units"] = {
-            axis: value * presentation_scale
-            for axis, value in metadata["dimensions_game_units"].items()}
-        metadata["displayed_wheelbase_game_units"] = 2 * model.HALF_WHEELBASE * presentation_scale
     performance = [physics.simulate_performance(fps) for fps in (20, 10)]
     for result in performance:
         if (abs(result["zero_to_60_mph_with_one_foot_rollout_seconds"] -
@@ -598,7 +604,7 @@ def generate(repository):
         "car_id": CAR_ID, "name": "McMurtry Spéirling PURE", "variant": specs["variant"],
         "model_year": specs["model_year"], "specifications_verified_date": specs["verified_date"],
         "game_name": "McMurtry Speirling PURE", "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
-        "geometry_revision": "The car origin is centered between native axles at Z=+25 and Z=-25, matching the specified 2200 mm wheelbase. The source body is translated by 1.5 units before quantization, and the arches follow the adapted wheel controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+        "geometry_revision": "The source car origin is centered between axles at Z=+25 and Z=-25, matching the specified 2200 mm physical wheelbase. The source body is translated by 1.5 units to that origin. Final classic and H3D geometry bake in the smaller Audi-relative size; racing wheel centres round to Z=+19 and Z=-19, with arches following the resized controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Source side panels and upper covers maintain a one-unit authoring tyre gap. Final resized and quantized models retain positive clearances around the conservative steering envelope, recorded per model below. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
         "downloaded_model": DOWNLOADED_MODEL,
         "historical_exterior_reference_images": REFERENCE_IMAGES,
         "historical_initial_reconstruction_reference_images": INITIAL_REFERENCE_IMAGES,
@@ -613,10 +619,10 @@ def generate(repository):
             "rendering": "Four-corner native dark surfaces at every detail level, retaining the existing wheel attachment and vertex budget."},
         "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
         "rear_lamps": {"count": 4, "layout": "Upper and lower circular red ring with a dark centre at each outer rear corner.",
-                       "centres_game_units": [(x, y, z - model.BODY_ORIGIN_Z)
+                       "authoring_centres_game_units": [(x, y, z - model.BODY_ORIGIN_Z)
                                                for side in (-1, 1)
                                                for x, y, z in model.rear_lamp_centres(side)],
-                       "nominal_outer_diameter_mm": (model.REAR_LAMP_DIAMETER *
+                       "authoring_nominal_outer_diameter_mm": (model.REAR_LAMP_DIAMETER *
                                                      model.REAR_LAMP_SIZE_SCALE * model.MM_PER_UNIT),
                        "size_scale": model.REAR_LAMP_SIZE_SCALE,
                        "inner_diameter_ratio": model.REAR_LAMP_INNER_RATIO,
@@ -635,8 +641,9 @@ def generate(repository):
                      "rate_multiplier": physics.STEERING_RATE_MULTIPLIER,
                      "note": "Threefold steering input and return-to-center rate in updated Restunts, retaining the speed-dependent response curve and maximum angle. The wheel and red dot follow the actual steering angle. Original Stunts ignores this resource. Replays require the same steering settings used when recording."},
         "sizing": {"millimetres_per_game_unit": model.MM_PER_UNIT, "showroom_scale": model.SHOWROOM_SCALE,
-                   "showroom_y_offset": model.SHOWROOM_Y_OFFSET, "wheel_radius_game_units": model.WHEEL_RADIUS,
-                   "wheel_centres_game_units": model.WHEEL_CENTERS,
+                   "authoring_showroom_y_offset": model.SHOWROOM_Y_OFFSET,
+                   "authoring_wheel_radius_game_units": model.WHEEL_RADIUS,
+                   "authoring_wheel_centres_game_units": model.WHEEL_CENTERS,
                    "body_origin_source_z_game_units": model.BODY_ORIGIN_Z,
                    "physical_wheel_y": 0,
                    "adapted_wheelbase_mm": 2 * model.HALF_WHEELBASE * model.MM_PER_UNIT,
@@ -644,14 +651,16 @@ def generate(repository):
                    "reference_glb_uniform_scale": model.SOURCE_SCALE,
                    "reference_model_dimensions_game_units": {"length": model.LENGTH,
                        "width": model.WIDTH, "height": model.HEIGHT},
-                   "adapted_body_height_game_units": model.BODY_HEIGHT,
+                   "authoring_body_height_game_units": model.BODY_HEIGHT,
+                   "baked_model_size": detailed_model.sizing_metadata(),
                    "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-                   "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. The source body is translated to the axle midpoint before quantization. The wheelbase is adapted to the specified 2200 mm using centered integer controls at Z=+25 and Z=-25; arches use those same centers. Ignored SIMD wheel Y fields are zero; visual tyre bottoms meet the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling and collision bounds enclose the recentered geometry."},
-        "wheel_arch_clearance": {"minimum_game_units": WHEEL_ARCH_MIN_CLEARANCE,
-                                 "minimum_mm": WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT,
+                   "rounding": "Source authoring uses the nominal car length and a centered 50-unit wheelbase. Both classic and H3D outputs bake the smaller model size into geometry before serialization. Native racing wheel centres round to X=+/-12, Y=0, Z=+/-19, with a six-unit tyre radius; classic and H3D controls match exactly. Showroom wheels use the same offline resize at the stock 20x authoring size. Tyre bottoms meet Y=0 in the showroom and Y=-6 while driving. Body coordinates use native integers for classic models and fixed-point precision for H3D. Physical contacts, collision bounds and vehicle tuning retain their original units regardless of renderer."},
+        "wheel_arch_clearance": {"source_minimum_game_units": WHEEL_ARCH_MIN_CLEARANCE,
+                                 "baked_minimum_game_units": BAKED_WHEEL_MIN_CLEARANCE,
+                                 "source_minimum_mm": WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT,
                                  "authored_arch_radius_game_units": model.ARCH_RADIUS,
-                                 "tyre_radius_game_units": model.WHEEL_RADIUS,
-                                 "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread."},
+                                 "authored_tyre_radius_game_units": model.WHEEL_RADIUS,
+                                 "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread. The source has a one-unit authoring margin. Resizing and native rounding reduce it; final models must retain a positive gap, with actual per-model measurements recorded below."},
         "paint_jobs": list(model.PAINT_NAMES),
         "adhesion": {"fand": 1, "resource": "adhs", "version": 1, "max_distance_world_units": 12,
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
@@ -670,12 +679,11 @@ def generate(repository):
             "resource": "STMCMU.H3D", "format_version": detailed_model.CONTAINER_VERSION,
             "maximum_vertices_per_shape": model.HYPERVISION_LIMIT,
             "maximum_primitives_per_shape": model.HYPERVISION_LIMIT,
-            "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
+            "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts use the resized STMCMU.3SH shapes.",
             "geometry": "Detailed exterior geometry imported from the supplied Sketchfab GLB, with transformed source bodywork, canopy, wing and underbody. Source wheel assemblies are replaced with the classic animated wheels. Source materials are mapped into the native palette and seven paint schemes; welded, quantized meshes provide separate showroom, near and distant racing detail levels.",
             "source_mesh": detailed_model.metadata(),
-            "presentation_scale": detailed_model.presentation_metadata(),
             "models": hypervision_models},
-        "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
+        "obj_export": "Resized classic car0 showroom geometry with explicit tyres and annular rear lamps.",
         "sources": SOURCES,
         "files": {name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
                   for name, data in outputs.items()},
@@ -693,7 +701,7 @@ The optional fifth file, STMCMU.H3D, supplies an imported showroom mesh and
 car0-derived low-polygon racing meshes for HyperVision. The generator installs it
 beside the classic files. Connected racing panels retain the source-guided
 bodywork, canopy, wing and underbody with palette materials and animated wheels.
-Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
+Classic rendering uses STMCMU.3SH at the same smaller size. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -729,12 +737,12 @@ with the factory's current approximately 1350 kg and 1056 mm values.
 MCMU.json records the factory figures. The in-game description uses the
 user's supplied display text.
 
-Geometry uses 44 mm per racing-model unit, calibrated to the stock Corvette
-and NSX. The supplied mesh is uniformly scaled to the nominal car length;
-its width and height retain the source proportions. Both race LODs have the
-same size; the showroom uses the stock 20x scale.
-Wheel locations follow the supplied mesh with native integer quantization.
-Wheels and physical contacts agree on the engine's six-unit contact plane.
+Source authoring uses 44 mm per racing-model unit, calibrated to the stock
+Corvette and NSX, with the supplied mesh fitted to the nominal car length.
+Final classic and H3D geometry bake in the smaller Audi-relative size described
+below. Both race LODs have the same size; the showroom uses the stock 20x scale.
+Visual wheels use resized native integer controls shared by both renderers.
+Physics contacts and tuning retain their original units.
 
 MODEL SOURCES
 The classic exterior is a native low-polygon adaptation guided by the supplied
@@ -770,11 +778,12 @@ specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
-The car origin is centered between axles at Z=+25 and Z=-25, giving the
-specified 2200 mm wheelbase. Body vertices shift by 1.5 units from the source
-origin before rounding; native wheel controls and arches stay aligned.
-Physical wheel Y fields are zero. Visual tyres retain their eight-unit radius
-and meet the engine contact plane. Bounds enclose the recentered body.
+The source car origin is centered between axles at Z=+25 and Z=-25, giving
+the specified 2200 mm physical wheelbase. Source body vertices shift by
+1.5 units to that origin. Final racing geometry has wheel centres at Z=+19
+and Z=-19 with a six-unit tyre radius after resizing and integer rounding.
+Physical wheel Y fields remain zero. Visual tyres meet the engine contact
+plane, and native bounds enclose the resized body.
 The nose has curved body-coloured upper and lower bands and rolled side
 cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
 The four white front lamp markers are omitted.
@@ -790,8 +799,9 @@ The front crown follows the shallow source profile toward the cockpit,
 without a tall peak above the axle. A small lift retains the arch lip.
 Enlarged circular arches leave a visible gap around the tyres; side panels
 are checked against the encoded front-steering envelope and rear circles.
-The minimum side and upper-cover gap is {WHEEL_ARCH_MIN_CLEARANCE:g} game unit
-({WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT:g} mm), checked after integer quantization in every model.
+The source has a {WHEEL_ARCH_MIN_CLEARANCE:g}-unit tyre-clearance margin.
+Resizing and native rounding reduce that gap. Final encoded models are checked
+for tyre intersections; MCMU.json records their actual positive clearances.
 The rear has painted rolled shoulders and a lower bumper around a compact
 dark-grey inset, replacing the broad black equipment-bay cap. Its lower
 corners are recessed {model.REAR_INSET_RECESS:g} game unit, giving the painted bands real depth.
@@ -835,15 +845,18 @@ keeps each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
 car1: {hypervision_models['car1']['vertices']} vertices, {hypervision_models['car1']['primitives']} primitives;
 car2: {hypervision_models['car2']['vertices']} vertices, {hypervision_models['car2']['primitives']} primitives.
-All three H3D models display at {100 * detailed_model.PRESENTATION_SCALE:.3f}% of their authored size,
-using one exact uniform scale ({detailed_model.PRESENTATION_SCALE_NUMERATOR}/{detailed_model.PRESENTATION_SCALE_DENOMINATOR}) for bodywork, bounds and animated wheels.
+All classic and H3D models store coordinates generated at
+{100 * model.MODEL_SIZE_FACTOR:.3f}% of the source authoring size. The offline
+factor ({model.MODEL_SIZE_NUMERATOR}/{model.MODEL_SIZE_DENOMINATOR}) is baked into
+bodywork, bounds and native wheel controls. The game applies no H3D size scale.
 The scale matches Wikipedia's 1050/1344 mm height ratio against the stock
 Audi Sport Quattro S1 E2: its showroom height is 26 game units, versus the
 unscaled McMurtry's 27.3. The real wheelbases are 2200/2204 mm; the stock
 Audi's proportions prevent matching both ratios without deforming the McMurtry.
-The H3D v3 header carries the scale; all mesh payloads stay byte-identical.
+H3D uses the eight-byte version 2 header without size-scale fields.
 Tyre ground planes remain Y=0 in the showroom and Y=-6 while driving.
-Classic fallback models, physics contact points and collision sizes are unchanged.
+Classic models use the same baked size. Physical contact points, vehicle tuning
+and collision sizes retain their original data and are shared by both renderers.
 Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']:g} mm precision;
 racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive
@@ -852,7 +865,7 @@ integer coordinates. Simplified panels omit tiny source features.
 Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
 to the car0 body checksum before procedural lamps. Classic meshes retain their
-original byte limits, wheel controls and driving specifications.
+original byte limits and driving specifications, with smaller wheel controls.
 The cockpit artwork follows the supplied left.png, middle.png and right.png
 views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
 fender crowns frame the live road view; wheel-top openings are not visible

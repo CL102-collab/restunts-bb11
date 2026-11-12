@@ -5,12 +5,10 @@
 #include "../shape3d/shape3d.h"
 
 #ifdef RESTUNTS_SDL3
-#define HIRES_MESH_LEGACY_CONTAINER_HEADER_SIZE 8U
-#define HIRES_MESH_CONTAINER_HEADER_SIZE 12U
+#define HIRES_MESH_CONTAINER_HEADER_SIZE 8U
 #define HIRES_MESH_DIRECTORY_ENTRY_SIZE 12U
 #define HIRES_MESH_SHAPE_HEADER_SIZE 8U
-#define HIRES_MESH_LEGACY_VERSION 2U
-#define HIRES_MESH_VERSION 3U
+#define HIRES_MESH_VERSION 2U
 #define HIRES_MESH_MAX_FRACTION_BITS 8U
 #define HIRES_MESH_NATIVE_VERTEX_COUNT 32U
 #define HIRES_MESH_CAR_COUNT 2U
@@ -44,8 +42,8 @@ void hires_shape3d_free_car_meshes(void);
 /* Lookup is read-only so concurrent geometry workers can share loaded meshes. */
 struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic);
 struct SHAPE3D_HIRES_VECTOR;
-/* Fractional or uniformly scaled positions are owned by the loaded car;
- * NULL retains native vertices. Scaling preserves each model's ground plane.
+/* Decoded fixed-point positions are owned by the loaded car;
+ * NULL retains native integer vertices. Geometry is displayed at its stored size.
  * Accept either its classic or enhanced descriptor. Reads are worker-safe. */
 const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE3D *shape);
 /* Called after the classic wheel controls change, before geometry workers run. */

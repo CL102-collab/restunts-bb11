@@ -18,6 +18,11 @@ from dataclasses import dataclass, field
 from collections.abc import Sequence
 
 
+# Bake the accepted Audi-relative size into both native and H3D assets.
+# These constants are used only by offline model generation.
+MODEL_SIZE_NUMERATOR = 125
+MODEL_SIZE_DENOMINATOR = 168
+MODEL_SIZE_FACTOR = MODEL_SIZE_NUMERATOR / MODEL_SIZE_DENOMINATOR
 MM_PER_UNIT = 44.0
 REAL_DIMENSIONS_MM = {"length": 3815, "width": 1795, "height": 1056,
                       "wheelbase": 2200}
@@ -91,8 +96,9 @@ def _normal(points):
 
 @dataclass
 class _Shape:
-    scale: int
+    scale: float
     origin_z: float = BODY_ORIGIN_Z
+    offset_y: float = 0
     vertices: list[tuple[int, int, int]] = field(default_factory=list)
     primitives: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]] = field(default_factory=list)
     _lookup: dict[tuple[int, int, int], int] = field(default_factory=dict)
@@ -101,11 +107,11 @@ class _Shape:
 
     def point(self, point):
         x, y, z = point
-        return round(x * self.scale), round(y * self.scale), round((z - self.origin_z) * self.scale)
+        return round(x * self.scale), round(y * self.scale + self.offset_y), round((z - self.origin_z) * self.scale)
 
     def authoring_point(self, point):
         x, y, z = point
-        return x / self.scale, y / self.scale, z / self.scale + self.origin_z
+        return x / self.scale, (y - self.offset_y) / self.scale, z / self.scale + self.origin_z
 
     def fixed(self, point):
         self.vertices.append(self.point(point))
@@ -643,8 +649,8 @@ def _tail(shape):
 
 
 
-def _car(scale=1, *, simple=False):
-    shape = _Shape(scale)
+def _car(scale=1, *, simple=False, offset_y=0):
+    shape = _Shape(scale, offset_y=offset_y)
     _controls(shape)
     _shell(shape)
     _canopy(shape, simple)
@@ -667,6 +673,14 @@ def _showroom_car():
     return shape
 
 
+def _classic_car(name):
+    """Author at the final size before native integer quantization."""
+    showroom = name == "car0"
+    scale = (SHOWROOM_SCALE if showroom else 1) * MODEL_SIZE_FACTOR
+    ground = 0 if showroom else CONTACT_Y
+    return _car(scale, simple=name == "car2", offset_y=ground - CONTACT_Y * scale)
+
+
 def _debris(index):
     """Crash fragments taken from the new fender, door, glass and wing."""
     front, rear = _roof_rings(1)[1:3]
@@ -681,7 +695,7 @@ def _debris(index):
     )
     points, material = panels[index]
     centre = tuple(sum(point[axis] for point in points) / len(points) for axis in range(3))
-    shape = _Shape(1, origin_z=0)
+    shape = _Shape(MODEL_SIZE_FACTOR, origin_z=0)
     shape.polygon(tuple(tuple(c - centre[axis] for axis, c in enumerate(point))
                         for point in points), material)
     return shape.encode()
@@ -701,8 +715,7 @@ def _container(resources):
 
 def build_models():
     """Build the new showroom, racing LODs and four matching crash fragments."""
-    resources = [("car0", _showroom_car().encode()),
-                 ("car1", _car().encode()), ("car2", _car(simple=True).encode())]
+    resources = [(name, _classic_car(name).encode()) for name in ("car0", "car1", "car2")]
     resources.extend((f"exp{i}", _debris(i)) for i in range(4))
     return _container(resources)
 
@@ -723,7 +736,7 @@ def export_obj(paint=0):
     """
     if not 0 <= paint < len(PAINT_NAMES):
         raise ValueError("Invalid paint index")
-    shape = _showroom_car()
+    shape = _classic_car("car0")
     factor = MM_PER_UNIT / (1000 * SHOWROOM_SCALE)
     vertices = []
     faces = []
@@ -780,22 +793,24 @@ def export_obj(paint=0):
 
     # Twenty-four radial samples give an editable version of the engine's
     # analytic racing tyres, with a dark tyre wall and silver rim.
-    for index, (x, y, z) in enumerate(WHEEL_CENTERS):
+    for index in range(len(WHEEL_CENTERS)):
+        first = WHEEL_CONTROL_START + index * WHEEL_CONTROL_COUNT
+        inner, radial, outer = [shape.vertices[first + offset] for offset in (0, 1, 3)]
+        x, y, z = [(inner[axis] + outer[axis]) * factor / 2 for axis in range(3)]
+        radius = (radial[1] - inner[1]) * factor
+        half_width = abs(outer[0] - inner[0]) * factor / 2
         rings = []
-        for rx in (x - WHEEL_HALF_WIDTH, x + WHEEL_HALF_WIDTH):
-            rings.append([vertex((rx * MM_PER_UNIT / 1000,
-                                  (y + 6 + WHEEL_RADIUS * math.sin(angle)) * MM_PER_UNIT / 1000,
-                                  (z + WHEEL_RADIUS * math.cos(angle)) * MM_PER_UNIT / 1000))
+        for rx in (x - half_width, x + half_width):
+            rings.append([vertex((rx, y + radius * math.sin(angle),
+                                  z + radius * math.cos(angle)))
                           for angle in (step * math.tau / 24 for step in range(24))])
         for step in range(24):
             following = (step + 1) % 24
             faces.append((BLACK, [rings[0][step], rings[1][step],
                                   rings[1][following], rings[0][following]]))
         for side, ring in enumerate(rings):
-            rx = x - WHEEL_HALF_WIDTH if side == 0 else x + WHEEL_HALF_WIDTH
-            centre = vertex((rx * MM_PER_UNIT / 1000,
-                             (y + 6) * MM_PER_UNIT / 1000,
-                             z * MM_PER_UNIT / 1000))
+            rx = x - half_width if side == 0 else x + half_width
+            centre = vertex((rx, y, z))
             for step in range(24):
                 triangle = [centre, ring[step], ring[(step + 1) % 24]]
                 faces.append((SILVER, triangle if side == 0 else list(reversed(triangle))))

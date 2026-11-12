@@ -10,7 +10,7 @@ The optional fifth file, STMCMU.H3D, supplies an imported showroom mesh and
 car0-derived low-polygon racing meshes for HyperVision. The generator installs it
 beside the classic files. Connected racing panels retain the source-guided
 bodywork, canopy, wing and underbody with palette materials and animated wheels.
-Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
+Classic rendering uses STMCMU.3SH at the same smaller size. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -46,12 +46,12 @@ with the factory's current approximately 1350 kg and 1056 mm values.
 MCMU.json records the factory figures. The in-game description uses the
 user's supplied display text.
 
-Geometry uses 44 mm per racing-model unit, calibrated to the stock Corvette
-and NSX. The supplied mesh is uniformly scaled to the nominal car length;
-its width and height retain the source proportions. Both race LODs have the
-same size; the showroom uses the stock 20x scale.
-Wheel locations follow the supplied mesh with native integer quantization.
-Wheels and physical contacts agree on the engine's six-unit contact plane.
+Source authoring uses 44 mm per racing-model unit, calibrated to the stock
+Corvette and NSX, with the supplied mesh fitted to the nominal car length.
+Final classic and H3D geometry bake in the smaller Audi-relative size described
+below. Both race LODs have the same size; the showroom uses the stock 20x scale.
+Visual wheels use resized native integer controls shared by both renderers.
+Physics contacts and tuning retain their original units.
 
 MODEL SOURCES
 The classic exterior is a native low-polygon adaptation guided by the supplied
@@ -87,11 +87,12 @@ specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
-The car origin is centered between axles at Z=+25 and Z=-25, giving the
-specified 2200 mm wheelbase. Body vertices shift by 1.5 units from the source
-origin before rounding; native wheel controls and arches stay aligned.
-Physical wheel Y fields are zero. Visual tyres retain their eight-unit radius
-and meet the engine contact plane. Bounds enclose the recentered body.
+The source car origin is centered between axles at Z=+25 and Z=-25, giving
+the specified 2200 mm physical wheelbase. Source body vertices shift by
+1.5 units to that origin. Final racing geometry has wheel centres at Z=+19
+and Z=-19 with a six-unit tyre radius after resizing and integer rounding.
+Physical wheel Y fields remain zero. Visual tyres meet the engine contact
+plane, and native bounds enclose the resized body.
 The nose has curved body-coloured upper and lower bands and rolled side
 cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
 The four white front lamp markers are omitted.
@@ -107,8 +108,9 @@ The front crown follows the shallow source profile toward the cockpit,
 without a tall peak above the axle. A small lift retains the arch lip.
 Enlarged circular arches leave a visible gap around the tyres; side panels
 are checked against the encoded front-steering envelope and rear circles.
-The minimum side and upper-cover gap is 1 game unit
-(44 mm), checked after integer quantization in every model.
+The source has a 1-unit tyre-clearance margin.
+Resizing and native rounding reduce that gap. Final encoded models are checked
+for tyre intersections; MCMU.json records their actual positive clearances.
 The rear has painted rolled shoulders and a lower bumper around a compact
 dark-grey inset, replacing the broad black equipment-bay cap. Its lower
 corners are recessed 1 game unit, giving the painted bands real depth.
@@ -147,29 +149,32 @@ The base racing budgets are 1000-1200 vertices for car1 and 400-500 for car2,
 including bounds and wheel controls. Final car1 adds up to
 104 lamp vertices, for a total limit of
 1304. Deterministic cached geometry
-keeps each mesh within H3D version 3's
+keeps each mesh within H3D version 2's
 65,535-vertex and 65,535-primitive limits:
 car0: 21752 vertices, 33653 primitives;
 car1: 1303 vertices, 2289 primitives;
 car2: 499 vertices, 810 primitives.
-All three H3D models display at 74.405% of their authored size,
-using one exact uniform scale (125/168) for bodywork, bounds and animated wheels.
+All classic and H3D models store coordinates generated at
+74.405% of the source authoring size. The offline
+factor (125/168) is baked into
+bodywork, bounds and native wheel controls. The game applies no H3D size scale.
 The scale matches Wikipedia's 1050/1344 mm height ratio against the stock
 Audi Sport Quattro S1 E2: its showroom height is 26 game units, versus the
 unscaled McMurtry's 27.3. The real wheelbases are 2200/2204 mm; the stock
 Audi's proportions prevent matching both ratios without deforming the McMurtry.
-The H3D v3 header carries the scale; all mesh payloads stay byte-identical.
+H3D uses the eight-byte version 2 header without size-scale fields.
 Tyre ground planes remain Y=0 in the showroom and Y=-6 while driving.
-Classic fallback models, physics contact points and collision sizes are unchanged.
-Showroom body coordinates have 2.2 mm precision;
-racing body coordinates have 2.75 mm precision.
+Classic models use the same baked size. Physical contact points, vehicle tuning
+and collision sizes retain their original data and are shared by both renderers.
+Showroom body coordinates have 0.06875 mm precision;
+racing body coordinates have 0.171875 mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive
 counts include four native wheels. Bounds and wheel controls retain native
 integer coordinates. Simplified panels omit tiny source features.
 Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
 to the car0 body checksum before procedural lamps. Classic meshes retain their
-original byte limits, wheel controls and driving specifications.
+original byte limits and driving specifications, with smaller wheel controls.
 The cockpit artwork follows the supplied left.png, middle.png and right.png
 views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
 fender crowns frame the live road view; wheel-top openings are not visible
