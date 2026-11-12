@@ -9,7 +9,7 @@ host_architecture=$(uname -m)
 # Some BSD kernels report a machine family through -m on ARM/RISC-V;
 # package and compiler ABIs use the CPU architecture reported by -p.
 case "$host_architecture" in
-    evbarm|riscv) host_architecture=$(uname -p) ;;
+    arm|evbarm|riscv) host_architecture=$(uname -p) ;;
 esac
 netbsd_release=10.2
 if [ "$target" = netbsd-riscv64 ]; then
@@ -30,6 +30,10 @@ install_netbsd_x11() {
         aarch64|arm64)
             sets_architecture=evbarm-aarch64; sets_suffix=tar.xz
             checksum_file=netbsd-arm64-sets.sha512
+            ;;
+        earmv7hf|armv7)
+            sets_architecture=evbarm-earmv7hf; sets_suffix=tgz
+            checksum_file=netbsd-armv7-sets.sha512
             ;;
         riscv64)
             sets_architecture=riscv-riscv64; sets_suffix=tgz
@@ -62,6 +66,7 @@ install_netbsd_x11() {
 
 case "$target:$host_system:$host_architecture" in
     freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64|\
+    freebsd-x86:FreeBSD:i386|freebsd-armv7:FreeBSD:armv7|\
     freebsd-arm64:FreeBSD:arm64|freebsd-arm64:FreeBSD:aarch64|\
     freebsd-riscv64:FreeBSD:riscv64)
         bsd_cmake_package=cmake
@@ -76,6 +81,7 @@ case "$target:$host_system:$host_architecture" in
             "$bsd_gtk_package" libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
         ;;
     openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64|\
+    openbsd-x86:OpenBSD:i386|\
     openbsd-arm64:OpenBSD:arm64|openbsd-arm64:OpenBSD:aarch64|\
     openbsd-riscv64:OpenBSD:riscv64)
         # OpenBSD ships pkg-config in base; its Python 3 branch is lang/python/3.
@@ -88,6 +94,7 @@ case "$target:$host_system:$host_architecture" in
     netbsd-x64:NetBSD:amd64|netbsd-x64:NetBSD:x86_64|\
     netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386|\
     netbsd-arm64:NetBSD:aarch64|netbsd-arm64:NetBSD:arm64|\
+    netbsd-armv7:NetBSD:earmv7hf|netbsd-armv7:NetBSD:armv7|\
     netbsd-riscv64:NetBSD:riscv64)
         export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
         # Keep the caller's PKG_PATH or the VM's configured quarterly mirrors.
@@ -100,6 +107,7 @@ case "$target:$host_system:$host_architecture" in
             case "$package_architecture" in
                 amd64) package_architecture=x86_64 ;;
                 arm64) package_architecture=aarch64 ;;
+                armv7) package_architecture=earmv7hf ;;
             esac
             export PKG_PATH="https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/"
         fi

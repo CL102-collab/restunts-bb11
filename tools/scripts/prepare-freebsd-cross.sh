@@ -7,10 +7,27 @@ target=${1:?Usage: prepare-freebsd-cross.sh TARGET SYSROOT}
 sysroot=${2:?Usage: prepare-freebsd-cross.sh TARGET SYSROOT}
 
 case "$target" in
+    freebsd-x86)
+        release=14.5
+        machine=i386
+        architecture=i386
+        clang_backend=x86
+        abi=FreeBSD:14:i386
+        gtk_package=gtk3
+        ;;
+    freebsd-armv7)
+        release=14.5
+        machine=arm
+        architecture=armv7
+        clang_backend=arm
+        abi=FreeBSD:14:armv7
+        gtk_package=gtk3
+        ;;
     freebsd-arm64)
         release=14.4
         machine=arm64
         architecture=aarch64
+        clang_backend=aarch64
         abi=FreeBSD:14:aarch64
         gtk_package=gtk3
         ;;
@@ -18,6 +35,7 @@ case "$target" in
         release=15.0
         machine=riscv
         architecture=riscv64
+        clang_backend=riscv64
         abi=FreeBSD:15:riscv64
         # This signed repository carries GTK2 while GTK3 still needs Rust.
         gtk_package=gtk2
@@ -47,14 +65,35 @@ fi
 # target package installation must never execute the foreign /bin/sh.
 env IGNORE_OSVERSION=yes ASSUME_ALWAYS_YES=yes pkg install -y \
     bash cmake-core ninja git python313 pkgconf
-if ! clang --print-targets | grep -q "^[[:space:]]*${architecture}[[:space:]]"; then
-    echo "The host Clang does not support $architecture." >&2
+if ! clang --print-targets | grep -q "^[[:space:]]*${clang_backend}[[:space:]]"; then
+    echo "The host Clang does not support $clang_backend for $architecture." >&2
     exit 1
 fi
 command -v ld.lld >/dev/null
 
 download_dir=$(mktemp -d /tmp/restunts-freebsd-cross.XXXXXX)
-trap 'rm -rf -- "$download_dir"' 0
+image_device=
+image_mount=
+archive_pid=
+cleanup() {
+    cleanup_status=$?
+    trap - 0
+    if [ -n "$archive_pid" ]; then
+        kill "$archive_pid" 2>/dev/null || :
+        wait "$archive_pid" 2>/dev/null || :
+    fi
+    if [ -n "$image_mount" ] && ! umount "$image_mount"; then
+        echo "Cannot unmount FreeBSD SDK image: $image_mount" >&2
+        exit 1
+    fi
+    if [ -n "$image_device" ] && ! mdconfig -d -u "$image_device"; then
+        echo "Cannot detach FreeBSD SDK image: $image_device" >&2
+        exit 1
+    fi
+    rm -rf -- "$download_dir"
+    exit "$cleanup_status"
+}
+trap cleanup 0
 trap 'exit 1' 1 2 15
 
 download() {
@@ -73,10 +112,17 @@ download() {
 }
 
 archive_name="$target-base.txz"
-archive_path="$download_dir/$archive_name"
 sets_path="$machine/$architecture/$release-RELEASE"
-if ! download "https://download.freebsd.org/releases/$sets_path/base.txz" "$archive_path"; then
-    download "https://archive.freebsd.org/old-releases/$sets_path/base.txz" "$archive_path"
+set_name=base.txz
+if [ "$target" = freebsd-armv7 ]; then
+    # ARMv7 releases ship an SD image rather than separate base distribution sets.
+    archive_name="$target-GENERICSD.img.xz"
+    sets_path="$machine/$architecture/ISO-IMAGES/$release"
+    set_name="FreeBSD-$release-RELEASE-arm-armv7-GENERICSD.img.xz"
+fi
+archive_path="$download_dir/$archive_name"
+if ! download "https://download.freebsd.org/releases/$sets_path/$set_name" "$archive_path"; then
+    download "https://archive.freebsd.org/old-releases/$sets_path/$set_name" "$archive_path"
 fi
 expected_checksum=$(awk -v archive="$archive_name" '$2 == archive { print $1 }' \
     "$script_dir/freebsd-cross-sets.sha256")
@@ -88,8 +134,31 @@ if [ "${#expected_checksum}" -ne 64 ] || \
     echo "FreeBSD base archive checksum mismatch: $archive_name" >&2
     exit 1
 fi
-# Base sets include immutable filesystem flags that are unnecessary in an SDK.
-tar -xpf "$archive_path" --no-same-owner --no-fflags -C "$sysroot"
+if [ "$target" = freebsd-armv7 ]; then
+    image_path="$download_dir/GENERICSD.img"
+    xz -dc "$archive_path" > "$image_path"
+    image_device=$(mdconfig -a -t vnode -f "$image_path" -o readonly)
+    mount_dir="$download_dir/image-root"
+    mkdir -p "$mount_dir"
+    # The pinned GENERICSD image uses MBR slice 2 with a BSD UFS 'a' partition.
+    # The amd64 host reads this filesystem without running any target program.
+    mount -t ufs -o ro,noexec "/dev/${image_device}s2a" "$mount_dir"
+    image_mount=$mount_dir
+    copy_pipe="$download_dir/base-copy.tar"
+    mkfifo "$copy_pipe"
+    tar -cf "$copy_pipe" -C "$image_mount" . &
+    archive_pid=$!
+    tar -xpf "$copy_pipe" --no-same-owner --no-fflags -C "$sysroot"
+    wait "$archive_pid"
+    archive_pid=
+    umount "$image_mount"
+    image_mount=
+    mdconfig -d -u "$image_device"
+    image_device=
+else
+    # Base sets include immutable filesystem flags that are unnecessary in an SDK.
+    tar -xpf "$archive_path" --no-same-owner --no-fflags -C "$sysroot"
+fi
 
 repository_dir="$download_dir/repos"
 mkdir -p "$repository_dir"

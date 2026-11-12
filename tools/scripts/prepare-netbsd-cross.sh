@@ -6,6 +6,10 @@ script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 target=${1:?Usage: prepare-netbsd-cross.sh TARGET SYSROOT}
 sysroot=${2:?Usage: prepare-netbsd-cross.sh TARGET SYSROOT}
 case "$target" in
+    netbsd-armv7)
+        release=10.2; architecture=earmv7hf; machine=evbarm-earmv7hf
+        suffix=tgz; package_release=10.0
+        ;;
     netbsd-arm64)
         release=10.2; architecture=aarch64; machine=evbarm-aarch64
         suffix=tar.xz; package_release=10.0
@@ -16,6 +20,16 @@ case "$target" in
         ;;
     *) echo "Unsupported NetBSD cross target: $target" >&2; exit 1 ;;
 esac
+compiler_target="$architecture-unknown-netbsd$release"
+set --
+if [ "$target" = netbsd-armv7 ]; then
+    # pkgsrc's MACHINE_ARCH name is not an LLVM architecture. Keep the EABI
+    # hard-float environment explicit so target libraries use the VFP ABI.
+    compiler_target="armv7-unknown-netbsd$release-eabihf"
+    # Clang selects a NetBSD-specific GNU ld emulation that LLD does not
+    # implement. Its generic ARM emulation preserves the input EABI flags.
+    set -- -Wl,-m,armelf
+fi
 case "$(uname -s):$(uname -m):$(uname -r)" in
     NetBSD:amd64:"$release"|NetBSD:x86_64:"$release") ;;
     *) echo "$target requires a NetBSD $release amd64 build host." >&2; exit 1 ;;
@@ -50,8 +64,18 @@ python3.13 "$script_dir/netbsd-cross-packages.py" \
 # the SDK ready. This produces a target executable but never executes it.
 printf '#include <signal.h>\n#include <string>\nint main() { return std::string("SDK").empty(); }\n' \
     > "$downloads/compiler-check.cpp"
-/usr/pkg/bin/clang++ --target="$architecture-unknown-netbsd$release" \
-    --sysroot="$sysroot" -fuse-ld=/usr/pkg/bin/ld.lld -stdlib=libstdc++ \
+if [ "$target" = netbsd-armv7 ]; then
+    # LLVM 21 first stopped treating NetBSD ARM as an EHABI unwinding target;
+    # earlier versions emit cleanup calls absent from its DWARF C++ runtime.
+    printf '%s\n' '#define RESTUNTS_NETBSD_ARMV7_MINIMUM_CLANG_MAJOR 21' \
+        '#if __clang_major__ < RESTUNTS_NETBSD_ARMV7_MINIMUM_CLANG_MAJOR' \
+        '#error NetBSD ARMv7 cross builds require Clang 21 or newer' '#endif' \
+        '#if !defined(__ARM_ARCH_7A__) || !defined(__ARM_PCS_VFP)' \
+        '#error NetBSD ARMv7 SDK requires the ARMv7-A hard-float ABI' '#endif' \
+        >> "$downloads/compiler-check.cpp"
+fi
+/usr/pkg/bin/clang++ --target="$compiler_target" \
+    --sysroot="$sysroot" -fuse-ld=/usr/pkg/bin/ld.lld "$@" -stdlib=libstdc++ \
     -include "$script_dir/../../cmake/toolchains/netbsd-clang-compat.h" \
     "$downloads/compiler-check.cpp" -lgcc_s -o "$downloads/compiler-check"
 printf '%s\n' "$target" > "$sysroot/restunts-target"

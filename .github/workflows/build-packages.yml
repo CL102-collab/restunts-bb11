@@ -493,15 +493,19 @@ jobs:
       matrix:
         include:
           - {target: freebsd-x64, arch: x86_64, release: '14.4'}
+          - {target: freebsd-x86, arch: i386, release: '14.5'}
+          - {target: freebsd-armv7, arch: armv7, release: '14.5'}
           - {target: freebsd-arm64, arch: aarch64, release: '14.4'}
           - {target: freebsd-riscv64, arch: riscv64, release: '15.0'}
           - {target: openbsd-x64, arch: x86_64, release: '7.9'}
+          - {target: openbsd-x86, arch: i386, release: '8.0'}
           - {target: openbsd-arm64, arch: aarch64, release: '7.9'}
           - {target: openbsd-riscv64, arch: riscv64, release: '7.9'}
           - {target: netbsd-x64, arch: x86_64, release: '10.2'}
           - {target: netbsd-x86, arch: x86_64, release: '10.2'}
           - {target: netbsd-x86-no-sse2, arch: x86_64, release: '10.2'}
           - {target: netbsd-arm64, arch: aarch64, release: '10.2'}
+          - {target: netbsd-armv7, arch: earmv7hf, release: '10.2'}
           - {target: netbsd-riscv64, arch: riscv64, release: '11.0'}
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
@@ -531,7 +535,7 @@ jobs:
 
       - name: Build the OpenBSD ${{ matrix.release }} package on x64
         if: startsWith(matrix.target, 'openbsd-')
-        uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        uses: vmactions/openbsd-vm@7517acc2b6cdd4ea5bf4ee0549f8748df93902cf # v1.4.9
         with:
           release: ${{ matrix.release }}
           arch: x86_64
@@ -565,7 +569,7 @@ jobs:
             export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
             if [ "$PACKAGE_TARGET" = netbsd-x86 ] || [ "$PACKAGE_TARGET" = netbsd-x86-no-sse2 ]; then
               sh tools/scripts/build-netbsd-x86-package.sh "$PACKAGE_TARGET"
-            elif [ "$PACKAGE_TARGET" = netbsd-arm64 ] || [ "$PACKAGE_TARGET" = netbsd-riscv64 ]; then
+            elif [ "$PACKAGE_TARGET" = netbsd-arm64 ] || [ "$PACKAGE_TARGET" = netbsd-armv7 ] || [ "$PACKAGE_TARGET" = netbsd-riscv64 ]; then
               export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
               sh tools/scripts/prepare-netbsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
               bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
@@ -598,6 +602,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The VM actions do not provide i386 or ARMv7 guests. Those targets
+          # receive cross-build and archive ABI checks in the packaging job.
           - {target: freebsd-arm64, arch: aarch64, release: '14.4'}
           - {target: freebsd-riscv64, arch: riscv64, release: '15.0'}
           - {target: openbsd-arm64, arch: aarch64, release: '7.9'}
@@ -633,7 +639,7 @@ jobs:
 
       - name: Test the cross-compiled OpenBSD archive on ${{ matrix.arch }}
         if: startsWith(matrix.target, 'openbsd-')
-        uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        uses: vmactions/openbsd-vm@7517acc2b6cdd4ea5bf4ee0549f8748df93902cf # v1.4.9
         with:
           release: ${{ matrix.release }}
           arch: ${{ matrix.arch }}

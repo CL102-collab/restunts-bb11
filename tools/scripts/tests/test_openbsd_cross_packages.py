@@ -17,6 +17,70 @@ SPEC = importlib.util.spec_from_file_location("openbsd_cross_packages", SCRIPT)
 PACKAGES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PACKAGES)
 DOWNLOADER = SCRIPT.with_name("download-openbsd-sdk-packages.pl")
+PREPARER = SCRIPT.with_name("prepare-openbsd-cross.sh")
+DEPENDENCY_PROBE_EXIT = 37
+
+
+class OpenbsdSdkHostTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="OpenBSD SDK host with spaces ")
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        commands = self.directory / "commands"
+        commands.mkdir()
+        uname = commands / "uname"
+        uname.write_text('''#!/bin/sh
+case "$1" in
+    -s) printf '%s\\n' OpenBSD ;;
+    -m) printf '%s\\n' "$SDK_HOST_ARCH" ;;
+    -r) printf '%s\\n' "$SDK_HOST_RELEASE" ;;
+    *) exit 1 ;;
+esac
+''')
+        uname.chmod(0o755)
+        pkg_add = commands / "pkg_add"
+        pkg_add.write_text('''#!/bin/sh
+printf '%s\\n' "$@" > "$SDK_HOST_DEPENDENCIES"
+exit "$SDK_DEPENDENCY_PROBE_EXIT"
+''')
+        pkg_add.chmod(0o755)
+        self.record = self.directory / "dependencies"
+        self.environment = dict(os.environ, PATH=str(commands) + os.pathsep + os.environ["PATH"],
+                                SDK_HOST_ARCH="amd64", SDK_HOST_DEPENDENCIES=str(self.record),
+                                SDK_DEPENDENCY_PROBE_EXIT=str(DEPENDENCY_PROBE_EXIT))
+
+    def prepare(self, target, release, architecture="amd64"):
+        self.record.unlink(missing_ok=True)
+        environment = dict(self.environment, SDK_HOST_RELEASE=release, SDK_HOST_ARCH=architecture)
+        return subprocess.run(["sh", str(PREPARER), target, str(self.directory / "target SDK")],
+                              env=environment, text=True, capture_output=True,
+                              timeout=15, check=False)
+
+    def test_matching_release_selects_available_host_compiler_package(self):
+        for target, release, compiler in (("openbsd-x86", "8.0", "llvm%22"),
+                                          ("openbsd-arm64", "7.9", "llvm%19"),
+                                          ("openbsd-riscv64", "7.9", "llvm%19")):
+            with self.subTest(target=target):
+                result = self.prepare(target, release)
+                self.assertEqual(result.returncode, DEPENDENCY_PROBE_EXIT,
+                                 result.stdout + result.stderr)
+                self.assertIn(compiler, self.record.read_text().splitlines())
+
+    def test_mismatched_release_is_rejected_before_installing_host_dependencies(self):
+        for target, host_release in (("openbsd-x86", "7.9"),
+                                     ("openbsd-arm64", "8.0"),
+                                     ("openbsd-riscv64", "8.0")):
+            with self.subTest(target=target):
+                result = self.prepare(target, host_release)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("requires an OpenBSD", result.stderr)
+                self.assertFalse(self.record.exists())
+
+    def test_i386_host_is_rejected_before_installing_host_dependencies(self):
+        result = self.prepare("openbsd-x86", "8.0", "i386")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("amd64 host", result.stderr)
+        self.assertFalse(self.record.exists())
 
 
 class OpenbsdSdkDownloaderTests(unittest.TestCase):
@@ -86,7 +150,7 @@ sub parse_and_run($class, $command)
 ''')
             sdk = root / "target SDK"
             sdk.mkdir()
-            for architecture in ("aarch64", "riscv64"):
+            for architecture in ("i386", "aarch64", "riscv64"):
                 with self.subTest(architecture=architecture):
                     cache = root / (architecture + " cache")
                     cache.mkdir()

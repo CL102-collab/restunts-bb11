@@ -53,7 +53,8 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.scripts = self.root / "tools/scripts"
         self.scripts.mkdir(parents=True)
         for name in (HELPER, "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
-                     "netbsd-arm64-sets.sha512", "netbsd-riscv64-sets.sha512"):
+                     "netbsd-arm64-sets.sha512", "netbsd-armv7-sets.sha512",
+                     "netbsd-riscv64-sets.sha512"):
             shutil.copy2(ROOT / "tools/scripts" / name, self.scripts / name)
         x11 = self.root / "X11R6/include/X11/Xlib.h"
         x11.parent.mkdir(parents=True)
@@ -123,10 +124,12 @@ class BsdPackageDependencyTests(unittest.TestCase):
                             f"{package_architecture}/10.0/All/")
                 self.assert_repositories(result, events, expected, expected)
 
-    def test_arm64_and_riscv64_use_matching_netbsd_sets_and_package_abis(self):
+    def test_cross_targets_use_matching_netbsd_sets_and_package_abis(self):
         for target, machine, processor, release, set_architecture, suffix in (
                 ("netbsd-arm64", "evbarm", "aarch64", "10.2", "evbarm-aarch64", "tar.xz"),
                 ("netbsd-arm64", "aarch64", "aarch64", "10.2", "evbarm-aarch64", "tar.xz"),
+                ("netbsd-armv7", "evbarm", "earmv7hf", "10.2", "evbarm-earmv7hf", "tgz"),
+                ("netbsd-armv7", "earmv7hf", "earmv7hf", "10.2", "evbarm-earmv7hf", "tgz"),
                 ("netbsd-riscv64", "riscv", "riscv64", "11.0", "riscv-riscv64", "tgz"),
                 ("netbsd-riscv64", "riscv64", "riscv64", "11.0", "riscv-riscv64", "tgz")):
             with self.subTest(target=target, machine=machine):
@@ -149,11 +152,15 @@ class BsdPackageDependencyTests(unittest.TestCase):
                                 f"{target}-sets.sha512").read_text().splitlines()
                     self.assertIn(downloads[index * 2 + 1]["input"].strip(), manifest)
 
-    def test_freebsd_and_openbsd_arm64_and_riscv64_install_native_dependencies(self):
+    def test_freebsd_and_openbsd_cross_targets_install_native_dependencies(self):
         for system, target, machine, processor in (
                 ("FreeBSD", "freebsd-arm64", "arm64", "aarch64"),
+                ("FreeBSD", "freebsd-x86", "i386", "i386"),
+                ("FreeBSD", "freebsd-armv7", "arm", "armv7"),
+                ("FreeBSD", "freebsd-armv7", "armv7", "armv7"),
                 ("FreeBSD", "freebsd-riscv64", "riscv", "riscv64"),
                 ("OpenBSD", "openbsd-arm64", "arm64", "aarch64"),
+                ("OpenBSD", "openbsd-x86", "i386", "i386"),
                 ("OpenBSD", "openbsd-riscv64", "riscv64", "riscv64")):
             with self.subTest(target=target):
                 result, events = self.run_helper(target, {
@@ -170,7 +177,8 @@ class BsdPackageDependencyTests(unittest.TestCase):
                 self.assertIn(gtk_package, events[0]["arguments"])
 
     def test_wrong_architecture_is_rejected_before_installing_packages(self):
-        for target in ("freebsd-arm64", "openbsd-riscv64", "netbsd-arm64", "netbsd-riscv64"):
+        for target in ("freebsd-x86", "freebsd-armv7", "freebsd-arm64", "openbsd-x86",
+                       "openbsd-riscv64", "netbsd-armv7", "netbsd-arm64", "netbsd-riscv64"):
             with self.subTest(target=target):
                 result, events = self.run_helper(target)
                 self.assertNotEqual(result.returncode, 0)

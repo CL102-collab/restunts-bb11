@@ -38,20 +38,31 @@ TEMPLEOS_FORMAT = runpy.run_path(str(TEMPLEOS_TOOLS / "MAKE_DATA_CD.PY"))
 PORTED_TARGETS = {"templeos", "amiga-m68k"}
 ELF_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
+    "freebsd-x86": "FreeBSD 32-bit x86 with SSE2",
+    "freebsd-armv7": "FreeBSD ARMv7 hard-float",
     "freebsd-arm64": "FreeBSD AArch64",
     "freebsd-riscv64": "FreeBSD RISC-V 64-bit",
     "haiku-x64": "Haiku x86-64",
     "haiku-x86": "Haiku 32-bit x86 with SSE2",
     "openbsd-x64": "OpenBSD x86-64",
+    "openbsd-x86": "OpenBSD 32-bit x86 with SSE2",
     "openbsd-arm64": "OpenBSD AArch64",
     "openbsd-riscv64": "OpenBSD RISC-V 64-bit",
     "netbsd-x64": "NetBSD x86-64",
+    "netbsd-armv7": "NetBSD ARMv7 hard-float",
     "netbsd-arm64": "NetBSD AArch64",
     "netbsd-riscv64": "NetBSD RISC-V 64-bit",
     "netbsd-x86": "NetBSD 32-bit x86 with SSE2",
     "netbsd-x86-no-sse2": "NetBSD 32-bit x86; SSE2 instructions are disabled",
     "linux-riscv64": "Linux RISC-V 64-bit",
 }
+BSD_ARMV7_BASELINES = {"freebsd-armv7": "FreeBSD 14.5", "netbsd-armv7": "NetBSD 10.2"}
+BSD32_BASELINES = {"freebsd-x86": "FreeBSD 14.5", "openbsd-x86": "OpenBSD 8.0",
+                   **BSD_ARMV7_BASELINES}
+ARM_EABI_4_HARD_FLOAT = 0x04000400
+ARM_EABI_5_UNSPECIFIED_FLOAT = 0x05000000
+ARM_EABI_5_SOFT_FLOAT = 0x05000200
+ARM_EABI_5_CONFLICTING_FLOAT = 0x05000600
 
 
 class ReleasePackageTests(unittest.TestCase):
@@ -74,12 +85,14 @@ class ReleasePackageTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((PACKAGES.ROOT / "assets/cars" / name).read_bytes())
 
-    def elf_data(self, elf_class, machine, shared=False):
+    def elf_data(self, elf_class, machine, shared=False, flags=0):
         header = bytearray(PACKAGES.ELF_HEADER_SIZES[elf_class])
         header[:len(PACKAGES.ELF_MAGIC)] = PACKAGES.ELF_MAGIC
         header[PACKAGES.ELF_CLASS_OFFSET] = elf_class
         header[PACKAGES.ELF_DATA_OFFSET] = PACKAGES.ELF_DATA_LSB
         struct.pack_into("<H", header, PACKAGES.ELF_MACHINE_OFFSET, machine)
+        if elf_class == PACKAGES.ELF_CLASS_32:
+            struct.pack_into("<I", header, PACKAGES.ELF_FLAGS_32_OFFSET, flags)
         if shared:
             struct.pack_into("<H", header, PACKAGES.ELF_TYPE_OFFSET, PACKAGES.ELF_TYPE_SHARED)
         return bytes(header) + FILE_DATA
@@ -268,7 +281,9 @@ class ReleasePackageTests(unittest.TestCase):
         if target not in ELF_TARGETS or name not in PACKAGES.ELF_FILES:
             return FILE_DATA
         elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
-        return self.elf_data(elf_class, machine)
+        flags = (PACKAGES.ELF_ARM_EABI_VERSION_5 | PACKAGES.ELF_ARM_FLOAT_ABI_HARD
+                 if target in BSD_ARMV7_BASELINES else 0)
+        return self.elf_data(elf_class, machine, flags=flags)
 
     def create(self, target, asset_data=None, run_attempt=RUN_ATTEMPT, run_id=RUN_ID):
         runtime = self.root / target
@@ -756,6 +771,9 @@ class ReleasePackageTests(unittest.TestCase):
                                  "bin/menus/opponent.png"):
                     self.assertIn(required, files)
                 self.assertIn(platform, files[PACKAGES.README].decode("utf-8"))
+                if target in BSD32_BASELINES:
+                    self.assertIn("Runtime baseline: " + BSD32_BASELINES[target],
+                                  files[PACKAGES.README].decode("utf-8"))
                 if target.startswith("haiku-"):
                     self.assertIn("share/docs/restunts/haiku.md", files)
                     self.assertIn("share/docs/restunts/haiku.md", files[PACKAGES.README].decode("utf-8"))
@@ -772,6 +790,20 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.subTest(target=target, executable=executable), \
                         self.assertRaisesRegex(ValueError, f"Missing executable permission: {name}"):
                     PACKAGES.validate_contents(target, files, {**modes, name: PACKAGES.FILE_MODE})
+
+    def test_bsd_armv7_archives_reject_soft_float_and_wrong_eabi_in_every_binary(self):
+        for target in BSD_ARMV7_BASELINES:
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            PACKAGES.validate_contents(target, files, modes)
+            for name in PACKAGES.ELF_FILES:
+                for flags in (0, ARM_EABI_4_HARD_FLOAT, ARM_EABI_5_UNSPECIFIED_FLOAT,
+                              ARM_EABI_5_SOFT_FLOAT, ARM_EABI_5_CONFLICTING_FLOAT):
+                    replacement = self.elf_data(PACKAGES.ELF_CLASS_32, PACKAGES.ELF_MACHINE_ARM,
+                                                flags=flags)
+                    with self.subTest(target=target, file=name, flags=hex(flags)), \
+                            self.assertRaisesRegex(ValueError, "ARM EABI or hard-float"):
+                        PACKAGES.validate_contents(target, files | {name: replacement}, modes)
 
     def test_genghost_uses_desktop_executables_and_android_apks(self):
         for target in PACKAGES.TARGETS:

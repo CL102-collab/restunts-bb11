@@ -15,11 +15,15 @@ ROOT = Path(__file__).resolve().parents[3]
 TOOLCHAIN = ROOT / "cmake/toolchains/bsd-cross.cmake"
 RELOCATED_RUNTIME = ROOT / "tools/scripts/test-relocated-runtime.sh"
 TARGETS = (
+    ("freebsd-x86", "FreeBSD", "i386", "14.5"),
+    ("freebsd-armv7", "FreeBSD", "armv7", "14.5"),
     ("freebsd-arm64", "FreeBSD", "aarch64", "14.4"),
     ("freebsd-riscv64", "FreeBSD", "riscv64", "15.0"),
     ("openbsd-arm64", "OpenBSD", "aarch64", "7.9"),
+    ("openbsd-x86", "OpenBSD", "i386", "8.0"),
     ("openbsd-riscv64", "OpenBSD", "riscv64", "7.9"),
     ("netbsd-arm64", "NetBSD", "aarch64", "10.2"),
+    ("netbsd-armv7", "NetBSD", "armv7", "10.2"),
     ("netbsd-riscv64", "NetBSD", "riscv64", "11.0"),
 )
 PROBE = '''include("${TOOLCHAIN}")
@@ -53,7 +57,7 @@ file(WRITE "${OUTPUT}"
     "${CMAKE_C_COMPILER_TARGET}\\n${CMAKE_CXX_COMPILER_TARGET}\\n"
     "${target_flags}\\n${target_library}\\n${target_include}\\n${CMAKE_CXX_FLAGS_INIT}\\n"
     "${CMAKE_EXE_LINKER_FLAGS_INIT}\\n${CMAKE_SHARED_LINKER_FLAGS_INIT}\\n"
-    "${CMAKE_MODULE_LINKER_FLAGS_INIT}\\n")
+    "${CMAKE_MODULE_LINKER_FLAGS_INIT}\\n${CMAKE_C_FLAGS_INIT}\\n")
 '''
 SMOKE_PROGRAM = '''import json, os, sys
 from pathlib import Path
@@ -135,6 +139,8 @@ class BsdCrossToolchainTests(unittest.TestCase):
                 lines = self.output.read_text().splitlines()
                 self.assertEqual(lines[:3], [system, processor, version])
                 triple = processor + "-unknown-" + system.lower() + version
+                if processor == "armv7":
+                    triple += "-eabihf"
                 self.assertEqual(lines[3:5], [triple, triple])
                 self.assertIn(str(self.sdk / "usr/local/include"), lines[5])
                 self.assertIn(str(self.sdk / "usr/local/lib"), lines[5])
@@ -142,9 +148,17 @@ class BsdCrossToolchainTests(unittest.TestCase):
                 self.assertEqual(lines[7], str(self.sdk / "usr/local/include"))
                 if system == "NetBSD":
                     self.assertIn("-stdlib=libstdc++", lines[8])
-                self.assertEqual(lines[9], "-fuse-ld=" + sys.executable)
-                if target != "netbsd-arm64":
+                linker_flags = "-fuse-ld=" + sys.executable
+                if target == "netbsd-armv7":
+                    linker_flags += " -Wl,-m,armelf"
+                self.assertEqual(lines[9], linker_flags)
+                if not (system == "NetBSD" and version == "10.2"):
                     self.assertEqual(lines[10:12], [lines[9]] * 2)
+                if processor == "armv7":
+                    for flags in (lines[8], lines[12]):
+                        self.assertIn("-march=armv7-a", flags)
+                        self.assertIn("-mfpu=vfpv3-d16", flags)
+                        self.assertIn("-mfloat-abi=hard", flags)
 
     def test_netbsd_10_shared_and_module_libraries_match_loader_segment_limit(self):
         compiler = shutil.which(os.environ.get("CC", "cc"))
@@ -182,13 +196,14 @@ class BsdCrossToolchainTests(unittest.TestCase):
             for kind, command in zip(("shared", "module"), lines[10:12]):
                 with self.subTest(target=target, kind=kind):
                     # The probe supplies a harmless compiler path; pass only
-                    # its configured driver-to-linker options to the real LLD.
+                    # its layout options to the real LLD. The object is native,
+                    # so exclude the separate ARM target-emulation selection.
                     flags = [argument for option in shlex.split(command)
-                             if option.startswith("-Wl,")
+                             if option.startswith("-Wl,") and option != "-Wl,-m,armelf"
                              for argument in option.removeprefix("-Wl,").split(",")]
                     actual = link_library(target + "-" + kind + ".so", flags)
                     expected = ((LEGACY_NETBSD_LOAD_SEGMENTS, False)
-                                if target == "netbsd-arm64" else baseline)
+                                if target in ("netbsd-arm64", "netbsd-armv7") else baseline)
                     self.assertEqual(actual, expected)
 
     def test_freebsd_ports_metadata_is_found_in_libdata_pkgconfig(self):
@@ -198,7 +213,9 @@ class BsdCrossToolchainTests(unittest.TestCase):
         prefix = self.sdk / "usr/local"
         (prefix / "libdata").mkdir()
         (prefix / "lib/pkgconfig").rename(prefix / "libdata/pkgconfig")
-        for target in ("freebsd-arm64", "freebsd-riscv64"):
+        for target, system, _, _ in TARGETS:
+            if system != "FreeBSD":
+                continue
             with self.subTest(target=target):
                 result = self.probe_target(target)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

@@ -28,12 +28,16 @@ archives and a SHA-256 sidecar for each archive:
 | `restunts-windows-x86-no-sse2.zip` | 32-bit x86 without SSE2, Windows XP SP2+ |
 | `restunts-windows-x64.zip` | x86_64, Windows 7+ |
 | `restunts-freebsd-x64.tar.gz` | x86_64, FreeBSD 14.4 |
+| `restunts-freebsd-x86.tar.gz` | 32-bit x86 with SSE2, FreeBSD 14.5+ |
+| `restunts-freebsd-armv7.tar.gz` | ARMv7 hard-float, FreeBSD 14.5+ |
 | `restunts-freebsd-arm64.tar.gz` | AArch64, FreeBSD 14.4 |
 | `restunts-freebsd-riscv64.tar.gz` | RISC-V64, FreeBSD 15.0; GTK 2 launcher |
 | `restunts-openbsd-x64.tar.gz` | x86_64, OpenBSD 7.9 |
+| `restunts-openbsd-x86.tar.gz` | 32-bit x86 with SSE2, OpenBSD 8.0+ |
 | `restunts-openbsd-arm64.tar.gz` | ARM64, OpenBSD 7.9 |
 | `restunts-openbsd-riscv64.tar.gz` | RISC-V64, OpenBSD 7.9 |
 | `restunts-netbsd-x64.tar.gz` | x86_64, NetBSD 10.2 |
+| `restunts-netbsd-armv7.tar.gz` | ARMv7 hard-float (`earmv7hf`), NetBSD 10.2+ |
 | `restunts-netbsd-arm64.tar.gz` | AArch64, NetBSD 10.2 |
 | `restunts-netbsd-riscv64.tar.gz` | RISC-V64, NetBSD 11.0 |
 | `restunts-netbsd-x86.tar.gz` | 32-bit x86 with SSE2, NetBSD 10.2 |
@@ -57,14 +61,15 @@ These are build baselines, not a claim that CI exercises every OS version and
 CPU. The full golden replay suites run on native Linux SDL3 and/or 16-bit DOS,
 as selected by the `platforms` input. That selection never reduces the package
 matrix. BSD packages compile in x64 virtual machines running the matching
-OS release. ARM64 and RISC-V64 cross-compile against checksum-verified target
-SDKs and target dependency packages; target architecture VMs only verify the
-exact finished archives and relocated startup without game data. Native x64
-jobs compile directly; NetBSD x86 uses an i386 userspace inside the amd64 VM.
-BSD jobs validate architecture and startup; they do not verify
-physical-board graphics or audio support. Haiku x64 and x86 build in Haiku R1/beta6 VMs
-and run native regressions, including relocated-package and Nuked replacement tests. ARM32 targets ARMv7; it does not cover
-the original Pi 1 or Pi Zero. The no-SSE2 option controls the game, bundled SDL,
+OS release. ARMv7, ARM64, RISC-V64, FreeBSD x86, and OpenBSD x86 cross-compile
+against checksum-verified target SDKs and target dependency packages. CI
+checks the finished archives and executable architecture; ARM64 and RISC-V64
+target VMs also check startup after relocation without game data. Native
+x64 jobs compile directly; NetBSD x86 uses an i386 userspace inside the
+amd64 VM. These checks do not verify physical-board graphics or audio support.
+Haiku x64 and x86 build in Haiku R1/beta6 VMs and run native regressions,
+including relocated-package and Nuked replacement tests. ARM32 targets ARMv7;
+it does not cover the original Pi 1 or Pi Zero. The no-SSE2 option controls the game, bundled SDL,
 and Nuked library; system libraries retain their own CPU requirements.
 
 The FreeBSD 15.0 RISC-V64 SDK and startup VM use signed dependencies from the

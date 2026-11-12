@@ -149,7 +149,12 @@ class BuildPackageTargetTests(unittest.TestCase):
 
     def test_bsd_cross_targets_use_prepared_sdk_with_native_x64_tools(self):
         for system in ("FreeBSD", "OpenBSD", "NetBSD"):
-            for architecture in ("arm64", "riscv64"):
+            architectures = ["arm64", "riscv64"]
+            if system in ("FreeBSD", "OpenBSD"):
+                architectures.append("x86")
+            if system in ("FreeBSD", "NetBSD"):
+                architectures.append("armv7")
+            for architecture in architectures:
                 target = system.lower() + "-" + architecture
                 sdk = self.prepare_bsd_sdk(target)
                 with self.subTest(target=target):
@@ -162,6 +167,8 @@ class BuildPackageTargetTests(unittest.TestCase):
                                   configuration["arguments"])
                     if target == "freebsd-riscv64":
                         self.assertIn("-DRESTUNTS_WX_TOOLKIT=gtk2", configuration["arguments"])
+                    if architecture == "x86":
+                        self.assertIn("-DRESTUNTS_SSE2=ON", configuration["arguments"])
 
     def test_bsd_cross_sdk_rejects_wrong_host_cpu_or_system_before_building(self):
         sdk = self.prepare_bsd_sdk("openbsd-arm64")

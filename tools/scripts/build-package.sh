@@ -23,14 +23,18 @@ verify_bsd_host() {
     host_system=$(uname -s)
     host_architecture=$(uname -m)
     case "$host_architecture" in
-        evbarm|riscv) host_architecture=$(uname -p) ;;
+        arm|evbarm|riscv) host_architecture=$(uname -p) ;;
     esac
     if [[ -n "$bsd_cross_sysroot" ]]; then
         case "$target:$host_system:$host_architecture" in
+            freebsd-x86:FreeBSD:amd64|freebsd-x86:FreeBSD:x86_64|\
+            freebsd-armv7:FreeBSD:amd64|freebsd-armv7:FreeBSD:x86_64|\
             freebsd-arm64:FreeBSD:amd64|freebsd-arm64:FreeBSD:x86_64|\
             freebsd-riscv64:FreeBSD:amd64|freebsd-riscv64:FreeBSD:x86_64|\
             openbsd-arm64:OpenBSD:amd64|openbsd-arm64:OpenBSD:x86_64|\
             openbsd-riscv64:OpenBSD:amd64|openbsd-riscv64:OpenBSD:x86_64|\
+            openbsd-x86:OpenBSD:amd64|openbsd-x86:OpenBSD:x86_64|\
+            netbsd-armv7:NetBSD:amd64|netbsd-armv7:NetBSD:x86_64|\
             netbsd-arm64:NetBSD:amd64|netbsd-arm64:NetBSD:x86_64|\
             netbsd-riscv64:NetBSD:amd64|netbsd-riscv64:NetBSD:x86_64) ;;
             *) echo "$target cross-compilation requires a matching x64 BSD host." >&2; exit 1 ;;
@@ -46,13 +50,16 @@ verify_bsd_host() {
     fi
     case "$target:$host_system:$host_architecture" in
         freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64|\
+        freebsd-x86:FreeBSD:i386|freebsd-armv7:FreeBSD:armv7|\
         freebsd-arm64:FreeBSD:arm64|freebsd-arm64:FreeBSD:aarch64|\
         freebsd-riscv64:FreeBSD:riscv64|\
         openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64|\
+        openbsd-x86:OpenBSD:i386|\
         openbsd-arm64:OpenBSD:arm64|openbsd-arm64:OpenBSD:aarch64|\
         openbsd-riscv64:OpenBSD:riscv64|\
         netbsd-x64:NetBSD:amd64|netbsd-x64:NetBSD:x86_64|\
         netbsd-arm64:NetBSD:aarch64|netbsd-arm64:NetBSD:arm64|\
+        netbsd-armv7:NetBSD:earmv7hf|netbsd-armv7:NetBSD:armv7|\
         netbsd-riscv64:NetBSD:riscv64|\
         netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386) ;;
         *)
@@ -79,6 +86,9 @@ case "$target" in
     freebsd-*|openbsd-*|netbsd-*)
         verify_bsd_host
         python_command=${PYTHON:-python3.13}
+        if [[ "$target" == openbsd-x86 ]]; then
+            python_command=${PYTHON:-python3.14}
+        fi
         ;;
     haiku-*)
         verify_haiku_host
@@ -165,13 +175,14 @@ case "$target" in
             freebsd-riscv64)
                 # The signed RISC-V package repository provides GTK2, not GTK3.
                 cmake_options+=(-DRESTUNTS_WX_TOOLKIT=gtk2) ;;
-            freebsd-x64|freebsd-arm64|openbsd-x64|openbsd-arm64|openbsd-riscv64) ;;
+            freebsd-x86|openbsd-x86) cmake_options+=(-DRESTUNTS_SSE2=ON) ;;
+            freebsd-x64|freebsd-armv7|freebsd-arm64|openbsd-x64|openbsd-arm64|openbsd-riscv64) ;;
             haiku-x64|haiku-x86)
                 # Keep CTest's limits and its Python subprocess limits in sync.
                 cmake_options+=(-DRESTUNTS_BUILD_TESTS=ON
                     "-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER:-$default_genghost_test_timeout_multiplier}")
                 ;;
-            netbsd-x64|netbsd-x86|netbsd-x86-no-sse2|netbsd-arm64|netbsd-riscv64)
+            netbsd-x64|netbsd-x86|netbsd-x86-no-sse2|netbsd-armv7|netbsd-arm64|netbsd-riscv64)
                 # NetBSD's ASLR prevents GCC from reusing SDL's precompiled header.
                 cmake_options+=('-DCMAKE_PREFIX_PATH=/usr/pkg;/usr/X11R7' -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON)
                 if [[ -z "$bsd_cross_sysroot" ]]; then
@@ -226,7 +237,7 @@ fi
 case "$target" in
     freebsd-*|openbsd-*|netbsd-*|haiku-*)
         if [[ -z "$bsd_cross_sysroot" ]]; then
-            # Cross packages run this check in their target VM before release.
+            # Cross packages have separate runtime checks where a target VM exists.
             sh "$script_dir/test-relocated-runtime.sh" "$package_dir"
         fi
         ;;

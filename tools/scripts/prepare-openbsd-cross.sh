@@ -7,25 +7,40 @@ target=${1:?Usage: prepare-openbsd-cross.sh TARGET SYSROOT}
 sysroot=${2:?Usage: prepare-openbsd-cross.sh TARGET SYSROOT}
 release=7.9
 release_suffix=79
-python_command=${PYTHON:-python3.13}
+llvm_version=19
+python_version=3.13
 
 case "$target" in
-    openbsd-arm64) sets_architecture=arm64; package_architecture=aarch64 ;;
-    openbsd-riscv64) sets_architecture=riscv64; package_architecture=riscv64 ;;
+    openbsd-x86)
+        release=8.0
+        release_suffix=80
+        llvm_version=22
+        python_version=3.14
+        sets_architecture=i386
+        package_architecture=i386
+        compiler_backend=x86
+        ;;
+    openbsd-arm64)
+        sets_architecture=arm64
+        package_architecture=aarch64
+        compiler_backend=aarch64
+        ;;
+    openbsd-riscv64)
+        sets_architecture=riscv64
+        package_architecture=riscv64
+        compiler_backend=riscv64
+        ;;
     *) echo "Unsupported OpenBSD cross target: $target" >&2; exit 1 ;;
 esac
+python_command=${PYTHON:-python$python_version}
 case "$(uname -s):$(uname -m):$(uname -r)" in
     OpenBSD:amd64:"$release"|OpenBSD:x86_64:"$release") ;;
     *) echo "This helper requires an OpenBSD $release amd64 host." >&2; exit 1 ;;
 esac
-pkg_add -I bash cmake ninja git 'python%3' 'llvm%19'
+pkg_add -I bash cmake ninja git 'python%3' "llvm%$llvm_version"
 # The base compiler contains only its host CPU backend. The ports compiler
-# contains both target backends and uses OpenBSD's patched ELF linker.
-compiler=/usr/local/bin/clang-19
-case "$target" in
-    openbsd-arm64) compiler_backend=aarch64 ;;
-    openbsd-riscv64) compiler_backend=riscv64 ;;
-esac
+# contains the required target backend and uses OpenBSD's patched ELF linker.
+compiler=/usr/local/bin/clang-$llvm_version
 if ! "$compiler" --print-targets | grep -q "$compiler_backend"; then
     echo "The installed LLVM compiler does not support $compiler_backend." >&2
     exit 1

@@ -1173,27 +1173,33 @@ See the [Linux build instructions](docs/sdl3.md#linux) and
 
 #### BSD hosts: FreeBSD, OpenBSD, and NetBSD
 
-The shared SDL3 backend has these native release targets:
+The shared SDL3 backend has these release targets:
 
 | Target | Runtime baseline |
 | --- | --- |
 | `freebsd-x64` | FreeBSD 14.4, amd64 |
+| `freebsd-x86` | FreeBSD 14.5+, i386; SSE2 enabled |
+| `freebsd-armv7` | FreeBSD 14.5+, ARMv7 hard-float |
 | `freebsd-arm64` | FreeBSD 14.4, AArch64 |
 | `freebsd-riscv64` | FreeBSD 15.0, RISC-V64 |
 | `openbsd-x64` | OpenBSD 7.9, amd64 |
+| `openbsd-x86` | OpenBSD 8.0+, i386; SSE2 enabled |
 | `openbsd-arm64` | OpenBSD 7.9, ARM64 |
 | `openbsd-riscv64` | OpenBSD 7.9, RISC-V64 |
 | `netbsd-x64` | NetBSD 10.2, amd64 |
+| `netbsd-armv7` | NetBSD 10.2+, ARMv7 hard-float (`earmv7hf`) |
 | `netbsd-arm64` | NetBSD 10.2, AArch64 |
 | `netbsd-riscv64` | NetBSD 11.0, RISC-V64 |
 | `netbsd-x86` | NetBSD 10.2, i386 userspace; SSE2 enabled |
 | `netbsd-x86-no-sse2` | NetBSD 10.2, i386 userspace; SSE2 disabled |
 
 Each target produces a separate `.tar.gz` archive. CI compiles on x64 BSD
-virtual machines running the matching OS release. ARM64 and RISC-V64 builds
-use verified target SDKs and dependency packages; target architecture VMs then
-verify the exact archives and relocated startup. Native x64 jobs compile
-directly; NetBSD x86 uses an i386 userspace inside the amd64 VM.
+virtual machines running the matching OS release. ARMv7, ARM64, RISC-V64,
+FreeBSD x86, and OpenBSD x86 cross-compile with verified target SDKs and
+dependency packages. CI checks archive contents and executable architecture;
+ARM64 and RISC-V64 target VMs also verify the exact archives and relocated
+startup. Native x64 jobs compile directly; NetBSD x86 uses an i386 userspace
+inside the amd64 VM.
 See the [BSD build instructions](docs/sdl3.md#bsd) for dependencies, native and
 cross builds, and package creation. Build and relocated-startup checks do not
 establish graphics/audio support or game performance on every physical board.
@@ -1768,9 +1774,9 @@ refactors and audit results.
 **PR validation** and **Release** build every distribution package: 16-bit and
 32-bit DOS; Linux ARMv7, ARM64, RISC-V64, x86 with and without SSE2, and x64,
 including AppImage variants; Windows ARM64, x86 with and without SSE2, and x64;
-FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64; NetBSD x86 with and without
-SSE2; Haiku x64 and x86;
-Universal macOS; the offline browser; Android ARMv7 and ARM64 (both Android 5.0+);
+FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64; FreeBSD and NetBSD ARMv7;
+FreeBSD and OpenBSD x86 with SSE2; NetBSD x86 with and without SSE2; Haiku x64
+and x86; Universal macOS; the offline browser; Android ARMv7 and ARM64 (both Android 5.0+);
 Amiga 68000; and stock TempleOS.
 The reusable **Build release packages** workflow is used by **PR validation** and **Release**.
 

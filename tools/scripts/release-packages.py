@@ -40,6 +40,8 @@ TARGETS = {
     "dos16": ".zip",
     "dos32": ".zip",
     "freebsd-x64": ".tar.gz",
+    "freebsd-x86": ".tar.gz",
+    "freebsd-armv7": ".tar.gz",
     "freebsd-arm64": ".tar.gz",
     "freebsd-riscv64": ".tar.gz",
     "haiku-x64": ".tar.gz",
@@ -57,11 +59,13 @@ TARGETS = {
     "linux-x86-no-sse2": ".tar.gz",
     "linux-x64": ".tar.gz",
     "netbsd-x64": ".tar.gz",
+    "netbsd-armv7": ".tar.gz",
     "netbsd-arm64": ".tar.gz",
     "netbsd-riscv64": ".tar.gz",
     "netbsd-x86": ".tar.gz",
     "netbsd-x86-no-sse2": ".tar.gz",
     "openbsd-x64": ".tar.gz",
+    "openbsd-x86": ".tar.gz",
     "openbsd-arm64": ".tar.gz",
     "openbsd-riscv64": ".tar.gz",
     "windows-arm64": ".zip",
@@ -83,16 +87,37 @@ AMIGA_EXECUTABLE = "restunts"
 AMIGA_PACKAGE_FILES = {AMIGA_EXECUTABLE, "restunts.map", "README.md"}
 BSD_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
+    "freebsd-x86": "FreeBSD 32-bit x86 with SSE2",
+    "freebsd-armv7": "FreeBSD ARMv7 hard-float",
     "freebsd-arm64": "FreeBSD AArch64",
     "freebsd-riscv64": "FreeBSD RISC-V 64-bit",
     "openbsd-x64": "OpenBSD x86-64",
+    "openbsd-x86": "OpenBSD 32-bit x86 with SSE2",
     "openbsd-arm64": "OpenBSD AArch64",
     "openbsd-riscv64": "OpenBSD RISC-V 64-bit",
     "netbsd-x64": "NetBSD x86-64",
+    "netbsd-armv7": "NetBSD ARMv7 hard-float",
     "netbsd-arm64": "NetBSD AArch64",
     "netbsd-riscv64": "NetBSD RISC-V 64-bit",
     "netbsd-x86": "NetBSD 32-bit x86 with SSE2",
     "netbsd-x86-no-sse2": "NetBSD 32-bit x86; SSE2 instructions are disabled",
+}
+BSD_BASELINES = {
+    "freebsd-x64": "14.4",
+    "freebsd-x86": "14.5",
+    "freebsd-armv7": "14.5",
+    "freebsd-arm64": "14.4",
+    "freebsd-riscv64": "15.0",
+    "openbsd-x64": "7.9",
+    "openbsd-x86": "8.0",
+    "openbsd-arm64": "7.9",
+    "openbsd-riscv64": "7.9",
+    "netbsd-x64": "10.2",
+    "netbsd-armv7": "10.2",
+    "netbsd-arm64": "10.2",
+    "netbsd-riscv64": "11.0",
+    "netbsd-x86": "10.2",
+    "netbsd-x86-no-sse2": "10.2",
 }
 HAIKU_TARGETS = {"haiku-x64": "Haiku x86-64", "haiku-x86": "Haiku 32-bit x86 with SSE2"}
 LINUX_ELF_TARGETS = {"linux-riscv64": "Linux RISC-V 64-bit"}
@@ -160,6 +185,11 @@ ELF_MACHINE_RISCV = 243
 ELF_MACHINE_OFFSET = 18
 ELF_TYPE_OFFSET = 16
 ELF_TYPE_SHARED = 3
+ELF_FLAGS_32_OFFSET = 36
+ELF_ARM_EABI_MASK = 0xff000000
+ELF_ARM_EABI_VERSION_5 = 0x05000000
+ELF_ARM_FLOAT_ABI_MASK = 0x00000600
+ELF_ARM_FLOAT_ABI_HARD = 0x00000400
 ELF_HEADER_SIZES = {ELF_CLASS_32: 52, ELF_CLASS_64: 64}
 ELF_ARCHITECTURES = {
     "x86": (ELF_CLASS_32, ELF_MACHINE_X86),
@@ -338,6 +368,11 @@ def validate_elf(target, name, content, elf_class, machine):
             content[ELF_DATA_OFFSET] == ELF_DATA_LSB and
             struct.unpack_from("<H", content, ELF_MACHINE_OFFSET)[0] == machine,
             f"Wrong ELF architecture for {target}: {name}")
+    if target in BSD_TARGETS and machine == ELF_MACHINE_ARM:
+        flags = struct.unpack_from("<I", content, ELF_FLAGS_32_OFFSET)[0]
+        require(flags & ELF_ARM_EABI_MASK == ELF_ARM_EABI_VERSION_5 and
+                flags & ELF_ARM_FLOAT_ABI_MASK == ELF_ARM_FLOAT_ABI_HARD,
+                f"Wrong ARM EABI or hard-float calling convention for {target}: {name}")
 
 
 def validate_android_pie(target, name, content):
@@ -722,7 +757,9 @@ def readme(target, commit):
     if target in ELF_TARGETS:
         lines += [f"Built for {ELF_TARGETS[target]}."]
     if target in BSD_TARGETS:
-        lines += ["Packages for different BSD operating systems are not interchangeable."]
+        system = BSD_TARGETS[target].split()[0]
+        lines += [f"Runtime baseline: {system} {BSD_BASELINES[target]}.",
+                  "Packages for different BSD operating systems are not interchangeable."]
     if target in HAIKU_TARGETS:
         lines += ["See share/docs/restunts/haiku.md for Haiku setup and VM testing."]
     if target == "dos32":

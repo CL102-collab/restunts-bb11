@@ -18,6 +18,19 @@ SPEC.loader.exec_module(PACKAGES)
 
 
 class NetbsdCrossPackagesTests(unittest.TestCase):
+    def test_armv7_summary_requires_netbsd_hard_float_machine_architecture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            summary = Path(temporary) / "pkg_summary.gz"
+            with gzip.open(summary, "wt") as stream:
+                stream.write("PKGNAME=gtk3+-3.24\nOPSYS=NetBSD\nMACHINE_ARCH=earmv7hf\n\n")
+            self.assertEqual(set(PACKAGES.read_summary(summary, "earmv7hf")), {"gtk3+-3.24"})
+            # LLVM's processor spelling must not substitute for pkgsrc's ABI
+            # name, or silently select a soft-float or different ARM release.
+            for architecture in ("armv7", "earmv7", "earmv6hf", "aarch64"):
+                with self.subTest(architecture=architecture):
+                    with self.assertRaisesRegex(RuntimeError, "different target"):
+                        PACKAGES.read_summary(summary, architecture)
+
     def test_target_summary_rejects_host_packages(self):
         with tempfile.TemporaryDirectory() as temporary:
             summary = Path(temporary) / "pkg_summary.gz"
