@@ -219,7 +219,8 @@ CUSTOM_HORIZON_DIRECTORIES = {"horizons", "bin/horizons", "assets/horizons",
 CUSTOM_CAR_FILES = CLASSIC_CUSTOM_CAR_FILES + ("STMCMU.H3D",)
 CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
                           "share/restunts/wasm-relink/data/assets/cars"}
-SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE")
+SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE",
+                        "puff-LICENSE")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 RUN_ATTEMPT_PATTERN = re.compile(r"[1-9][0-9]*")

@@ -1355,6 +1355,7 @@ class ReleasePackageTests(unittest.TestCase):
                         "share/docs/restunts/genghost-state-planner.md",
                         "bin/nuked-opl2.dll", "share/restunts/nuked-opl2-lite/opl2.c",
                         "share/licenses/restunts/Nuked-OPL2-LICENSE",
+                        "share/licenses/restunts/puff-LICENSE",
                         *(f"share/licenses/llvm-runtime/{name}" for name in
                           PACKAGES.LLVM_RUNTIME_NOTICES)):
             incomplete = files.copy()
@@ -1445,8 +1446,9 @@ class ReleasePackageTests(unittest.TestCase):
         decoder_files = {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/stb-LICENSE",
                          "share/licenses/restunts/libvpx-LICENSE",
                          "share/licenses/restunts/libvpx-PATENTS",
-                         "share/licenses/restunts/nestegg-LICENSE"}
-        for target in ("linux-x64", "dos32", "browser"):
+                         "share/licenses/restunts/nestegg-LICENSE",
+                         "share/licenses/restunts/puff-LICENSE"}
+        for target in sorted(PACKAGES.SDL3_TARGETS):
             expected = decoder_files.copy()
             if target == "browser":
                 expected.add("share/restunts/wasm-relink/lib/librestunts_webm.a")
@@ -1460,6 +1462,9 @@ class ReleasePackageTests(unittest.TestCase):
                     incomplete.pop(missing)
                     with self.assertRaisesRegex(ValueError, "missing packaged files"):
                         PACKAGES.validate_contents(target, incomplete, modes)
+        for target in PACKAGES.TARGETS.keys() - PACKAGES.SDL3_TARGETS:
+            with self.subTest(target=target):
+                self.assertNotIn("share/licenses/restunts/puff-LICENSE", PACKAGES.required_files(target))
 
 
 if __name__ == "__main__":
