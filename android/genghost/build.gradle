@@ -48,6 +48,7 @@ android {
             cmake {
                 arguments '-DRESTUNTS_GENGHOST_ONLY=ON', '-DRESTUNTS_BUILD_TESTS=OFF',
                     '-DANDROID_STL=c++_static',
+                    "-DRESTUNTS_ANDROID_BUILD_JOBS=${gradle.startParameter.maxWorkerCount}",
                     "-DFETCHCONTENT_SOURCE_DIR_SDL3=${file('../../out/android-deps/sdl').absolutePath}"
                 targets 'genghost'
             }

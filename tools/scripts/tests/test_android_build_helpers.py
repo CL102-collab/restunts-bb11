@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -162,6 +163,89 @@ class AndroidBuildHelperTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0)
                     self.assertIn("Usage:", result.stdout)
                     self.assertEqual(events, [])
+
+    def test_package_build_forwards_worker_count_to_gradle_and_native_environment(self):
+        package_helper = "build-android-package.sh"
+        shutil.copy2(ROOT / "tools/scripts" / package_helper, self.scripts / package_helper)
+        shutil.copy2(ROOT / "android/toolchain.properties", self.root / "android/toolchain.properties")
+        expected_build_failure = 37
+        (self.scripts / "build-android.sh").write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "with open(os.environ['ANDROID_HELPER_TEST_EVENTS'], 'a') as output:\n"
+            "    output.write(json.dumps({'step': 'native-build', 'arguments': sys.argv[1:], "
+            "'parallel': os.environ.get('CMAKE_BUILD_PARALLEL_LEVEL')}) + '\\n')\n"
+            f"sys.exit({expected_build_failure})\n",
+            encoding="utf-8")
+        # The packager invokes its helpers through Bash. Record the forwarded
+        # values before an intentional build failure avoids SDK/signing work.
+        recorder = self.scripts / "build-android.sh"
+        recorder.rename(self.scripts / "record-build.py")
+        recorder.write_text('#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/record-build.py" "$@"\n',
+                            encoding="utf-8")
+        result, events = self.run_helper(package_helper, ["android-armv7", str(self.root / "runtime")], {
+            "ANDROID_HOME": str(self.root / "SDK"),
+            "RESTUNTS_BUILD_JOBS": "7", "CMAKE_BUILD_PARALLEL_LEVEL": "1",
+        })
+        self.assertEqual(result.returncode, expected_build_failure, result.stderr)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["parallel"], "7")
+        self.assertIn("--max-workers=7", events[0]["arguments"])
+
+
+class AndroidNativeBuildJobsTests(unittest.TestCase):
+    def setUp(self):
+        self.cmake = shutil.which("cmake")
+        self.ninja = shutil.which("ninja")
+        if not self.cmake or not self.ninja or not shutil.which("cc"):
+            self.skipTest("CMake, Ninja and a C compiler are needed to inspect native build pools")
+        temporary = tempfile.TemporaryDirectory(prefix="android native jobs ")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.build = self.root / "build"
+        (self.root / "probe.c").write_text("void native_probe(void) {}\n", encoding="utf-8")
+        (self.root / "CMakeLists.txt").write_text(
+            'cmake_minimum_required(VERSION 3.20)\nproject(AndroidJobs LANGUAGES C)\n'
+            f'include("{(ROOT / "cmake/android-build-jobs.cmake").as_posix()}")\n'
+            'add_library(native_shared SHARED probe.c)\n'
+            'add_library(native_static STATIC probe.c)\n', encoding="utf-8")
+
+    def configure(self, environment=None, jobs=None):
+        values = dict(os.environ)
+        for name in ("RESTUNTS_BUILD_JOBS", "CMAKE_BUILD_PARALLEL_LEVEL"):
+            values.pop(name, None)
+        values.update(environment or {})
+        arguments = [self.cmake, "-S", str(self.root), "-B", str(self.build), "-G", "Ninja",
+                     "-DCMAKE_MAKE_PROGRAM=" + self.ninja]
+        if jobs is not None:
+            arguments.append("-DRESTUNTS_ANDROID_BUILD_JOBS=" + str(jobs))
+        return subprocess.run(arguments, env=values, text=True, capture_output=True,
+                              timeout=30, check=False)
+
+    def assert_native_pool(self, result, jobs):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rules = (self.build / "CMakeFiles/rules.ninja").read_text()
+        self.assertRegex(rules, rf"pool restunts_android_build\s+depth = {jobs}\b")
+        build = (self.build / "build.ninja").read_text()
+        # Both target compilations and both links share one total CPU budget.
+        self.assertEqual(len(re.findall(r"^  pool = restunts_android_build$", build, re.MULTILINE)), 4)
+
+    def test_requested_jobs_reach_compile_and_link_pools(self):
+        result = self.configure({"RESTUNTS_BUILD_JOBS": "6", "CMAKE_BUILD_PARALLEL_LEVEL": "2"})
+        self.assert_native_pool(result, 6)
+
+    def test_cmake_parallel_environment_supplies_native_default(self):
+        result = self.configure({"CMAKE_BUILD_PARALLEL_LEVEL": "5"})
+        self.assert_native_pool(result, 5)
+
+    def test_gradle_argument_replaces_a_cached_single_job_limit(self):
+        self.assert_native_pool(self.configure(jobs=1), 1)
+        self.assert_native_pool(self.configure(jobs=7), 7)
+
+    def test_invalid_native_job_count_fails_configuration(self):
+        result = self.configure(jobs=0)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a positive integer", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ if [[ -n "$(ls -A "$runtime_dir")" ]]; then
 fi
 gradle_options=(--no-daemon "-PrestuntsAndroidBuildRoot=$build_root")
 if [[ -n "${RESTUNTS_BUILD_JOBS:-}" ]]; then
+    export CMAKE_BUILD_PARALLEL_LEVEL=$RESTUNTS_BUILD_JOBS
     gradle_options+=(--parallel "--max-workers=$RESTUNTS_BUILD_JOBS")
 fi
 bash "$script_dir/build-android.sh" "$target" "${gradle_options[@]}"

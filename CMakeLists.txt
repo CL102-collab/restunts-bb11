@@ -78,12 +78,7 @@ if(ANDROID)
     # Keep installable debug APKs fast enough for older ARM phones, with debug symbols.
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O2")
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    # Gradle invokes Ninja for each ABI; bound native memory use on modest hosts.
-    set(RESTUNTS_ANDROID_BUILD_JOBS 1 CACHE STRING "Concurrent Android native compilations")
-    set_property(GLOBAL PROPERTY JOB_POOLS
-        restunts_android_compile=${RESTUNTS_ANDROID_BUILD_JOBS} restunts_android_link=1)
-    set(CMAKE_JOB_POOL_COMPILE restunts_android_compile)
-    set(CMAKE_JOB_POOL_LINK restunts_android_link)
+    include(cmake/android-build-jobs.cmake)
 endif()
 
 if(EMSCRIPTEN OR ANDROID)

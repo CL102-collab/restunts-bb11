@@ -6,11 +6,38 @@ test_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 test_source_dir="$test_script_dir/../c"
 test_build_dir="$(mktemp -d)"
 test_compiler="${CC:-cc}"
+test_build_pids=()
+test_executables=()
+test_names=()
 
 cleanup_test_build_dir() {
+    local test_exit_status=$?
+    # Background compilers must finish before their output directories disappear.
+    trap - EXIT
+    local test_pid
+    for test_pid in ${test_build_pids[@]+"${test_build_pids[@]}"}; do
+        wait "$test_pid" 2>/dev/null || :
+    done
     rm -rf -- "$test_build_dir"
+    exit "$test_exit_status"
 }
 trap cleanup_test_build_dir EXIT
+trap 'exit 1' HUP INT TERM
+
+test_build_jobs=${RESTUNTS_BUILD_JOBS:-}
+if [[ -z "$test_build_jobs" ]]; then
+    test_build_jobs=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null ||
+        getconf _NPROCESSORS_ONLN 2>/dev/null || printf '%s\n' 1)
+fi
+if [[ ! "$test_build_jobs" =~ ^[1-9][0-9]*$ ]]; then
+    echo "RESTUNTS_BUILD_JOBS must be a positive integer." >&2
+    exit 1
+fi
+
+# A token pipe keeps every available build slot busy on Bash 3.2 as well as
+# newer Bash, without wait -n or platform-specific parallel execution tools.
+mkfifo "$test_build_dir/build-slots"
+exec 9<> "$test_build_dir/build-slots"
 
 test_compile_flags=(
     -std=c99
@@ -210,6 +237,28 @@ source_companions() {
     extended_folder_companions "$1" "$2"
 }
 
+queue_host_test() {
+    local test_name="$1"
+    shift
+    # Variants often share a fixture name but use different compiler defines.
+    # Keep every invocation separate until serial execution has completed.
+    local test_directory="$test_build_dir/${#test_executables[@]}"
+    local test_executable="$test_directory/$test_name"
+    local test_token
+    mkdir -p "$test_directory"
+    if [[ "${#test_build_pids[@]}" -ge "$test_build_jobs" ]]; then
+        IFS= read -r -n 1 -u 9 test_token
+    fi
+    echo "Building $test_name"
+    (
+        trap 'test_compile_status=$?; printf . >&9; exit "$test_compile_status"' EXIT
+        "$test_compiler" "${test_compile_flags[@]}" "$@" -o "$test_executable"
+    ) > "$test_directory/build.log" 2>&1 &
+    test_build_pids+=("$!")
+    test_executables+=("$test_executable")
+    test_names+=("$test_name")
+}
+
 run_host_test() {
     local test_name="$1"
     local source_file="$2"
@@ -248,16 +297,12 @@ run_host_test() {
         done <<< "$companions"
     done
 
-    echo "Building $test_name"
     # Place per-test libraries after the fixture and discovered sources so
     # linkers using --as-needed keep libraries that satisfy those objects.
-    "$test_compiler" "${test_compile_flags[@]}" \
+    queue_host_test "$test_name" \
         "$fixture" "$test_source_dir/$source_file" \
         ${extra_sources[@]+"${extra_sources[@]}"} \
-        "$@" "${test_link_flags[@]}" -o "$test_build_dir/$test_name"
-
-    echo "Running $test_name"
-    "$test_build_dir/$test_name"
+        "$@" "${test_link_flags[@]}"
 }
 
 run_host_test test-amiga-endian shape2d/shape2d.c \
@@ -266,12 +311,9 @@ run_host_test test-amiga-endian shape2d/shape2d.c \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable -Wno-sign-compare
 run_host_test test-amiga-display ../platform/amiga/display.c
 # This fixture includes ghost/ghost.c to exercise its private fixed-point helpers.
-echo "Building test-amiga-ghost-line"
-"$test_compiler" "${test_compile_flags[@]}" -DRESTUNTS_AMIGA -Wno-pointer-sign \
+queue_host_test test-amiga-ghost-line -DRESTUNTS_AMIGA -Wno-pointer-sign \
     "$test_script_dir/test-amiga-ghost-line.c" \
-    "${test_link_flags[@]}" -lm -o "$test_build_dir/test-amiga-ghost-line"
-echo "Running test-amiga-ghost-line"
-"$test_build_dir/test-amiga-ghost-line"
+    "${test_link_flags[@]}" -lm
 run_host_test test-amiga-decompression fileio.c -DRESTUNTS_AMIGA -Wno-pointer-sign
 run_host_test test-amiga-rle shape2d/shape2d.c "$test_source_dir/shape2d/shape2d_blit.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable
@@ -734,4 +776,26 @@ run_host_test test-extended-native-response physics/physics_collision.c "$test_s
 run_host_test test-repldump-owoot legacy.c "$test_source_dir/strlib.c" "$test_source_dir/ui/ui_text.c" \
     -I"$test_source_dir" -Wno-pointer-sign -Wno-sign-compare
 
+# Build all fixtures before running any: a compiler failure must not execute a
+# partial suite. Preserve declaration order for fixtures that use shared paths.
+test_build_status=0
+for ((test_index = 0; test_index < ${#test_build_pids[@]}; test_index++)); do
+    if wait "${test_build_pids[$test_index]}"; then
+        :
+    else
+        test_compile_status=$?
+        if [[ "$test_build_status" -eq 0 ]]; then
+            test_build_status=$test_compile_status
+        fi
+    fi
+    cat "${test_executables[$test_index]%/*}/build.log"
+done
+if [[ "$test_build_status" -ne 0 ]]; then
+    exit "$test_build_status"
+fi
+exec 9>&-
+for ((test_index = 0; test_index < ${#test_executables[@]}; test_index++)); do
+    echo "Running ${test_names[$test_index]}"
+    "${test_executables[$test_index]}"
+done
 echo "All host regression tests passed."
