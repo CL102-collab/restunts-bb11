@@ -241,6 +241,8 @@ class ReleasePackageTests(unittest.TestCase):
         return self.output / PACKAGES.archive_name(target)
 
     def runtime_data(self, target, name):
+        if target == "browser" and name == "share/restunts/wasm-relink/CMakeLists.txt":
+            return b"set(RESTUNTS_WASM_THREADS OFF)\n"
         if target == "templeos":
             if not hasattr(self, "templeos_runtime"):
                 self.templeos_runtime = self.templeos_files()
@@ -1397,6 +1399,72 @@ class ReleasePackageTests(unittest.TestCase):
         for target in ("dos16", "dos32"):
             self.assertFalse(any("nuked" in name for name in PACKAGES.required_files(target)))
             self.assertFalse(any("mt32emu" in name for name in PACKAGES.required_files(target)))
+
+    def test_browser_audio_relink_inputs_are_required_for_each_thread_mode(self):
+        prefix = "share/restunts/wasm-relink/audio"
+        # Keep this independent of required_files so a missing inventory entry
+        # cannot disappear from both the fixture and its validation assertions.
+        audio_inputs = {f"{prefix}/{name}" for name in (
+            "CMakeLists.txt", "browser_audio.js", "browser_audio_worker.js", "browser_audio_worklet.js",
+            "generate-audio-sources.py", "objects/browser_audio_runtime.c.o", "objects/audio_commands.c.o",
+            "objects/audio_completions.c.o", "source/browser_audio_runtime.c", "source/audio_commands.c",
+            "source/audio_completions.c")}
+        serial_archives = {f"{prefix}/lib/{name}" for name in
+                           ("librestunts_game.a", "librestunts_webm.a", "libSDL3.a")}
+        configuration = "share/restunts/wasm-relink/CMakeLists.txt"
+        for threads in ("OFF", "ON"):
+            files = {name: self.runtime_data("browser", name) for name in PACKAGES.required_files("browser")}
+            files.update({name: FILE_DATA for name in audio_inputs})
+            files[configuration] = f"set(RESTUNTS_WASM_THREADS {threads})\n".encode()
+            if threads == "ON":
+                files.update({name: FILE_DATA for name in serial_archives})
+            with self.subTest(threads=threads, complete=True):
+                PACKAGES.validate_contents("browser", files, {})
+            required = audio_inputs | (serial_archives if threads == "ON" else set())
+            for missing in required:
+                with self.subTest(threads=threads, missing=missing), \
+                        self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents("browser", {name: data for name, data in files.items()
+                                                          if name != missing}, {})
+            if threads == "ON":
+                with self.subTest(threads=threads, missing="all serial archives"), \
+                        self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents("browser", {name: data for name, data in files.items()
+                                                          if name not in serial_archives}, {})
+            else:
+                with self.subTest(threads=threads, unexpected="serial archives"), \
+                        self.assertRaisesRegex(ValueError, "Unexpected package file"):
+                    PACKAGES.validate_contents("browser", files | {name: FILE_DATA for name in serial_archives}, {})
+            for extra in ("objects/unrelated.c.o", "source/unrelated.c", "lib/libunrelated.a",
+                          "restunts_audio_runtime.wasm"):
+                with self.subTest(threads=threads, unexpected=extra), \
+                        self.assertRaisesRegex(ValueError, "Unexpected package file"):
+                    PACKAGES.validate_contents("browser", files | {f"{prefix}/{extra}": FILE_DATA}, {})
+
+    def test_browser_audio_relink_thread_setting_cannot_be_missing_or_ambiguous(self):
+        files = {name: self.runtime_data("browser", name) for name in PACKAGES.required_files("browser")}
+        configuration = "share/restunts/wasm-relink/CMakeLists.txt"
+        for content in (b"", b"# no thread setting\n",
+                        b"set(RESTUNTS_WASM_THREADS OFF)\nset(RESTUNTS_WASM_THREADS ON)\n"):
+            with self.subTest(content=content), self.assertRaisesRegex(ValueError, "thread setting"):
+                PACKAGES.validate_contents("browser", files | {configuration: content}, {})
+
+    def test_browser_audio_relink_inputs_survive_archiving_in_both_thread_modes(self):
+        configuration = "share/restunts/wasm-relink/CMakeLists.txt"
+        for threads in ("OFF", "ON"):
+            self.output = self.root / f"archives-{threads}"
+            extras = {configuration: f"set(RESTUNTS_WASM_THREADS {threads})\n".encode()}
+            if threads == "ON":
+                extras |= {f"share/restunts/wasm-relink/audio/lib/{name}": FILE_DATA
+                           for name in ("librestunts_game.a", "librestunts_webm.a", "libSDL3.a")}
+            with self.subTest(threads=threads):
+                archive = self.create("browser", extras)
+                PACKAGES.verify_package(archive, "browser", COMMIT)
+                files, _ = PACKAGES.archive_contents(archive)
+                for name in PACKAGES.WASM_AUDIO_RELINK_FILES:
+                    self.assertIn(f"share/restunts/wasm-relink/audio/{name}", files)
+                for name, content in extras.items():
+                    self.assertEqual(files[name], content)
 
     def test_mt32emu_runtime_license_and_corresponding_source_are_required(self):
         runtimes = {"linux-x64": "lib/libmt32emu.so", "windows-x64": "bin/mt32emu.dll",

@@ -48,6 +48,8 @@ class BuildPagesTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
             path.write_bytes(source.read_bytes() if source is not None else FIXTURE_DATA)
+        (runtime / "share/restunts/wasm-relink/CMakeLists.txt").write_bytes(
+            b"set(RESTUNTS_WASM_THREADS OFF)\n")
         args = argparse.Namespace(target="browser", runtime=runtime,
                                   directory=self.root / "packages", commit=COMMIT)
         with mock.patch.object(PACKAGES.subprocess, "check_output", return_value=COMMIT + "\n"), \

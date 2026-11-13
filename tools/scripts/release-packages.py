@@ -213,6 +213,14 @@ ORIGINAL_SUFFIXES = {
 }
 NUKED_FILES = ("opl2.c", "opl2.h", "CMakeLists.txt", "LICENSE", "README.md")
 NUKED_TOOLCHAIN_PATTERNS = ("*.cmake", "*.h")
+WASM_RELINK_DIRECTORY = "share/restunts/wasm-relink"
+WASM_AUDIO_RELINK_FILES = (
+    "CMakeLists.txt", "browser_audio.js", "browser_audio_worker.js", "browser_audio_worklet.js",
+    "generate-audio-sources.py", "objects/browser_audio_runtime.c.o", "objects/audio_commands.c.o",
+    "objects/audio_completions.c.o", "source/browser_audio_runtime.c", "source/audio_commands.c",
+    "source/audio_completions.c")
+WASM_AUDIO_SERIAL_LIBRARIES = ("librestunts_game.a", "librestunts_webm.a", "libSDL3.a")
+CMAKE_FALSE_VALUES = {"", "0", "OFF", "NO", "FALSE", "N", "IGNORE", "NOTFOUND"}
 SKYBOX_THEMES = ("desert", "tropical", "alpine", "city", "country")
 SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
 OPPONENT_COUNT = 6
@@ -355,6 +363,21 @@ def mt32emu_source_files():
                  for pattern in NUKED_TOOLCHAIN_PATTERNS
                  for path in (ROOT / "cmake/toolchains").rglob(pattern) if path.is_file()}
     return required
+
+
+def browser_audio_relink_archives(files):
+    configuration = f"{WASM_RELINK_DIRECTORY}/CMakeLists.txt"
+    if configuration not in files:
+        return set()
+    settings = re.findall(
+        r"^[ \t]*set\(RESTUNTS_WASM_THREADS(?:[ \t]+([A-Za-z0-9_.+-]*))?[ \t]*\)[ \t]*$",
+        files[configuration].decode("utf-8"), re.MULTILINE | re.IGNORECASE)
+    require(len(settings) == 1, "Browser relink kit must record exactly one thread setting")
+    value = settings[0].upper()
+    if value in CMAKE_FALSE_VALUES or value.endswith("-NOTFOUND"):
+        return set()
+    # Pthread game archives cannot serve the independent serial audio realm.
+    return {f"{WASM_RELINK_DIRECTORY}/audio/lib/{name}" for name in WASM_AUDIO_SERIAL_LIBRARIES}
 
 
 def android_minimum_sdk(target):
@@ -539,12 +562,13 @@ def required_files(target):
         required |= {"restunts.html", "wasm.md", "THIRD-PARTY-NOTICES.txt",
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE"}
-        relink = "share/restunts/wasm-relink"
+        relink = WASM_RELINK_DIRECTORY
         required |= {f"{relink}/{name}" for name in (
             "CMakeLists.txt", "wasm-link.cmake", "wasm-relink.md", "shell.html",
             "nuked-build-info.txt", "lib/librestunts_game.a", "lib/librestunts_webm.a",
             "lib/libSDL3.a", "objects/main.c.o")}
         required |= {f"{relink}/nuked-opl2-lite/{name}" for name in NUKED_FILES}
+        required |= {f"{relink}/audio/{name}" for name in WASM_AUDIO_RELINK_FILES}
         required |= {f"{relink}/data/assets/skyboxes/{theme}-{image}.png"
                      for theme in SKYBOX_THEMES for image in SKYBOX_IMAGES}
         required |= {f"{relink}/data/assets/menus/{background}.png"
@@ -625,6 +649,8 @@ def validate_windows_gui_audits(target, files):
 
 def validate_contents(target, files, modes):
     required = required_files(target)
+    if target == "browser":
+        required |= browser_audio_relink_archives(files)
     missing = required - files.keys()
     require(not missing, f"{target}: missing packaged files: {', '.join(sorted(missing))}")
     for name, content in files.items():
