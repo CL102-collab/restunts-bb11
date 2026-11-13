@@ -328,6 +328,15 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	sample.absolute_x = absolute_word(local.x);
 	sample.absolute_z = absolute_word(local.z);
 	sample.wall_orientation_modifier = 0;
+	/* Outside the chicane road, select the background contact plane even when
+	 * its material matches the road. A graded road can round differently. */
+	if (!chicane_fast_grass_is_enabled() &&
+		(sample.physical_model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT ||
+		 sample.physical_model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) &&
+		!track_road_contains_local_point(sample.physical_model, &sample.position)) {
+		extended_select_terrain(&terrain, position);
+		return;
+	}
 	elem_xCenter = origin.x;
 	elem_zCenter = origin.z;
 	terrainHeight = origin.y;

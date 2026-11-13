@@ -170,11 +170,11 @@ void track_object_chicane(struct TRACK_OBJECT_SAMPLE *sample)
 {
 	if (chicane_fast_grass_enabled == CHICANE_FAST_GRASS_OFF) {
 		/* Use the visible road footprint: the old circular approximation
-		 * cuts across the chicane's rendered curves and their edges. */
-		current_surf_type =
-			track_road_contains_local_point(sample->physical_model, &sample->position)
-				? (legacy_u8)sample->surface_type
-				: CAR_SURFACE_GRASS;
+		 * cuts across the chicane's rendered curves and their edges. Preserve
+		 * the sampled background terrain outside the road. */
+		if (track_road_contains_local_point(sample->physical_model, &sample->position)) {
+			current_surf_type = (legacy_u8)sample->surface_type;
+		}
 		return;
 	}
 	if (sample->physical_model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) {

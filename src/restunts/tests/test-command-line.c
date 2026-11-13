@@ -154,7 +154,7 @@ static void test_help_contents(void)
 	expect_text("--owoot is shorthand for --owoot:on.");
 	expect_text("Enable/disable original Dual-Way Switching.");
 	expect_text("Enable/disable Chicane fast-grass.");
-	expect_text("With --cfg:off, green chicane areas behave as grass.");
+	expect_text("With --cfg:off, chicane off-road areas use the terrain surface.");
 	expect_text("Amiga grass grip starts off; enable with --amigagrass.");
 	expect_text("Use original Amiga grass grip (stock cars).");
 	expect_text("no effect");

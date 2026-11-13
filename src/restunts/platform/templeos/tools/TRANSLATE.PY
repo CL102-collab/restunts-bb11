@@ -226,7 +226,7 @@ def prepare_sources(folder):
                          '  --lcb:on|off     Enable/disable the original left corner bias.\r\n'
                          '  --dws:on|off     Dual-Way Switching: off fixes branch-switching penalties.\r\n'
                          '  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n'
-                         '                   Off makes green chicane areas behave as grass.\r\n'
+                         '                   Off makes chicane off-road areas use the terrain surface.\r\n'
                          '  --amigagrass     Use original Amiga grass grip for stock cars.\r\n'
                          '  --owoot[:on|off] Enable/disable One Wheel On/Over Track rules.\r\n'
                          '                   --owoot is shorthand for --owoot:on.\r\n'

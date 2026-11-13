@@ -110,7 +110,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"effect." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 	"Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on; "
 	"--owoot:off." COMMAND_LINE_NEWLINE
-	"With --cfg:off, green chicane areas behave as grass." COMMAND_LINE_NEWLINE
+	"With --cfg:off, chicane off-road areas use the terrain surface." COMMAND_LINE_NEWLINE
 	"Amiga grass grip starts off; enable with --amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
