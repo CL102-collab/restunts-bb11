@@ -152,8 +152,9 @@ class LauncherDialog : public wxDialog
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_FPS);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_MPH);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_MULTI_CORE);
-		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "HyperVision"),
-						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		graphics_grid->Add(
+			new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "HyperVision (F12, Shift+F12)"),
+			FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		hypervision_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
 		for (const LauncherHyperVision &preset : launcher_hypervision_definitions) {
 			hypervision_->Append(preset.label);

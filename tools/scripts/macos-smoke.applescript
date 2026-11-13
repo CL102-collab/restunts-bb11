@@ -68,9 +68,9 @@ on run argv
     end tell
     if actionName is "configure" then
         my soundModeValue(controls, "Ad Lib")
-        my checkboxValue(controls, "OGG music replacement", 1)
+        my checkboxValue(controls, "OGG music replacement (Shift+F10)", 1)
         my checkboxValue(controls, "Skip intro", 0)
-        my checkboxValue(controls, "Fullscreen", 0)
+        my checkboxValue(controls, "Fullscreen (Alt+Enter)", 0)
         set foundFolder to false
         tell application "System Events"
             repeat with uiElement in controls
