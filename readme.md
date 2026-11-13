@@ -1669,8 +1669,10 @@ Core `.c` files under `src/restunts/c` are split by responsibility into units of
 at most 800 code lines, excluding blank lines and comments. Internal headers
 share declarations and context; implementations stay in separate `.c` files.
 
-The desktop launcher and ghost generator window use C++11 and follow the same
-whitespace and brace rules.
+The desktop launcher, ghost generator window and MT-32 ROM scanner use C++11
+and follow the same whitespace and brace rules. The game and scanner tests
+explicitly select C++11 so modern host compilers do not emit C++14 sized-delete
+calls missing from the pinned legacy AppImage runtime.
 Their `.cpp` files are included in the formatting checks below.
 
 C sources use the C99 features supported by Open Watcom (`-zastd=c99`).

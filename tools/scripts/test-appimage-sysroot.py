@@ -6,10 +6,12 @@ import http.client
 import http.server
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -185,11 +187,171 @@ class SysrootTests(unittest.TestCase):
         header = self.root / sdk.LEGACY_CXX_PREFIX / "include/c++/4.8.2/new"
         header.parent.mkdir(parents=True)
         header.write_text("namespace std {\n  struct nothrow_t { };\n}\n")
+        unique_ptr = header.parent / "bits/unique_ptr.h"
+        unique_ptr.parent.mkdir()
+        unique_ptr.write_text("// No colliding private helper in this header.\n")
         sdk.patch_cxx_headers(self.root)
         patched = header.read_text()
         self.assertIn("class bad_array_new_length : public bad_alloc", patched)
         sdk.patch_cxx_headers(self.root)
         self.assertEqual(header.read_text(), patched)
+
+    def test_unique_ptr_builtin_collision_patch_covers_legacy_sdk_layouts(self):
+        for prefix in (sdk.LEGACY_CXX_PREFIX + "/include/c++/4.8.2",
+                       "usr/include/c++/4.7", "usr/include/c++/4.9"):
+            with self.subTest(prefix=prefix):
+                header = self.root / prefix / "new"
+                header.parent.mkdir(parents=True)
+                header.write_text("class bad_array_new_length : public bad_alloc {};\n")
+                unique_ptr = header.parent / "bits/unique_ptr.h"
+                unique_ptr.parent.mkdir()
+                unique_ptr.write_text("""template<typename _Tp> struct default_delete {
+    template<typename _Up> using __remove_cv = typename remove_cv<_Up>::type;
+    typedef is_same<__remove_cv<_Tp>, __remove_cv<const _Tp>> same_type;
+};
+// A different helper must keep its original spelling.
+struct __remove_cv_other;
+""")
+                sdk.patch_cxx_headers(self.root, prefix + "/new")
+                patched = unique_ptr.read_text()
+                self.assertIn("using __restunts_remove_cv =", patched)
+                self.assertIn("is_same<__restunts_remove_cv<_Tp>, "
+                              "__restunts_remove_cv<const _Tp>>", patched)
+                self.assertIn("struct __remove_cv_other;", patched)
+                self.assertEqual(header.read_text(),
+                                 "class bad_array_new_length : public bad_alloc {};\n")
+                sdk.patch_cxx_headers(self.root, prefix + "/new")
+                self.assertEqual(unique_ptr.read_text(), patched)
+
+    def test_cxx_patch_discovers_all_legacy_headers_and_ignores_modern_headers(self):
+        prefixes = (sdk.LEGACY_CXX_PREFIX + "/include/c++/4.8.2",
+                    "usr/include/c++/4.7", "usr/include/c++/4.9")
+        modern = "usr/include/c++/14"
+        historical = self.root / "usr/include/c++/4.1.1/new"
+        historical.parent.mkdir(parents=True)
+        historical.write_text("namespace std {\n  struct nothrow_t { };\n}\n")
+        for prefix in (*prefixes, modern):
+            directory = self.root / prefix
+            (directory / "bits").mkdir(parents=True)
+            (directory / "new").write_text("namespace std {\n  struct nothrow_t { };\n}\n")
+            (directory / "bits/unique_ptr.h").write_text(
+                "template<class T> using __remove_cv = typename remove_cv<T>::type;\n")
+        sdk.patch_cxx_headers(self.root)
+        for prefix in prefixes:
+            self.assertIn("class bad_array_new_length", (self.root / prefix / "new").read_text())
+            self.assertIn("using __restunts_remove_cv =",
+                          (self.root / prefix / "bits/unique_ptr.h").read_text())
+        self.assertNotIn("bad_array_new_length", (self.root / modern / "new").read_text())
+        self.assertIn("using __remove_cv =",
+                      (self.root / modern / "bits/unique_ptr.h").read_text())
+        self.assertEqual(historical.read_text(),
+                         "namespace std {\n  struct nothrow_t { };\n}\n")
+        before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        subprocess.run([sys.executable, str(Path(sdk.__file__)), "patch-cxx", str(self.root)],
+                       check=True)
+        self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_cxx_patch_rejects_sdk_without_legacy_headers(self):
+        modern = self.root / "usr/include/c++/14/new"
+        modern.parent.mkdir(parents=True)
+        modern.write_text("modern compiler headers must stay unchanged\n")
+        with self.assertRaisesRegex(RuntimeError, "No pinned GCC 4.x C\\+\\+ headers found"):
+            sdk.patch_cxx_headers(self.root)
+        self.assertEqual(modern.read_text(), "modern compiler headers must stay unchanged\n")
+
+    def cxx_overlay_inputs(self):
+        sysroot = self.root / "read only SDK"
+        roots = [sysroot / "usr/include/c++" / version for version in ("4.8.2", "4.9")]
+        for root in roots:
+            (root / "bits").mkdir(parents=True)
+            (root / "new").write_text("namespace std {\n  struct nothrow_t { };\n}\n")
+            (root / "bits/unique_ptr.h").write_text(
+                "template<class T> using __remove_cv = typename remove_cv<T>::type;\n")
+        toolchain = self.root / "original-toolchain.cmake"
+        toolchain.write_text("set(CMAKE_C_FLAGS_INIT -DOVERLAY_C_ONLY=1)\n"
+                             "set(CMAKE_CXX_FLAGS_INIT [=[-isystem\"" + str(roots[0]) +
+                             "\" -DOVERLAY_BASE=1]=])\n")
+        return sysroot, toolchain, roots
+
+    def test_cxx_overlay_preserves_read_only_sdk_and_caches_unchanged_copies(self):
+        sysroot, toolchain, roots = self.cxx_overlay_inputs()
+        # A copied symlink must not let patching write into the original SDK.
+        shared = sysroot / "shared-unique-ptr.h"
+        unique_ptr = roots[0] / "bits/unique_ptr.h"
+        unique_ptr.replace(shared)
+        unique_ptr.symlink_to(shared)
+        paths = [sysroot, *sysroot.rglob("*"), toolchain]
+        try:
+            for path in paths:
+                path.chmod(0o555 if path.is_dir() else 0o444)
+            before = {path: (path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_mode)
+                      for path in paths if path.is_file()}
+            output = self.root / "writable header overlay"
+            script = sdk.cxx_overlay(sysroot, toolchain, output)
+            copied = output / "include/root-0"
+            self.assertTrue(script.is_file())
+            self.assertIn("class bad_array_new_length", (copied / "new").read_text())
+            self.assertIn("using __restunts_remove_cv =",
+                          (copied / "bits/unique_ptr.h").read_text())
+            self.assertFalse((copied / "bits/unique_ptr.h").is_symlink())
+            self.assertEqual(list((output / "include").iterdir()), [copied])
+            self.assertEqual(before, {
+                path: (path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_mode)
+                for path in before})
+            cached = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                      for path in output.rglob("*") if path.is_file()}
+            self.assertEqual(sdk.cxx_overlay(sysroot, toolchain, output), script)
+            self.assertEqual(cached, {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                                      for path in cached})
+        finally:
+            for path in paths:
+                path.chmod(0o755 if path.is_dir() else 0o644)
+
+    def test_cxx_overlay_initializes_and_updates_cached_cmake_cxx_flags_only(self):
+        cmake = shutil.which("cmake")
+        if cmake is None:
+            self.skipTest("CMake is needed to exercise fresh and cached compiler flags")
+        sysroot, toolchain, _ = self.cxx_overlay_inputs()
+        script = sdk.cxx_overlay(sysroot, toolchain, self.root / "header overlay")
+        source = self.root / "project"
+        source.mkdir()
+        (source / "CMakeLists.txt").write_text("""cmake_minimum_required(VERSION 3.25)
+project(OverlayProbe LANGUAGES C)
+enable_language(CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+add_library(c_probe OBJECT probe.c)
+add_executable(cxx_probe probe.cpp)
+""")
+        (source / "probe.c").write_text("#ifdef OVERLAY_BASE\n#error CXX flags affected C\n#endif\n"
+                                       "int c_probe(void) { return 0; }\n")
+        (source / "probe.cpp").write_text("#ifndef OVERLAY_BASE\n#error Missing original SDK flags\n"
+                                         "#endif\nint main() { return 0; }\n")
+        def run(command):
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        for cached in (False, True):
+            with self.subTest(cached=cached):
+                build = self.root / ("cached-build" if cached else "fresh-build")
+                configure = [cmake, "-S", str(source), "-B", str(build),
+                             "-DCMAKE_TOOLCHAIN_FILE=" + str(toolchain)]
+                if cached:
+                    run(configure)
+                configure.append("-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=" + str(script))
+                run(configure)
+                run(configure)
+                run([cmake, "--build", str(build)])
+                commands = json.loads((build / "compile_commands.json").read_text())
+                for entry in commands:
+                    command = entry["command"]
+                    overlay = str(script.parent / "include/root-0")
+                    if entry["file"].endswith(".cpp"):
+                        self.assertEqual(command.count(overlay), 1)
+                        self.assertLess(command.index(overlay), command.index("read only SDK"))
+                        self.assertIn("-DOVERLAY_BASE=1", command)
+                    else:
+                        self.assertNotIn(overlay, command)
+                        self.assertIn("-DOVERLAY_C_ONLY=1", command)
 
     def test_x86_multilib_keeps_pinned_startup_libc_and_compiler_runtime(self):
         compiler = shutil.which("gcc")

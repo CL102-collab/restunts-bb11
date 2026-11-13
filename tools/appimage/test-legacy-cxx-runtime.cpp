@@ -1,7 +1,9 @@
 /* Run with each generated AppImage SDK's pinned C++ headers/static archive. */
 #include <cstdio>
 #include <limits>
+#include <memory>
 #include <new>
+#include <utility>
 #include <vector>
 #include "../../src/restunts/c/legacy.h"
 
@@ -11,6 +13,25 @@
 #define RUNTIME_VECTOR_VALUE 7U
 
 using ArraySize = decltype(sizeof(legacy_u32));
+
+static legacy_int check_smart_pointers()
+{
+	std::unique_ptr<legacy_u32[]> original(new legacy_u32[RUNTIME_VECTOR_LENGTH]);
+	original[0] = RUNTIME_VECTOR_VALUE;
+	std::unique_ptr<legacy_u32[]> moved(std::move(original));
+	if (original || moved[0] != RUNTIME_VECTOR_VALUE) {
+		return RUNTIME_TEST_FAILURE;
+	}
+	std::shared_ptr<std::vector<legacy_u32>> shared(
+		new std::vector<legacy_u32>(RUNTIME_VECTOR_LENGTH, RUNTIME_VECTOR_VALUE));
+	{
+		std::shared_ptr<std::vector<legacy_u32>> copy = shared;
+		if (copy.use_count() != 2 || copy->at(0) != RUNTIME_VECTOR_VALUE) {
+			return RUNTIME_TEST_FAILURE;
+		}
+	}
+	return shared.use_count() == 1 ? RUNTIME_TEST_SUCCESS : RUNTIME_TEST_FAILURE;
+}
 
 #if defined(__i386__)
 extern "C" legacy_s64 __divmoddi4(legacy_s64 dividend, legacy_s64 divisor, legacy_s64 *remainder);
@@ -45,6 +66,11 @@ static legacy_int check_signed_division()
 
 legacy_int main()
 {
+	if (check_smart_pointers() != RUNTIME_TEST_SUCCESS) {
+		std::fputs("C++11 smart pointer ownership regression failed\n", stderr);
+		return RUNTIME_TEST_FAILURE;
+	}
+	std::puts("C++11 unique_ptr array moves and shared_ptr ownership passed");
 #if defined(__i386__)
 	if (check_signed_division() != RUNTIME_TEST_SUCCESS) {
 		std::fputs("Signed quotient/remainder regression failed\n", stderr);

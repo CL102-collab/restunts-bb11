@@ -188,6 +188,16 @@ else()
         URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(SDL3)
+    if(SDL_X11 AND NOT SDL_X11_XRANDR AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        # Pinned SDL leaves a fallback label outside its disabled XRandR block.
+        foreach(restunts_sdl_target SDL3-static SDL3-shared)
+            if(TARGET ${restunts_sdl_target})
+                set_property(SOURCE "${SDL3_SOURCE_DIR}/src/video/x11/SDL_x11toolkit.c"
+                    TARGET_DIRECTORY ${restunts_sdl_target} APPEND PROPERTY
+                    COMPILE_OPTIONS -Wno-unused-label)
+            endif()
+        endforeach()
+    endif()
     if(RESTUNTS_APPIMAGE_REQUIRE_PULSEAUDIO)
         # SDL's requested backend can still be disabled when SDK headers are missing.
         # Require the detected driver source so a silent ALSA-only build cannot ship.
@@ -390,7 +400,9 @@ if(TARGET mt32emu)
     target_sources(restunts_game PRIVATE ${platform}/mt32_roms.cpp
         ${platform}/mt32_driver.c ${platform}/mt32_audio.c)
     target_link_libraries(restunts_game PUBLIC mt32emu)
-    target_compile_features(restunts_game PRIVATE cxx_std_11)
+    # Legacy AppImage runtimes predate the sized-delete ABI emitted in C++14+.
+    # A minimum feature request would retain a newer host compiler default.
+    set_target_properties(restunts_game PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
     target_compile_definitions(restunts_game PUBLIC RESTUNTS_MT32)
 endif()
 
@@ -583,7 +595,7 @@ if(RESTUNTS_BUILD_TESTS)
         add_executable(test-mt32-roms src/restunts/tests/test-mt32-roms.cpp
             ${platform}/mt32_roms.cpp)
         target_link_libraries(test-mt32-roms PRIVATE restunts_options mt32emu)
-        target_compile_features(test-mt32-roms PRIVATE cxx_std_11)
+        set_target_properties(test-mt32-roms PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
         target_compile_definitions(test-mt32-roms PRIVATE RESTUNTS_MT32_ROM_TESTS)
         target_compile_options(test-mt32-roms PRIVATE -UNDEBUG)
         add_test(NAME mt32-rom-discovery COMMAND test-mt32-roms)

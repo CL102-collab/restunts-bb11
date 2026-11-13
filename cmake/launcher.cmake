@@ -90,7 +90,7 @@ function(restunts_add_desktop_launcher)
                 NANOSVG REGEX ZLIB EXPAT HELP SVG ARTPROVIDER_TANGO PROTOCOL PROTOCOL_FILE
                 PROTOCOL_FTP PROTOCOL_HTTP URL FS_INET IPC DIALUP_MANAGER WXHTML_HELP
                 ZIPSTREAM FS_ZIP TASKBARICON TASKBARBUTTON NOTIFICATION_MESSAGE SOUND JOYSTICK
-                FSWATCHER)
+                FSWATCHER SECRETSTORE)
             set(wxUSE_${feature} OFF CACHE STRING "Unused by the desktop launcher" FORCE)
         endforeach()
         if(APPLE OR RESTUNTS_WX_TOOLKIT STREQUAL "gtk3")
@@ -103,6 +103,19 @@ function(restunts_add_desktop_launcher)
             URL_HASH SHA256=a62719bb5e1dcc41c1a6fc1eecd499c7ee8521f70402c7b1bb3342a1e16344e0
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
         FetchContent_MakeAvailable(wxWidgets)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+                CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13 AND
+                CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
+            # GCC 13 misdiagnoses the zero-iteration initialization loop after
+            # inlining the deprecated hash table's unsupported copy operation.
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/hash.cpp"
+                TARGET_DIRECTORY wxbase APPEND PROPERTY COMPILE_OPTIONS -Wno-array-bounds)
+        endif()
+        if(NOT wxUSE_LIBPNG AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            # Pinned wx leaves PNG factory arguments unused when PNG is disabled.
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/bmpbase.cpp"
+                TARGET_DIRECTORY wxcore APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
+        endif()
         set(launcher_wx_libraries wx::core wx::base)
         set(launcher_test_wx_libraries wx::base)
         install(FILES "${wxwidgets_SOURCE_DIR}/docs/licence.txt"

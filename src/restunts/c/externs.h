@@ -435,6 +435,20 @@ extern legacy_u16 _abs(legacy_u16);
 extern legacy_s16 _rand(void);
 extern void _srand(legacy_u16);
 
+/* Host CRTs may provide optimized function-like macros. Replace those before
+ * applying the game's aliases so calls keep the legacy sizes and semantics. */
+#undef memcpy
+#undef strcpy
+#undef strcat
+#undef strlen
+#undef fmemcpy
+#undef strcmp
+#undef stricmp
+#undef abs
+#undef printf
+#undef rand
+#undef srand
+
 #define memcpy _memcpy
 #define strcpy _strcpy
 #define strcat _strcat

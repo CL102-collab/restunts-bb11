@@ -156,6 +156,13 @@ case "$target" in
                 }
                 # shellcheck source=/dev/null
                 source "$appimage_environment"
+                if [[ "$target" != linux-appimage-riscv64 ]]; then
+                    # Keep cached SDKs read-only, including root-owned installations.
+                    cxx_overlay="$build_dir/appimage-cxx"
+                    python3 "$script_dir/appimage-sysroot.py" cxx-overlay \
+                        "$RESTUNTS_APPIMAGE_SYSROOT" "$RESTUNTS_APPIMAGE_CMAKE_TOOLCHAIN" "$cxx_overlay"
+                    cmake_options+=("-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=$cxx_overlay/headers.cmake")
+                fi
                 cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$RESTUNTS_APPIMAGE_CMAKE_TOOLCHAIN"
                     -DSDL_X11_XCURSOR=OFF -DSDL_X11_XINPUT=OFF -DSDL_X11_XFIXES=OFF
                     -DSDL_X11_XRANDR=OFF -DSDL_X11_XTEST=OFF -DSDL_X11_XSCRNSAVER=OFF

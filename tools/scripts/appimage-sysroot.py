@@ -13,8 +13,10 @@ import http.client
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shlex
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -423,11 +425,26 @@ def prune_runtime(directory, roots=GTK_RUNTIME_ROOTS):
             path.unlink()
 
 
+def cxx_headers(destination):
+    roots = (destination / LEGACY_CXX_PREFIX / "include/c++",
+             destination / "usr/include/c++")
+    headers = sorted(header for root in roots for header in root.glob("4.*/new")
+                     if header.is_file() and (header.parent / "bits/unique_ptr.h").is_file())
+    if not headers:
+        raise RuntimeError(f"No pinned GCC 4.x C++ headers found in AppImage SDK: {destination}")
+    return headers
+
+
 def patch_cxx_headers(destination, header_relative=None):
+    headers = [destination / header_relative] if header_relative is not None else cxx_headers(destination)
+    for header in headers:
+        patch_cxx_header(header)
+
+
+def patch_cxx_header(header):
     # Modern GCC emits this C++11 ABI helper; the pinned runtime predates it.
     # Keep the standard exception type and inheritance instead of substituting
     # bad_alloc or increasing the glibc requirement with a newer runtime.
-    header = destination / (header_relative or (LEGACY_CXX_PREFIX + "/include/c++/4.8.2/new"))
     text = header.read_text()
     if "class bad_array_new_length" not in text:
         declaration = """
@@ -446,6 +463,80 @@ def patch_cxx_headers(destination, header_relative=None):
         if text.count(marker) != 1:
             raise RuntimeError("Unexpected pinned C++ allocation header layout")
         header.write_text(text.replace(marker, declaration + marker))
+
+    # Some newer compilers reserve this identifier as a type-trait builtin. Older
+    # libstdc++ uses it for a private unique_ptr helper. Rename that helper and
+    # its uses only in this header; the public API and runtime ABI are unchanged.
+    unique_ptr_header = header.parent / "bits/unique_ptr.h"
+    text = unique_ptr_header.read_text()
+    patched = re.sub(r"\b__remove_cv\b", "__restunts_remove_cv", text)
+    if patched != text:
+        unique_ptr_header.write_text(patched)
+
+
+def cxx_overlay(sysroot, toolchain, destination):
+    """Copy just the selected C++ header trees; installed SDKs stay read-only."""
+    sysroot, toolchain, destination = sysroot.resolve(), toolchain.resolve(), destination.resolve()
+    if destination.is_relative_to(sysroot):
+        raise RuntimeError("The C++ header overlay must be outside the original SDK")
+    toolchain_text = toolchain.read_text().replace("${CMAKE_SYSROOT}", str(sysroot))
+    roots = [header.parent for header in cxx_headers(sysroot)
+             if str(header.parent) in toolchain_text]
+    if not roots:
+        raise RuntimeError("AppImage toolchain does not reference a pinned GCC 4.x C++ header root")
+    roots.sort(key=lambda root: toolchain_text.index(str(root)))
+    fingerprint = hashlib.sha256(Path(__file__).read_bytes() + toolchain.read_bytes())
+    for root in roots:
+        fingerprint.update(str(root).encode() + b"\0")
+        for path in sorted(root.rglob("*")):
+            fingerprint.update(str(path.relative_to(root)).encode() + b"\0")
+            if path.is_file():
+                fingerprint.update(bytes.fromhex(sha256(path)))
+            elif path.is_symlink():
+                fingerprint.update(os.readlink(path).encode())
+    expected = {"fingerprint": fingerprint.hexdigest(), "roots": [str(root) for root in roots]}
+    destination.mkdir(parents=True, exist_ok=True)
+    manifest = destination / "headers.json"
+    copied_roots = [destination / "include" / f"root-{index}" for index in range(len(roots))]
+    cached = json.loads(manifest.read_text()) if manifest.is_file() else None
+    if cached != expected or not all((root / "bits/unique_ptr.h").is_file() for root in copied_roots):
+        with tempfile.TemporaryDirectory(prefix=".headers-", dir=destination) as temporary:
+            staged = Path(temporary) / "include"
+            for index, root in enumerate(roots):
+                copied = staged / f"root-{index}"
+                # Dereference SDK symlinks so patching cannot write through to
+                # a root-owned source header. Copies are private build inputs.
+                shutil.copytree(root, copied)
+                for path in (copied, *copied.rglob("*")):
+                    path.chmod(path.stat().st_mode | stat.S_IWUSR)
+                patch_cxx_header(copied / "new")
+            remove(destination / "include")
+            staged.replace(destination / "include")
+        manifest.write_text(json.dumps(expected, indent=2) + "\n")
+    flags = " ".join("-isystem" + shlex.quote(str(root)) for root in copied_roots) + " "
+    delimiter = "="
+    while "]" + delimiter + "]" in flags:
+        delimiter += "="
+    script = destination / "headers.cmake"
+    content = """# Generated legacy C++ headers; the installed SDK is never changed.
+set(_restunts_cxx_headers [@DELIMITER@[@FLAGS@]@DELIMITER@])
+string(FIND "${CMAKE_CXX_FLAGS_INIT}" "${_restunts_cxx_headers}" _restunts_cxx_headers_position)
+if(NOT _restunts_cxx_headers_position EQUAL 0)
+    string(PREPEND CMAKE_CXX_FLAGS_INIT "${_restunts_cxx_headers}")
+endif()
+if(DEFINED CMAKE_CXX_FLAGS)
+    string(FIND "${CMAKE_CXX_FLAGS}" "${_restunts_cxx_headers}" _restunts_cxx_headers_position)
+    if(NOT _restunts_cxx_headers_position EQUAL 0)
+        string(PREPEND CMAKE_CXX_FLAGS "${_restunts_cxx_headers}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" CACHE STRING "Flags used by the CXX compiler" FORCE)
+    endif()
+endif()
+unset(_restunts_cxx_headers)
+unset(_restunts_cxx_headers_position)
+""".replace("@DELIMITER@", delimiter).replace("@FLAGS@", flags)
+    if not script.is_file() or script.read_text() != content:
+        script.write_text(content)
+    return script
 
 
 def patch_gtk_headers(destination):
@@ -497,7 +588,11 @@ def main():
     copy_runtime.add_argument("triple")
     cxx = subparsers.add_parser("patch-cxx")
     cxx.add_argument("sysroot", type=Path)
-    cxx.add_argument("header")
+    cxx.add_argument("header", nargs="?")
+    overlay = subparsers.add_parser("cxx-overlay")
+    overlay.add_argument("sysroot", type=Path)
+    overlay.add_argument("toolchain", type=Path)
+    overlay.add_argument("destination", type=Path)
     includes = subparsers.add_parser("compiler-includes")
     includes.add_argument("compiler")
     includes.add_argument("sysroot", type=Path)
@@ -529,6 +624,9 @@ def main():
         return
     if args.command == "patch-cxx":
         patch_cxx_headers(args.sysroot, args.header)
+        return
+    if args.command == "cxx-overlay":
+        print(cxx_overlay(args.sysroot, args.toolchain, args.destination))
         return
     if args.command == "compiler-includes":
         arguments = compiler_include_arguments(args.compiler, args.sysroot, args.triple)

@@ -104,10 +104,10 @@ if [[ "$cached_recipe" != "$recipe_sha" ]]; then
         "-Wl,-rpath-link,$stage/sysroot/usr/lib/$triple")
     cxx_arguments=(-std=c++11 -nostdinc++ "-isystem$cxx_headers"
         "-isystem$target_headers" "-isystem$cxx_headers/backward")
+    python3 "$script_dir/appimage-sysroot.py" patch-cxx "$stage/sysroot" \
+        "usr/include/c++/$gcc_version/new"
     # GCC 4.7 lacks the C++11 array-length exception emitted by modern compilers.
     if [[ "$architecture" == armv7 ]]; then
-        python3 "$script_dir/appimage-sysroot.py" patch-cxx "$stage/sysroot" \
-            "usr/include/c++/$gcc_version/new"
         "$cxx_compiler" "${common_arguments[@]}" "${cxx_arguments[@]}" -O2 -fPIC \
             -c "$script_dir/../appimage/legacy-cxx-runtime.cpp" -o "$stage/legacy-cxx-runtime.o"
         "$ar_tool" rcs "$legacy_gcc/libstdc++.a" "$stage/legacy-cxx-runtime.o"
