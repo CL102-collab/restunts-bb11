@@ -60,9 +60,11 @@ statically. You may modify the application for your own use and reverse engineer
 it to debug modifications to this LGPL-covered library. The game does not check
 library signatures or prevent compatible modified replacements.
 
-The exact corresponding source, unmodified from the revision above, is in
-share/restunts/mt32emu/. README-restunts.md explains shared-library replacement
-and Android rebuild/repacking; mt32emu-build-info.txt records compiler/options.
+The complete corresponding source is in share/restunts/mt32emu/. Restunts
+combines its CMake library install rules for OpenBSD compatibility; the
+synthesizer sources are unmodified from the revision above. README-restunts.md
+explains shared-library replacement and Android rebuild/repacking;
+mt32emu-build-info.txt records compiler/options.
 The rebuild/ wrapper supplies a standalone compatible build. Keep this complete
 source tree and licenses with redistributed packages. Browser packages also
 require the adjoining share/restunts/wasm-relink/ application objects, build

@@ -3,7 +3,8 @@
 This directory contains the complete corresponding libmt32emu 2.8.6 source from
 Munt commit `91d2205eb8f2591d177b257b92e2c75f830508de`, its LGPL-2.1-or-later
 license, a Restunts build wrapper, and the original project/toolchain scripts
-in `build-context/`. Upstream sources are unmodified. No Roland
+in `build-context/`. Restunts combines the upstream CMake library install rules
+for OpenBSD compatibility; the synthesizer sources are unmodified. No Roland
 ROM images or original game resources are included.
 
 Use a C/C++ compiler for the package's CPU and operating system, compatible with

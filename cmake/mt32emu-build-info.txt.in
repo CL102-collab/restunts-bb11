@@ -1,7 +1,8 @@
 Munt libmt32emu build information
 Upstream: 91d2205eb8f2591d177b257b92e2c75f830508de (libmt32emu 2.8.6)
 Library license: LGPL-2.1-or-later
-Upstream sources are unmodified. Restunts supplies the rebuild wrapper.
+Restunts combines the upstream CMake library install rules for OpenBSD compatibility.
+Synthesizer sources are unmodified. Restunts supplies the rebuild wrapper.
 Build type: @CMAKE_BUILD_TYPE@
 System: @CMAKE_SYSTEM_NAME@ @CMAKE_SYSTEM_PROCESSOR@
 Pointer size in bytes: @CMAKE_SIZEOF_VOID_P@
