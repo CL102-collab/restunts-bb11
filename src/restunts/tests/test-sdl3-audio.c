@@ -61,6 +61,21 @@ void audio_write_far_pointer(legacy_u8 *destination, const void *value)
 	assert(0 && "Unexpected sequencer resource rebinding");
 }
 
+/* PC speaker PCM references are not used by this AdLib-only fixture. */
+void *audio_read_far_pointer(const legacy_u8 *source)
+{
+	(void)source;
+	assert(0 && "Unexpected PC speaker sample reference");
+	return NULL;
+}
+
+legacy_u32 mmgr_get_pointer_size_bytes(const void *pointer)
+{
+	(void)pointer;
+	assert(0 && "Unexpected PC speaker sample allocation");
+	return 0;
+}
+
 static void load_first_instrument(const legacy_char *path, legacy_u8 *instrument)
 {
 	FILE *file = fopen(path, "rb");

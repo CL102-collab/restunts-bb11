@@ -218,7 +218,9 @@ public final class LaunchOptionsTest {
             "Invalid stored modes must preserve the old disabled sound preference.");
         require(LaunchOptions.SoundMode.fromStored("MT32", false) == LaunchOptions.SoundMode.MT32,
             "An explicit mode must supersede the legacy sound preference.");
-        String[] soundLabels = {"No sound", "Ad Lib", "MT-32"};
+        String[] soundLabels = {"No sound", "PC Speaker", "Ad Lib", "MT-32"};
+        require(LaunchOptions.SoundMode.values().length == soundLabels.length,
+            "The sound dropdown must contain exactly the supported modes.");
         for (int index = 0; index < soundLabels.length; index++) {
             LaunchOptions.SoundMode mode = LaunchOptions.SoundMode.values()[index];
             require(mode.toString().equals(soundLabels[index]), "Unexpected sound dropdown label.");
@@ -241,16 +243,32 @@ public final class LaunchOptionsTest {
         require(mt32Arguments.get(mt32Arguments.indexOf("--mt-32-model") + 1).equals(model),
             "Pass the exact selected ROM set to native playback.");
         for (LaunchOptions.SoundMode mode : new LaunchOptions.SoundMode[] {
-                LaunchOptions.SoundMode.ADLIB, LaunchOptions.SoundMode.NONE}) {
+                LaunchOptions.SoundMode.ADLIB, LaunchOptions.SoundMode.PC_SPEAKER,
+                LaunchOptions.SoundMode.NONE}) {
             LaunchOptions inactive = mt32.withSoundMode(mode, romDirectory, model);
             java.util.List<String> arguments = Arrays.asList(inactive.arguments(DATA_DIRECTORY));
             require(!arguments.contains("--mt-32-rom-dir") && !arguments.contains("--mt-32-model")
                     && !arguments.contains(romDirectory) && !arguments.contains(model),
-                "Inactive MT-32 settings must never affect Ad Lib or muted launches.");
+                "Inactive MT-32 settings must never affect Ad Lib, PC Speaker or muted launches.");
             require(arguments.contains("--nosound") == (mode == LaunchOptions.SoundMode.NONE),
                 "Only No sound emits --nosound.");
             require(arguments.contains("--ogg:off"), "Keep the OGG selection independent of sound mode.");
         }
+        LaunchOptions pcSpeaker = defaults.withSoundMode(LaunchOptions.SoundMode.PC_SPEAKER,
+            romDirectory, model);
+        java.util.List<String> speakerArguments = Arrays.asList(pcSpeaker.arguments(DATA_DIRECTORY));
+        require(pcSpeaker.sound && speakerArguments.contains("--soundmode:pc-speaker")
+                && !speakerArguments.contains("--soundmode:adlib")
+                && !speakerArguments.contains("--soundmode:mt-32")
+                && !speakerArguments.contains("--nosound"),
+            "PC Speaker must emit only its own enabled sound mode.");
+        require(speakerArguments.contains("--ogg:off"),
+            "Choosing PC Speaker must preserve the OGG music default.");
+        require(LaunchOptions.SoundMode.fromStored("PC_SPEAKER", true)
+                == LaunchOptions.SoundMode.PC_SPEAKER,
+            "Remember PC Speaker without depending on dropdown ordinals.");
+        require(LaunchOptions.SoundMode.fromStored("ADLIB", true) == LaunchOptions.SoundMode.ADLIB,
+            "Adding a dropdown item must preserve previously saved Ad Lib choices.");
         LaunchOptions oggMt32 = new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF)
             .withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
         require(Arrays.asList(oggMt32.arguments(DATA_DIRECTORY)).contains("--ogg:on"),

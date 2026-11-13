@@ -24,6 +24,7 @@
 #define STARTUP_SOUND_MODE_PREFIX "--soundmode:"
 #define STARTUP_SOUND_ADLIB 0U
 #define STARTUP_SOUND_MT32 1U
+#define STARTUP_SOUND_PC_SPEAKER 2U
 #define STARTUP_MT32_ROM_DIRECTORY_OPTION "--mt-32-rom-dir"
 #define STARTUP_MT32_MODEL_OPTION "--mt-32-model"
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)

@@ -566,7 +566,7 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 	legacy_s32 distance = (center_x - lip.x) * dx + (center_z - lip.z) * dz;
 	legacy_s32 lateral = (center_x - lip.x) * dz - (center_z - lip.z) * dx;
 	if (lateral != 0 || distance < TRACK_TILE_HALF_SIZE ||
-		distance > (ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE) {
+		distance > (legacy_s32)((ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE)) {
 		return roll_jump_fail(carstate);
 	}
 	struct OWOOT_POINT current = route_position(&carstate->car_position);
@@ -588,7 +588,7 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 		legacy_s32 next_distance = (next_x - lip.x) * dx + (next_z - lip.z) * dz;
 		if ((next_x - lip.x) * dz - (next_z - lip.z) * dx != 0 || next_distance <= distance ||
 			next_distance - distance > OWOOT_TILE_SIZE ||
-			next_distance > (ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE) {
+			next_distance > (legacy_s32)((ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE)) {
 			break;
 		}
 		distance = next_distance;

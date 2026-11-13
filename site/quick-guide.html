@@ -81,7 +81,7 @@
                 </div>
                 <div>
                     <dt><kbd>Shift</kbd> + <kbd>F10</kbd> — Switch the music.</dt>
-                    <dd>Modern ports switch between original AdLib and included Ogg recordings at the same song position. Use it during the intro, menus, or race-end screens; it is inactive during races. Missing recordings fall back to AdLib. Plain F10 keeps its original track-editor function.</dd>
+                    <dd>Modern ports switch between the selected original PC Speaker, Ad Lib or MT-32 audio and included Ogg recordings at the same song position. Use it during the intro, menus, or race-end screens; it is inactive during races. Missing recordings fall back to the selected original sound mode. Plain F10 keeps its original track-editor function.</dd>
                 </div>
                 <div>
                     <dt><kbd>Alt</kbd> + <kbd>Enter</kbd> — Toggle fullscreen.</dt>
@@ -136,8 +136,12 @@
                     <dd>Choose one value, such as <code>--hv:medium</code>, in modern ports. Auto adapts quality; the other values lock a preset. The choice applies from the intro onward and can be changed with F12 or Shift+F12. Omit the switch for classic graphics; repeated or unknown presets are errors.</dd>
                 </div>
                 <div>
+                    <dt><code>--soundmode:pc-speaker</code> / <code>--soundmode:adlib</code> / <code>--soundmode:mt-32</code> — Choose original sound.</dt>
+                    <dd>Sound settings lists No sound, PC Speaker, Ad Lib, MT-32 in that order. Ad Lib remains the default and existing saved choices are preserved. PC Speaker needs no ROMs or extra dependencies: desktop, Android and browser play its PCM through normal audio output; DOS32 drives the real speaker. DOS32 also supports hardware Ad Lib; MT-32 emulation requires desktop, Android or browser and your own ROM set. <code>--nosound</code> (or <code>/ns</code>) disables music and effects regardless of argument order.</dd>
+                </div>
+                <div>
                     <dt><code>--ogg:on</code> / <code>--ogg:off</code> — Pick the starting music.</dt>
-                    <dd>In modern ports, <code>on</code> enables replacement Ogg music and <code>off</code> selects original AdLib, the native default. Supply this option only once. Shift+F10 can switch later; missing or broken recordings use AdLib.</dd>
+                    <dd>In modern ports, <code>on</code> enables replacement Ogg music and <code>off</code> selects the chosen original sound mode. Supply this option only once. Shift+F10 can switch later; missing or broken recordings use the selected original sound mode.</dd>
                 </div>
                 <div>
                     <dt><code>--pg:off</code> — Fix power gear and anti-power gear.</dt>
@@ -260,7 +264,7 @@
                 </div>
                 <div>
                     <dt>Startup options — Choose graphics, controls, and driving rules.</dt>
-                    <dd>HyperVision offers Off, Auto, Full, High, Medium, and Low; Auto is the browser default. OGG music replacement starts off in Sound settings unless a saved choice enables it. Graphics settings also contains Show FPS, Show MPH (Ctrl+F9), Show Control Layout, and Fullscreen. Check Fullscreen before Start game to request it immediately. Driving rules includes Dual-Way Switching and Amiga Grass alongside the other physics choices. Selections are remembered. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
+                    <dd>HyperVision offers Off, Auto, Full, High, Medium, and Low; Auto is the browser default. Sound settings lists No sound, PC Speaker, Ad Lib, MT-32 in that order; Ad Lib is the default. OGG music replacement starts off unless a saved choice enables it. Graphics settings also contains Show FPS, Show MPH (Ctrl+F9), Show Control Layout, and Fullscreen. Check Fullscreen before Start game to request it immediately. Driving rules includes Dual-Way Switching and Amiga Grass alongside the other physics choices. Selections are remembered. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
                 </div>
                 <div>
                     <dt>Export / Import — Keep your browser saves.</dt>

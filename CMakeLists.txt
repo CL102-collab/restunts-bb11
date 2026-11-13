@@ -313,7 +313,8 @@ set(platform_common ${platform}/memory.c ${platform_files} ${platform}/runtime.c
     ${core}/extended/extended_file_dialog.c)
 set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c
 ${platform}/timer.c
-    ${platform}/audio.c ${platform}/music.c ${platform}/touch.c ${platform}/soft_keyboard.c)
+    ${platform}/audio.c ${platform}/music.c ${platform}/pc_speaker_driver.c
+    ${platform}/pc_speaker_audio.c ${platform}/touch.c ${platform}/soft_keyboard.c)
 
 execute_process(COMMAND git -c safe.directory=${CMAKE_SOURCE_DIR} rev-parse HEAD
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE RESTUNTS_GIT_HASH
@@ -396,6 +397,10 @@ add_library(restunts_vorbis OBJECT third_party/stb/stb_vorbis.c)
 target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
+if(DJGPP)
+    # PC Speaker PWM shares PIT0 with the clock used by SDL's DOS timer.
+    target_link_options(restunts_game INTERFACE "-Wl,--wrap=uclock")
+endif()
 if(TARGET mt32emu)
     target_sources(restunts_game PRIVATE ${platform}/mt32_roms.cpp
         ${platform}/mt32_driver.c ${platform}/mt32_audio.c)
@@ -591,6 +596,26 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
+    add_executable(test-pc-speaker-driver src/restunts/tests/test-pc-speaker-driver.c
+        ${platform}/pc_speaker_driver.c)
+    target_link_libraries(test-pc-speaker-driver PRIVATE restunts_options)
+    target_compile_options(test-pc-speaker-driver PRIVATE -UNDEBUG)
+    add_test(NAME pc-speaker-driver COMMAND test-pc-speaker-driver)
+    add_executable(test-pc-speaker-audio src/restunts/tests/test-pc-speaker-audio.c
+        ${platform}/pc_speaker_driver.c ${platform}/pc_speaker_audio.c)
+    target_link_libraries(test-pc-speaker-audio PRIVATE restunts_options)
+    target_compile_options(test-pc-speaker-audio PRIVATE -UNDEBUG)
+    add_test(NAME pc-speaker-audio COMMAND test-pc-speaker-audio)
+    add_executable(test-pc-speaker-sequence src/restunts/tests/test-pc-speaker-sequence.c)
+    target_link_libraries(test-pc-speaker-sequence PRIVATE restunts_game)
+    target_compile_options(test-pc-speaker-sequence PRIVATE -UNDEBUG)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pc-speaker-sequence-test")
+    add_test(NAME pc-speaker-sequence COMMAND test-pc-speaker-sequence
+        "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/music/tone-mono.ogg")
+    set_tests_properties(pc-speaker-sequence PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pc-speaker-sequence-test"
+        ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
     if(TARGET mt32emu)
         add_executable(test-mt32-roms src/restunts/tests/test-mt32-roms.cpp
             ${platform}/mt32_roms.cpp)
@@ -897,7 +922,8 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
     add_test(NAME sdl3-music COMMAND test-sdl3-music
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/music")
     set_tests_properties(sdl3-music PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/music-test")
-    add_executable(test-sdl3-audio src/restunts/tests/test-sdl3-audio.c)
+    add_executable(test-sdl3-audio src/restunts/tests/test-sdl3-audio.c
+        ${platform}/pc_speaker_driver.c ${platform}/pc_speaker_audio.c)
     target_link_libraries(test-sdl3-audio PRIVATE restunts_options restunts_opl)
     # Exercise real synthesis and SDL's dummy audio device, plus initialization
     # failure and batch-mode cleanup, without requiring host sound hardware.

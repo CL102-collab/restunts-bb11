@@ -79,11 +79,11 @@ engine. **Sound** enabled means `/ns` is omitted.
 | --- | --- |
 | Multi-core rendering `--multi-core:on/off` | SDL3 builds except DOS32. On by default; exposed in desktop, Android, and web Graphics settings. Web requires a threaded build and an isolated page. |
 | HyperVision `--hv:auto/full/high/medium/low` | All SDL3 builds, including Android, web, and DOS32. Classic ports use their native renderer and F12 SuperSight. |
-| Sound mode `--soundmode:adlib/mt-32` | Desktop, Android and web SDL3 builds. AdLib is the default. MT-32 requires user ROMs and the original MT instruments; see [MT-32 setup](mt32.md). |
+| Sound mode `--soundmode:pc-speaker/adlib/mt-32` | Desktop, Android and web support all three. DOS32 supports PC Speaker and Ad Lib through real hardware. Ad Lib is the default. PC Speaker needs no ROMs or extra dependencies; MT-32 needs user ROMs and the original MT instruments. See [sound modes](sdl3.md#sound-modes) and [MT-32 setup](mt32.md). |
 | Disable all sound `--nosound` or `/ns` | Overrides the selected sound mode regardless of argument order. |
 | MT-32 ROM directory `--mt-32-rom-dir DIR` | Read-only folder of recognized control/PCM ROMs. No ROMs are distributed. |
 | MT-32 model `--mt-32-model ID` | Optional when exactly one complete set is detected; required to disambiguate several sets. IDs come from Munt's detected compatible models. |
-| Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of AdLib/MT-32. Off by default on all platforms; saved launcher choices take precedence. |
+| Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of PC Speaker/Ad Lib/MT-32. Off by default on all platforms; saved launcher choices take precedence. |
 | Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
 | Touch control layout `--control-layout:on/off` | Android and web. |
 | Tilt steering | Android launcher and sensor backend. |

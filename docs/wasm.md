@@ -102,13 +102,16 @@ build supports `file://` without a local web server. The HTML's location does no
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
 3. Choose the startup options above the game. **Skip intro** is optional.
-   **Sound settings** contains **Sound mode**: **No sound**, **Ad Lib** (default),
-   or **MT-32**. No sound disables music and effects (`--nosound`). MT-32 shows
-   the ROM-folder picker and detected **ROM set** selector. The Ogg replacement
-   choice is remembered independently of the sound mode.
+   **Sound settings** contains **Sound mode** in this order: **No sound**,
+   **PC Speaker**, **Ad Lib** (default), **MT-32**. No sound disables music and
+   effects (`--nosound`). MT-32 shows the ROM-folder picker and detected **ROM
+   set** selector. PC Speaker uses the
+   original PC instruments and plays PCM through WebAudio, without ROMs or extra
+   dependencies. Existing saved sound preferences are preserved. The Ogg
+   replacement choice is remembered independently of the sound mode.
    **OGG music replacement** (formerly **New MIDI**) selects recorded Ogg music
-   (`--ogg:on`); leave it unchecked to hear the chosen AdLib or MT-32 synthesizer
-   (`--ogg:off`). It starts off unless a remembered choice enables it.
+   (`--ogg:on`); leave it unchecked to hear the chosen PC Speaker, Ad Lib or MT-32
+   synthesizer (`--ogg:off`). It starts off unless a remembered choice enables it.
    **Graphics settings** contains **Show FPS** (`--fps:on`), followed by
    **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
@@ -368,7 +371,8 @@ browser check.
 
 ## MT-32 audio
 
-The **Sound settings** group selects AdLib or MT-32 and independently enables
+The **Sound settings** group offers No sound, PC Speaker, Ad Lib, and MT-32
+in that order, and independently enables
 **OGG music replacement**. For MT-32, select your own control/PCM ROM folder and
 choose a detected model if several complete sets are available. With File System
 Access support, the page remembers a read-only folder handle; use the access

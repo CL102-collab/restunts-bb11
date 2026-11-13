@@ -45,6 +45,7 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 
 const LauncherSoundDefinition launcher_sound_definitions[LAUNCHER_SOUND_MODE_COUNT] = {
 	{"none", "No sound", "--nosound"},
+	{"pc-speaker", "PC Speaker", "--soundmode:pc-speaker"},
 	{"adlib", "Ad Lib", "--soundmode:adlib"},
 	{"mt-32", "MT-32", "--soundmode:mt-32"}};
 

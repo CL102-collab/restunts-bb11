@@ -46,7 +46,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --nosound        Alias for /ns; overrides sound mode regardless of "
 	"order." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
-	"  --soundmode:adlib|mt-32  Select original synthesized audio; default "
+	"  --soundmode:pc-speaker|adlib|mt-32  Select original synthesized audio; default "
 	"adlib." COMMAND_LINE_NEWLINE
 #if !defined(__DJGPP__)
 	"  --mt-32-rom-dir DIR  Folder containing user-supplied MT-32 ROM images." COMMAND_LINE_NEWLINE

@@ -180,14 +180,23 @@ XMS and UMB must be enabled for the shell and kernel to load high. These setting
 leave enough conventional memory for large custom dashboards and their parsing
 workspace; `shellhigh=true` alone cannot do that when UMB is disabled.
 
-### Replacement music
+### Sound modes
 
-SDL3 executables default to original AdLib synthesis. Desktop, Android and
-browser builds can instead emulate Roland MT-32 music and effects with
-`--soundmode:mt-32`, using separately supplied control/PCM ROMs. See
+The desktop, Android and browser **Sound mode** list is ordered **No sound**,
+**PC Speaker**, **Ad Lib**, **MT-32**. Ad Lib remains the default, and saved
+launcher preferences keep their meaning. `--soundmode:pc-speaker` selects the
+original PC Speaker music and effects, using the original PC instrument resources
+without ROMs or additional dependencies. Desktop, Android and browser builds
+render that sound as PCM through the normal audio output. DOS32 instead drives
+the real PC speaker; `--soundmode:adlib` uses its hardware OPL chip.
+
+Desktop, Android and browser builds also emulate Roland MT-32 music and effects
+with `--soundmode:mt-32`, using separately supplied control/PCM ROMs. See
 [MT-32 setup](docs/mt32.md) for ROM-folder detection and model selection.
 `--nosound` (or `/ns`) disables both music and effects, overriding sound-mode
-selection regardless of argument order. DOS builds keep their existing audio paths.
+selection regardless of argument order. Original DOS16 driver selection is unchanged.
+
+### Replacement music
 
 The launcher's **OGG music replacement** checkbox (formerly **New MIDI**) controls
 recorded replacement songs independently of the selected synthesizer. Use
@@ -800,7 +809,8 @@ for both 32-bit ARM and ARM64. Import your original game folder or ZIP on first
 launch; game data is not bundled in the APK. Transparent touch circles support
 driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
-offers **OGG music replacement**, MT-32 sound/ROM selection, **Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
+offers PC Speaker, Ad Lib and MT-32 sound/ROM selection, **OGG music replacement**,
+**Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
 and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
 **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
 **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**,
@@ -1802,8 +1812,8 @@ The reusable **Build release packages** workflow is used by **PR validation** an
 Packages contain the platform's runtime files, but no original game data.
 SDL3 packages include enhanced artwork. SDL3 desktop, browser and Android packages
 include the Nuked and Munt sources and licenses. Roland ROMs are supplied
-separately and excluded from every release. DOS uses hardware OPL and omits both
-emulation libraries.
+separately and excluded from every release. DOS32 uses hardware Ad Lib/OPL or
+PC Speaker and omits both emulation libraries.
 DOS32 also includes CWSDPMI. Amiga uses Paula audio, and TempleOS uses the PC
 speaker. The TempleOS ZIP includes the installation ISO and private-data import tools.
 

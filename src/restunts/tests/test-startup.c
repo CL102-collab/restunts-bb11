@@ -978,11 +978,28 @@ static void test_startup_sound_options(void)
 	assert(startup_options.sound_mode == STARTUP_SOUND_MT32);
 	assert(strcmp(startup_options.mt32_rom_directory, "/roms") == 0);
 	assert(strcmp(startup_options.mt32_model, "mt32_2_07") == 0);
+	static const legacy_s8 *speaker_modes[] = {"--soundmode:pc-speaker", "--SOUNDMODE:PC-SPEAKER"};
+	for (legacy_u16 index = 0; index < sizeof(speaker_modes) / sizeof(speaker_modes[0]); index++) {
+		legacy_s8 *speaker[] = {(legacy_s8 *)"game", (legacy_s8 *)speaker_modes[index],
+								(legacy_s8 *)"--ogg:on"};
+		reset_startup_hypervision();
+		init_main(sizeof(speaker) / sizeof(speaker[0]), speaker);
+		assert(startup_options.sound_mode == STARTUP_SOUND_PC_SPEAKER);
+		assert(startup_configured_sound_mode == STARTUP_SOUND_PC_SPEAKER);
+		assert(!startup_configured_sound_disabled && startup_ogg_music_enabled);
+		assert(startup_configured_rom_directory == NULL && startup_configured_mt32_model == NULL);
+	}
+	legacy_s8 *speaker_last[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:mt-32",
+								 (legacy_s8 *)"--soundmode:adlib",
+								 (legacy_s8 *)"--soundmode:pc-speaker"};
+	startup_parse_options(sizeof(speaker_last) / sizeof(speaker_last[0]), speaker_last,
+						  &startup_options);
+	assert(startup_options.sound_mode == STARTUP_SOUND_PC_SPEAKER);
 
 	static const legacy_s8 *mute_flags[] = {"--nosound", "/ns"};
 	for (legacy_u16 mute = 0; mute < sizeof(mute_flags) / sizeof(mute_flags[0]); mute++) {
 		for (legacy_u16 position = 0; position < 3; position++) {
-			legacy_s8 *order[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:mt-32",
+			legacy_s8 *order[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:pc-speaker",
 								  (legacy_s8 *)"--soundmode:adlib",
 								  (legacy_s8 *)"--soundmode:mt-32"};
 			order[position + 1] = (legacy_s8 *)mute_flags[mute];
@@ -998,6 +1015,16 @@ static void test_startup_sound_options(void)
 	assert(startup_configured_sound_disabled);
 	assert(startup_configured_rom_directory == NULL && startup_configured_mt32_model == NULL);
 	assert(startup_ogg_music_enabled == 0);
+	for (legacy_u16 position = 1; position < 3; position++) {
+		legacy_s8 *speaker_muted[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:pc-speaker",
+									  (legacy_s8 *)"--nosound", (legacy_s8 *)"--ogg:on"};
+		speaker_muted[position] = (legacy_s8 *)"--nosound";
+		speaker_muted[3U - position] = (legacy_s8 *)"--soundmode:pc-speaker";
+		reset_startup_hypervision();
+		init_main(sizeof(speaker_muted) / sizeof(speaker_muted[0]), speaker_muted);
+		assert(startup_configured_sound_mode == STARTUP_SOUND_PC_SPEAKER);
+		assert(startup_configured_sound_disabled && !startup_ogg_music_enabled);
+	}
 
 	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
 	startup_parse_options(sizeof(defaults) / sizeof(defaults[0]), defaults, &startup_options);

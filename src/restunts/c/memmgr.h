@@ -36,6 +36,8 @@ void far *mmgr_compact_live_chunk(legacy_s8 far *ptr);
 void far *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size);
 legacy_u32 mmgr_get_res_ofs_diff_scaled(void);
 legacy_u32 mmgr_get_chunk_size_bytes(legacy_s8 far *ptr);
+/* Bytes remaining in an allocated chunk, including an interior pointer. */
+legacy_u32 mmgr_get_pointer_size_bytes(const void far *ptr);
 
 void mmgr_rename_chunk(legacy_s8 far *ptr, const legacy_s8 *name);
 

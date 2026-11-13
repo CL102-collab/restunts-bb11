@@ -25,7 +25,7 @@ legacy_u16 extended_file_name_supported(const legacy_char *name, legacy_u16 capa
 	}
 	const legacy_char *extension = strrchr(name, '.');
 	return length < capacity && extension != NULL && extension - name >= 1 &&
-		   extension - name <= EXTENDED_FILE_STEM_MAX_LENGTH &&
+		   (size_t)(extension - name) <= EXTENDED_FILE_STEM_MAX_LENGTH &&
 		   (extended_file_suffix_equal(extension, ".cstrk") ||
 			extended_file_suffix_equal(extension, ".csrpl") ||
 			extended_file_suffix_equal(extension, ".cshig"));

@@ -576,6 +576,35 @@ legacy_u32 mmgr_get_chunk_size_bytes(legacy_s8 far *ptr)
 	legacy_u32 result = mmgr_get_chunk_size(ptr);
 	return result << DOS_BYTES_PER_PARAGRAPH_SHIFT;
 }
+static legacy_u32 mmgr_pointer_size_in_range(legacy_u32 address, struct MEMCHUNK *first,
+											 struct MEMCHUNK *last)
+{
+	for (struct MEMCHUNK *chunk = first; chunk <= last; chunk++) {
+		legacy_u32 start = (legacy_u32)chunk->resofs << DOS_BYTES_PER_PARAGRAPH_SHIFT;
+		legacy_u32 size = (legacy_u32)chunk->ressize << DOS_BYTES_PER_PARAGRAPH_SHIFT;
+		if (chunk->resstate != MMGR_RESOURCE_STATE_FREE && address >= start &&
+			address - start < size) {
+			return size - (address - start);
+		}
+	}
+	return 0;
+}
+
+legacy_u32 mmgr_get_pointer_size_bytes(const void far *ptr)
+{
+	if (ptr == 0) {
+		return 0;
+	}
+	legacy_u32 address =
+		((legacy_u32)dos_memory_pointer_segment(ptr) << DOS_BYTES_PER_PARAGRAPH_SHIFT) +
+		dos_memory_pointer_offset(ptr);
+	legacy_u32 size =
+		mmgr_pointer_size_in_range(address, mmgr_live_sentinel + 1, mmgr_last_live_chunk);
+	return size != 0
+			   ? size
+			   : mmgr_pointer_size_in_range(address, mmgr_first_cached_chunk, mmgr_cache_sentinel);
+}
+
 //#endif
 
 void locate_many_resources(legacy_s8 far *data, const legacy_s8 *names, legacy_s8 far **result)

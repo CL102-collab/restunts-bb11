@@ -83,13 +83,15 @@ back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
 **Startup options** contains **Skip intro** and **Vibration**. **Sound settings**
-contains **Sound mode** (No sound, Ad Lib, or MT-32) and **OGG music replacement**
-(formerly **New MIDI**). Vibration enables phone and controller
+contains **Sound mode** and **OGG music replacement** (formerly **New MIDI**).
+The modes are ordered **No sound**, **PC Speaker**, **Ad Lib**, **MT-32**. Vibration enables phone and controller
 feedback for impacts; Ogg replaces music independently of the selected sound
 mode. MT-32 reveals its ROM-folder and ROM-set controls. Ad Lib and Vibration
 start enabled and Skip intro starts disabled. These choices are
-remembered; selecting No sound passes `--nosound`, and selecting Skip intro passes
-`--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
+remembered without resetting existing preferences. PC Speaker plays the original
+PC music/effects as PCM through the normal audio output; it requires no ROMs
+or extra dependency installation. Selecting No sound passes `--nosound`, and
+selecting Skip intro passes `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,
 **Show Control Layout** for the touch circles, **Multi-core rendering**

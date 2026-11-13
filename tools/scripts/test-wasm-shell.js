@@ -1205,9 +1205,24 @@ async function exerciseMt32Sound(browser, url, fixture, temporary) {
         await loadFixture(page, fixture);
         assert.deepEqual(await page.locator('#sound-mode option').evaluateAll(options =>
             options.map(option => ({ value: option.value, label: option.label }))), [
-            { value: 'none', label: 'No sound' }, { value: 'adlib', label: 'Ad Lib' }, { value: 'mt-32', label: 'MT-32' }
+            { value: 'none', label: 'No sound' }, { value: 'pc-speaker', label: 'PC Speaker' },
+            { value: 'adlib', label: 'Ad Lib' }, { value: 'mt-32', label: 'MT-32' }
         ]);
         assert.equal(await page.locator('#mt32-settings').isVisible(), false);
+        await page.locator('#sound-mode').selectOption('pc-speaker');
+        assert.equal((await storedOptions(page))['sound-mode'], 'pc-speaker', 'PC Speaker must be remembered as a sound mode');
+        assert.equal(await page.locator('#mt32-settings').isVisible(), false, 'PC Speaker must hide MT-32 ROM controls');
+        assert.equal(await page.locator('#start').isEnabled(), true, 'PC Speaker must launch without ROM files');
+        assert.equal(await page.evaluate(() => fixtureRomScanCalls.length), 0, 'PC Speaker must not scan for ROMs');
+        await page.locator('#start').click();
+        const speakerArgs = await page.evaluate(() => window.launchedArguments);
+        assert.deepEqual(speakerArgs.filter(arg => arg.startsWith('--soundmode:')), ['--soundmode:pc-speaker']);
+        assert.ok(speakerArgs.includes('--ogg:off'), 'PC Speaker must retain the default of no OGG replacement');
+        assert.equal(speakerArgs.some(arg => arg.startsWith('--mt-32-')), false, 'PC Speaker must omit ROM parameters');
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#sound-mode').inputValue(), 'pc-speaker', 'PC Speaker must persist across reload');
+        await loadFixture(page, fixture);
         await page.locator('#sound-mode').selectOption('mt-32');
         await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
         assert.equal(await page.locator('#mt32-settings').isVisible(), true);
@@ -1606,7 +1621,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode and MT-32 ROM selection, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker and MT-32 ROM selection, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

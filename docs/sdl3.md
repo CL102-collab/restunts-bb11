@@ -341,13 +341,15 @@ scales the 1280x800 rendering to the largest available viewport and logs a warni
 Disabling HyperVision restores Mode 13h. High-resolution rendering requires more
 RAM and processing power than the original mode.
 
-Original music and effects write the real AdLib-compatible OPL2 chip at port
-`388h`, which DOSBox also emulates. An AdLib or compatible Sound Blaster FM device
-is needed for those sounds. Optional Ogg Vorbis music uses SDL's PCM output and
-requires a supported digital-audio device, such as a compatible Sound Blaster.
-If original audio initialization fails, the native game reports a warning and
-continues silently. Desktop builds
-synthesize the same FM registers through
+DOS32 defaults to Ad Lib music/effects, writing the real OPL2 chip at port
+`388h`, which DOSBox also emulates. Select `--soundmode:pc-speaker` to drive the
+real PC speaker instead; this does not require an Ad Lib or Sound Blaster card.
+The PC Speaker path uses the original PC instrument resources and needs no ROMs
+or extra dependencies. `--soundmode:adlib` selects the default hardware FM path.
+Optional Ogg Vorbis music is independent: it uses SDL's PCM output and requires
+a supported digital-audio device, such as a compatible Sound Blaster.
+If hardware Ad Lib initialization fails, DOS32 reports a warning and continues
+silently. Desktop builds synthesize the same FM registers through
 [Nuked OPL2 Lite](https://github.com/nukeykt/Nuked-OPL2-Lite), licensed under
 LGPL-2.1-or-later, and send PCM to SDL. The library is dynamically linked and
 replaceable. The driver retains AD15's octave-crossing pitch-bend table and
@@ -625,17 +627,27 @@ Existing keyboard driving and replay controls remain available:
 See the [gameplay notes](../readme.md#hypervision-and-fps-display) for HyperVision,
 ghost selection, and rewind behavior.
 
-Desktop, Android and browser SDL3 builds support original AdLib or emulated
-Roland MT-32 music and effects. Select `--soundmode:adlib` (the default) or
-`--soundmode:mt-32`. MT-32 requires a separately supplied compatible control/PCM
-ROM set and the original MT instrument resources; see [MT-32 setup](mt32.md).
+## Sound modes
+
+Desktop, Android and browser launchers list **No sound**, **PC Speaker**,
+**Ad Lib**, **MT-32**, in that order. Ad Lib remains the default and saved
+preferences are preserved. Select `--soundmode:pc-speaker` for original PC Speaker
+music/effects, `--soundmode:adlib` for Ad Lib, or `--soundmode:mt-32` for emulated
+Roland audio. PC Speaker requires the original `PCSKIDMS.VCE` and `PCENG1.VCE`
+instruments, with no ROMs or additional dependencies. On desktop, Android and
+web it generates PCM through the normal SDL audio device; DOS32 drives the
+physical speaker with the same instrument sequencing.
+
+MT-32 requires a separately supplied compatible control/PCM ROM set and the
+original MT instrument resources; see [MT-32 setup](mt32.md).
 `--nosound` and `/ns` disable all sound and override the mode in either argument
 order. Native sequencing remains on the main thread; SDL only consumes generated
 PCM, so an audio callback cannot race resource loading or freeing.
 
-DOS32 keeps its hardware AdLib/OPL path and original DOS16 retains its existing
-driver selection. PC speaker/Tandy executable drivers are not part of the native
-SDL3 backend. MT-32 mode is separate from the Ogg replacement-music choice.
+DOS32 supports PC Speaker and hardware Ad Lib/OPL; MT-32 emulation remains a
+desktop/Android/web feature. Original DOS16 retains its existing driver selection.
+The native PC Speaker and Ad Lib implementations do not execute DOS driver
+binaries. Sound mode is separate from the Ogg replacement-music choice.
 
 ## Optional Ogg Vorbis music
 
@@ -649,9 +661,9 @@ four songs with files from `assets/music/`:
 | `over.ogg` | Race end |
 | `vict.ogg` | Victory |
 
-Original synthesized music is selected at startup (AdLib by default, or MT-32
-when requested). Use `--ogg:on` to start with Ogg replacements enabled, or
-`--ogg:off` to hear the selected synthesizer explicitly. These
+Original synthesized music is selected at startup (Ad Lib by default, or
+PC Speaker/MT-32 when requested). Use `--ogg:on` to start with Ogg replacements
+enabled, or `--ogg:off` to hear the selected synthesizer explicitly. These
 options are case-insensitive; specify at most one. Press **Shift+F10** during the
 intro, menus (including the track editor), or race-end/victory screens to enable
 replacement music; press it again to return to the selected synthesizer. This selection lasts for

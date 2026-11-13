@@ -5,7 +5,7 @@
 #include "mt32_driver.h"
 
 /* Configuration is established before loading game resources. Muted startup
- * bypasses both synthesizers and never requires an MT-32 ROM directory. */
+ * bypasses synthesis and never requires an MT-32 ROM directory. */
 void sdl3_audio_configure(legacy_u8 mode, const legacy_char *rom_directory,
 						  const legacy_char *model, legacy_u8 disabled);
 legacy_u8 sdl3_audio_uses_mt32(void);

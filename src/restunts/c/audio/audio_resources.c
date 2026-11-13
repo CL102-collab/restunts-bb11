@@ -15,6 +15,7 @@
 #ifdef RESTUNTS_SDL3
 #include "../../platform/sdl3/music.h"
 #include "../../platform/sdl3/mt32_audio.h"
+#include "../../platform/sdl3/pc_speaker_audio.h"
 #endif
 
 #define AUDIO_DRIVER_PREFIX_LENGTH 14U
@@ -178,8 +179,9 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 	}
 #ifdef RESTUNTS_SDL3
 	legacy_u8 use_mt32 = sdl3_audio_uses_mt32();
-	audio_driver_prefix[0] = use_mt32 ? 'm' : 'a';
-	audio_driver_prefix[1] = use_mt32 ? 't' : 'd';
+	legacy_u8 use_pc_speaker = sdl3_audio_uses_pc_speaker();
+	audio_driver_prefix[0] = use_pc_speaker ? 'p' : use_mt32 ? 'm' : 'a';
+	audio_driver_prefix[1] = use_pc_speaker ? 'c' : use_mt32 ? 't' : 'd';
 #else
 	audio_driver_prefix[0] = 'a';
 	audio_driver_prefix[1] = 'd';

@@ -44,6 +44,13 @@ legacy_int main()
 			  wxString(launcher_option_definitions[LAUNCHER_SHOW_MPH].label) ==
 				  "Show MPH (Ctrl+F9)",
 		  "Show MPH must follow Show FPS and name its in-game shortcut.");
+	check(LAUNCHER_SOUND_NONE + 1 == LAUNCHER_SOUND_PC_SPEAKER &&
+			  LAUNCHER_SOUND_PC_SPEAKER + 1 == LAUNCHER_SOUND_ADLIB &&
+			  LAUNCHER_SOUND_ADLIB + 1 == LAUNCHER_SOUND_MT32 &&
+			  LAUNCHER_SOUND_MT32 + 1 == LAUNCHER_SOUND_MODE_COUNT,
+		  "Sound modes must appear in the order No sound, PC Speaker, Ad Lib, MT-32.");
+	check(wxString(launcher_sound_definitions[LAUNCHER_SOUND_PC_SPEAKER].label) == "PC Speaker",
+		  "The PC Speaker choice must use its public label.");
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
@@ -118,6 +125,18 @@ legacy_int main()
 	check(contains(arguments, "--nosound") && !contains(arguments, "--mt-32-rom-dir") &&
 			  !contains(arguments, "--mt-32-model") && !contains(arguments, "--soundmode:mt-32"),
 		  "No sound must not require or pass ROM arguments.");
+	options.sound_mode = LAUNCHER_SOUND_PC_SPEAKER;
+	options.enabled[LAUNCHER_NEW_MIDI] = false;
+	arguments = launcher_game_arguments(game, options);
+	check(contains(arguments, "--soundmode:pc-speaker") && !contains(arguments, "--nosound") &&
+			  !contains(arguments, "--soundmode:adlib") &&
+			  !contains(arguments, "--soundmode:mt-32") &&
+			  !contains(arguments, "--mt-32-rom-dir") && !contains(arguments, "--mt-32-model") &&
+			  contains(arguments, "--ogg:off"),
+		  "PC Speaker must select its mode without ROM arguments or enabling replacement music.");
+	options.enabled[LAUNCHER_NEW_MIDI] = true;
+	check(contains(launcher_game_arguments(game, options), "--ogg:on"),
+		  "PC Speaker must retain an independently enabled replacement music setting.");
 	options.sound_mode = LAUNCHER_SOUND_MODE_COUNT;
 	check(contains(launcher_game_arguments(game, options), "--soundmode:adlib"),
 		  "An invalid stored sound mode must safely use Ad Lib.");
@@ -187,10 +206,21 @@ legacy_int main()
 		file.ReadAll(&after_read);
 		check(after_read == original, "Reading settings must not rewrite them or save defaults.");
 	}
+	LauncherOptions pc_options = options;
+	pc_options.sound_mode = LAUNCHER_SOUND_PC_SPEAKER;
+	check(launcher_save_options(settings, pc_options).empty(),
+		  "Could not save PC Speaker options.");
+	launcher_read_options(settings, restored);
+	check(restored.sound_mode == LAUNCHER_SOUND_PC_SPEAKER &&
+			  restored.enabled[LAUNCHER_NEW_MIDI] == pc_options.enabled[LAUNCHER_NEW_MIDI],
+		  "PC Speaker must round-trip without changing replacement music.");
 	{
 		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
 							wxCONFIG_USE_LOCAL_FILE);
 		config.DisableAutoSave();
+		wxString saved_mode;
+		config.Read("sound_mode", &saved_mode);
+		check(saved_mode == "pc-speaker", "PC Speaker must persist as the stable pc-speaker ID.");
 		config.Write("hypervision", "unknown-future-preset");
 		config.DeleteEntry("sound_mode");
 		config.Write("sound", false);
@@ -214,16 +244,37 @@ legacy_int main()
 	check(restored.sound_mode == LAUNCHER_SOUND_NONE &&
 			  restored.enabled[LAUNCHER_NEW_MIDI] == options.enabled[LAUNCHER_NEW_MIDI],
 		  "The legacy disabled sound checkbox must migrate without changing replacement music.");
+	struct SavedSoundCase {
+		const legacy_char *id;
+		legacy_int expected_mode;
+	};
+	const SavedSoundCase saved_sound_modes[] = {{"none", LAUNCHER_SOUND_NONE},
+												{"adlib", LAUNCHER_SOUND_ADLIB},
+												{"mt-32", LAUNCHER_SOUND_MT32},
+												{"unknown-future-mode", LAUNCHER_SOUND_ADLIB}};
+	for (const SavedSoundCase &test : saved_sound_modes) {
+		{
+			wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
+								wxCONFIG_USE_LOCAL_FILE);
+			config.DisableAutoSave();
+			config.Write("sound_mode", test.id);
+			config.Flush();
+		}
+		launcher_read_options(settings, restored);
+		check(restored.sound_mode == test.expected_mode,
+			  "Existing sound IDs must keep their meaning and unknown IDs must default to Ad Lib.");
+	}
 	{
 		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
 							wxCONFIG_USE_LOCAL_FILE);
 		config.DisableAutoSave();
-		config.Write("sound_mode", "mt-32");
+		config.DeleteEntry("sound_mode");
+		config.Write("sound", true);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
-	check(restored.sound_mode == LAUNCHER_SOUND_MT32,
-		  "A saved sound mode must override the legacy sound checkbox.");
+	check(restored.sound_mode == LAUNCHER_SOUND_ADLIB,
+		  "The legacy enabled sound checkbox must retain the Ad Lib default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.mt32_rom_folder.empty() &&

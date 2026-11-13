@@ -17,6 +17,8 @@
 #include "../platform/sdl3/mt32_audio.h"
 
 #define TEST_EXPECTED_ARGUMENTS 3
+/* The original timer services effect channels 16..22; channel 16 is the engine. */
+#define TEST_EFFECT_CHANNEL (AUDIO_EFFECT_CHANNEL_FIRST + 1U)
 #define TEST_PATH_BYTES 1024U
 #define TEST_MILLISECONDS_PER_SECOND 1000U
 #define TEST_TICK_MS (TEST_MILLISECONDS_PER_SECOND / DOS_TIMER_REALTIME_TICKS_PER_SECOND)
@@ -28,6 +30,7 @@
 #define TEST_MIDI_COMMAND_MASK 0xf0U
 #define TEST_MIDI_DATA_MASK 127U
 #define TEST_RHYTHM_CHANNEL 9U
+#define TEST_CONTEXT_PLAYING_NOTE_OFFSET 3U
 #define TEST_MUSIC_DIRECTORY "assets/music"
 #define TEST_MUSIC_PATH TEST_MUSIC_DIRECTORY "/titl.ogg"
 
@@ -63,6 +66,7 @@ static void test_platform_pump(void)
 
 struct MIDI_CAPTURE {
 	legacy_u32 notes[MT32_MIDI_CHANNEL_COUNT];
+	legacy_u32 effect_notes[MT32_MIDI_CHANNEL_COUNT];
 	legacy_u32 stops;
 	legacy_u32 programs;
 	legacy_u32 bends;
@@ -92,6 +96,22 @@ static void capture_sysex(struct MIDI_CAPTURE *output)
 	output->patches += output->sysex_bytes[5] == 5U;
 	output->timbres += output->sysex_bytes[5] == 8U;
 	output->sysex_length = 0;
+}
+
+static legacy_u8 is_sequenced_effect_note(legacy_u8 channel, legacy_u8 note)
+{
+	if (mt32_audio_driver()->music_channels[channel]) {
+		return 0;
+	}
+	for (size_t index = 0; index < AUDIO_CONTEXT_COUNT; index++) {
+		const struct AUDIO_CONTEXT *context = &dos_audio_contexts[index];
+		if (context->state == AUDIO_CONTEXT_STATE_PLAYING &&
+			context->channel == TEST_EFFECT_CHANNEL && context->driver_channel == channel &&
+			context->driver_private_state[TEST_CONTEXT_PLAYING_NOTE_OFFSET] == note) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static void capture(void *instance, const legacy_u8 *bytes, size_t length)
@@ -128,6 +148,9 @@ static void capture(void *instance, const legacy_u8 *bytes, size_t length)
 			output->have_first = 1;
 		} else {
 			output->notes[channel] += command == 0x90U && byte != 0;
+			if (command == 0x90U && byte != 0 && is_sequenced_effect_note(channel, output->first)) {
+				output->effect_notes[channel]++;
+			}
 			output->stops += command == 0x80U || (command == 0x90U && byte == 0);
 			output->bends += command == 0xe0U;
 			if (command == 0xb0U && output->first == 7U) {
@@ -225,19 +248,25 @@ static void check_engine(struct MIDI_CAPTURE *output)
 	bends = output->bends;
 	advance(TEST_EFFECT_TICKS);
 	assert(output->bends > bends);
+	const legacy_u8 effect_midi_channel =
+		(TEST_EFFECT_CHANNEL & AUDIO_DIRECT_CHANNEL_MASK) + AUDIO_DRIVER_CHANNEL_BASE;
+	assert(effect_midi_channel != driver_channel);
 	const legacy_s8 *const names[] = {"SKID", "CRAS", "BUMP"};
 	for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
 		void *header = init_audio_resources(effects, voices, names[index]);
 		assert(header != NULL);
-		notes = note_count(output);
-		assert(audio_play_effect_at_rate(header, AUDIO_EFFECT_CHANNEL_LAST, AUDIO_ENGINE_MAX_VOLUME,
+		notes = output->effect_notes[effect_midi_channel];
+		assert(audio_play_effect_at_rate(header, TEST_EFFECT_CHANNEL, AUDIO_ENGINE_MAX_VOLUME,
 										 audio_effect_rate) >= 0);
 		advance(TEST_EFFECT_TICKS);
-		assert(note_count(output) > notes);
+		/* A note must belong to this effect's live context, on its own MIDI
+         * channel. Continuing music/engine notes cannot satisfy this assertion
+         * while Ogg owns music playback. */
+		assert(output->effect_notes[effect_midi_channel] > notes);
 	}
 	check_ogg_switch(output);
 	assert(!mt32_audio_driver()->music_muted);
-	audio_stop_effect_channel(AUDIO_EFFECT_CHANNEL_LAST);
+	audio_stop_effect_channel(TEST_EFFECT_CHANNEL);
 	audio_remove_driver_timer();
 	mmgr_release(effects);
 	mmgr_release(voices);

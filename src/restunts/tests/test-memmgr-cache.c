@@ -279,8 +279,35 @@ static void test_repeated_cache_churn(void)
 	assert(mmgr_get_ofs_diff() == TEST_ARENA_END - TEST_ARENA_START);
 }
 
+static void test_pointer_allocation_extents(void)
+{
+	reset_arena();
+	assert(mmgr_get_pointer_size_bytes(NULL) == 0);
+	assert(mmgr_get_pointer_size_bytes(test_memory.bytes) == 0);
+	const legacy_u32 size = TEST_NAME_PARAGRAPHS * TEST_PARAGRAPH_BYTES;
+	legacy_u8 *resource = mmgr_alloc_pages("EXTENT", TEST_NAME_PARAGRAPHS);
+	assert(mmgr_get_pointer_size_bytes(resource) == size);
+	assert(mmgr_get_pointer_size_bytes(resource + 1) == size - 1U);
+	assert(mmgr_get_pointer_size_bytes(resource + size - 1U) == 1U);
+	assert(mmgr_get_pointer_size_bytes(resource + size) == 0);
+	assert(mmgr_get_pointer_size_bytes(resource - 1) == 0);
+	legacy_u8 *cached = mmgr_free((legacy_s8 *)resource);
+	assert(mmgr_get_pointer_size_bytes(resource) == 0);
+	assert(mmgr_get_pointer_size_bytes(cached) == size);
+	assert(mmgr_get_pointer_size_bytes(cached + TEST_PARAGRAPH_BYTES + 1U) ==
+		   TEST_PARAGRAPH_BYTES - 1U);
+	assert(mmgr_get_pointer_size_bytes(cached - 1) == 0);
+	/* Reclaiming moves the allocation back into the live range. */
+	resource = mmgr_get_chunk_by_name("EXTENT");
+	assert(mmgr_get_pointer_size_bytes(resource) == size);
+	assert(mmgr_get_pointer_size_bytes(cached) == 0);
+	mmgr_release(resource);
+	assert(mmgr_get_pointer_size_bytes(resource) == 0);
+}
+
 int main(void)
 {
+	test_pointer_allocation_extents();
 	test_resource_name_boundaries();
 	test_free_last_resource_with_full_table();
 	test_free_non_last_resource_with_full_table();

@@ -210,7 +210,8 @@ Nuked and Munt sources/build settings. The game APK contains both shared audio
 libraries and their notices. Enhancement assets are inside the game APK;
 select your original game folder separately in each app.
 
-DOS uses hardware AdLib/OPL and includes neither Nuked nor Munt binaries/sources.
+DOS32 uses hardware Ad Lib/OPL or PC Speaker and includes neither Nuked nor
+Munt binaries/sources. PC Speaker mode requires no additional audio library or ROMs.
 Original DOS16 driver selection, including physical MT-32, remains available.
 DOS32 includes `bin/CWSDPMI.EXE` and the accompanying CWSDPMI redistribution
 material. Copy the DOS32 executables, CWSDPMI and enhanced artwork directories
