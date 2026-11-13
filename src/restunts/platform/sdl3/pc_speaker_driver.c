@@ -301,7 +301,7 @@ void pc_speaker_driver_set_music_muted(struct PC_SPEAKER_DRIVER *driver, legacy_
 {
 	driver->music_muted = muted != 0;
 	/* Source switches change audibility immediately, without advancing the
-     * original arbitration phase or changing any sequencer contexts. */
+	 * original arbitration phase or changing any sequencer contexts. */
 	pc_select_voice(driver);
 }
 

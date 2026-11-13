@@ -80,8 +80,8 @@ static void advance(legacy_u32 ticks)
 				   (legacy_u8)driver->selected_voice < PC_SPEAKER_CONTEXT_COUNT);
 			const struct PC_SPEAKER_VOICE *voice = &driver->voices[driver->selected_voice];
 			/* Mixing precedes sequence commands. A later release in this same
-             * tick leaves the PIT output latched until the next mixer pass;
-             * count ownership only while its source context remains active. */
+			 * tick leaves the PIT output latched until the next mixer pass;
+			 * count ownership only while its source context remains active. */
 			if (voice->active && voice->volume != 0 && voice->channel != NULL) {
 				assert(!driver->music_muted ||
 					   voice->channel->channel >= AUDIO_EFFECT_CHANNEL_FIRST);
@@ -244,7 +244,7 @@ static void check_pcm_allocation_bounds(void)
 	assert(!driver->sample_active && driver->sample_data == NULL);
 	audio_write_far_pointer(instrument + PC_SPEAKER_SAMPLE_REFERENCE_OFFSET, sample);
 	/* A length beyond the real allocation is rejected by the complete glue,
-     * rather than being trusted as the bound passed into the driver. */
+	 * rather than being trusted as the bound passed into the driver. */
 	LEGACY_WRITE_U32_LE(sample + PC_SPEAKER_SAMPLE_LENGTH_OFFSET,
 						mmgr_get_pointer_size_bytes(sample));
 	dos_audio_driver_activate_context(0, &dos_audio_contexts[0],

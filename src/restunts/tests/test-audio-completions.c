@@ -83,7 +83,7 @@ legacy_int main(void)
 	assert(first_count == 1 && audio_pop_finish() == 0);
 
 	/* A completion already queued for the previous registration must not
-     * invoke the replacement callback at the same channel. */
+	 * invoke the replacement callback at the same channel. */
 	report_completion();
 	sdl3_audio_completion_set(TEST_CHANNEL, (void *)second_finished);
 	sdl3_audio_completions_pump();
@@ -98,7 +98,7 @@ legacy_int main(void)
 	assert(owner_callbacks[TEST_CHANNEL] == NULL && second_count == 1);
 
 	/* This is also the browser worker export: no game function is invoked
-     * while a numeric completion token is removed from the owner queue. */
+	 * while a numeric completion token is removed from the owner queue. */
 	sdl3_audio_completion_set(TEST_CHANNEL, (void *)first_finished);
 	report_completion();
 	legacy_u32 event = audio_pop_finish();

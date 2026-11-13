@@ -241,7 +241,7 @@ static void check_engine(struct MIDI_CAPTURE *output)
 		assert(output->volume[driver_channel] != 0);
 	}
 	/* A second engine pitch and the skid/crash sequences must remain audible
-     * while Ogg mutes music-owned channels. */
+	 * while Ogg mutes music-owned channels. */
 	check_ogg_switch(output);
 	assert(mt32_audio_driver()->music_muted);
 	audio_timers[engine].target_pitch += 40U;
@@ -260,8 +260,8 @@ static void check_engine(struct MIDI_CAPTURE *output)
 										 audio_effect_rate) >= 0);
 		advance(TEST_EFFECT_TICKS);
 		/* A note must belong to this effect's live context, on its own MIDI
-         * channel. Continuing music/engine notes cannot satisfy this assertion
-         * while Ogg owns music playback. */
+		 * channel. Continuing music/engine notes cannot satisfy this assertion
+		 * while Ogg owns music playback. */
 		assert(output->effect_notes[effect_midi_channel] > notes);
 	}
 	check_ogg_switch(output);

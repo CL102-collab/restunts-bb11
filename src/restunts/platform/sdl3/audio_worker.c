@@ -104,7 +104,7 @@ legacy_int sdl3_audio_worker_call(sdl3_audio_worker_command command, void *argum
 		return 1;
 	}
 	/* A stop already in progress must finish before an unavailable-worker
-     * fallback can touch the same emulator state from a caller thread. */
+	 * fallback can touch the same emulator state from a caller thread. */
 	while (worker_running && worker_stopping) {
 		SDL_WaitCondition(worker_condition, worker_mutex);
 	}
@@ -245,7 +245,7 @@ static legacy_int SDLCALL audio_worker_thread_main(void *unused)
 		for (legacy_u32 index = 0; index < AUDIO_WORKER_MAX_BURST_TICKS; index++) {
 			SDL_LockMutex(worker_mutex);
 			/* One due audio tick may run between command bursts so concurrent
-             * producers cannot starve PCM indefinitely. */
+			 * producers cannot starve PCM indefinitely. */
 			legacy_u8 interrupted = worker_stopping || (first_command != NULL && index != 0);
 			SDL_UnlockMutex(worker_mutex);
 			if (interrupted) {
@@ -269,7 +269,7 @@ static legacy_int SDLCALL audio_worker_thread_main(void *unused)
 				}
 				fallback_tick += AUDIO_WORKER_TICK_NS;
 				/* No device is a fallback, not a reason to replay an
-                 * arbitrarily long pause in a tight catch-up loop. */
+				 * arbitrarily long pause in a tight catch-up loop. */
 				if (now > fallback_tick + AUDIO_WORKER_TICK_NS * AUDIO_WORKER_MAX_BURST_TICKS) {
 					fallback_tick = now + AUDIO_WORKER_TICK_NS;
 				}

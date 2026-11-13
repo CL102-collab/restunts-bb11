@@ -121,7 +121,7 @@ void sdl3_audio_completions_pump(void)
 {
 #ifndef RESTUNTS_BROWSER_AUDIO_RUNTIME
 	/* A callback may start another sequence. Bound each pump so completions
-     * created by those commands cannot monopolize the game thread. */
+	 * created by those commands cannot monopolize the game thread. */
 	for (legacy_u16 count = 0; count < AUDIO_CHANNEL_COUNT; count++) {
 #if defined(__EMSCRIPTEN__)
 		legacy_u32 event = completion_pop_browser();

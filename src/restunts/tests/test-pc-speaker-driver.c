@@ -194,7 +194,7 @@ static void check_waveform(struct PC_SPEAKER_DRIVER *driver)
 		crossings += samples[index] > 0 && samples[index - 1U] < 0;
 	}
 	/* 1193180 / 2280 Hz, over 100 ms: preserve PIT pitch rather than
-     * quantizing the original continuous engine or note divisors. */
+	 * quantizing the original continuous engine or note divisors. */
 	assert(crossings >= TEST_MIN_CROSSINGS && crossings <= TEST_MAX_CROSSINGS);
 	legacy_f64 remaining = driver->tone_remaining;
 	legacy_u32 latched = driver->tone_period;

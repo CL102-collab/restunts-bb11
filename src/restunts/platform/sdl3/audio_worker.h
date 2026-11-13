@@ -21,7 +21,7 @@ struct SDL3_AUDIO_WORKER_STATS {
 	legacy_u64 callback_invocations;
 	legacy_u64 commands;
 	/* Queue-empty observations after priming, including explicit stream clears.
-     * This counter alone does not prove an audible device underrun. */
+	 * This counter alone does not prove an audible device underrun. */
 	legacy_u64 underruns;
 	legacy_u64 late_wakeups;
 	legacy_u64 max_wake_gap_ns;

@@ -769,7 +769,7 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 			sample = audio_read_far_pointer((const legacy_u8 *)resource +
 											PC_SPEAKER_SAMPLE_REFERENCE_OFFSET);
 			/* Sample references may point inside a bank. Bound both the
-             * header read and the driver's copy by its owning allocation. */
+			 * header read and the driver's copy by its owning allocation. */
 #if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
 			sample_bytes = sdl3_audio_resources_is_execution()
 							   ? sdl3_audio_resource_remaining(sample)
