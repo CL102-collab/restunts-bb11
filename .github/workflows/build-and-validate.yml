@@ -130,12 +130,20 @@ jobs:
         include:
           # Clang and start-stop-gc preserve the host fixtures' dead-data removal
           # while keeping ASan checks on every global that survives the link.
-          - name: address
+          - name: address-1
             sanitizer: address
             compiler: clang-18
             cxx-compiler: clang++-18
             linker-flags: -Wl,-z,start-stop-gc
             timeout-multiplier: 8
+            include-regex: '^genghost-(extended-[1-4]-[1-3]|fine-tune)$'
+          - name: address-2
+            sanitizer: address
+            compiler: clang-18
+            cxx-compiler: clang++-18
+            linker-flags: -Wl,-z,start-stop-gc
+            timeout-multiplier: 8
+            exclude-regex: '^genghost-(extended-[1-4]-[1-3]|fine-tune)$'
           # Split the expensive TSan suite without changing its test coverage.
           - name: thread
             sanitizer: thread
@@ -143,36 +151,72 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 40
             exclude-regex: '^genghost-|^(extended-render|render-replay)$'
-          - name: thread-genghost-extended-1
+          - name: thread-genghost-extended-1-1
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 40
-            include-regex: '^genghost-extended-1$'
-          - name: thread-genghost-extended-2
+            include-regex: '^genghost-extended-1-1$'
+          - name: thread-genghost-extended-1-2
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 40
-            include-regex: '^genghost-extended-2$'
-          - name: thread-genghost-extended-3
+            include-regex: '^genghost-extended-1-2$'
+          - name: thread-genghost-extended-2-1
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 40
-            include-regex: '^genghost-extended-3$'
-          - name: thread-genghost-extended-4
+            include-regex: '^genghost-extended-2-1$'
+          - name: thread-genghost-extended-2-2
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 40
-            include-regex: '^genghost-extended-4$'
-          - name: thread-genghost-search
+            include-regex: '^genghost-extended-2-2$'
+          - name: thread-genghost-extended-3-1
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 40
-            include-regex: '^genghost-search$'
+            include-regex: '^genghost-extended-3-1$'
+          - name: thread-genghost-extended-3-2
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-extended-3-2$'
+          - name: thread-genghost-extended-4-1
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-extended-4-1$'
+          - name: thread-genghost-extended-4-2
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-extended-4-2$'
+          - name: thread-genghost-extended-4-3
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-extended-4-3$'
+          - name: thread-genghost-search-1
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-search-1$'
+          - name: thread-genghost-search-2
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-search-2$'
           - name: thread-genghost-fine-tune
             sanitizer: thread
             compiler: gcc
@@ -203,7 +247,7 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 40
             include-regex: '^genghost-'
-            exclude-regex: '^genghost-(extended-[1234]|search|fine-tune|parallel)$'
+            exclude-regex: '^genghost-(extended-[1-4]-[1-3]|search-[12]|fine-tune|parallel)$'
           - name: undefined
             sanitizer: undefined
             compiler: gcc

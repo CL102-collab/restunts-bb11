@@ -1065,24 +1065,40 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
+            set(restunts_genghost_shard_tests "")
             foreach(restunts_extended_part 1 2 3 4)
-                add_test(NAME genghost-extended-${restunts_extended_part} COMMAND "${Python3_EXECUTABLE}"
-                    "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
-                    "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
-                    "${CMAKE_SOURCE_DIR}/stunts" --part "${restunts_extended_part}")
-                set_tests_properties(genghost-extended-${restunts_extended_part} PROPERTIES
-                    SKIP_RETURN_CODE 77 TIMEOUT 300)
+                set(restunts_extended_shard_count 2)
+                if(restunts_extended_part EQUAL 4)
+                    set(restunts_extended_shard_count 3)
+                endif()
+                foreach(restunts_extended_shard RANGE 1 ${restunts_extended_shard_count})
+                    set(restunts_extended_test
+                        genghost-extended-${restunts_extended_part}-${restunts_extended_shard})
+                    add_test(NAME ${restunts_extended_test} COMMAND "${Python3_EXECUTABLE}"
+                        "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
+                        "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
+                        "${CMAKE_SOURCE_DIR}/stunts" --part "${restunts_extended_part}"
+                        --shard "${restunts_extended_shard}")
+                    set_tests_properties(${restunts_extended_test} PROPERTIES
+                        SKIP_RETURN_CODE 77 TIMEOUT 300)
+                    list(APPEND restunts_genghost_shard_tests ${restunts_extended_test})
+                endforeach()
             endforeach()
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-simulation PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
-            add_test(NAME genghost-search COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-search.py"
-                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
-                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
-            set_tests_properties(genghost-search PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+            foreach(restunts_search_part 1 2)
+                set(restunts_search_test genghost-search-${restunts_search_part})
+                add_test(NAME ${restunts_search_test} COMMAND "${Python3_EXECUTABLE}"
+                    "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-search.py"
+                    "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
+                    "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip"
+                    --part "${restunts_search_part}")
+                set_tests_properties(${restunts_search_test} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+                list(APPEND restunts_genghost_shard_tests ${restunts_search_test})
+            endforeach()
             add_test(NAME genghost-fine-tune COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-fine-tune.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
@@ -1107,9 +1123,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
             # CTest's --timeout does not override an explicit test TIMEOUT.
             # Propagate the same multiplier to the Python subprocess deadlines.
-            foreach(restunts_genghost_test genghost-simulation genghost-search
-                    genghost-extended-1 genghost-extended-2 genghost-extended-3
-                    genghost-extended-4
+            foreach(restunts_genghost_test ${restunts_genghost_shard_tests} genghost-simulation
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout

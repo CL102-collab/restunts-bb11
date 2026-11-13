@@ -47,6 +47,7 @@ REPLAY_PART = 2
 STUNT_PART = 3
 ROUTE_PART = 4
 TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART, ROUTE_PART)
+PART_SHARD_COUNTS = {FORMAT_PART: 2, REPLAY_PART: 2, STUNT_PART: 2, ROUTE_PART: 3}
 BARREL_ROTATION_COUNT = 4
 BLUE_CHECKPOINT_ID = 218
 RED_CHECKPOINT_ID = 219
@@ -57,13 +58,27 @@ BRANCH_LEFT, BRANCH_MERGE, BRANCH_RIGHT = 72, 78, 84
 BRANCH_CHECKPOINT_ROW, BRANCH_CHECKPOINT_COLUMN = 13, 75
 BRANCH_SPLIT_ID, BRANCH_MERGE_ID = 79, 76
 BRANCH_SHARED_ROW = BRANCH_START - 2
-# Keep each orientation/rate pair's collision modes together. Measured native
-# runtimes balance these searches with each part's format, replay or stunt work.
+# Measured native runtimes balance each orientation/rate pair with a part's
+# format, replay or stunt work; its collision modes may use separate shards.
 BARREL_PARTS = {
     (0, 20): REPLAY_PART, (0, 10): STUNT_PART,
     (1, 20): FORMAT_PART, (1, 10): FORMAT_PART,
     (2, 20): STUNT_PART, (2, 10): REPLAY_PART,
     (3, 20): REPLAY_PART, (3, 10): STUNT_PART,
+}
+# Fixed assignments use measured native search times. Keep collision pairs
+# together except the small 10 Hz pair that balances the replay part's halves.
+BARREL_SHARDS = {
+    (0, 20): {"on": 1, "off": 1}, (0, 10): {"on": 1, "off": 1},
+    (1, 20): {"on": 1, "off": 1}, (1, 10): {"on": 2, "off": 2},
+    (2, 20): {"on": 2, "off": 2}, (2, 10): {"on": 1, "off": 2},
+    (3, 20): {"on": 2, "off": 2}, (3, 10): {"on": 1, "off": 1},
+}
+SHARED_SHARDS = {
+    ("shared", True): 2, ("shared", False): 2,
+    ("shared-blue", True): 2, ("shared-red", True): 2,
+    ("both-shared", True): 3, ("branches-shared", True): 3,
+    ("branches-shared", False): 3,
 }
 
 
@@ -267,7 +282,18 @@ def main():
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--part", type=int, choices=TEST_PARTS,
                         help="Run one balanced part; omit to run the complete suite")
+    parser.add_argument("--shard", type=int,
+                        help="Run one subdivision of --part; omit to run the whole part")
     args = parser.parse_args()
+    if args.shard is not None:
+        if args.part is None:
+            parser.error("--shard requires --part")
+        if not 1 <= args.shard <= PART_SHARD_COUNTS[args.part]:
+            parser.error(f"--part {args.part} accepts --shard 1 through {PART_SHARD_COUNTS[args.part]}")
+
+    def selected(part, shard):
+        return args.part in (None, part) and args.shard in (None, shard)
+
     genghost, harness, data = (path.resolve() for path in (args.genghost, args.harness, args.data))
     available = {p.name.upper() for p in data.iterdir()} if data.is_dir() else set()
     required = (("GAME.PRE", "GAME.RES"), ("CARCOUN.PRE", "CARCOUN.RES"),
@@ -324,7 +350,7 @@ def main():
         assert view["track"] == wide_path.read_bytes()
         assert view["version"] == CSRPL_VERSION
         assert replayed["maximum_x"] > 65535 and replayed["maximum_z"] > 65535
-        if args.part in (None, FORMAT_PART):
+        if selected(FORMAT_PART, 1):
             assert len(CUSTOM_HORIZON_BOUNDARY.encode("utf-8")) == CSTRK_MAX_HORIZON_NAME
             custom_outputs = []
             for number, (filename, fallback) in enumerate(((CUSTOM_HORIZON_UNICODE, 4),
@@ -398,8 +424,8 @@ def main():
                          evaluations=256, flags=("--pg:off", "--lc:off"))
             print("Blue-only, red-only and mixed checkpoints generate verified ghosts on paved, dirt and ice", flush=True)
 
-        # Forks and shared gates balance the format/checkpoint/barrel work in part 1.
-        if args.part in (None, ROUTE_PART):
+        # Forks form one route shard; the shared-gate cases form two similar batches.
+        if selected(ROUTE_PART, 1):
             for kind in ("branches", "branches-blue", "branches-red"):
                 branch_path = output / f"{kind}.cstrk"
                 branch_path.write_bytes(track_bytes(kind))
@@ -412,11 +438,16 @@ def main():
                 if kind != "branches":
                     required = "blue_passed" if kind == "branches-blue" else "red_passed"
                     assert branch_playback[required] == 2
+            print("Checkpoint forks compile and finish every blue/red route case", flush=True)
+
+        if selected(ROUTE_PART, 2) or selected(ROUTE_PART, 3):
             shared_cases = (("shared", 0, 0, True), ("shared", 0, 0, False),
                             ("shared-blue", 1, 1, True), ("shared-red", 2, 2, True),
                             ("both-shared", 3, 0, True), ("branches-shared", 0, 0, True),
                             ("branches-shared", 0, 0, False))
             for kind, rotation, surface, restricted in shared_cases:
+                if not selected(ROUTE_PART, SHARED_SHARDS[kind, restricted]):
+                    continue
                 name = kind + ("-restricted" if restricted else "-free")
                 shared_path = output / f"{name}.cstrk"
                 shared_path.write_bytes(track_bytes(kind, rotation, surface))
@@ -428,9 +459,8 @@ def main():
                 expected_shared = 4 if kind == "shared" else 1 if kind == "both-shared" else 2
                 assert shared_playback["shared_passed"] == expected_shared
             print("Shared blue/red gates remain mandatory for both generated color cases and snapshots", flush=True)
-            print("Checkpoint forks compile and finish every blue/red route case", flush=True)
 
-        if args.part in (None, FORMAT_PART):
+        if selected(FORMAT_PART, 1):
             second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
             assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
             print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
@@ -524,14 +554,18 @@ def main():
                 path = output / f"bad{number}.cstrk"
                 path.write_bytes(malformed)
                 run(genghost, [path, "COUN", "--evaluations", 1, "--output", output / "bad.csrpl"], expected=1)
+            print("Format sniffing and malformed file rejection passed", flush=True)
+
+        # The dense payload balances the format part's other checks and 20 Hz barrels.
+        if selected(FORMAT_PART, 2):
             dense_path = output / "dense.cstrk"
             dense_path.write_bytes(track_bytes("dense"))
             assert len(dense_path.read_bytes()) > 65536
             _, dense_view, _, _ = generate(dense_path, "COUN", "dense.csrpl")
             assert dense_view["track"] == dense_path.read_bytes()
-            print("Format sniffing, large CSTRK payloads and malformed file rejection passed", flush=True)
+            print("Large CSTRK payloads generate independently verified ghosts", flush=True)
 
-        if args.part in (None, REPLAY_PART):
+        if selected(REPLAY_PART, 1):
             for rate, mode in ((20, "--snapshot"), (10, "--snapshot10")):
                 long_path = output / f"stationary{rate}.csrpl"
                 snapshot = json.loads(run(harness, [mode, wide_path, long_path]).stdout)
@@ -588,7 +622,7 @@ def main():
                 assert verify(refined)["total_frames"] <= baseline["total_frames"]
             print("Long CSRPL fine-tuning, metadata and explicit worker rules passed with both strategies", flush=True)
 
-        if args.part in (None, STUNT_PART):
+        if selected(STUNT_PART, 1):
             combined_path = output / "combined.cstrk"
             combined_path.write_bytes(track_bytes("combined"))
             _, combined_view, _, _ = generate(combined_path, "COUN", "combined.csrpl", evaluations=512)
@@ -615,6 +649,8 @@ def main():
                     source.write_bytes(blank_replay(barrel_path.read_bytes(), rate))
                     filename = f"barrel{rotation}-10.csrpl"
                 for collision in ("on", "off"):
+                    if not selected(BARREL_PARTS[rotation, rate], BARREL_SHARDS[rotation, rate][collision]):
+                        continue
                     collision_name = filename.replace(".csrpl", f"-{collision}.csrpl")
                     generated, barrel_view, _, checked = generate(
                         source, "P962", collision_name, evaluations=1024,

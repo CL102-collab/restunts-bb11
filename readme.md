@@ -1840,19 +1840,27 @@ CI runs in five phases, each requiring the previous phase to pass:
 A failed phase skips the later phases. Physics and renderer phase diagnostics
 remain available in their individual artifacts if replay validation fails.
 
-AddressSanitizer and UndefinedBehaviorSanitizer each build and run the host
-and SDL3 regression suites in a separate Linux x64 job, including the
-renderer-worker and audio tests. ThreadSanitizer splits the same suites across
-eleven parallel jobs. `genghost-extended-1` through `genghost-extended-4`
-run the complete extended suite in four parts. Part 4 covers fork and shared-gate
-searches to balance the format, checkpoint, and barrel checks in part 1.
-`genghost-search`, `genghost-fine-tune`, `genghost-parallel`, `extended-render`,
-and `render-replay` each run alone.
-Two jobs cover the remaining `genghost-` tests and the remaining tests without
-that prefix. These checks run for every platform selection and gate both PR
-validation and releases. Each job uses
-debug symbols, frame pointers, and fail-on-error sanitizer settings. ASan uses
-Clang 18 and also checks for leaks; TSan and UBSan use GCC. The ASan linker
+The twenty Linux x64 sanitizer jobs cover the host and SDL3 regression
+suites, including the renderer-worker and audio tests. AddressSanitizer splits
+the suite across two jobs: extended ghost and fine-tune tests in one, all
+remaining tests in the other. UndefinedBehaviorSanitizer runs the complete suite
+in one job. ThreadSanitizer splits the same coverage across seventeen jobs.
+
+CTest registers the extended ghost suite as `genghost-extended-<part>-<shard>`:
+parts 1, 2, and 3 each have two shards; part 4 has three. Part 4 covers fork and
+shared-gate searches. The script's `--part` option still runs that complete part;
+add `--shard` to run one shard, or omit both options to run the entire suite.
+`genghost-search-1` and `genghost-search-2` divide the search regression; its
+script runs both parts when `--part` is omitted. The restricted-driving search
+uses two distinct seeds with 1,000 evaluations each, retaining a total budget of
+2,000 evaluations while checking both generated replays. Each shard,
+`genghost-fine-tune`, `genghost-parallel`, `extended-render`, and `render-replay`
+has a dedicated TSan job. Two jobs cover the remaining `genghost-` tests and
+the remaining tests without that prefix. Each sanitizer runs every regression
+once across its jobs. These checks run for every platform selection and gate
+both PR validation and releases. Each job uses debug symbols, frame pointers,
+and fail-on-error sanitizer settings. ASan uses Clang 18 and also checks for
+leaks; TSan and UBSan use GCC. The ASan linker
 flags preserve removal of unused fixture data while retaining checks on all
 globals that remain in the executable. Bundled SDL3, wxWidgets, and Nuked are
 instrumented along with the game, launcher, and tests. Sanitizer builds disable
