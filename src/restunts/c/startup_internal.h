@@ -19,7 +19,13 @@
 #define CALLBACK_SOUND_HELP_KEY 19
 #define CALLBACK_DOS_HELP_ALT_KEY 24
 
+#define STARTUP_NO_SOUND_OPTION "--nosound"
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
+#define STARTUP_SOUND_MODE_PREFIX "--soundmode:"
+#define STARTUP_SOUND_ADLIB 0U
+#define STARTUP_SOUND_MT32 1U
+#define STARTUP_MT32_ROM_DIRECTORY_OPTION "--mt-32-rom-dir"
+#define STARTUP_MT32_MODEL_OPTION "--mt-32-model"
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
 #define STARTUP_MULTI_CORE_PREFIX "--multi-core:"
 #define STARTUP_MULTI_CORE_OFF 0U
@@ -55,6 +61,9 @@ struct STARTUP_OPTIONS {
 	legacy_u8 mph_display_enabled;
 	legacy_u8 mph_display_specified;
 #ifdef RESTUNTS_SDL3
+	legacy_u8 sound_mode;
+	const legacy_s8 *mt32_rom_directory;
+	const legacy_s8 *mt32_model;
 	legacy_u16 hires_preset;
 	legacy_u8 hires_specified;
 	legacy_u8 ogg_music_enabled;

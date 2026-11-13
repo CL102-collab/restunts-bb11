@@ -50,6 +50,19 @@ static legacy_s32 startup_render_scale = HIRES_SCALE;
 static legacy_u16 expected_hypervision_preset;
 static legacy_u8 expected_hypervision_enabled;
 static legacy_s32 startup_audio_driver_loaded;
+static legacy_u8 startup_configured_sound_mode;
+static legacy_u8 startup_configured_sound_disabled;
+static const legacy_char *startup_configured_rom_directory;
+static const legacy_char *startup_configured_mt32_model;
+
+void sdl3_audio_configure(legacy_u8 mode, const legacy_char *directory, const legacy_char *model,
+						  legacy_u8 disabled)
+{
+	startup_configured_sound_mode = mode;
+	startup_configured_sound_disabled = disabled;
+	startup_configured_rom_directory = directory;
+	startup_configured_mt32_model = model;
+}
 static legacy_s32 startup_ogg_music_enabled;
 static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
@@ -940,6 +953,64 @@ static void test_startup_hypervision_options(void)
 	}
 }
 
+static void test_startup_sound_options(void)
+{
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game",
+							  (legacy_s8 *)"--soundmode:mt-32",
+							  (legacy_s8 *)"--mt-32-rom-dir",
+							  (legacy_s8 *)"/some folder/roms",
+							  (legacy_s8 *)"--mt-32-model",
+							  (legacy_s8 *)"mt32_1_07"};
+	startup_parse_options(sizeof(arguments) / sizeof(arguments[0]), arguments, &startup_options);
+	assert(startup_options.sound_mode == STARTUP_SOUND_MT32);
+	assert(strcmp(startup_options.mt32_rom_directory, "/some folder/roms") == 0);
+	assert(strcmp(startup_options.mt32_model, "mt32_1_07") == 0);
+	/* A Unix ROM path must be consumed as data, not mistaken for legacy /sXX. */
+	audiodriverstring[0] = 'a';
+	audiodriverstring[1] = 'd';
+	startup_parse_options(sizeof(arguments) / sizeof(arguments[0]), arguments, &startup_options);
+	assert(audiodriverstring[0] == 'a' && audiodriverstring[1] == 'd');
+
+	legacy_s8 *equals[] = {(legacy_s8 *)"game", (legacy_s8 *)"--SOUNDMODE:MT-32",
+						   (legacy_s8 *)"--mt-32-rom-dir=/roms",
+						   (legacy_s8 *)"--mt-32-model=mt32_2_07"};
+	startup_parse_options(sizeof(equals) / sizeof(equals[0]), equals, &startup_options);
+	assert(startup_options.sound_mode == STARTUP_SOUND_MT32);
+	assert(strcmp(startup_options.mt32_rom_directory, "/roms") == 0);
+	assert(strcmp(startup_options.mt32_model, "mt32_2_07") == 0);
+
+	static const legacy_s8 *mute_flags[] = {"--nosound", "/ns"};
+	for (legacy_u16 mute = 0; mute < sizeof(mute_flags) / sizeof(mute_flags[0]); mute++) {
+		for (legacy_u16 position = 0; position < 3; position++) {
+			legacy_s8 *order[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:mt-32",
+								  (legacy_s8 *)"--soundmode:adlib",
+								  (legacy_s8 *)"--soundmode:mt-32"};
+			order[position + 1] = (legacy_s8 *)mute_flags[mute];
+			startup_parse_options(sizeof(order) / sizeof(order[0]), order, &startup_options);
+			assert(startup_options.sound_disabled);
+		}
+	}
+	legacy_s8 *muted[] = {(legacy_s8 *)"game", (legacy_s8 *)"--nosound",
+						  (legacy_s8 *)"--soundmode:mt-32", (legacy_s8 *)"--ogg:on"};
+	reset_startup_hypervision();
+	init_main(sizeof(muted) / sizeof(muted[0]), muted);
+	assert(startup_configured_sound_mode == STARTUP_SOUND_MT32);
+	assert(startup_configured_sound_disabled);
+	assert(startup_configured_rom_directory == NULL && startup_configured_mt32_model == NULL);
+	assert(startup_ogg_music_enabled == 0);
+
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	startup_parse_options(sizeof(defaults) / sizeof(defaults[0]), defaults, &startup_options);
+	assert(!startup_options.sound_disabled && startup_options.sound_mode == STARTUP_SOUND_ADLIB);
+	assert(startup_options.mt32_rom_directory == NULL && startup_options.mt32_model == NULL);
+	static const legacy_s8 *invalid[] = {"--soundmode:",  "--soundmode:opl3", "--mt-32-rom-dir",
+										 "--mt-32-model", "--mt-32-rom-dir=", "--mt-32-model="};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		legacy_s8 *bad[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(bad) / sizeof(bad[0]), bad);
+	}
+}
+
 static void test_startup_ogg_music_options(void)
 {
 	static const struct {
@@ -953,7 +1024,7 @@ static void test_startup_ogg_music_options(void)
 		reset_startup_hypervision();
 		expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_LOW;
 		expected_hypervision_enabled = 1;
-		expected_ogg_music_enabled = cases[index].enabled;
+		expected_ogg_music_enabled = 0;
 		expected_initial_intro_calls = index % 2U;
 		menu_calls = intro_calls = game_calls = score_calls = 0;
 		is_audioloaded = 0;
@@ -1194,7 +1265,7 @@ static void test_startup_fps_display_options(void)
 #ifdef RESTUNTS_SDL3
 		expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_LOW;
 		expected_hypervision_enabled = 1;
-		expected_ogg_music_enabled = 1;
+		expected_ogg_music_enabled = 0;
 #endif
 		expected_fps_display_enabled = cases[index].mode;
 		fps_display_enabled = cases[index].mode == FRAME_FPS_DISPLAY_OFF ? FRAME_FPS_DISPLAY_ON
@@ -1459,6 +1530,7 @@ int main(void)
 #ifdef RESTUNTS_SDL3
 	test_startup_hypervision_options();
 	test_startup_ogg_music_options();
+	test_startup_sound_options();
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	test_startup_control_layout_options();
 #endif

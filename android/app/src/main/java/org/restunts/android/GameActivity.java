@@ -267,7 +267,7 @@ public final class GameActivity extends SDLActivity {
 
     @Override
     protected String[] getLibraries() {
-        return new String[] {"SDL3", "nuked-opl2", "main"};
+        return Mt32RomLibrary.libraries();
     }
 
     @Override
@@ -290,6 +290,10 @@ public final class GameActivity extends SDLActivity {
             intent.getBooleanExtra(LaunchOptions.SKIP_INTRO_KEY, LaunchOptions.DEFAULT_SKIP_INTRO),
             intent.getBooleanExtra(LaunchOptions.MULTI_CORE_KEY, LaunchOptions.DEFAULT_MULTI_CORE),
             intent.getBooleanExtra(LaunchOptions.SHOW_MPH_KEY, LaunchOptions.DEFAULT_SHOW_MPH));
+        options = options.withSoundMode(LaunchOptions.SoundMode.fromStored(
+            intent.getStringExtra(LaunchOptions.SOUND_MODE_KEY), options.sound),
+            intent.getStringExtra(LaunchOptions.MT32_ROM_DIRECTORY_KEY),
+            intent.getStringExtra(LaunchOptions.MT32_MODEL_KEY));
         return options.arguments(new File(getFilesDir(), "game").getAbsolutePath());
     }
 }

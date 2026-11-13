@@ -59,6 +59,10 @@ if(APPLE)
     # Keep SDL's .m sources as Objective-C when the launcher enables Objective-C++.
     enable_language(OBJC)
 endif()
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS" AND NOT RESTUNTS_GENGHOST_ONLY)
+    # The MT-32 synth and ROM discovery layer use C++ on native, Android and Web.
+    enable_language(CXX)
+endif()
 if(RESTUNTS_BUILD_LAUNCHER)
     enable_language(CXX)
     if(WIN32)
@@ -321,7 +325,8 @@ target_compile_definitions(restunts_options INTERFACE RESTUNTS_SDL3
 target_include_directories(restunts_options INTERFACE "${CMAKE_SOURCE_DIR}/${core}")
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(restunts_options INTERFACE -fsigned-char -fno-strict-aliasing
-        -Wall -Wextra -Wno-pointer-sign -Wno-missing-field-initializers -Wno-missing-braces)
+        -Wall -Wextra "$<$<COMPILE_LANGUAGE:C>:-Wno-pointer-sign>"
+        -Wno-missing-field-initializers -Wno-missing-braces)
 endif()
 target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
 
@@ -369,6 +374,10 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_library(restunts_opl ALIAS nuked_opl2)
 endif()
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    include(cmake/mt32emu.cmake)
+endif()
+
 # The portable VP8/WebM decoder is a separate static archive for browser relinking.
 include(cmake/webm.cmake)
 
@@ -377,6 +386,14 @@ add_library(restunts_vorbis OBJECT third_party/stb/stb_vorbis.c)
 target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
+if(TARGET mt32emu)
+    target_sources(restunts_game PRIVATE ${platform}/mt32_roms.cpp
+        ${platform}/mt32_driver.c ${platform}/mt32_audio.c)
+    target_link_libraries(restunts_game PUBLIC mt32emu)
+    target_compile_features(restunts_game PRIVATE cxx_std_11)
+    target_compile_definitions(restunts_game PUBLIC RESTUNTS_MT32)
+endif()
+
 target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
@@ -410,6 +427,10 @@ else()
     target_compile_definitions(restunts PRIVATE RESTUNTS_FULL)
 endif()
 target_link_libraries(restunts PRIVATE restunts_game)
+if(ANDROID AND TARGET mt32emu)
+    # JNI exports have no static call sites; retain their object in libmain.
+    target_sources(restunts PRIVATE ${platform}/mt32_roms_jni.cpp)
+endif()
 
 foreach(component Runtime Tests)
     set(exclude_from_default)
@@ -558,6 +579,30 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
+    if(TARGET mt32emu)
+        add_executable(test-mt32-roms src/restunts/tests/test-mt32-roms.cpp
+            ${platform}/mt32_roms.cpp)
+        target_link_libraries(test-mt32-roms PRIVATE restunts_options mt32emu)
+        target_compile_features(test-mt32-roms PRIVATE cxx_std_11)
+        target_compile_definitions(test-mt32-roms PRIVATE RESTUNTS_MT32_ROM_TESTS)
+        target_compile_options(test-mt32-roms PRIVATE -UNDEBUG)
+        add_test(NAME mt32-rom-discovery COMMAND test-mt32-roms)
+        add_executable(test-mt32-driver src/restunts/tests/test-mt32-driver.c
+            ${platform}/mt32_driver.c)
+        target_link_libraries(test-mt32-driver PRIVATE restunts_options)
+        target_compile_options(test-mt32-driver PRIVATE -UNDEBUG)
+        add_test(NAME mt32-driver-protocol COMMAND test-mt32-driver)
+        add_executable(test-mt32-sequence src/restunts/tests/test-mt32-sequence.c)
+        target_link_libraries(test-mt32-sequence PRIVATE restunts_game)
+        target_compile_options(test-mt32-sequence PRIVATE -UNDEBUG)
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mt32-sequence-test")
+        add_test(NAME mt32-sequence COMMAND test-mt32-sequence
+            "${CMAKE_SOURCE_DIR}/stunts"
+            "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/music/tone-mono.ogg")
+        set_tests_properties(mt32-sequence PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mt32-sequence-test"
+            ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
+    endif()
     set(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER 1 CACHE STRING
         "Timeout multiplier for native ghost and rendering regressions")
     if(NOT RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER MATCHES "^[1-9][0-9]*$")

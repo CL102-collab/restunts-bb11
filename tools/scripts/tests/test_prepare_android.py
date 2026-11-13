@@ -127,13 +127,19 @@ class AndroidPreparationTests(unittest.TestCase):
         self.write_pin()
         vpx = source_archive({"LICENSE": "vpx license\n", "PATENTS": "vpx patents\n"})
         nestegg = source_archive({"LICENSE": "nestegg license\n"})
+        munt = source_archive({"mt32emu/COPYING.LESSER.txt": "mt32emu LGPL\n",
+                               "mt32emu/COPYING.txt": "mt32emu GPL\n"})
         archives = {self.url: self.archive, "https://example.test/vpx.tar.gz": vpx,
-                    "https://example.test/nestegg.tar.gz": nestegg}
+                    "https://example.test/nestegg.tar.gz": nestegg,
+                    "https://example.test/munt.tar.gz": munt}
         (self.root / "cmake").mkdir()
         (self.root / "cmake/webm.cmake").write_text("\n".join(
             f"FetchContent_Declare(restunts_{name}\n URL https://example.test/{name}.tar.gz\n"
             f" URL_HASH SHA256={hashlib.sha256(data).hexdigest()})"
             for name, data in (("vpx", vpx), ("nestegg", nestegg))))
+        (self.root / "cmake/mt32emu.cmake").write_text(
+            "FetchContent_Declare(restunts_munt\n URL https://example.test/munt.tar.gz\n"
+            f" URL_HASH SHA256={hashlib.sha256(munt).hexdigest()})")
         for path in ("THIRD-PARTY-NOTICES.txt", "third_party/nuked-opl2-lite/LICENSE",
                      "third_party/stb/LICENSE", "docs/genghost.md", "docs/genghost-android.md"):
             destination = self.root / path
@@ -158,6 +164,9 @@ class AndroidPreparationTests(unittest.TestCase):
         self.assertTrue((wrapper.parent / "gradle/wrapper/gradle-wrapper.properties").is_file())
         self.assertEqual((self.root / "android/generated-assets/licenses/SDL-LICENSE.txt").read_text(),
                          "SDL license\n")
+        licenses = self.root / "android/generated-assets/licenses"
+        self.assertEqual((licenses / "MT32EMU-COPYING.LESSER.txt").read_text(), "mt32emu LGPL\n")
+        self.assertEqual((licenses / "MT32EMU-COPYING.txt").read_text(), "mt32emu GPL\n")
         with mock.patch.dict(os.environ, {"ANDROID_HOME": str(sdk)}), \
                 mock.patch.object(ANDROID.urllib.request, "urlopen") as download:
             GENGHOST.prepare(self.root)

@@ -54,13 +54,17 @@
         }
         #log { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
         input[type="file"] { max-width: 100%; }
+        .mt32-settings { margin-top: 12px; }
+        .rom-folder-row { margin: 6px 0 12px; }
+        .rom-folder-row input { flex: 1 1 180px; min-width: 0; box-sizing: border-box; max-width: 100%; font: inherit; padding: 8px; border: 1px solid #63748a; border-radius: 6px; background: #1b2635; color: inherit; }
+        #rom-status { margin: 8px 0; min-height: 1.5em; }
     </style>
 </head>
 <body>
     <main>
         <h1>Chocolate Stunts</h1>
         <p>The classic driving game, <strong>Brøderbund Stunts 1.1</strong>, playable in your browser.</p>
-        <p><strong>Your game files and saves stay on your device and are never uploaded.</strong></p>
+        <p><strong>Your game files, ROMs and saves stay on your device and are never uploaded.</strong></p>
         <p><a href="tracked.html" target="_blank" rel="noopener">Open the extended 2D track editor</a> to build .cstrk tracks up to 90 × 90 tiles.</p>
         <details>
             <summary>Setup instructions</summary>
@@ -81,13 +85,38 @@
             <label for="game-files">Choose game folder</label>
             <input id="game-files" type="file" webkitdirectory multiple disabled>
         </div>
-        <div class="controls">
-            <button id="start" disabled>Start game</button>
-            <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
-            <label><input id="sound-enabled" type="checkbox" checked disabled> Sound enabled</label>
-            <label><input id="new-midi" type="checkbox" checked disabled> New MIDI</label>
-            <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
-        </div>
+        <fieldset class="settings" id="startup-options">
+            <legend>Startup options</legend>
+            <div class="controls">
+                <button id="start" disabled>Start game</button>
+                <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
+                <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
+            </div>
+        </fieldset>
+        <fieldset class="settings" id="sound-settings">
+            <legend>Sound settings</legend>
+            <div class="settings-row">
+                <label for="sound-mode">Sound mode <select id="sound-mode" disabled>
+                    <option value="none">No sound</option>
+                    <option value="adlib" selected>Ad Lib</option>
+                    <option value="mt-32">MT-32</option>
+                </select></label>
+                <label><input id="new-midi" type="checkbox" checked disabled> OGG music replacement</label>
+            </div>
+            <div class="mt32-settings" id="mt32-settings" hidden>
+                <label for="mt32-rom-folder">Choose your MT-32 ROM folder path.</label>
+                <div class="settings-row rom-folder-row">
+                    <input id="mt32-rom-folder" type="text" readonly placeholder="No ROM folder selected" disabled>
+                    <button id="open-rom-folder" disabled>Browse...</button>
+                </div>
+                <input id="rom-files" type="file" webkitdirectory multiple hidden disabled>
+                <button id="restore-rom-folder" hidden disabled>Allow ROM folder access</button>
+                <label for="mt32-model">ROM set <select id="mt32-model" disabled>
+                    <option value="">Choose a ROM folder first</option>
+                </select></label>
+                <p id="rom-status" role="status" aria-live="polite"></p>
+            </div>
+        </fieldset>
         <fieldset class="settings" id="graphics-settings">
             <legend>Graphics settings</legend>
             <div class="settings-row">
@@ -175,7 +204,7 @@
             </tbody>
             <tbody>
                 <tr><th colspan="2" scope="rowgroup">Pause, menus, and sound</th></tr>
-                <tr><th scope="row"><kbd>Shift+F10</kbd></th><td>Switch between New MIDI and original AdLib music
+                <tr><th scope="row"><kbd>Shift+F10</kbd></th><td>Switch between OGG music replacement and the selected synthesizer music
                     during the intro, menus, and race-end screens.</td></tr>
                 <tr><th scope="row"><kbd>Ctrl+M</kbd></th><td>Toggle music.</td></tr>
                 <tr><th scope="row"><kbd>Ctrl+S</kbd></th><td>Toggle sound effects.</td></tr>
@@ -223,6 +252,12 @@
     <script>
         'use strict';
         const DATA_DIRECTORY = '/stunts';
+        const ROM_DIRECTORY = '/mt32-roms';
+        const ROM_PENDING_DIRECTORY = '/mt32-roms-pending';
+        const MAX_ROM_BYTES = 64 * 1024 * 1024;
+        const MAX_ROM_FILE_BYTES = 4 * 1024 * 1024;
+        const MAX_ROM_FILES = 512;
+        const MAX_ROM_DIRECTORY_DEPTH = 32;
         const SAVE_FORMAT = 'restunts-saves';
         const SAVE_VERSION = 1;
         const MAX_IMPORT_BYTES = 16 * 1024 * 1024;
@@ -262,10 +297,11 @@
         const SCREENSHOT_NUMBER_WIDTH = 4;
         const SCREENSHOT_MIME_TYPE = 'image/png';
         const STORAGE_DATABASE = 'restunts-folders';
-        const STORAGE_DATABASE_VERSION = 2;
+        const STORAGE_DATABASE_VERSION = 3;
         const FOLDER_STORE = 'folders';
+        const ROM_FOLDER_STORE = 'mt32-rom-folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'hypervision', 'new-midi', 'start-fullscreen',
             'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
@@ -327,6 +363,14 @@
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
         const hyperVision = document.getElementById('hypervision');
+        const soundMode = document.getElementById('sound-mode');
+        const mt32Settings = document.getElementById('mt32-settings');
+        const romFolder = document.getElementById('mt32-rom-folder');
+        const openRomFolder = document.getElementById('open-rom-folder');
+        const restoreRomFolder = document.getElementById('restore-rom-folder');
+        const romFiles = document.getElementById('rom-files');
+        const mt32Model = document.getElementById('mt32-model');
+        const romStatus = document.getElementById('rom-status');
         const multiCore = document.getElementById('multi-core');
         const multiCoreNote = document.getElementById('multi-core-note');
         const saveControls = document.getElementById('save-controls');
@@ -335,6 +379,12 @@
         const diskNames = new Map();
         let directoryHandle = null;
         let rememberedDirectory = null;
+        let rememberedRomDirectory = null;
+        let romFolderRestoreAttempted = false;
+        let romFallbackOnly = false;
+        let rememberedRomModel = '';
+        let romSets = [];
+        let launcherLoading = true;
         const exporter = document.getElementById('export');
         const fullscreen = document.getElementById('fullscreen');
         const baseline = new Map();
@@ -522,12 +572,13 @@
                     'This browser offers read-only folder access. Use Export saves to keep changes.';
                 status.textContent = 'Choose your Stunts game folder to continue.';
                 setLoading(true);
-                Promise.all([restoreRememberedFolder(), restoreLaunchOptions()]).finally(() => setLoading(false));
+                Promise.all([restoreRememberedFolder(), restoreLaunchOptions()])
+                    .then(() => restoreRememberedRomFolder()).finally(() => setLoading(false));
             }
         };
 
         start.addEventListener('click', () => {
-            if (started || !gameLoaded) return;
+            if (started || !gameLoaded || !soundSelectionReady()) return;
             started = true;
             gameRunning = true;
             loadProgress.hidden = true;
@@ -536,6 +587,11 @@
             gameFiles.disabled = true;
             openFolder.disabled = true;
             restoreFolder.disabled = true;
+            openRomFolder.disabled = true;
+            restoreRomFolder.disabled = true;
+            romFiles.disabled = true;
+            mt32Model.disabled = true;
+            romFolder.disabled = true;
             for (const option of launchOptions) option.disabled = true;
             fullscreen.disabled = false;
             exporter.disabled = false;
@@ -544,7 +600,14 @@
             canvas.focus();
             const args = ['--data-dir', DATA_DIRECTORY];
             if (document.getElementById('skip-intro').checked) args.push('--nointro');
-            if (!document.getElementById('sound-enabled').checked) args.push('/ns');
+            if (soundMode.value === 'none') {
+                args.push('--nosound');
+            } else {
+                args.push('--soundmode:' + soundMode.value);
+                if (soundMode.value === 'mt-32') {
+                    args.push('--mt-32-rom-dir', ROM_DIRECTORY, '--mt-32-model', mt32Model.value);
+                }
+            }
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(document.getElementById('show-mph').checked ? '--showmph:on' : '--showmph:off');
@@ -664,6 +727,7 @@
         });
 
         function setLoading(loading) {
+            launcherLoading = loading;
             // A completed import clears the class itself; otherwise it failed.
             if (loading || loadProgress.classList.contains('loading')) loadProgress.hidden = true;
             loadProgress.classList.remove('loading');
@@ -676,7 +740,8 @@
             openFolder.disabled = loading || started;
             restoreFolder.disabled = loading || started;
             gameFiles.disabled = loading || started;
-            start.disabled = loading || started || !gameLoaded;
+            start.disabled = loading || started || !gameLoaded || !soundSelectionReady();
+            updateSoundControls();
             importer.disabled = loading || started || !gameLoaded;
             exporter.disabled = loading || !gameLoaded;
         }
@@ -802,15 +867,238 @@
             }
             gameLoaded = true;
             loadProgress.classList.remove('loading');
-            status.textContent = 'Loaded ' + pending.size + ' game files. Click Start game to play with sound.';
+            status.textContent = 'Loaded ' + pending.size + ' game files. Click Start game to play.';
         }
+
+        function soundSelectionReady() {
+            return soundMode.value !== 'mt-32' || romSets.some(set => set.id === mt32Model.value);
+        }
+
+        function updateSoundControls() {
+            const selected = soundMode.value === 'mt-32';
+            const blocked = launcherLoading || started;
+            mt32Settings.hidden = !selected;
+            romFolder.disabled = blocked || !selected;
+            openRomFolder.disabled = blocked || !selected;
+            restoreRomFolder.disabled = blocked || !selected;
+            romFiles.disabled = blocked || !selected;
+            mt32Model.disabled = blocked || !selected || romSets.length < 2;
+            start.disabled = blocked || !gameLoaded || !soundSelectionReady();
+            if (selected && !romSets.length && !romStatus.textContent) {
+                romStatus.textContent = 'Choose a folder containing your MT-32 control and PCM ROMs.';
+            }
+        }
+
+        function clearRomDirectory(directory) {
+            Module.FS.mkdirTree(directory);
+            for (const name of Module.FS.readdir(directory)) {
+                if (name === '.' || name === '..') continue;
+                const child = directory + '/' + name;
+                if (Module.FS.isDir(Module.FS.stat(child).mode)) {
+                    clearRomDirectory(child);
+                    Module.FS.rmdir(child);
+                } else {
+                    Module.FS.unlink(child);
+                }
+            }
+        }
+
+        function romImportPath(path) {
+            if (typeof path !== 'string' || !path || path.includes('\\') || path.includes(String.fromCharCode(0))) return null;
+            const parts = path.split('/');
+            if (parts.length > MAX_ROM_DIRECTORY_DEPTH || parts.some(part => !part || part === '.' || part === '..')) return null;
+            return parts.join('/');
+        }
+
+        function readRomInventory(directory) {
+            if (typeof Module.ccall !== 'function' || typeof Module.UTF8ToString !== 'function') {
+                throw new Error('MT-32 ROM scanning is unavailable in this build.');
+            }
+            const pointer = Module.ccall('mt32_rom_inventory_json', 'number', ['string'], [directory]);
+            if (!pointer) throw new Error('Cannot scan the MT-32 ROM folder.');
+            let inventory;
+            try {
+                inventory = JSON.parse(Module.UTF8ToString(pointer));
+            } finally {
+                Module.ccall('mt32_rom_inventory_free', null, ['number'], [pointer]);
+            }
+            if (!inventory || !Array.isArray(inventory.sets)) throw new Error('Invalid MT-32 ROM scan result.');
+            const unique = new Map();
+            for (const set of inventory.sets) {
+                if (set && typeof set.id === 'string' && /^[a-z0-9_]+$/.test(set.id) &&
+                    typeof set.label === 'string') unique.set(set.id, { id: set.id, label: set.label });
+            }
+            return { sets: Array.from(unique.values()), error: typeof inventory.error === 'string' ? inventory.error : '' };
+        }
+
+        async function loadRomFiles(files, folderName) {
+            const contents = new Map();
+            let totalBytes = 0;
+            if (files.length > MAX_ROM_FILES) throw new Error('The ROM folder contains too many files. Select a smaller ROM folder.');
+            for (const entry of files) {
+                const path = romImportPath(entry.path);
+                if (!path) throw new Error('Invalid ROM folder path.');
+                const file = entry.file || await entry.handle.getFile();
+                // Known ROM images are small. Ignore unrelated large files without reading them.
+                if (!file.size || file.size > MAX_ROM_FILE_BYTES) continue;
+                totalBytes += file.size;
+                if (totalBytes > MAX_ROM_BYTES) throw new Error('ROM folder files exceed 64 MiB. Select a smaller ROM folder.');
+                if (contents.has(path)) throw new Error('Duplicate ROM filename: ' + path);
+                contents.set(path, new Uint8Array(await file.arrayBuffer()));
+            }
+            clearRomDirectory(ROM_PENDING_DIRECTORY);
+            try {
+                for (const [name, bytes] of contents) {
+                    const path = ROM_PENDING_DIRECTORY + '/' + name;
+                    Module.FS.mkdirTree(path.slice(0, path.lastIndexOf('/')));
+                    Module.FS.writeFile(path, bytes);
+                }
+                const inventory = readRomInventory(ROM_PENDING_DIRECTORY);
+                if (!inventory.sets.length) throw new Error(inventory.error || 'No complete compatible control and PCM ROM set was found.');
+                // Replace the playable ROM folder only after reading and validating the entire selection.
+                clearRomDirectory(ROM_DIRECTORY);
+                for (const [name, bytes] of contents) {
+                    const path = ROM_DIRECTORY + '/' + name;
+                    Module.FS.mkdirTree(path.slice(0, path.lastIndexOf('/')));
+                    Module.FS.writeFile(path, bytes);
+                }
+                romSets = inventory.sets;
+                mt32Model.replaceChildren(new Option('Choose a ROM set', ''));
+                for (const set of romSets) mt32Model.add(new Option(set.label, set.id));
+                mt32Model.value = romSets.some(set => set.id === rememberedRomModel) ? rememberedRomModel :
+                    (romSets.length === 1 ? romSets[0].id : '');
+                rememberedRomModel = mt32Model.value;
+                romFolder.value = folderName;
+                restoreRomFolder.hidden = true;
+                romStatus.textContent = romSets.length === 1 ? 'Ready: ' + romSets[0].label + '.' :
+                    'Found ' + romSets.length + ' complete ROM sets. Choose the version to use.';
+                await rememberLaunchOptions();
+            } finally {
+                clearRomDirectory(ROM_PENDING_DIRECTORY);
+            }
+        }
+
+        async function loadRomDirectory(selected) {
+            const files = [];
+            async function collect(directory, prefix, depth) {
+                if (depth > MAX_ROM_DIRECTORY_DEPTH) throw new Error('The ROM folder contains too many nested folders.');
+                for await (const entry of directory.values()) {
+                    if (files.length >= MAX_ROM_FILES) throw new Error('The ROM folder contains too many files. Select a smaller ROM folder.');
+                    const path = prefix + entry.name;
+                    if (entry.kind === 'file') files.push({ handle: entry, path });
+                    else if (entry.kind === 'directory') await collect(entry, path + '/', depth + 1);
+                }
+            }
+            await collect(selected, '', 0);
+            await loadRomFiles(files, selected.name);
+            rememberedRomDirectory = selected;
+            romFolderRestoreAttempted = true;
+            romFallbackOnly = false;
+        }
+
+        function showRomFolderError(error) {
+            romStatus.textContent = error.name === 'AbortError' ? 'ROM folder selection cancelled.' :
+                'ROM folder loading failed: ' + error.message;
+            if (romSets.length) romStatus.textContent += ' The previous ROM folder is still selected.';
+            if (error.name === 'SecurityError' || error.name === 'NotAllowedError') {
+                romFallbackOnly = true;
+                romStatus.textContent += ' Use Browse... to select a read-only ROM folder instead.';
+            }
+        }
+
+        async function restoreRememberedRomFolder() {
+            if (soundMode.value !== 'mt-32' || romFolderRestoreAttempted) return;
+            romFolderRestoreAttempted = true;
+            if (!directSavingAvailable) return;
+            let stored;
+            try {
+                stored = await browserStorage(ROM_FOLDER_STORE, 'readonly');
+            } catch (error) {
+                log('Remembered ROM folder unavailable: ' + error.message);
+                return;
+            }
+            if (!stored || stored.kind !== 'directory' || typeof stored.queryPermission !== 'function') return;
+            rememberedRomDirectory = stored;
+            romFolder.value = stored.name;
+            restoreRomFolder.hidden = false;
+            romStatus.textContent = 'Allow read access to the remembered ROM folder, or choose another folder.';
+            try {
+                if (await stored.queryPermission({ mode: 'read' }) === 'granted') await loadRomDirectory(stored);
+            } catch (error) {
+                showRomFolderError(error);
+            }
+        }
+
+        openRomFolder.addEventListener('click', async () => {
+            if (started || soundMode.value !== 'mt-32') return;
+            if (!directSavingAvailable || romFallbackOnly) {
+                romFiles.click();
+                return;
+            }
+            setLoading(true);
+            romStatus.textContent = 'Reading MT-32 ROM folder…';
+            try {
+                const selected = await window.showDirectoryPicker({ mode: 'read', id: 'mt32-roms' });
+                await loadRomDirectory(selected);
+                try {
+                    await browserStorage(ROM_FOLDER_STORE, 'readwrite', selected);
+                } catch (error) {
+                    log('ROM folder could not be remembered for next time: ' + error.message);
+                }
+            } catch (error) {
+                showRomFolderError(error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        restoreRomFolder.addEventListener('click', async () => {
+            if (started || soundMode.value !== 'mt-32' || !rememberedRomDirectory) return;
+            setLoading(true);
+            try {
+                if (await rememberedRomDirectory.requestPermission({ mode: 'read' }) !== 'granted') {
+                    throw new DOMException('Read access to the ROM folder was not granted.', 'NotAllowedError');
+                }
+                await loadRomDirectory(rememberedRomDirectory);
+            } catch (error) {
+                showRomFolderError(error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        romFiles.addEventListener('change', async () => {
+            if (started || soundMode.value !== 'mt-32' || !romFiles.files.length) return;
+            setLoading(true);
+            romStatus.textContent = 'Reading MT-32 ROM folder…';
+            try {
+                const selected = Array.from(romFiles.files);
+                const folderName = selected[0].webkitRelativePath.split('/')[0];
+                await loadRomFiles(selected.map(file => ({ file,
+                    path: file.webkitRelativePath.split('/').slice(1).join('/') })), folderName);
+                rememberedRomDirectory = null;
+                romFolderRestoreAttempted = true;
+                romStatus.textContent += ' Select this folder again next visit if your browser cannot remember it.';
+            } catch (error) {
+                showRomFolderError(error);
+            } finally {
+                romFiles.value = '';
+                setLoading(false);
+            }
+        });
+
+        mt32Model.addEventListener('change', async () => {
+            rememberedRomModel = mt32Model.value;
+            updateSoundControls();
+            await rememberLaunchOptions();
+        });
 
         async function browserStorage(storeName, mode, value) {
             const database = await new Promise((resolve, reject) => {
                 let blocked = false;
                 const request = indexedDB.open(STORAGE_DATABASE, STORAGE_DATABASE_VERSION);
                 request.onupgradeneeded = () => {
-                    for (const name of [FOLDER_STORE, LAUNCH_OPTIONS_STORE]) {
+                    for (const name of [FOLDER_STORE, ROM_FOLDER_STORE, LAUNCH_OPTIONS_STORE]) {
                         if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
                     }
                 };
@@ -856,9 +1144,14 @@
             try {
                 const stored = await browserStorage(LAUNCH_OPTIONS_STORE, 'readonly');
                 if (!stored || typeof stored !== 'object') return;
+                rememberedRomModel = typeof stored['mt32-model'] === 'string' ? stored['mt32-model'] : '';
                 for (const option of launchOptions) {
                     const value = stored[option.id];
-                    if (option === hyperVision) {
+                    if (option === soundMode) {
+                        const mode = typeof value === 'string' ? value :
+                            (stored['sound-enabled'] === false ? 'none' : 'adlib');
+                        if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
+                    } else if (option === hyperVision) {
                         // Older pages stored HyperVision as an on/off checkbox.
                         const mode = typeof value === 'boolean' ? (value ? 'auto' : 'off') : value;
                         if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
@@ -871,15 +1164,31 @@
             }
         }
 
+        async function rememberLaunchOptions() {
+            const values = Object.fromEntries(launchOptions.map(option =>
+                [option.id, option === hyperVision || option === soundMode ? option.value : option.checked]));
+            values['mt32-model'] = rememberedRomModel;
+            try {
+                await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);
+            } catch (error) {
+                log('Launch options could not be remembered for next time: ' + error.message);
+            }
+        }
+
         for (const option of launchOptions) {
             option.addEventListener('change', async () => {
-                const values = Object.fromEntries(launchOptions.map(option =>
-                    [option.id, option === hyperVision ? option.value : option.checked]));
-                try {
-                    await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);
-                } catch (error) {
-                    log('Launch options could not be remembered for next time: ' + error.message);
+                if (option === soundMode) {
+                    updateSoundControls();
+                    if (soundMode.value === 'mt-32' && !romFolderRestoreAttempted) {
+                        setLoading(true);
+                        try {
+                            await restoreRememberedRomFolder();
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
                 }
+                await rememberLaunchOptions();
             });
         }
 

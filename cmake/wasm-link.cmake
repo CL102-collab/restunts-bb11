@@ -31,7 +31,8 @@ function(restunts_configure_wasm target asset_root shell)
         -sSTACK_SIZE=${restunts_stack_bytes}
         -sALLOW_MEMORY_GROWTH=1
         -sEXIT_RUNTIME=1
-        "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']"
+        "-sEXPORTED_RUNTIME_METHODS=['FS','callMain','ccall','UTF8ToString']"
+        "-sEXPORTED_FUNCTIONS=['_main','_mt32_rom_inventory_json','_mt32_rom_inventory_free']"
         "SHELL:--pre-js \"${restunts_thread_mode}\""
         "SHELL:--shell-file \"${shell}\""
         "SHELL:--embed-file \"${asset_root}/assets@/assets\"")

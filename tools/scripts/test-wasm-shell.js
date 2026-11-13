@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -49,6 +49,23 @@ const RUNTIME = `<script>
     };
     Module['restuntsMultiCoreSupported'] = true;
     Module.callMain = args => { window.launchedArguments = args; };
+    window.fixtureRomScanCalls = [];
+    window.fixtureRomInventoryFreeCalls = 0;
+    Module.ccall = (name, result, types, args) => {
+        if (name === 'mt32_rom_inventory_json') {
+            window.fixtureRomScanCalls.push(args[0]);
+            return 1;
+        }
+        if (name === 'mt32_rom_inventory_free') {
+            window.fixtureRomInventoryFreeCalls++;
+            return;
+        }
+        throw new Error('Unexpected native function: ' + name);
+    };
+    Module.UTF8ToString = pointer => {
+        if (pointer !== 1) throw new Error('Unexpected inventory pointer');
+        return JSON.stringify(window.fixtureRomInventory || { sets: [], error: 'Compatible PCM ROM missing.' });
+    };
     // Pinned SDL overrides this entry point and requests fullscreen on #canvas
     // through emscripten_request_fullscreen_strategy (SDL_emscriptenvideo.c).
     Module.requestFullscreen = () => Module.canvas.requestFullscreen();
@@ -71,9 +88,15 @@ async function storedOptions(page) {
 
 async function assertSettingsLayout(page, narrow) {
     const layout = await page.evaluate(ids => {
+        const startup = document.getElementById('startup-options').getBoundingClientRect();
+        const sound = document.getElementById('sound-settings').getBoundingClientRect();
         const graphics = document.getElementById('graphics-settings').getBoundingClientRect();
         const driving = document.getElementById('driving-rules').getBoundingClientRect();
         return {
+            startupBottom: startup.bottom,
+            soundTop: sound.top,
+            soundBottom: sound.bottom,
+            graphicsTop: graphics.top,
             graphicsBottom: graphics.bottom,
             drivingTop: driving.top,
             graphicsControls: Array.from(document.querySelectorAll('#graphics-settings input, #graphics-settings select'))
@@ -98,6 +121,8 @@ async function assertSettingsLayout(page, narrow) {
             viewportWidth: innerWidth
         };
     }, RULES);
+    assert.ok(layout.soundTop >= layout.startupBottom, 'Sound settings must follow startup options');
+    assert.ok(layout.graphicsTop >= layout.soundBottom, 'Sound settings must precede graphics settings');
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
     assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'hypervision'],
         'Fullscreen must precede the shared graphics controls, with HyperVision last');
@@ -1162,6 +1187,194 @@ async function exerciseMultiCoreAvailability(browser, url, fixture) {
     }
 }
 
+async function exerciseMt32Sound(browser, url, fixture, temporary) {
+    const romFixture = path.join(temporary, 'rom-files');
+    await fs.mkdir(path.join(romFixture, 'another model'), { recursive: true });
+    await fs.writeFile(path.join(romFixture, 'arbitrary control image.bin'), 'control fixture');
+    await fs.writeFile(path.join(romFixture, 'another model', 'PCM with a long name.data'), 'PCM fixture');
+    const sets = [{ id: 'mt32_1_07', label: 'MT-32 (old, v1.07)' },
+        { id: 'mt32_2_07', label: 'MT-32 (new, v2.07)' }];
+    const context = await browser.newContext({ viewport: { width: 320, height: 844 } });
+    await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    try {
+        await page.goto(url);
+        await ready(page);
+        await loadFixture(page, fixture);
+        assert.deepEqual(await page.locator('#sound-mode option').evaluateAll(options =>
+            options.map(option => ({ value: option.value, label: option.label }))), [
+            { value: 'none', label: 'No sound' }, { value: 'adlib', label: 'Ad Lib' }, { value: 'mt-32', label: 'MT-32' }
+        ]);
+        assert.equal(await page.locator('#mt32-settings').isVisible(), false);
+        await page.locator('#sound-mode').selectOption('mt-32');
+        await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.equal(await page.locator('#mt32-settings').isVisible(), true);
+        assert.equal(await page.locator('#start').isDisabled(), true, 'MT-32 requires a complete selected ROM set');
+        assert.equal(await page.locator('#mt32-rom-folder').getAttribute('readonly'), '',
+            'The browser folder display must not pretend to accept arbitrary filesystem paths');
+        await page.locator('#rom-files').setInputFiles(romFixture);
+        await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.match(await page.locator('#rom-status').innerText(), /Compatible PCM ROM missing/);
+        assert.equal(await page.locator('#start').isDisabled(), true, 'Incomplete ROM sets must not launch MT-32');
+        assert.equal(await page.evaluate(() => fixtureRomInventoryFreeCalls), 1, 'Native inventory strings must be released');
+        await page.evaluate(sets => { window.fixtureRomInventory = { sets, error: '' }; }, sets);
+        await page.locator('#rom-files').setInputFiles(romFixture);
+        await page.waitForFunction(() => document.getElementById('mt32-model').options.length === 3);
+        assert.equal(await page.locator('#mt32-model').inputValue(), '', 'Multiple complete ROM sets require an explicit choice');
+        assert.equal(await page.locator('#start').isDisabled(), true);
+        assert.deepEqual(await page.evaluate(() => Array.from(fixtureFiles.keys()).filter(name => name.startsWith(ROM_DIRECTORY))), [
+            '/mt32-roms/arbitrary control image.bin', '/mt32-roms/another model/PCM with a long name.data'
+        ], 'ROM imports must preserve arbitrary filenames and subdirectories outside game data');
+        assert.deepEqual(await page.evaluate(() => fixtureRomScanCalls),
+            ['/mt32-roms-pending', '/mt32-roms-pending'], 'The native detector must scan the staged ROM selection');
+        await page.locator('#mt32-model').selectOption('mt32_2_07');
+        assert.equal((await storedOptions(page))['mt32-model'], 'mt32_2_07');
+        assert.equal(await page.locator('#start').isEnabled(), true);
+        await assertSettingsLayout(page, true);
+        const cachedRoms = await page.evaluate(() => Array.from(fixtureFiles, ([name, bytes]) => [name, Array.from(bytes)])
+            .filter(([name]) => name.startsWith(ROM_DIRECTORY)));
+        await loadFixture(page, fixture);
+        assert.deepEqual(await page.evaluate(() => Array.from(fixtureFiles, ([name, bytes]) => [name, Array.from(bytes)])
+            .filter(([name]) => name.startsWith(ROM_DIRECTORY))), cachedRoms,
+        'Changing game folders must preserve the separate ROM cache');
+        assert.deepEqual(await page.evaluate(() => saveFiles()), [], 'ROMs must never become game saves');
+        await page.evaluate(() => { window.fixtureRomInventory = { sets: [], error: 'Control ROM missing.' }; });
+        await page.locator('#rom-files').setInputFiles(romFixture);
+        await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.match(await page.locator('#rom-status').innerText(), /previous ROM folder is still selected/);
+        assert.equal(await page.locator('#mt32-model').inputValue(), 'mt32_2_07',
+            'A failed folder replacement must preserve the last valid selected model');
+        assert.deepEqual(await page.evaluate(() => Array.from(fixtureFiles, ([name, bytes]) => [name, Array.from(bytes)])
+            .filter(([name]) => name.startsWith(ROM_DIRECTORY))), cachedRoms);
+        await page.locator('#start').click();
+        const args = await page.evaluate(() => window.launchedArguments);
+        assert.deepEqual(args.slice(0, 7), ['--data-dir', '/stunts', '--soundmode:mt-32', '--mt-32-rom-dir',
+            '/mt32-roms', '--mt-32-model', 'mt32_2_07']);
+        assert.ok(args.includes('--ogg:on'), 'OGG replacement remains independent of the selected synthesizer');
+        for (const id of ['sound-mode', 'open-rom-folder', 'restore-rom-folder', 'rom-files', 'mt32-model', 'new-midi']) {
+            assert.equal(await page.locator('#' + id).isDisabled(), true, 'Sound controls must lock after launch');
+        }
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#sound-mode').inputValue(), 'mt-32');
+        await page.evaluate(sets => { window.fixtureRomInventory = { sets, error: '' }; }, sets);
+        await page.locator('#rom-files').setInputFiles(romFixture);
+        await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.equal(await page.locator('#mt32-model').inputValue(), 'mt32_2_07',
+            'The chosen model must be restored when its ROM files are selected again');
+        await page.evaluate(sets => { window.fixtureRomInventory = { sets: sets.slice(0, 1), error: '' }; }, sets);
+        await page.locator('#rom-files').setInputFiles(romFixture);
+        await page.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.equal(await page.locator('#mt32-model').inputValue(), 'mt32_1_07', 'One complete ROM set must be selected automatically');
+        assert.equal(await page.locator('#mt32-model').isDisabled(), true, 'A single-set selector should not offer a meaningless choice');
+        const scans = await page.evaluate(() => fixtureRomScanCalls.length);
+        await page.locator('#sound-mode').selectOption('none');
+        await page.locator('#game-files').setInputFiles(fixture);
+        await page.waitForFunction(() => !document.getElementById('start').disabled);
+        assert.equal(await page.locator('#mt32-settings').isVisible(), false);
+        assert.equal(await page.evaluate(() => fixtureRomScanCalls.length), scans, 'No sound must not scan or require ROMs');
+        await page.locator('#start').click();
+        const mutedArgs = await page.evaluate(() => window.launchedArguments);
+        assert.ok(mutedArgs.includes('--nosound'));
+        assert.equal(mutedArgs.some(arg => arg.startsWith('--mt-32-') || arg.startsWith('--soundmode:')), false,
+            'No sound must omit synthesizer and ROM parameters');
+        await page.reload();
+        await ready(page);
+        await page.evaluate(() => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', { 'sound-enabled': false, 'new-midi': false }));
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#sound-mode').inputValue(), 'none', 'A legacy disabled-sound preference must migrate to No sound');
+        assert.equal(await page.locator('#new-midi').isChecked(), false, 'Renaming OGG replacement must preserve its preference');
+        assert.deepEqual(errors, [], 'ROM folder selection must not report browser errors');
+    } finally {
+        await context.close();
+    }
+
+    const direct = await browser.newContext();
+    await direct.addInitScript(() => {
+        window.romPickerRequests = [];
+        window.showDirectoryPicker = async options => {
+            window.romPickerRequests.push(options);
+            return window.testRomDirectory;
+        };
+    });
+    const directPage = await direct.newPage();
+    try {
+        await directPage.goto(url);
+        await ready(directPage);
+        await directPage.evaluate(sets => {
+            window.fixtureRomInventory = { sets: sets.slice(0, 1), error: '' };
+            window.romPermissionRequests = [];
+            window.romFileReads = 0;
+            const root = {
+                kind: 'directory', name: 'my-roms', permission: 'granted',
+                async queryPermission(options) { window.romPermissionRequests.push(['query', options.mode]); return this.permission; },
+                async requestPermission(options) { window.romPermissionRequests.push(['request', options.mode]); this.permission = 'granted'; return this.permission; },
+                async *values() {
+                    yield { kind: 'file', name: 'not-a-DOS-ROM-filename.bin', async getFile() {
+                        window.romFileReads++;
+                        return { size: 3, arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer };
+                    } };
+                }
+            };
+            window.testRomDirectory = root;
+            const actualStorage = browserStorage;
+            browserStorage = async (store, mode, value) => {
+                if (store !== ROM_FOLDER_STORE) return actualStorage(store, mode, value);
+                if (mode === 'readwrite') window.storedRomHandle = value;
+                return window.storedRomHandle;
+            };
+        }, sets);
+        await directPage.locator('#sound-mode').selectOption('mt-32');
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        await directPage.locator('#open-rom-folder').click();
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.deepEqual(await directPage.evaluate(() => romPickerRequests), [{ mode: 'read', id: 'mt32-roms' }],
+            'ROM selection must request read-only directory access');
+        assert.equal(await directPage.evaluate(() => storedRomHandle === testRomDirectory), true,
+            'ROM access must be remembered independently of the game folder');
+        assert.equal(await directPage.locator('#mt32-rom-folder').inputValue(), 'my-roms');
+        await directPage.evaluate(async () => {
+            testRomDirectory.permission = 'prompt';
+            romSets = [];
+            mt32Model.replaceChildren(new Option('Choose a ROM folder first', ''));
+            romFolderRestoreAttempted = false;
+            await restoreRememberedRomFolder();
+            updateSoundControls();
+        });
+        assert.equal(await directPage.locator('#restore-rom-folder').isVisible(), true,
+            'Remembered folders must expose a permission button rather than prompting at startup');
+        assert.equal(await directPage.evaluate(() => romFileReads), 1, 'Files must not be read without permission');
+        await directPage.locator('#restore-rom-folder').click();
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.deepEqual(await directPage.evaluate(() => romPermissionRequests), [['query', 'read'], ['request', 'read']]);
+        assert.equal(await directPage.evaluate(() => romFileReads), 2);
+        assert.equal(await directPage.locator('#restore-rom-folder').isVisible(), false);
+        await directPage.locator('#sound-mode').selectOption('adlib');
+        await directPage.evaluate(async () => { romFolderRestoreAttempted = false; await restoreRememberedRomFolder(); });
+        assert.equal(await directPage.evaluate(() => romFileReads), 2, 'Ad Lib must not reopen remembered ROM files');
+        await directPage.locator('#sound-mode').selectOption('mt-32');
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        await directPage.evaluate(() => { window.showDirectoryPicker = async () => {
+            throw new DOMException('Folder picker is blocked.', 'SecurityError');
+        }; });
+        await directPage.locator('#open-rom-folder').click();
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.match(await directPage.locator('#rom-status').innerText(), /read-only ROM folder instead/);
+        const chooserEvent = directPage.waitForEvent('filechooser');
+        await directPage.locator('#open-rom-folder').click();
+        const chooser = await chooserEvent;
+        await chooser.setFiles(romFixture);
+        await directPage.waitForFunction(() => !document.getElementById('open-rom-folder').disabled);
+        assert.equal(await directPage.locator('#mt32-rom-folder').inputValue(), 'rom-files',
+            'A denied directory picker must offer the folder-input fallback');
+    } finally {
+        await direct.close();
+    }
+}
+
 async function main() {
     const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'restunts-web-shell-'));
     const fixture = path.join(temporary, 'game-files');
@@ -1218,8 +1431,11 @@ async function main() {
             options.map(option => ({ value: option.value, label: option.label }))),
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
-        assert.equal(await page.locator('#sound-enabled').isChecked(), true,
-            'Sound must retain its existing enabled default');
+        assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
+            'Sound must retain its existing Ad Lib default');
+        assert.equal(await page.locator('#sound-enabled').count(), 0, 'The old sound checkbox must be removed');
+        assert.equal(await page.locator('#new-midi').locator('..').innerText(), ' OGG music replacement');
+        assert.equal(await page.locator('#new-midi').evaluate(input => input.closest('fieldset').id), 'sound-settings');
         assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
             'Initial fullscreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
@@ -1248,7 +1464,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--showmph:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:on', '--fps:off', '--showmph:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1293,37 +1509,38 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
+        for (const id of ['new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
+        await page.locator('#sound-mode').selectOption('none');
         await page.locator('#hypervision').selectOption('high');
         const stored = await storedOptions(page);
-        for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
+        for (const id of OPTIONS.filter(id => !['hypervision', 'sound-mode'].includes(id))) assert.equal(typeof stored[id], 'boolean');
         await page.reload();
         await ready(page);
         for (const id of ['skip-intro', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) {
+        for (const id of ['new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--showmph:on', '--multi-core:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--fps:on', '--showmph:on', '--multi-core:on', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
         await page.reload();
         await ready(page);
-        await page.locator('#sound-enabled').check();
-        assert.equal((await storedOptions(page))['sound-enabled'], true);
+        await page.locator('#sound-mode').selectOption('adlib');
+        assert.equal((await storedOptions(page))['sound-mode'], 'adlib');
         await page.reload();
         await ready(page);
-        assert.equal(await page.locator('#sound-enabled').isChecked(), true,
+        assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
             'An explicitly re-enabled sound choice must persist');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
-        assert.equal(await page.evaluate(() => window.launchedArguments.includes('/ns')), false,
+        assert.equal(await page.evaluate(() => window.launchedArguments.includes('--nosound')), false,
             'Enabled sound must omit the sound-disable argument');
 
         for (const [legacy, expected] of [[true, 'auto'], [false, 'off'], ['invalid', 'auto']]) {
@@ -1338,7 +1555,7 @@ async function main() {
             assert.equal(await page.locator('#multi-core').isChecked(), true,
                 'Preferences without a multi-core setting must use the enabled default');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
-            assert.equal(await page.locator('#sound-enabled').isChecked(), true,
+            assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
                 'Preferences from earlier versions must leave sound enabled');
             assert.equal(await page.locator('#dual-way-switching').isChecked(), true,
                 'Preferences from earlier versions must preserve original dual-way switching');
@@ -1357,7 +1574,7 @@ async function main() {
             const args = await page.evaluate(() => window.launchedArguments);
             assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
                 expected === 'off' ? [] : ['--hv:' + expected]);
-            assert.equal(args.includes('/ns'), false);
+            assert.equal(args.includes('--nosound'), false);
             assert.deepEqual(args.filter(arg => arg.startsWith('--cfg:')), ['--cfg:on']);
         }
         await page.setViewportSize({ width: 1000, height: 500 });
@@ -1379,6 +1596,7 @@ async function main() {
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
         const url = 'http://127.0.0.1:' + server.address().port + '/';
+        await exerciseMt32Sound(browser, url, fixture, temporary);
         await exerciseMultiCoreAvailability(browser, url, fixture);
         await exerciseStartupFullscreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
@@ -1387,7 +1605,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode and MT-32 ROM selection, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

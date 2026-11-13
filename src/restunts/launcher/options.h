@@ -9,7 +9,6 @@
 typedef bool legacy_bool;
 
 enum LauncherOption {
-	LAUNCHER_SOUND,
 	LAUNCHER_NEW_MIDI,
 	LAUNCHER_SKIP_INTRO,
 	LAUNCHER_VIBRATION,
@@ -51,16 +50,40 @@ enum {
 	LAUNCHER_HV_COUNT
 };
 
+enum LauncherSoundMode {
+	LAUNCHER_SOUND_NONE,
+	LAUNCHER_SOUND_ADLIB,
+	LAUNCHER_SOUND_MT32,
+	LAUNCHER_SOUND_MODE_COUNT
+};
+
+struct LauncherSoundDefinition {
+	const legacy_char *value;
+	const legacy_char *label;
+	const legacy_char *argument;
+};
+
+struct LauncherRomSet {
+	wxString id;
+	wxString label;
+};
+
 struct LauncherOptions {
 	wxString folder;
+	wxString mt32_rom_folder;
+	wxString mt32_model;
+	legacy_int sound_mode;
 	legacy_bool enabled[LAUNCHER_OPTION_COUNT];
 	legacy_int hypervision;
 	LauncherOptions();
 };
 
 extern const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT];
+extern const LauncherSoundDefinition launcher_sound_definitions[LAUNCHER_SOUND_MODE_COUNT];
 extern const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT];
 
+legacy_bool launcher_parse_rom_inventory(const wxString &json, std::vector<LauncherRomSet> &sets,
+										 wxString &error);
 wxString launcher_settings_path();
 void launcher_read_options(const wxString &path, LauncherOptions &options);
 wxString launcher_save_options(const wxString &path, const LauncherOptions &options);

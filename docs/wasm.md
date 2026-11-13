@@ -102,10 +102,13 @@ build supports `file://` without a local web server. The HTML's location does no
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
 3. Choose the startup options above the game. **Skip intro** is optional.
-   **Sound enabled** starts on; uncheck it to disable music and sound effects
-   (`/ns`). The New MIDI choice is remembered independently of this setting.
-   **New MIDI** selects Ogg replacement music (`--ogg:on`); uncheck it for
-   original AdLib music (`--ogg:off`). It is enabled by default.
+   **Sound settings** contains **Sound mode**: **No sound**, **Ad Lib** (default),
+   or **MT-32**. No sound disables music and effects (`--nosound`). MT-32 shows
+   the ROM-folder picker and detected **ROM set** selector. The Ogg replacement
+   choice is remembered independently of the sound mode.
+   **OGG music replacement** (formerly **New MIDI**) selects recorded Ogg music
+   (`--ogg:on`); uncheck it to hear the chosen AdLib or MT-32 synthesizer
+   (`--ogg:off`). It is enabled by default.
    **Graphics settings** contains **Show FPS** (`--fps:on`), followed by
    **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
@@ -249,8 +252,8 @@ fixed **Full → High → Medium → Low** presets. **F11** or **Shift+F11** tog
 the FPS and render-time display on or off. Use Shift+F11 to avoid the browser
 fullscreen shortcut assigned to F11. **Ctrl+F9** toggles MPH at the bottom right
 while driving for the current game session, without changing the saved launcher
-checkbox. **Shift+F10** switches between New MIDI
-and original AdLib music during the intro, menus, and race-end/victory screens.
+checkbox. **Shift+F10** switches between Ogg replacement music
+and the selected original synthesizer during the intro, menus, and race-end/victory screens.
 
 The browser presents frames through SDL3's WebGL renderer and uses WebAudio
 output. Scene rendering runs on the CPU. **Multi-core rendering** uses
@@ -274,15 +277,18 @@ cmake --install out/sdl3-wasm --prefix out/package-wasm --component Runtime
 The installed game `restunts.html` and editor `tracked.html` each run by
 themselves; the editor needs no adjacent stylesheets or scripts. Redistribute
 the complete package to include both HTML files, the required dependency notices,
-licenses, and Nuked OPL2 relinking materials. Original game files must be supplied separately by each player.
+licenses, and both audio libraries' sources/relink materials. Original game
+files and Roland ROMs must be supplied separately by each player.
 Do not copy them into the package.
 
-The browser links Nuked OPL2 Lite statically. The package includes its exact
-source and a standalone relink kit under `share/restunts/wasm-relink/`, containing
+The browser links Nuked OPL2 Lite and Munt libmt32emu statically. The package
+includes their exact source and a standalone relink kit under
+`share/restunts/wasm-relink/`, with the Munt core in the adjoining `../mt32emu/`.
+The kit contains
 the compiled application/SDL objects, enhanced artwork, any embedded optional
 music replacements, HTML shell, and build instructions. Recipients can modify
-and rebuild Nuked and relink the HTML without the game's source or original game
-data. Use the SDK version recorded
+and rebuild either audio library and relink the HTML without the game's source,
+original game data or Roland ROMs. Use the SDK version recorded
 in the kit. See its `wasm-relink.md` and `THIRD-PARTY-NOTICES.txt` for details.
 
 ## Verification
@@ -359,3 +365,14 @@ behavior using test directory adapters. Remembered-folder checks exercise real
 IndexedDB across reloads with simulated permission approval, denial, and retry.
 The real native directory picker and permission dialogs still require a manual
 browser check.
+
+## MT-32 audio
+
+The **Sound settings** group selects AdLib or MT-32 and independently enables
+**OGG music replacement**. For MT-32, select your own control/PCM ROM folder and
+choose a detected model if several complete sets are available. With File System
+Access support, the page remembers a read-only folder handle; use the access
+button if the browser requires permission again. The fallback directory input
+requires selecting the ROM folder again after reloading. ROM files are read
+locally into a separate virtual folder and are never uploaded, saved with game
+files or embedded into the distributed HTML. See [MT-32 setup](mt32.md).

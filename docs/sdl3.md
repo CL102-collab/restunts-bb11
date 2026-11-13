@@ -598,7 +598,7 @@ Existing keyboard driving and replay controls remain available:
 - **F1–F4** select cockpit, follow, custom, and trackside cameras.
 - **Alt+Enter** toggles desktop fullscreen, preserving the 4:3 image and restoring
   the previous window size when leaving fullscreen. Keypad Enter also works.
-- **Shift+F10** switches between original AdLib and replacement Ogg music on
+- **Shift+F10** switches between original synthesized and replacement Ogg music on
   music screens, keeping the current song position. It is inactive during races;
   plain **F10** retains its track-editor function.
 - **Ctrl+F9** toggles MPH at the bottom right while driving. It starts off;
@@ -625,11 +625,17 @@ Existing keyboard driving and replay controls remain available:
 See the [gameplay notes](../readme.md#hypervision-and-fps-display) for HyperVision,
 ghost selection, and rewind behavior.
 
-The SDL3 build supports AdLib music and effects. Other original executable DOS
-sound drivers (MT-32, PC speaker, and Sound Blaster sampled-speech paths) are not
-ported. Original DOS16 builds retain their existing driver selection. Native
-sequencing remains on the main thread; SDL only consumes generated PCM, so an
-audio callback cannot race resource loading or freeing.
+Desktop, Android and browser SDL3 builds support original AdLib or emulated
+Roland MT-32 music and effects. Select `--soundmode:adlib` (the default) or
+`--soundmode:mt-32`. MT-32 requires a separately supplied compatible control/PCM
+ROM set and the original MT instrument resources; see [MT-32 setup](mt32.md).
+`--nosound` and `/ns` disable all sound and override the mode in either argument
+order. Native sequencing remains on the main thread; SDL only consumes generated
+PCM, so an audio callback cannot race resource loading or freeing.
+
+DOS32 keeps its hardware AdLib/OPL path and original DOS16 retains its existing
+driver selection. PC speaker/Tandy executable drivers are not part of the native
+SDL3 backend. MT-32 mode is separate from the Ogg replacement-music choice.
 
 ## Optional Ogg Vorbis music
 
@@ -643,11 +649,12 @@ four songs with files from `assets/music/`:
 | `over.ogg` | Race end |
 | `vict.ogg` | Victory |
 
-Original AdLib music is selected at startup. Use `--ogg:on` to start with Ogg
-replacements enabled, or `--ogg:off` to select the default explicitly. These
+Original synthesized music is selected at startup (AdLib by default, or MT-32
+when requested). Use `--ogg:on` to start with Ogg replacements enabled, or
+`--ogg:off` to hear the selected synthesizer explicitly. These
 options are case-insensitive; specify at most one. Press **Shift+F10** during the
 intro, menus (including the track editor), or race-end/victory screens to enable
-replacement music; press it again to return to AdLib. This selection lasts for
+replacement music; press it again to return to the selected synthesizer. This selection lasts for
 the current game session and cannot be changed during a race. Switching takes
 effect at the current song position, including after loops, without restarting
 the song. For matching musical positions, replacements should use the original
@@ -737,18 +744,19 @@ capture. Full replay-corpus validation and physical hardware checks are separate
 from the build matrix; a successful sample is not evidence that all replays,
 controllers, or sound hardware have been exercised.
 
-CI archives contain an installed package: executables in `bin/`, Nuked's shared
-library in `lib/` on Linux/BSD/Haiku/macOS or `bin/` on Windows, dependency license notices, and
-the exact Nuked source and rebuild instructions. DOS packages omit Nuked and
+CI archives contain an installed package: executables in `bin/`, Nuked and Munt
+shared libraries in `lib/` on Linux/BSD/Haiku/macOS or `bin/` on Windows, dependency
+notices, and both libraries' exact sources/rebuild instructions. Roland ROMs are
+never packaged. DOS packages omit both emulation libraries and
 DOS32 includes CWSDPMI. Every SDL3 package also includes the single offline
 `tracked.html` track editor: native packages, including DOS32 and Android ZIPs,
 put it at `share/restunts/editor/tracked.html`; browser packages put it beside
 `restunts.html`. Open the editor in a browser. Its styles and scripts are embedded.
-The browser archive retains its Nuked relinking kit.
+The browser archive retains its audio-library relinking kit and Munt source tree.
 The manual **Release** workflow publishes the exact build archives after
 validation and provenance checks. See [release verification](releases.md).
 
-## Packaging and Nuked's license
+## Packaging and audio-library licenses
 
 Create a redistributable directory from a completed build:
 
@@ -773,7 +781,15 @@ and substitute the shared library without relinking the application.
 for own-use modification and reverse engineering to debug library modifications.
 These terms do not relicense unrelated code or game assets.
 
-The desktop game's second intro screen acknowledges Nuked, and
+Munt's full license texts are in
+`share/licenses/restunts/MT32EMU-COPYING.LESSER.txt` and `MT32EMU-COPYING.txt`.
+Its exact upstream core, standalone rebuild wrapper and compiler settings are in
+`share/restunts/mt32emu/`; see `README-restunts.md` there. Native packages use a
+replaceable shared library, while browser packages include its source alongside
+the application-object relink kit. These licenses cover emulator code, not the
+separately supplied Roland ROM data.
+
+The desktop game's second intro screen acknowledges its audio libraries, and
 `restunts --licenses` prints the notice and package locations without needing
 game resources or a display. The package regression verifies relocation and
 replacement with a modified library built solely from the shipped source:

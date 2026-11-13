@@ -106,12 +106,14 @@ too; new tracks and updated scores are saved in the selected game-data folder.
 
 SDL3 desktop packages contain the game, its startup window, the command-line ghost
 generator and its GUI, physics dumper, renderer dumper, statically linked SDL,
-its license, and the replaceable Nuked OPL2 shared library. The exact Nuked source,
-license, standalone build files and build context are under
-`share/restunts/nuked-opl2-lite/`. Keep the complete package together.
+its license, and replaceable Nuked OPL2 and Munt libmt32emu shared libraries.
+Their exact source, licenses and rebuild instructions are under
+`share/restunts/nuked-opl2-lite/` and `share/restunts/mt32emu/`. Keep the complete
+package together. Roland control/PCM ROM images are proprietary user data and
+are excluded from every package, including browser HTML and relink kits.
 
 The Linux AppImage archive also contains `bin/restunts.AppImage`, embedding the
-complete runtime, enhancement artwork, notices, licenses and Nuked rebuild kit.
+complete runtime, enhancement artwork, notices, licenses and both audio-library rebuild kits.
 The ordinary binaries and source kit remain available outside the AppImage.
 CI also uploads each standalone image as an `appimage-<target>` artifact for
 direct download; restore its executable bit with `chmod +x restunts.AppImage`
@@ -198,16 +200,18 @@ with styles and JavaScript embedded. Native packages, including DOS32 and Androi
 ZIPs, install it at `share/restunts/editor/tracked.html`; open it in a browser.
 The browser package puts it beside the playable `restunts.html` and also includes
 notices, licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
-source and the object/archive files needed to rebuild the HTML with a modified
-library. Only the HTML is needed to play; distribute the complete archive.
+source and the adjoining Munt source, plus object/archive files needed to rebuild
+the HTML with either modified audio library. Only the HTML is needed to play; distribute the complete archive.
 
 Each Android ZIP contains `bin/restunts.apk` for the game and `bin/genghost.apk`
 for the ghost generator, both matching the archive's ARMv7 or ARM64 ABI. It also
 includes both apps' setup guides, dependency notices/licenses, and the exact
-Nuked sources/build settings. Enhancement assets are inside the game APK;
+Nuked and Munt sources/build settings. The game APK contains both shared audio
+libraries and their notices. Enhancement assets are inside the game APK;
 select your original game folder separately in each app.
 
-DOS uses hardware AdLib/OPL and includes neither Nuked binaries nor its sources.
+DOS uses hardware AdLib/OPL and includes neither Nuked nor Munt binaries/sources.
+Original DOS16 driver selection, including physical MT-32, remains available.
 DOS32 includes `bin/CWSDPMI.EXE` and the accompanying CWSDPMI redistribution
 material. Copy the DOS32 executables, CWSDPMI and enhanced artwork directories
 into the writable directory containing your original game files. DOS16 keeps its executables at the archive root; copy them into the original

@@ -6,6 +6,7 @@
 #include "hires/render_workers.h"
 #endif
 #include "../platform/sdl3/music.h"
+#include "../platform/sdl3/mt32_audio.h"
 #include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__
 #include "../platform/sdl3/controller_game.h"
@@ -145,6 +146,68 @@ static void startup_parse_boolean(const legacy_s8 *argument, const legacy_s8 *pr
 	dos_process_exit(1);
 }
 
+#ifdef RESTUNTS_SDL3
+static const legacy_s8 *startup_option_suffix(const legacy_s8 *argument, const legacy_s8 *prefix)
+{
+	while (*prefix != 0) {
+		legacy_u8 character = (legacy_u8)*argument;
+		if (character >= 'A' && character <= 'Z') {
+			character += 'a' - 'A';
+		}
+		if (character != (legacy_u8)*prefix) {
+			return NULL;
+		}
+		argument++;
+		prefix++;
+	}
+	return argument;
+}
+
+static legacy_u8 startup_parse_sound_option(legacy_s16 argc, legacy_s8 *argv[], legacy_u16 *index,
+											struct STARTUP_OPTIONS *options)
+{
+	const legacy_s8 *argument = argv[*index];
+	const legacy_s8 *mode = startup_option_suffix(argument, STARTUP_SOUND_MODE_PREFIX);
+	if (mode != NULL) {
+		if (stricmp(mode, "adlib") == 0) {
+			options->sound_mode = STARTUP_SOUND_ADLIB;
+		} else if (stricmp(mode, "mt-32") == 0) {
+			options->sound_mode = STARTUP_SOUND_MT32;
+		} else {
+			startup_option_error_text(
+				"Invalid sound mode; use --soundmode:adlib or --soundmode:mt-32.\n");
+			dos_process_exit(1);
+		}
+		return 1;
+	}
+	const legacy_s8 **destination = NULL;
+	const legacy_s8 *value = NULL;
+	if (stricmp(argument, STARTUP_MT32_ROM_DIRECTORY_OPTION) == 0) {
+		destination = &options->mt32_rom_directory;
+	} else if (stricmp(argument, STARTUP_MT32_MODEL_OPTION) == 0) {
+		destination = &options->mt32_model;
+	} else if ((value = startup_option_suffix(argument, STARTUP_MT32_ROM_DIRECTORY_OPTION "=")) !=
+			   NULL) {
+		destination = &options->mt32_rom_directory;
+	} else if ((value = startup_option_suffix(argument, STARTUP_MT32_MODEL_OPTION "=")) != NULL) {
+		destination = &options->mt32_model;
+	}
+	if (destination == NULL) {
+		return 0;
+	}
+	if (value == NULL && *index + 1U < (legacy_u16)argc) {
+		value = argv[++*index];
+	}
+	if (value == NULL || *value == 0 || (value[0] == '-' && value[1] == '-')) {
+		startup_option_error_text("The MT-32 ROM directory and model options require a value.\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	*destination = value;
+	return 1;
+}
+#endif
+
 static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 								  struct STARTUP_OPTIONS *options)
 {
@@ -156,6 +219,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	options->mph_display_specified = 0;
 #ifdef RESTUNTS_SDL3
+	options->sound_mode = STARTUP_SOUND_ADLIB;
+	options->mt32_rom_directory = NULL;
+	options->mt32_model = NULL;
 	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
@@ -177,7 +243,14 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #endif
 #endif
 	for (legacy_u16 i = 1; argc > i; ++i) {
+		if (strcmp(argv[i], STARTUP_NO_SOUND_OPTION) == 0) {
+			options->sound_disabled = 1;
+			continue;
+		}
 #ifdef RESTUNTS_SDL3
+		if (startup_parse_sound_option(argc, argv, &i, options) != 0) {
+			continue;
+		}
 		hires_settings_parse_startup(argv[i], options);
 #ifndef __DJGPP__
 		startup_parse_boolean(argv[i], STARTUP_MULTI_CORE_PREFIX, "Multi-core rendering",
@@ -357,6 +430,11 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 
 	STARTUP_TRACE("audio");
 	// Audio driver.
+#ifdef RESTUNTS_SDL3
+	sdl3_audio_configure(
+		startup_options.sound_mode, (const legacy_char *)startup_options.mt32_rom_directory,
+		(const legacy_char *)startup_options.mt32_model, startup_options.sound_disabled);
+#endif
 	if (audio_load_dos_driver(audiodriverstring, 0, 0)) {
 		dos_timer_shutdown();
 		dos_process_exit(1);
@@ -365,7 +443,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 #ifdef RESTUNTS_SDL3
 	/* Driver setup resets audio state, so apply the requested source afterward
 	 * and before the first intro or menu song is loaded. */
-	sdl3_music_set_enabled(startup_options.ogg_music_enabled);
+	sdl3_music_set_enabled(startup_options.ogg_music_enabled && !startup_options.sound_disabled);
 #endif
 
 	if (startup_options.sound_disabled) {

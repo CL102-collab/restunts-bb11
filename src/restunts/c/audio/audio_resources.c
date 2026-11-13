@@ -14,6 +14,7 @@
 #include "../residue.h"
 #ifdef RESTUNTS_SDL3
 #include "../../platform/sdl3/music.h"
+#include "../../platform/sdl3/mt32_audio.h"
 #endif
 
 #define AUDIO_DRIVER_PREFIX_LENGTH 14U
@@ -150,6 +151,14 @@ static void audio_load_driver_bank(void)
 			dos_audio_master_volume = AUDIO_DEFAULT_MASTER_VOLUME;
 			dos_audio_driver_set_master_state(AUDIO_DRIVER_MASTER_STATE_COMMAND,
 											  (void far *)dos_audio_master_state);
+		} else {
+#ifdef RESTUNTS_SDL3
+			if (sdl3_audio_uses_mt32()) {
+				dos_show_startup_error(
+					"MT-32 playback requires MT32.PLB from your Stunts game data.");
+				dos_process_exit(1);
+			}
+#endif
 		}
 	}
 }
@@ -158,8 +167,8 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 {
 	(void)unused;
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
-	/* Native builds implement the AdLib driver in C; executable DOS drivers
-	 * cannot run in their flat address space. Always select its instruments. */
+	/* Native backends implement the selected driver protocol in C; executable
+	 * DOS drivers cannot run in a flat address space. */
 	(void)driver;
 	(void)mode;
 	if (dos_audio_driver_binary != 0) {
@@ -167,11 +176,21 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 	} else {
 		add_exit_handler(dos_audio_shutdown);
 	}
+#ifdef RESTUNTS_SDL3
+	legacy_u8 use_mt32 = sdl3_audio_uses_mt32();
+	audio_driver_prefix[0] = use_mt32 ? 'm' : 'a';
+	audio_driver_prefix[1] = use_mt32 ? 't' : 'd';
+#else
 	audio_driver_prefix[0] = 'a';
 	audio_driver_prefix[1] = 'd';
+#endif
 	audio_driver_prefix[2] = 0;
 	dos_audio_special_mode = 0;
+#ifdef RESTUNTS_SDL3
+	dos_audio_uses_direct_channels = use_mt32;
+#else
 	dos_audio_uses_direct_channels = 0;
+#endif
 	audio_music_rate = AUDIO_DEFAULT_RATE;
 	audio_effect_rate = AUDIO_DEFAULT_RATE;
 	legacy_u8 channel_count = dos_audio_driver_initialize();

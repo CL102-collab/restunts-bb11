@@ -182,15 +182,24 @@ workspace; `shellhigh=true` alone cannot do that when UMB is disabled.
 
 ### Replacement music
 
-SDL3 executables start with the original AdLib music. The browser launcher
-enables Ogg replacements by default through its **New MIDI** checkbox.
-Use `--ogg:on` to start with Ogg replacements enabled, or `--ogg:off` to select
-the original AdLib music explicitly.
+SDL3 executables default to original AdLib synthesis. Desktop, Android and
+browser builds can instead emulate Roland MT-32 music and effects with
+`--soundmode:mt-32`, using separately supplied control/PCM ROMs. See
+[MT-32 setup](docs/mt32.md) for ROM-folder detection and model selection.
+`--nosound` (or `/ns`) disables both music and effects, overriding sound-mode
+selection regardless of argument order. DOS builds keep their existing audio paths.
+
+The launcher's **OGG music replacement** checkbox (formerly **New MIDI**) controls
+recorded replacement songs independently of the selected synthesizer. Use
+`--ogg:on` to enable replacements or `--ogg:off` to hear the selected original
+synthesizer. Desktop and web launchers enable replacements by default; direct
+native CLI and Android defaults keep original music.
 Press **Shift+F10** during the
 intro, menus, or race-end/victory screens to switch to the included Ogg music.
-Press it again to return to AdLib at the same song position. The selection lasts
+Press it again to return to the selected synthesizer at the same song position. The selection lasts
 for the current game session; the shortcut is inactive during races. Plain
-**F10** keeps its track-editor function. Missing or broken recordings use AdLib.
+**F10** keeps its track-editor function. Missing or broken recordings use the
+selected original synthesizer.
 See [replacement music details](docs/sdl3.md#optional-ogg-vorbis-music).
 
 ### F3 camera views
@@ -791,7 +800,7 @@ for both 32-bit ARM and ARM64. Import your original game folder or ZIP on first
 launch; game data is not bundled in the APK. Transparent touch circles support
 driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
-offers **New MIDI**, **Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
+offers **OGG music replacement**, MT-32 sound/ROM selection, **Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
 and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
 **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
 **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**,
@@ -838,7 +847,9 @@ must be on `PATH`. Python bundles the standalone track editor.
 CMake downloads and verifies the pinned SDL3 source automatically, so the
 first configure needs network access. SDL3 is linked statically by default;
 no separate SDL installation is required. Desktop builds also produce the
-required Nuked OPL2 shared library. MSVC is not supported by this project.
+required Nuked OPL2 and Munt libmt32emu shared libraries. The pinned Munt
+source is also downloaded and verified at configure time; proprietary Roland
+ROMs are never downloaded or embedded. MSVC is not supported by this project.
 
 Building does not download game assets. Before running the game or the audio
 tests, place the Broderbund Stunts 1.1 files in `stunts/`. `ADSKIDMS.VCE` and `DEFAULT.RPL` must be directly inside `stunts/`.
@@ -1244,8 +1255,8 @@ cmake --install out/sdl3-dos --prefix out/package-dos --component Runtime
 
 Run only the install commands for targets you built. For native Windows
 builds, substitute `out/sdl3-windows-x64-msys2` or `out/sdl3-dos-windows` as
-the build directory. Packages contain `bin/` executables, the desktop Nuked
-library in Linux/BSD/Haiku/macOS `lib/` or Windows `bin/`, and dependency sources/notices under
+the build directory. Packages contain `bin/` executables, desktop Nuked and Munt
+libraries in Linux/BSD/Haiku/macOS `lib/` or Windows `bin/`, and dependency sources/notices under
 `share/`. Keep the complete package together when moving or distributing it.
 Game data is separate; desktop programs accept `--data-dir stunts` as their
 first option when launched from the repository root.
@@ -1329,7 +1340,8 @@ cmake --install out/sdl3-wasm --prefix out/package-wasm --component Runtime
 
 For a native Windows build, replace `out/sdl3-wasm` with
 `out/sdl3-wasm-windows`. Distribute the complete package, including dependency
-licenses and the Nuked OPL2 relink kit. It contains no original game data.
+licenses and both audio libraries' complete sources/relink materials. It contains
+no original game data or Roland ROM images.
 See [the browser build guide](docs/wasm.md) for browser support, saving, and tests.
 
 ### Original 16-bit DOS builds with Open Watcom
@@ -1787,7 +1799,9 @@ The reusable **Build release packages** workflow is used by **PR validation** an
 
 Packages contain the platform's runtime files, but no original game data.
 SDL3 packages include enhanced artwork. SDL3 desktop, browser and Android packages
-include the Nuked sources and license; DOS uses hardware OPL and omits Nuked.
+include the Nuked and Munt sources and licenses. Roland ROMs are supplied
+separately and excluded from every release. DOS uses hardware OPL and omits both
+emulation libraries.
 DOS32 also includes CWSDPMI. Amiga uses Paula audio, and TempleOS uses the PC
 speaker. The TempleOS ZIP includes the installation ISO and private-data import tools.
 

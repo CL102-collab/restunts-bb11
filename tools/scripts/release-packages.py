@@ -131,9 +131,10 @@ ANDROID_FALLBACK_ICON = "res/mipmap-anydpi-v21/ic_launcher.xml"
 ANDROID_APK = "bin/restunts.apk"
 ANDROID_GENGHOST_APK = "bin/genghost.apk"
 ANDROID_TRACKS_README = "assets/tracks/README.TXT"
-ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so")
+ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so", "libmt32emu.so")
 ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LICENSE.txt",
-                    "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt")
+                    "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt",
+                    "MT32EMU-COPYING.LESSER.txt", "MT32EMU-COPYING.txt")
 ANDROID_DEX_PATTERN = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex")
 ANDROID_SIGNATURE_PATTERN = re.compile(r"META-INF/[A-Za-z0-9_-]+\.(?:SF|RSA|DSA|EC)")
 ANDROID_ASSET_METADATA = {"assets/menus/manifest.json", "assets/opponents/game/manifest.json",
@@ -198,7 +199,14 @@ ELF_ARCHITECTURES = {
     "arm64": (ELF_CLASS_64, ELF_MACHINE_AARCH64),
     "riscv64": (ELF_CLASS_64, ELF_MACHINE_RISCV),
 }
-ELF_FILES = {f"bin/{name}" for name in NATIVE_EXECUTABLES} | {"lib/libnuked-opl2.so"}
+ELF_FILES = {f"bin/{name}" for name in NATIVE_EXECUTABLES} | {
+    "lib/libnuked-opl2.so", "lib/libmt32emu.so"}
+MT32EMU_MANIFEST = json.loads((ROOT / "cmake/mt32emu-source-manifest.json").read_text(encoding="utf-8"))
+MT32EMU_SOURCE_FILES = tuple(MT32EMU_MANIFEST["files"])
+MT32_ROM_SHA1S = frozenset(MT32EMU_MANIFEST["rom_sha1s"])
+MT32EMU_BUILD_CONTEXT_FILES = ("CMakeLists.txt", "cmake/mt32emu.cmake", "cmake/mt32emu-install.cmake",
+                               "cmake/mt32emu-build-info.txt.in", "cmake/mt32emu-source-manifest.json",
+                               "cmake/mt32emu-rebuild.CMakeLists.txt", "cmake/mt32emu-rebuild.md")
 ORIGINAL_SUFFIXES = {
     ".res", ".pre", ".3sh", ".vsh", ".pvs", ".rpl", ".trk", ".vce", ".drv", ".fnt",
     ".cod", ".dif", ".hig", ".bin", ".bni", ".pdo", ".pdd",
@@ -299,9 +307,16 @@ def checked_path(name):
             f"Unsafe or noncanonical package path: {name!r}")
     require(path.suffix.lower() not in ORIGINAL_SUFFIXES or custom_car_source(name) is not None,
             f"Original game content or regression output is forbidden: {name}")
+    require(path.suffix.lower() != ".rom", f"Proprietary synthesizer ROM is forbidden: {name}")
     require("stunts" not in (part.lower() for part in path.parts),
             f"Original game directory is forbidden: {name}")
     return path
+
+
+def reject_synthesizer_rom(name, content):
+    # A recognized ROM must not become distributable merely by being renamed.
+    require(hashlib.sha1(content).hexdigest() not in MT32_ROM_SHA1S,
+            f"Proprietary synthesizer ROM content is forbidden: {name}")
 
 
 def optional_music_files(target):
@@ -324,6 +339,18 @@ def nuked_source_files():
                  f"{prefix}/build-context/cmake/nuked-build-info.txt.in"}
     # Match the recursive source-context install in CMakeLists.txt, including
     # compatibility headers that are required to use the bundled toolchains.
+    required |= {f"{prefix}/build-context/" + path.relative_to(ROOT).as_posix()
+                 for pattern in NUKED_TOOLCHAIN_PATTERNS
+                 for path in (ROOT / "cmake/toolchains").rglob(pattern) if path.is_file()}
+    return required
+
+
+def mt32emu_source_files():
+    prefix = "share/restunts/mt32emu"
+    required = {f"{prefix}/{name}" for name in MT32EMU_SOURCE_FILES} | {
+        f"{prefix}/rebuild/CMakeLists.txt", f"{prefix}/README-restunts.md",
+        f"{prefix}/mt32emu-build-info.txt", f"{prefix}/mt32emu-source-manifest.json"}
+    required |= {f"{prefix}/build-context/{name}" for name in MT32EMU_BUILD_CONTEXT_FILES}
     required |= {f"{prefix}/build-context/" + path.relative_to(ROOT).as_posix()
                  for pattern in NUKED_TOOLCHAIN_PATTERNS
                  for path in (ROOT / "cmake/toolchains").rglob(pattern) if path.is_file()}
@@ -434,6 +461,7 @@ def validate_android_apk(target, content):
                         ANDROID_SIGNATURE_PATTERN.fullmatch(name), f"Unexpected APK member: {name}")
             files[name] = apk.read(entry)
             require(files[name], f"Empty APK member: {name}")
+            reject_synthesizer_rom(name, files[name])
     missing = required - files.keys()
     require(not missing, f"{target}: missing APK members: {', '.join(sorted(missing))}")
     require(files[ANDROID_TRACKS_README] == (ROOT / ANDROID_TRACKS_README).read_bytes(),
@@ -477,6 +505,7 @@ def validate_android_genghost_apk(target, content):
                         ANDROID_SIGNATURE_PATTERN.fullmatch(name), f"Unexpected APK member: {name}")
             files[name] = apk.read(entry)
             require(files[name], f"Empty APK member: {name}")
+            reject_synthesizer_rom(name, files[name])
     missing = required - files.keys()
     require(not missing, f"{target}: missing generator APK members: {', '.join(sorted(missing))}")
     validate_custom_car_resources(files)
@@ -496,6 +525,10 @@ def required_files(target):
     if target != "dos16":
         required.add("THIRD-PARTY-NOTICES.txt")
         required |= {f"share/licenses/restunts/{name}" for name in SDL_DECODER_LICENSES}
+    if target in SDL3_TARGETS and target != "dos32":
+        required |= mt32emu_source_files() | {
+            "share/licenses/restunts/MT32EMU-COPYING.LESSER.txt", "share/licenses/restunts/MT32EMU-COPYING.txt"}
+        required.add("mt32.md" if target == "browser" else "share/docs/restunts/mt32.md")
     if target in ANDROID_TARGETS:
         required |= {ANDROID_APK, ANDROID_GENGHOST_APK, "share/docs/restunts/android.md",
                      "share/docs/restunts/genghost.md", "share/docs/restunts/genghost-android.md",
@@ -557,17 +590,17 @@ def required_files(target):
     required |= {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/Nuked-OPL2-LICENSE"}
     required |= nuked_source_files()
     if target.startswith("windows"):
-        required.add("bin/nuked-opl2.dll")
+        required |= {"bin/nuked-opl2.dll", "bin/mt32emu.dll"}
         if target in WINDOWS_GCC_TARGETS:
             required |= {f"share/licenses/gcc-runtime/{name}" for name in GCC_RUNTIME_NOTICES}
         else:
             required |= {f"share/licenses/llvm-runtime/{name}" for name in LLVM_RUNTIME_NOTICES}
     elif target == "macos-universal":
-        required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh", MACOS_LAUNCHER,
+        required |= {"lib/libnuked-opl2.dylib", "lib/libmt32emu.dylib", "run-restunts.sh", MACOS_LAUNCHER,
                      "Restunts.app/Contents/Info.plist", MACOS_GENGHOST_GUI,
                      "Genghost.app/Contents/Info.plist"}
     else:
-        required.add("lib/libnuked-opl2.so")
+        required |= {"lib/libnuked-opl2.so", "lib/libmt32emu.so"}
     if target in APPIMAGE_TARGETS:
         required.add(APPIMAGE)
     return required
@@ -597,12 +630,14 @@ def validate_contents(target, files, modes):
     for name, content in files.items():
         path = checked_path(name)
         require(content, f"Empty package file: {name}")
+        reject_synthesizer_rom(name, content)
         if target == "dos32" and name.startswith("bin/"):
             require(all(DOS_RUNTIME_NAME_PATTERN.fullmatch(part) for part in path.parts),
                     f"DOS runtime path must use 8.3 names: {name}")
         require(name in required, f"Unexpected package file: {name}")
         if target.startswith("dos"):
-            require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
+            require("nuked" not in name.lower() and "mt32emu" not in name.lower(),
+                    f"DOS package must omit emulation libraries: {name}")
     validate_custom_car_resources(files)
     validate_custom_horizon_resources(files)
     validate_windows_gui_audits(target, files)
@@ -660,6 +695,11 @@ def readme(target, commit):
     if target in SDL3_TARGETS:
         lines += [f"Open {track_editor_path(target)} in a modern browser to edit tracks offline.",
                   "The track editor is self-contained; no server or extra editor files are needed."]
+        if target != "dos32":
+            guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
+            lines += ["Sound settings selects Ad Lib, MT-32, or No sound; OGG music replacement is separate.",
+                      "MT-32 requires your own compatible Roland control/PCM ROMs; none are included.",
+                      f"See {guide} for ROM-folder detection, model selection and command-line options."]
     if target in ANDROID_TARGETS:
         minimum = android_minimum_sdk(target)
         version = ANDROID_VERSIONS[minimum]
@@ -684,7 +724,8 @@ def readme(target, commit):
                   "ZIPs, is deleted on uninstall. Back up those files outside it beforehand.",
                   "Uninstalling removes private preferences, cache and unexported pending writes.",
                   "See share/docs/restunts/android.md for import, controls and rebuild/signing",
-                  "details. Nuked source and build context are in share/restunts/nuked-opl2-lite."]
+                  "details. Audio library sources and rebuild instructions are in",
+                  "share/restunts/nuked-opl2-lite and share/restunts/mt32emu."]
         if target == "android-armv7":
             lines += [f"Suitable for Samsung Galaxy S5 SM-G900F running Android {version} or newer."]
         else:
@@ -693,8 +734,8 @@ def readme(target, commit):
         lines += ["Open restunts.html in your browser and choose your game-data folder.",
                   "Custom cars are embedded under /assets/cars and loaded automatically.",
                   "Antarctica is embedded and supplied separately as horizons/Antarctica.png.",
-                  "The HTML runs offline by itself. Keep the licenses and Nuked source/relink",
-                  "kit with redistributed packages; see wasm.md for instructions."]
+                  "The HTML runs offline by itself. Keep the licenses, Nuked and Munt sources,",
+                  "and relink kit with redistributed packages; see wasm.md for instructions."]
     elif target == "dos16":
         lines += ["Copy the executables, cars and tracks folders into your original game's directory.",
                   "Place custom tracks in tracks; loose tracks take priority on name conflicts.",
@@ -735,7 +776,7 @@ def readme(target, commit):
                   "The AppImage embeds the complete runtime and dependency notices.",
                   "If FUSE is unavailable, run it with --appimage-extract, then use",
                   "squashfs-root/AppRun --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
-                  "The unpacked runtime, tools, licenses and Nuked rebuild kit are retained",
+                  "The unpacked runtime, tools, licenses and both audio-library rebuild kits are retained",
                   "in this archive; redistribute the complete archive."]
         if target.endswith("-no-sse2"):
             lines += ["The game and bundled dependencies are built without SSE2 instructions."]

@@ -11,9 +11,12 @@ or fade-out. The race-end track retains its original pause before repeating.
 | `over.ogg` | Race-end music (`OVER`) |
 | `vict.ogg` | Victory music (`VICT`) |
 
-Original AdLib music is selected at startup (`--ogg:off`). Use `--ogg:on` to
+Original synthesized music is selected at startup (`--ogg:off`), using AdLib
+or the separately configured MT-32 backend. The **OGG music replacement** option
+(formerly **New MIDI**) is independent of that choice. Use `--ogg:on` to
 start with replacements enabled instead. **Shift+F10** enables these
-replacements on music screens and switches back to AdLib on the next press.
+replacements on music screens and switches back to the selected synthesizer
+on the next press.
 The choice lasts for the current game session; it cannot change during a race.
 Switches keep the current song position instead of restarting it. Plain **F10**
 retains its track-editor function. Use the original song timing and loop length

@@ -2,6 +2,8 @@
 #include <wx/dirdlg.h>
 #include <wx/filename.h>
 #include <wx/scrolwin.h>
+#include <wx/process.h>
+#include <wx/sstream.h>
 #include <wx/statbox.h>
 #include <wx/statline.h>
 #include <wx/stdpaths.h>
@@ -22,6 +24,7 @@ static const legacy_char LAUNCHER_APP_NAME[] = "Restunts";
 static const legacy_char DATA_DIRECTORY_OPTION[] = "--data-dir";
 static const legacy_char GAME_OPTION[] = "--game";
 static const legacy_char WAIT_FOR_GAME_OPTION[] = "--wait-for-game";
+static const legacy_char ROM_INVENTORY_OPTION[] = "--list-mt-32-roms";
 static const legacy_char TRACK_EDITOR_FILENAME[] = "tracked.html";
 static const legacy_char TRACK_EDITOR_DIRECTORY[] = "../share/restunts/editor/";
 #ifdef __WXMSW__
@@ -127,6 +130,7 @@ class LauncherDialog : public wxDialog
 		wxBoxSizer *layout = new wxBoxSizer(wxVERTICAL);
 		wxScrolledWindow *content =
 			new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
+		content_ = content;
 		content->SetScrollRate(FIXED_LAYOUT, FromDIP(SCROLL_STEP));
 		wxBoxSizer *fields = new wxBoxSizer(wxVERTICAL);
 		fields->Add(
@@ -140,7 +144,8 @@ class LauncherDialog : public wxDialog
 		folder_row->Add(browse, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		fields->Add(folder_row, FIXED_LAYOUT, wxEXPAND | wxALL, border);
 
-		add_group(content, fields, "Startup options", LAUNCHER_SOUND, LAUNCHER_FULLSCREEN);
+		add_group(content, fields, "Startup options", LAUNCHER_SKIP_INTRO, LAUNCHER_FULLSCREEN);
+		add_sound_group(content, fields);
 		wxStaticBoxSizer *graphics = new wxStaticBoxSizer(wxVERTICAL, content, "Graphics settings");
 		wxFlexGridSizer *graphics_grid = new wxFlexGridSizer(OPTION_COLUMNS, spacing, border);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_FULLSCREEN);
@@ -200,6 +205,7 @@ class LauncherDialog : public wxDialog
 		generator->Bind(wxEVT_BUTTON, &LauncherDialog::start_generator, this);
 		editor->Bind(wxEVT_BUTTON, &LauncherDialog::open_track_editor, this);
 		Bind(wxEVT_BUTTON, &LauncherDialog::start_game, this, wxID_OK);
+		update_sound_controls();
 #ifdef __WXQT__
 		Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { Close(); }, wxID_CANCEL);
 		Bind(wxEVT_SHOW, [this](wxShowEvent &event) {
@@ -243,6 +249,186 @@ class LauncherDialog : public wxDialog
 					FromDIP(OUTER_BORDER));
 	}
 
+	void add_sound_group(wxWindow *parent, wxSizer *layout)
+	{
+		const legacy_int spacing = FromDIP(CONTROL_SPACING);
+		wxStaticBoxSizer *group = new wxStaticBoxSizer(wxVERTICAL, parent, "Sound settings");
+		wxWindow *box = group->GetStaticBox();
+		wxBoxSizer *mode_row = new wxBoxSizer(wxHORIZONTAL);
+		mode_row->Add(new wxStaticText(box, wxID_ANY, "Sound mode"), FIXED_LAYOUT,
+					  wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		sound_mode_ = new wxChoice(box, wxID_ANY);
+		for (const LauncherSoundDefinition &mode : launcher_sound_definitions) {
+			sound_mode_->Append(mode.label);
+		}
+		sound_mode_->SetSelection(options_.sound_mode);
+		mode_row->Add(sound_mode_, GROW_LAYOUT, wxEXPAND);
+		group->Add(mode_row, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
+
+		mt32_fields_ = new wxPanel(box, wxID_ANY);
+		wxBoxSizer *rom_fields = new wxBoxSizer(wxVERTICAL);
+		rom_fields->Add(
+			new wxStaticText(mt32_fields_, wxID_ANY, "Choose your MT-32 ROM folder path."),
+			FIXED_LAYOUT, wxEXPAND | wxBOTTOM, spacing);
+		wxBoxSizer *folder_row = new wxBoxSizer(wxHORIZONTAL);
+		rom_folder_ = new wxTextCtrl(mt32_fields_, wxID_ANY, options_.mt32_rom_folder,
+									 wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+		rom_folder_->SetName("MT-32 ROM folder");
+		folder_row->Add(rom_folder_, GROW_LAYOUT, wxEXPAND | wxRIGHT, spacing);
+		wxButton *browse = new wxButton(mt32_fields_, wxID_ANY, "Browse...");
+		folder_row->Add(browse, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		rom_fields->Add(folder_row, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, spacing);
+		wxBoxSizer *set_row = new wxBoxSizer(wxHORIZONTAL);
+		set_row->Add(new wxStaticText(mt32_fields_, wxID_ANY, "ROM set"), FIXED_LAYOUT,
+					 wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		rom_set_ = new wxChoice(mt32_fields_, wxID_ANY);
+		rom_set_->SetName("MT-32 ROM set");
+		set_row->Add(rom_set_, GROW_LAYOUT, wxEXPAND);
+		rom_fields->Add(set_row, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, spacing);
+		rom_status_ = new wxStaticText(mt32_fields_, wxID_ANY, wxEmptyString);
+		rom_status_->Wrap(FromDIP(CONTENT_WIDTH - OUTER_BORDER - OUTER_BORDER));
+		rom_fields->Add(rom_status_, FIXED_LAYOUT, wxEXPAND);
+		mt32_fields_->SetSizer(rom_fields);
+		group->Add(mt32_fields_, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
+		wxBoxSizer *music_row = new wxBoxSizer(wxHORIZONTAL);
+		add_option(box, music_row, LAUNCHER_NEW_MIDI);
+		group->Add(music_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
+		checks_[LAUNCHER_NEW_MIDI]->SetToolTip(
+			"Use OGG recordings for music; the selected sound mode still supplies sound effects.");
+		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
+					FromDIP(OUTER_BORDER));
+
+		sound_mode_->Bind(wxEVT_CHOICE, [this](wxCommandEvent &) { update_sound_controls(); });
+		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_rom_folder, this);
+		rom_folder_->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent &) { refresh_rom_inventory(); });
+		rom_folder_->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent &event) {
+			if (sound_mode_->GetSelection() == LAUNCHER_SOUND_MT32 &&
+				rom_folder_->GetValue() != scanned_rom_folder_) {
+				refresh_rom_inventory();
+			}
+			event.Skip();
+		});
+		mt32_fields_->Show(options_.sound_mode == LAUNCHER_SOUND_MT32);
+		rom_set_->Bind(wxEVT_CHOICE, [this](wxCommandEvent &) {
+			const legacy_int selected = rom_set_->GetSelection();
+			if (selected >= 0 && static_cast<size_t>(selected) < rom_sets_.size()) {
+				options_.mt32_model = rom_sets_[selected].id;
+				rom_status_->SetLabel("The selected ROM set will be used when you start the game.");
+				layout_rom_controls();
+			}
+		});
+	}
+
+	void layout_rom_controls()
+	{
+		rom_status_->Wrap(FromDIP(CONTENT_WIDTH - OUTER_BORDER - OUTER_BORDER));
+		mt32_fields_->Layout();
+		content_->Layout();
+		content_->FitInside();
+		Layout();
+	}
+
+	void update_sound_controls()
+	{
+		const legacy_bool mt32 = sound_mode_->GetSelection() == LAUNCHER_SOUND_MT32;
+		mt32_fields_->Show(mt32);
+		if (mt32) {
+			refresh_rom_inventory();
+		} else {
+			layout_rom_controls();
+		}
+	}
+
+	void browse_rom_folder(wxCommandEvent &)
+	{
+		wxDirDialog chooser(this, "Choose the MT-32 ROM folder", rom_folder_->GetValue(),
+							wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST);
+		if (chooser.ShowModal() == wxID_OK) {
+			rom_folder_->ChangeValue(chooser.GetPath());
+			refresh_rom_inventory();
+		}
+	}
+
+	legacy_bool refresh_rom_inventory()
+	{
+		const legacy_int old_selection = rom_set_->GetSelection();
+		if (old_selection >= 0 && static_cast<size_t>(old_selection) < rom_sets_.size()) {
+			options_.mt32_model = rom_sets_[old_selection].id;
+		}
+		rom_set_->Clear();
+		rom_set_->Disable();
+		rom_sets_.clear();
+		scanned_rom_folder_.clear();
+		wxString error;
+		wxFileName directory = wxFileName::DirName(rom_folder_->GetValue());
+		if (rom_folder_->GetValue().empty()) {
+			error = "Choose a ROM folder containing compatible control and PCM ROM images.";
+		} else if (!directory.MakeAbsolute() || !directory.DirExists()) {
+			error = "The selected MT-32 ROM folder does not exist.";
+		} else if (!wxFileName::IsFileExecutable(game_)) {
+			error = "Cannot inspect ROMs because the game executable is missing: " + game_;
+		} else {
+			const wxString path = directory.GetPath();
+			const wxString inventory_argument = ROM_INVENTORY_OPTION;
+			const wxChar *arguments[] = {game_.c_str(), inventory_argument.c_str(), path.c_str(),
+										 nullptr};
+			wxProcess process;
+			process.Redirect();
+			legacy_s64 result;
+			{
+				wxBusyCursor busy;
+				wxLogNull quiet;
+				result = wxExecute(arguments, wxEXEC_SYNC | wxEXEC_NOEVENTS | wxEXEC_HIDE_CONSOLE,
+								   &process);
+			}
+			wxStringOutputStream output;
+			wxStringOutputStream errors;
+			if (process.GetInputStream() != nullptr) {
+				process.GetInputStream()->Read(output);
+			}
+			if (process.GetErrorStream() != nullptr) {
+				process.GetErrorStream()->Read(errors);
+			}
+			if (result != LAUNCHER_SUCCESS) {
+				error = errors.GetString();
+				if (error.empty()) {
+					error = "Cannot inspect ROMs using the game executable: " + game_;
+				}
+			} else if (launcher_parse_rom_inventory(output.GetString(), rom_sets_, error)) {
+				scanned_rom_folder_ = path;
+				rom_folder_->ChangeValue(path);
+				for (const LauncherRomSet &set : rom_sets_) {
+					rom_set_->Append(set.label);
+				}
+				legacy_int selected = wxNOT_FOUND;
+				for (size_t index = 0; index < rom_sets_.size(); ++index) {
+					if (rom_sets_[index].id == options_.mt32_model) {
+						selected = static_cast<legacy_int>(index);
+						break;
+					}
+				}
+				if (selected == wxNOT_FOUND && rom_sets_.size() == 1U) {
+					selected = 0;
+				}
+				rom_set_->SetSelection(selected);
+				rom_set_->Enable(!rom_sets_.empty());
+				if (selected != wxNOT_FOUND) {
+					options_.mt32_model = rom_sets_[selected].id;
+				}
+				if (!rom_sets_.empty()) {
+					error = selected == wxNOT_FOUND
+								? "Several ROM sets were found. Choose the one you want to use."
+								: "The selected ROM set will be used when you start the game.";
+				} else if (error.empty()) {
+					error = "No complete compatible ROM set was found in this folder.";
+				}
+			}
+		}
+		rom_status_->SetLabel(error);
+		layout_rom_controls();
+		return !rom_sets_.empty();
+	}
+
 	void set_status(const wxString &message)
 	{
 		status_->SetLabel(message);
@@ -280,6 +466,22 @@ class LauncherDialog : public wxDialog
 		if (!wxFileName::IsFileExecutable(game_)) {
 			set_status("The game executable is missing or cannot be launched: " + game_);
 			return;
+		}
+		options_.sound_mode = sound_mode_->GetSelection();
+		if (options_.sound_mode == LAUNCHER_SOUND_MT32) {
+			if (!refresh_rom_inventory()) {
+				set_status("Choose a folder containing a complete MT-32 ROM set before starting.");
+				return;
+			}
+			const legacy_int selected = rom_set_->GetSelection();
+			if (selected < 0 || static_cast<size_t>(selected) >= rom_sets_.size()) {
+				set_status("Choose which MT-32 ROM set to use before starting.");
+				return;
+			}
+			options_.mt32_model = rom_sets_[selected].id;
+			options_.mt32_rom_folder = scanned_rom_folder_;
+		} else {
+			options_.mt32_rom_folder = rom_folder_->GetValue();
 		}
 		options_.folder = folder;
 		for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
@@ -417,7 +619,15 @@ class LauncherDialog : public wxDialog
 	LauncherOptions options_;
 	wxTextCtrl *folder_;
 	wxChoice *hypervision_;
-	wxCheckBox *checks_[LAUNCHER_OPTION_COUNT];
+	wxChoice *sound_mode_;
+	wxChoice *rom_set_;
+	wxTextCtrl *rom_folder_;
+	wxPanel *mt32_fields_;
+	wxScrolledWindow *content_;
+	wxStaticText *rom_status_;
+	wxString scanned_rom_folder_;
+	std::vector<LauncherRomSet> rom_sets_;
+	wxCheckBox *checks_[LAUNCHER_OPTION_COUNT] = {};
 	wxStaticText *status_;
 	legacy_bool wait_for_game_;
 	legacy_int game_exit_code_ = LAUNCHER_SUCCESS;

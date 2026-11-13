@@ -46,43 +46,46 @@ legacy_int main()
 		  "Show MPH must follow Show FPS and name its in-game shortcut.");
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
+	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
+	check(wxString(launcher_option_definitions[LAUNCHER_NEW_MIDI].label) == "OGG music replacement",
+		  "The replacement music control must use its descriptive public label.");
 	options.folder = wxString::FromUTF8("/game data/árvíz & test/");
 	const wxString game = "/program files/restunts";
 	std::vector<wxString> arguments = launcher_game_arguments(game, options);
 	check(arguments[GAME_ARGUMENT_INDEX] == game && arguments[DATA_OPTION_INDEX] == "--data-dir" &&
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
-	const legacy_char *defaults[] = {
-		"--ogg:on",		   "--hv:auto",		"--fullscreen:off",
-		"--fps:off",	   "--showmph:off", "--controller-vibration:on",
-		"--multi-core:on", "--pg:on",		"--lc:on",
-		"--lcb:on",		   "--dws:on",		"--cfg:on"};
+	const legacy_char *defaults[] = {"--soundmode:adlib",
+									 "--ogg:on",
+									 "--hv:auto",
+									 "--fullscreen:off",
+									 "--fps:off",
+									 "--showmph:off",
+									 "--controller-vibration:on",
+									 "--multi-core:on",
+									 "--pg:on",
+									 "--lc:on",
+									 "--lcb:on",
+									 "--dws:on",
+									 "--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
-	check(!contains(arguments, "/ns") && !contains(arguments, "--nointro") &&
-			  !contains(arguments, "--owoot") && !contains(arguments, "--amigagrass"),
+	check(!contains(arguments, "--nosound") && !contains(arguments, "/ns") &&
+			  !contains(arguments, "--nointro") && !contains(arguments, "--owoot") &&
+			  !contains(arguments, "--amigagrass"),
 		  "Optional game switches must not be enabled by default.");
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		options.enabled[index] = !options.enabled[index];
 	}
+	options.sound_mode = LAUNCHER_SOUND_NONE;
 	options.hypervision = LAUNCHER_HV_OFF;
 	arguments = launcher_game_arguments(game, options);
-	const legacy_char *changed[] = {"/ns",
-									"--ogg:off",
-									"--nointro",
-									"--controller-vibration:off",
-									"--fullscreen:on",
-									"--fps:on",
-									"--showmph:on",
-									"--multi-core:off",
-									"--pg:off",
-									"--lc:off",
-									"--lcb:off",
-									"--dws:off",
-									"--cfg:off",
-									"--owoot",
-									"--amigagrass"};
+	const legacy_char *changed[] = {
+		"--nosound",	   "--ogg:off", "--nointro",	"--controller-vibration:off",
+		"--fullscreen:on", "--fps:on",	"--showmph:on", "--multi-core:off",
+		"--pg:off",		   "--lc:off",	"--lcb:off",	"--dws:off",
+		"--cfg:off",	   "--owoot",	"--amigagrass"};
 	for (const legacy_char *argument : changed) {
 		check(contains(arguments, argument), "Missing changed game argument.");
 	}
@@ -97,6 +100,66 @@ legacy_int main()
 			  "HyperVision selection must reach the game unchanged.");
 	}
 
+	options.sound_mode = LAUNCHER_SOUND_MT32;
+	options.mt32_rom_folder = wxString::FromUTF8("/ROM folders/árvíz & test/");
+	options.mt32_model = "mt32_1_07";
+	arguments = launcher_game_arguments(game, options);
+	const auto rom_argument = std::find(arguments.begin(), arguments.end(), "--mt-32-rom-dir");
+	const auto model_argument = std::find(arguments.begin(), arguments.end(), "--mt-32-model");
+	check(contains(arguments, "--soundmode:mt-32") && !contains(arguments, "--nosound") &&
+			  !contains(arguments, "--soundmode:adlib"),
+		  "MT-32 must select exactly its sound mode.");
+	check(rom_argument != arguments.end() && rom_argument + 1 != arguments.end() &&
+			  *(rom_argument + 1) == options.mt32_rom_folder && model_argument != arguments.end() &&
+			  model_argument + 1 != arguments.end() && *(model_argument + 1) == options.mt32_model,
+		  "ROM folder and model must be passed as separate arguments without shell quoting.");
+	options.sound_mode = LAUNCHER_SOUND_NONE;
+	arguments = launcher_game_arguments(game, options);
+	check(contains(arguments, "--nosound") && !contains(arguments, "--mt-32-rom-dir") &&
+			  !contains(arguments, "--mt-32-model") && !contains(arguments, "--soundmode:mt-32"),
+		  "No sound must not require or pass ROM arguments.");
+	options.sound_mode = LAUNCHER_SOUND_MODE_COUNT;
+	check(contains(launcher_game_arguments(game, options), "--soundmode:adlib"),
+		  "An invalid stored sound mode must safely use Ad Lib.");
+	options.sound_mode = LAUNCHER_SOUND_MT32;
+
+	std::vector<LauncherRomSet> sets;
+	wxString inventory_error;
+	check(launcher_parse_rom_inventory(
+			  "{\"sets\":[{\"id\":\"mt32_1_07\",\"label\":\"MT-32 (old, v1.07)\"},"
+			  "{\"label\":\"MT-32 (new, v2.07)\",\"id\":\"mt32_2_07\"}],\"error\":\"\"}",
+			  sets, inventory_error) &&
+			  sets.size() == 2U && sets[0].id == "mt32_1_07" &&
+			  sets[1].label == "MT-32 (new, v2.07)" && inventory_error.empty(),
+		  "The ROM dropdown must show all complete sets returned by the game.");
+	check(
+		launcher_parse_rom_inventory(
+			"{\"metadata\":{\"nested\":[true,null,12]},\"error\":\"Missing PCM ROM\",\"sets\":[]}",
+			sets, inventory_error) &&
+			sets.empty() && inventory_error == "Missing PCM ROM",
+		"An incomplete ROM inventory must retain the game's actionable explanation.");
+	check(launcher_parse_rom_inventory(
+			  "{\"sets\":[{\"id\":\"test\",\"label\":\"Quote \\\" and \\u00e1\"}],\"error\":\"\"}",
+			  sets, inventory_error) &&
+			  sets.size() == 1U && sets[0].label == wxString::FromUTF8("Quote \" and á"),
+		  "ROM inventory strings must decode escaped labels and Unicode.");
+	const legacy_char *invalid_inventories[] = {
+		"{}",
+		"{\"sets\":[]",
+		"{\"sets\":[{\"id\":\"test\"}]}",
+		"{\"sets\":[{\"id\":\"same\",\"label\":\"One\"},{\"id\":\"same\",\"label\":\"Two\"}]}",
+		"{\"sets\":[{\"id\":\"bad\",\"label\":\"\\uD800\"}]}",
+		"{\"sets\":[]} trailing"};
+	for (const legacy_char *invalid : invalid_inventories) {
+		check(!launcher_parse_rom_inventory(invalid, sets, inventory_error) && sets.empty() &&
+				  !inventory_error.empty(),
+			  "Malformed inventory must not leave selectable partial results.");
+	}
+
+	check(!launcher_parse_rom_inventory(wxString(' ', 65537U), sets, inventory_error) &&
+			  sets.empty() && !inventory_error.empty(),
+		  "An oversized inventory must be rejected before parsing or allocating ROM choices.");
+
 	const wxString settings = wxFileName::CreateTempFileName("restunts-launcher-options-");
 	check(!settings.empty(), "Cannot create temporary settings file.");
 	check(launcher_save_options(settings, options).empty(), "Could not save per-user options.");
@@ -104,6 +167,10 @@ legacy_int main()
 	launcher_read_options(settings, restored);
 	check(restored.folder == options.folder && restored.hypervision == options.hypervision,
 		  "Folder and HyperVision must round-trip through configuration.");
+	check(restored.sound_mode == LAUNCHER_SOUND_MT32 &&
+			  restored.mt32_rom_folder == options.mt32_rom_folder &&
+			  restored.mt32_model == options.mt32_model,
+		  "Sound mode, ROM folder, and chosen ROM set must round-trip through configuration.");
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		check(restored.enabled[index] == options.enabled[index],
 			  "Checkbox did not round-trip through configuration.");
@@ -125,6 +192,8 @@ legacy_int main()
 							wxCONFIG_USE_LOCAL_FILE);
 		config.DisableAutoSave();
 		config.Write("hypervision", "unknown-future-preset");
+		config.DeleteEntry("sound_mode");
+		config.Write("sound", false);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOW_MPH].key);
@@ -142,11 +211,25 @@ legacy_int main()
 		  "Configurations without a saved Show MPH setting must use the disabled default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
+	check(restored.sound_mode == LAUNCHER_SOUND_NONE &&
+			  restored.enabled[LAUNCHER_NEW_MIDI] == options.enabled[LAUNCHER_NEW_MIDI],
+		  "The legacy disabled sound checkbox must migrate without changing replacement music.");
+	{
+		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
+							wxCONFIG_USE_LOCAL_FILE);
+		config.DisableAutoSave();
+		config.Write("sound_mode", "mt-32");
+		config.Flush();
+	}
+	launcher_read_options(settings, restored);
+	check(restored.sound_mode == LAUNCHER_SOUND_MT32,
+		  "A saved sound mode must override the legacy sound checkbox.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
-	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
-			  !restored.enabled[LAUNCHER_FULLSCREEN] && !restored.enabled[LAUNCHER_SHOW_MPH] &&
-			  restored.enabled[LAUNCHER_MULTI_CORE] &&
+	check(restored.folder.empty() && restored.mt32_rom_folder.empty() &&
+			  restored.mt32_model.empty() && restored.sound_mode == LAUNCHER_SOUND_ADLIB &&
+			  restored.enabled[LAUNCHER_NEW_MIDI] && !restored.enabled[LAUNCHER_FULLSCREEN] &&
+			  !restored.enabled[LAUNCHER_SHOW_MPH] && restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");

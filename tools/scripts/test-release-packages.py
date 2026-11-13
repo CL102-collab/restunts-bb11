@@ -1396,6 +1396,44 @@ class ReleasePackageTests(unittest.TestCase):
                 PACKAGES.validate_contents("browser", incomplete, {})
         for target in ("dos16", "dos32"):
             self.assertFalse(any("nuked" in name for name in PACKAGES.required_files(target)))
+            self.assertFalse(any("mt32emu" in name for name in PACKAGES.required_files(target)))
+
+    def test_mt32emu_runtime_license_and_corresponding_source_are_required(self):
+        runtimes = {"linux-x64": "lib/libmt32emu.so", "windows-x64": "bin/mt32emu.dll",
+                    "macos-universal": "lib/libmt32emu.dylib"}
+        for target in (*runtimes, "browser", "android-arm64"):
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            required = ["share/licenses/restunts/MT32EMU-COPYING.LESSER.txt",
+                        "share/licenses/restunts/MT32EMU-COPYING.txt",
+                        "share/restunts/mt32emu/src/Synth.cpp",
+                        "share/restunts/mt32emu/src/c_interface/c_interface.h",
+                        "share/restunts/mt32emu/rebuild/CMakeLists.txt",
+                        "share/restunts/mt32emu/mt32emu-build-info.txt"]
+            if target in runtimes:
+                required.append(runtimes[target])
+            for missing in required:
+                with self.subTest(target=target, missing=missing), \
+                        self.assertRaisesRegex(ValueError, "missing packaged"):
+                    PACKAGES.validate_contents(target, {name: data for name, data in files.items()
+                                                       if name != missing}, {})
+
+    def test_synthesizer_rom_names_and_renamed_content_are_rejected(self):
+        for name in ("MT32_CONTROL.ROM", "roms/cm32l_pcm.rom", "assets/MT32_PCM.ROM"):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "synthesizer ROM"):
+                PACKAGES.checked_path(name)
+        # Synthetic bytes exercise content checking without distributing or reading a ROM.
+        payload = b"synthetic proprietary ROM fixture"
+        digest = PACKAGES.hashlib.sha1(payload).hexdigest()
+        with mock.patch.object(PACKAGES, "MT32_ROM_SHA1S", {digest}):
+            files = {name: self.runtime_data("browser", name) for name in
+                     PACKAGES.required_files("browser")}
+            files["share/restunts/mt32emu/NEWS.txt"] = payload
+            with self.assertRaisesRegex(ValueError, "synthesizer ROM content"):
+                PACKAGES.validate_contents("browser", files, {})
+            apk = self.apk_data("android-arm64", {
+                "assets/licenses/MT32EMU-COPYING.LESSER.txt": payload})
+            with self.assertRaisesRegex(ValueError, "synthesizer ROM content"):
+                PACKAGES.validate_android_apk("android-arm64", apk)
 
     def test_source_music_is_required_and_survives_archiving(self):
         source = self.root / "source"

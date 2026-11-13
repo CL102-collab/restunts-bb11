@@ -82,11 +82,13 @@ same game folder. The app-owned TV fallback folder is deleted on uninstall;
 back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
-Above **Start game**, **Sound** enables music and sound effects, **Vibration**
-enables phone and controller feedback for impact sounds, **New MIDI** selects
-replacement music, and **Skip intro** opens the game without the startup intro. Sound and Vibration
+**Startup options** contains **Skip intro** and **Vibration**. **Sound settings**
+contains **Sound mode** (No sound, Ad Lib, or MT-32) and **OGG music replacement**
+(formerly **New MIDI**). Vibration enables phone and controller
+feedback for impacts; Ogg replaces music independently of the selected sound
+mode. MT-32 reveals its ROM-folder and ROM-set controls. Ad Lib and Vibration
 start enabled and Skip intro starts disabled. These choices are
-remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
+remembered; selecting No sound passes `--nosound`, and selecting Skip intro passes
 `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,
@@ -338,7 +340,7 @@ the game and the Android ghost generator for their selected ABI. Each artifact
 contains `restunts-android-<cpu>.zip` and its SHA-256 sidecar. The ZIP includes the
 installable `bin/restunts.apk` and `bin/genghost.apk`, these instructions,
 [generator instructions](genghost-android.md), dependency licenses, and
-the exact Nuked OPL2 library sources/build settings. Release verifies and
+the exact Nuked OPL2 and Munt libmt32emu library sources/build settings. Release verifies and
 attests both archives with the other platform packages before publishing.
 Original Stunts data is never downloaded by the Android build or bundled.
 
@@ -372,7 +374,7 @@ A public game folder selected through the system picker survives; choose it
 again after reinstalling. The app-owned TV fallback media folder is deleted,
 so copy its game files and saved games elsewhere before uninstalling.
 
-## Replacing Nuked OPL2
+## Replacing the audio libraries
 
 The CI ZIP includes `share/restunts/nuked-opl2-lite/` with the exact library
 source and its standalone CMake build. Build it with the pinned NDK toolchain,
@@ -383,6 +385,13 @@ shared library, then use SDK `zipalign -P 16` and `apksigner` to align and sign
 the modified APK with your own key. The library must retain the public ABI in
 `opl2.h`. Re-signing with a different key requires uninstalling the original
 app before installing the replacement. No game executable relinking is needed.
+
+The package also includes `share/restunts/mt32emu/`, with the exact Munt source,
+LGPL/GPL texts, build settings and standalone rebuild wrapper. Rebuild it for
+the same NDK/ABI/API, replace `lib/<abi>/libmt32emu.so` in a copy of the APK,
+and align/sign as above. See that source tree's `README-restunts.md`. Compatible
+C/C++ ABI replacements are allowed; no Roland ROMs are required to rebuild either
+library or included in the source package.
 
 ## Verification
 
@@ -411,3 +420,16 @@ java -cp out/android-import-tests org.restunts.android.LocalGameFolderTest
 Host CTest covers touch geometry, visibility, simultaneous holds, cancellation,
 single-tap shifting, replay gestures, and pointer delivery. Test installation,
 audio, background/resume, keyboard, and real multitouch on the target phone.
+
+## MT-32 audio
+
+In **Sound settings**, choose MT-32 and select a separate ROM folder through the
+system picker. The app requests read-only persistent access and copies only
+recognized ROM files into a separate private cache for native playback. This
+folder is independent of game-data imports, synchronization and save writeback.
+Choose a detected model when multiple complete sets are present. The app
+remembers the folder and model; it reports missing or revoked access before
+launch. ROM images are supplied by the player and are never bundled in the APK.
+See [MT-32 setup](mt32.md) for compatible sets and the command-line options.
+Ogg replacements remain an independent music choice; engines and effects use
+the chosen synthesizer.

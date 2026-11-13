@@ -76,8 +76,18 @@ static void far *ui_temp_resource;
 static void intro_draw_native_audio_notice(void)
 {
 	static legacy_s8 lines[][INTRO_AUDIO_NOTICE_LINE_CAPACITY] = {
-		"Nuked OPL2 Lite", "Copyright (C) 2026 Nuke.YKT.", "LGPL-2.1-or-later",
-		"See share/licenses/restunts/", "Nuked-OPL2-LICENSE"};
+		"Nuked OPL2 Lite",
+		"Copyright (C) 2026 Nuke.YKT.",
+#ifdef RESTUNTS_MT32
+		"Munt: Beeler, Fisher, Mikayev",
+#endif
+		"LGPL-2.1-or-later",
+		"See share/licenses/restunts/",
+		"Nuked-OPL2-LICENSE",
+#ifdef RESTUNTS_MT32
+		"MT32EMU-COPYING.LESSER.txt",
+#endif
+	};
 	const legacy_s16 notice_x = 8;
 	const legacy_s16 title_text_color = 77;
 	legacy_s16 notice_y = INTRO_AUDIO_NOTICE_TOP;

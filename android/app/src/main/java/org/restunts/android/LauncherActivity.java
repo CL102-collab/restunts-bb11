@@ -24,6 +24,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -46,6 +47,7 @@ public final class LauncherActivity extends Activity {
     private static final int REQUEST_FOLDER = 1;
     private static final int REQUEST_ZIP = 2;
     private static final int REQUEST_ZIP_FOLDER = 3;
+    private static final int REQUEST_MT32_FOLDER = 4;
     private static final String ZIP_DIRECTORY = "zip-import";
     private static final String ZIP_READY_KEY = "zip_ready";
     private static final String ZIP_TV_KEY = "zip_tv";
@@ -68,6 +70,8 @@ public final class LauncherActivity extends Activity {
     private static boolean importing;
     private static boolean synchronizing;
     private static boolean preparingAssets;
+    private static boolean scanningRoms;
+    private static Mt32RomLibrary.Inventory romInventory;
     private static boolean assetsReady;
     private static boolean permissionsCleaned;
     private static String currentStatus = "Import your Brøderbund Stunts 1.1 game files.\n"
@@ -79,7 +83,14 @@ public final class LauncherActivity extends Activity {
     private Button zip;
     private Button tvFolder;
     private CheckBox newMidi;
-    private CheckBox sound;
+    private Spinner soundMode;
+    private LinearLayout mt32Controls;
+    private EditText mt32Folder;
+    private Button mt32Browse;
+    private Spinner mt32Model;
+    private TextView mt32Status;
+    private boolean updatingRomModels;
+    private boolean optionsReady;
     private CheckBox vibration;
     private CheckBox skipIntro;
     private CheckBox tiltSteering;
@@ -145,7 +156,8 @@ public final class LauncherActivity extends Activity {
             // A killed process cannot run the job's finally block. Its imports are not resumed.
             for (UriPermission previous : context.getContentResolver().getPersistedUriPermissions()) {
                 if (previous.isReadPermission()
-                        && !previous.getUri().equals(GameDataStorage.folder(context))) {
+                        && !previous.getUri().equals(GameDataStorage.folder(context))
+                        && !previous.getUri().equals(Mt32RomStorage.folder(context))) {
                     releaseFolderPermission(context, previous.getUri());
                 }
             }
@@ -246,25 +258,12 @@ public final class LauncherActivity extends Activity {
     private void addOptions(LinearLayout layout) {
         int textSize = television ? TEXT_SIZE_SP : OPTION_TEXT_SIZE_SP;
         int spacing = Math.round(OPTION_SPACING_DP * getResources().getDisplayMetrics().density);
-        WrappingLayout startup = new WrappingLayout(this, spacing, spacing);
-        sound = option(startup, "Sound", LaunchOptions.SOUND_KEY,
-            LaunchOptions.DEFAULT_SOUND, textSize);
+        WrappingLayout startup = settingsGroup(layout, "Startup options", textSize, spacing);
         vibration = option(startup, "Vibration", LaunchOptions.VIBRATION_KEY,
             LaunchOptions.DEFAULT_VIBRATION, textSize);
-        newMidi = option(startup, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
-            LaunchOptions.DEFAULT_NEW_MIDI, textSize);
         skipIntro = option(startup, "Skip intro", LaunchOptions.SKIP_INTRO_KEY,
             LaunchOptions.DEFAULT_SKIP_INTRO, textSize);
-        addOptionsGroup(layout, startup);
-
-        WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
-        tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
-            LaunchOptions.DEFAULT_TILT_STEERING, textSize);
-        boolean tiltAvailable = TiltSteering.isAvailable(this);
-        tiltSteering.setEnabled(tiltAvailable);
-        if (!tiltAvailable) {
-            tiltSteering.setChecked(false);
-        }
+        addSoundSettings(layout, textSize, spacing);
 
         WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
@@ -294,6 +293,15 @@ public final class LauncherActivity extends Activity {
         hyperVisionOption.addView(hyperVision);
         graphics.addView(hyperVisionOption);
 
+        WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
+        tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
+            LaunchOptions.DEFAULT_TILT_STEERING, textSize);
+        boolean tiltAvailable = TiltSteering.isAvailable(this);
+        tiltSteering.setEnabled(tiltAvailable);
+        if (!tiltAvailable) {
+            tiltSteering.setChecked(false);
+        }
+
         WrappingLayout drivingRules = settingsGroup(layout, "Driving rules", textSize, spacing);
         powerGear = option(drivingRules, "Power Gear", LaunchOptions.POWER_GEAR_KEY,
             LaunchOptions.DEFAULT_POWER_GEAR, textSize);
@@ -311,9 +319,28 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         for (CheckBox option : new CheckBox[] {
-                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, showMph, multiCore, showControlLayout,
+                vibration, newMidi, skipIntro, tiltSteering, showFps, showMph, multiCore, showControlLayout,
                 powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
+        }
+        optionsReady = true;
+        soundMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateSoundControls();
+                saveOptions();
+                if (selectedSoundMode() == LaunchOptions.SoundMode.MT32 && romInventory == null
+                        && Mt32RomStorage.folder(LauncherActivity.this) != null) {
+                    scanRememberedRoms();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        updateSoundControls();
+        if (romInventory != null) {
+            applyRomInventory(romInventory);
         }
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -324,6 +351,242 @@ public final class LauncherActivity extends Activity {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 // A populated Spinner keeps its current choice.
+            }
+        });
+    }
+
+    private void addSoundSettings(LinearLayout layout, int textSize, int spacing) {
+        WrappingLayout group = settingsGroup(layout, "Sound settings", textSize, spacing);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        group.addView(body, new android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+        WrappingLayout modeRow = new WrappingLayout(this, spacing, 0);
+        TextView modeLabel = new TextView(this);
+        modeLabel.setText("Sound mode");
+        modeLabel.setTextSize(textSize);
+        modeRow.addView(modeLabel);
+        soundMode = new Spinner(this);
+        soundMode.setId(View.generateViewId());
+        modeLabel.setLabelFor(soundMode.getId());
+        ArrayAdapter<LaunchOptions.SoundMode> modes = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, LaunchOptions.SoundMode.values());
+        modes.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        soundMode.setAdapter(modes);
+        String storedMode;
+        boolean oldSound;
+        try {
+            storedMode = preferences.getString(LaunchOptions.SOUND_MODE_KEY, null);
+            oldSound = preferences.getBoolean(LaunchOptions.SOUND_KEY, LaunchOptions.DEFAULT_SOUND);
+        } catch (ClassCastException error) {
+            storedMode = null;
+            oldSound = LaunchOptions.DEFAULT_SOUND;
+        }
+        soundMode.setSelection(LaunchOptions.SoundMode.fromStored(storedMode, oldSound).ordinal());
+        modeRow.addView(soundMode);
+        body.addView(modeRow);
+
+        mt32Controls = new LinearLayout(this);
+        mt32Controls.setOrientation(LinearLayout.VERTICAL);
+        TextView folderLabel = new TextView(this);
+        folderLabel.setText("Choose your MT-32 ROM folder path.");
+        folderLabel.setTextSize(textSize);
+        mt32Controls.addView(folderLabel);
+        LinearLayout folderRow = new LinearLayout(this);
+        folderRow.setOrientation(LinearLayout.HORIZONTAL);
+        mt32Folder = new EditText(this);
+        mt32Folder.setId(View.generateViewId());
+        folderLabel.setLabelFor(mt32Folder.getId());
+        mt32Folder.setSingleLine(true);
+        mt32Folder.setKeyListener(null);
+        mt32Folder.setFocusable(false);
+        mt32Folder.setText(Mt32RomStorage.folderLabel(this));
+        folderRow.addView(mt32Folder, new LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        mt32Browse = button(folderRow, "Browse...", view -> chooseRomFolder());
+        // A folder action is beside the path even on TV, rather than a full-width navigation button.
+        mt32Browse.setMinWidth(0);
+        mt32Controls.addView(folderRow);
+        TextView modelLabel = new TextView(this);
+        modelLabel.setText("ROM set");
+        modelLabel.setTextSize(textSize);
+        mt32Controls.addView(modelLabel);
+        mt32Model = new Spinner(this);
+        mt32Model.setId(View.generateViewId());
+        modelLabel.setLabelFor(mt32Model.getId());
+        mt32Controls.addView(mt32Model);
+        mt32Status = new TextView(this);
+        mt32Status.setTextSize(textSize);
+        mt32Controls.addView(mt32Status);
+        body.addView(mt32Controls);
+        WrappingLayout musicRow = new WrappingLayout(this, spacing, 0);
+        newMidi = option(musicRow, "OGG music replacement", LaunchOptions.NEW_MIDI_KEY,
+            LaunchOptions.DEFAULT_NEW_MIDI, textSize);
+        body.addView(musicRow);
+        mt32Model.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!updatingRomModels) {
+                    saveOptions();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
+    private LaunchOptions.SoundMode selectedSoundMode() {
+        Object selected = soundMode.getSelectedItem();
+        return selected instanceof LaunchOptions.SoundMode
+            ? (LaunchOptions.SoundMode) selected : LaunchOptions.SoundMode.ADLIB;
+    }
+
+    private String selectedRomModel() {
+        Object selected = mt32Model.getSelectedItem();
+        return selected instanceof Mt32RomLibrary.RomSet
+            ? ((Mt32RomLibrary.RomSet) selected).id
+            : preferences.getString(LaunchOptions.MT32_MODEL_KEY, "");
+    }
+
+    private void updateSoundControls() {
+        mt32Controls.setVisibility(selectedSoundMode() == LaunchOptions.SoundMode.MT32
+            ? View.VISIBLE : View.GONE);
+        mt32Folder.setText(Mt32RomStorage.folderLabel(this));
+        if (romInventory == null) {
+            mt32Status.setText(Mt32RomStorage.folder(this) == null
+                ? "Select a folder containing compatible control and PCM ROMs."
+                : "The remembered ROM folder will be checked before launch.");
+        }
+    }
+
+    private void applyRomInventory(Mt32RomLibrary.Inventory inventory) {
+        romInventory = inventory;
+        String selected = inventory.selectedModel(preferences.getString(LaunchOptions.MT32_MODEL_KEY, ""));
+        ArrayList<Mt32RomLibrary.RomSet> choices = new ArrayList<>();
+        if (selected.isEmpty()) {
+            choices.add(new Mt32RomLibrary.RomSet("", inventory.sets.isEmpty()
+                ? "No complete ROM set found" : "Choose ROM set…"));
+        }
+        choices.addAll(inventory.sets);
+        updatingRomModels = true;
+        ArrayAdapter<Mt32RomLibrary.RomSet> adapter = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, choices);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mt32Model.setAdapter(adapter);
+        for (int index = 0; index < choices.size(); index++) {
+            if (choices.get(index).id.equals(selected)) {
+                mt32Model.setSelection(index);
+                break;
+            }
+        }
+        updatingRomModels = false;
+        mt32Folder.setText(Mt32RomStorage.folderLabel(this));
+        mt32Status.setText(inventory.sets.isEmpty()
+            ? (inventory.error.isEmpty() ? "No complete compatible control and PCM ROM set found." : inventory.error)
+            : selected.isEmpty() ? "Several ROM sets were found. Choose which one to use."
+            : "Compatible control and PCM ROMs found.");
+        preferences.edit().putString(LaunchOptions.MT32_MODEL_KEY, selected).apply();
+    }
+
+    private void scanRememberedRoms() {
+        if (scanningRoms) {
+            return;
+        }
+        Context context = getApplicationContext();
+        scanningRoms = true;
+        refreshActive();
+        WORKER.execute(() -> {
+            try {
+                Mt32RomLibrary.Inventory inventory = Mt32RomStorage.refresh(context);
+                MAIN_THREAD.post(() -> {
+                    scanningRoms = false;
+                    romInventory = inventory;
+                    LauncherActivity activity = active.get();
+                    if (activity != null) {
+                        activity.applyRomInventory(inventory);
+                    }
+                    refreshActive();
+                });
+            } catch (IOException | RuntimeException error) {
+                MAIN_THREAD.post(() -> {
+                    scanningRoms = false;
+                    LauncherActivity activity = active.get();
+                    if (activity != null) {
+                        activity.mt32Status.setText(error.getMessage());
+                    }
+                    refreshActive();
+                });
+            }
+        });
+    }
+
+    private void chooseRomFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Uri previous = Mt32RomStorage.folder(this);
+            intent.putExtra(INITIAL_URI_EXTRA, previous == null || previous.equals(Mt32RomStorage.tvFolder())
+                ? Uri.parse(DOCUMENTS_URI) : previous);
+        }
+        openPicker(intent, REQUEST_MT32_FOLDER,
+            "No folder picker is available. Install a document picker to choose your MT-32 ROM folder.");
+    }
+
+    private void selectRomFolder(Intent data) {
+        Context context = getApplicationContext();
+        Uri selected = data.getData();
+        if ((data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0) {
+            mt32Status.setText("Choose a folder that allows reading the MT-32 ROM files.");
+            return;
+        }
+        try {
+            context.getContentResolver().takePersistableUriPermission(selected,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException error) {
+            mt32Status.setText("Cannot keep access to the MT-32 ROM folder: " + error.getMessage());
+            return;
+        }
+        useRomFolder(selected);
+    }
+
+    private void useRomFolder(Uri selected) {
+        Context context = getApplicationContext();
+        Uri previous = Mt32RomStorage.folder(context);
+        scanningRoms = true;
+        mt32Status.setText("Finding compatible MT-32 ROM sets…");
+        refreshActive();
+        WORKER.execute(() -> {
+            try {
+                Mt32RomLibrary.Inventory inventory = Mt32RomStorage.select(context, selected);
+                if (previous != null && !previous.equals(selected)) {
+                    releaseFolderPermission(context, previous);
+                }
+                MAIN_THREAD.post(() -> {
+                    scanningRoms = false;
+                    romInventory = inventory;
+                    LauncherActivity activity = active.get();
+                    if (activity != null) {
+                        activity.applyRomInventory(inventory);
+                    }
+                    refreshActive();
+                });
+            } catch (IOException | RuntimeException error) {
+                if (!selected.equals(Mt32RomStorage.folder(context))
+                        && !selected.equals(GameDataStorage.folder(context))
+                        && !selected.equals(Mt32RomStorage.tvFolder())) {
+                    releaseFolderPermission(context, selected);
+                }
+                MAIN_THREAD.post(() -> {
+                    scanningRoms = false;
+                    LauncherActivity activity = active.get();
+                    if (activity != null) {
+                        activity.mt32Status.setText("Cannot use MT-32 ROM folder: " + error.getMessage());
+                    }
+                    refreshActive();
+                });
             }
         });
     }
@@ -369,13 +632,20 @@ public final class LauncherActivity extends Activity {
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
             legacyCollision.isChecked(), leftCornerBias.isChecked(), dualWaySwitching.isChecked(),
             chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
-            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked(), showMph.isChecked());
+            selectedSoundMode() != LaunchOptions.SoundMode.NONE, skipIntro.isChecked(),
+            multiCore.isChecked(), showMph.isChecked()).withSoundMode(selectedSoundMode(),
+                Mt32RomStorage.directory(this).getAbsolutePath(), selectedRomModel());
     }
 
     private void saveOptions() {
+        if (!optionsReady) {
+            return;
+        }
         LaunchOptions options = selectedOptions();
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
             .putBoolean(LaunchOptions.SOUND_KEY, options.sound)
+            .putString(LaunchOptions.SOUND_MODE_KEY, options.soundMode.name())
+            .putString(LaunchOptions.MT32_MODEL_KEY, options.mt32Model)
             .putBoolean(LaunchOptions.VIBRATION_KEY, vibration.isChecked())
             .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
@@ -395,10 +665,13 @@ public final class LauncherActivity extends Activity {
 
     private void refresh() {
         status.setText(currentStatus);
-        boolean busy = importing || synchronizing || preparingAssets;
+        boolean busy = importing || synchronizing || preparingAssets || scanningRoms;
         preparationProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         folder.setEnabled(!busy);
         zip.setEnabled(!busy);
+        soundMode.setEnabled(!busy);
+        mt32Browse.setEnabled(!busy);
+        mt32Model.setEnabled(!busy);
         if (tvFolder != null) {
             tvFolder.setEnabled(!busy);
         }
@@ -419,9 +692,10 @@ public final class LauncherActivity extends Activity {
     }
 
     private void startGame() {
-        if (importing || synchronizing || preparingAssets) {
+        if (importing || synchronizing || preparingAssets || scanningRoms) {
             return;
         }
+        saveOptions();
         LaunchOptions options = selectedOptions();
         boolean selectedVibration = vibration.isChecked();
         boolean selectedTiltSteering = tiltSteering.isEnabled() && tiltSteering.isChecked();
@@ -431,6 +705,21 @@ public final class LauncherActivity extends Activity {
         refreshActive();
         WORKER.execute(() -> {
             try {
+                if (options.soundMode == LaunchOptions.SoundMode.MT32) {
+                    Mt32RomLibrary.Inventory inventory = Mt32RomStorage.refresh(context);
+                    if (!inventory.contains(options.mt32Model)) {
+                        MAIN_THREAD.post(() -> {
+                            romInventory = inventory;
+                            LauncherActivity activity = active.get();
+                            if (activity != null) {
+                                activity.applyRomInventory(inventory);
+                            }
+                        });
+                        throw new IOException(inventory.sets.isEmpty()
+                            ? (inventory.error.isEmpty() ? "No complete MT-32 ROM set was found." : inventory.error)
+                            : "Choose an available MT-32 ROM set before starting the game.");
+                    }
+                }
                 GameDataStorage.refresh(context);
                 MAIN_THREAD.post(() -> {
                     synchronizing = false;
@@ -441,6 +730,9 @@ public final class LauncherActivity extends Activity {
                         Intent intent = new Intent(activity, GameActivity.class);
                         intent.putExtra(LaunchOptions.NEW_MIDI_KEY, options.newMidi);
                         intent.putExtra(LaunchOptions.SOUND_KEY, options.sound);
+                        intent.putExtra(LaunchOptions.SOUND_MODE_KEY, options.soundMode.name());
+                        intent.putExtra(LaunchOptions.MT32_ROM_DIRECTORY_KEY, options.mt32RomDirectory);
+                        intent.putExtra(LaunchOptions.MT32_MODEL_KEY, options.mt32Model);
                         intent.putExtra(LaunchOptions.VIBRATION_KEY, selectedVibration);
                         intent.putExtra(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro);
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
@@ -552,7 +844,9 @@ public final class LauncherActivity extends Activity {
     }
 
     private static void releaseFolderPermission(Context context, Uri uri) {
-        if (GameDataStorage.isTvFolder(uri)) {
+        if (GameDataStorage.isTvFolder(uri) || uri.equals(Mt32RomStorage.tvFolder())
+                || uri.equals(Mt32RomStorage.folder(context))
+                || uri.equals(GameDataStorage.folder(context))) {
             return;
         }
         try {
@@ -688,10 +982,31 @@ public final class LauncherActivity extends Activity {
     }
 
     private void showTvFallback(int request) {
-        if (request == REQUEST_ZIP) {
+        if (request == REQUEST_MT32_FOLDER) {
+            showTvRomFolder();
+        } else if (request == REQUEST_ZIP) {
             chooseTvZipFile();
         } else {
             showTvFolderDialog(request == REQUEST_ZIP_FOLDER);
+        }
+    }
+
+    private void showTvRomFolder() {
+        if (importing || synchronizing || preparingAssets || scanningRoms) {
+            return;
+        }
+        try {
+            File directory = Mt32RomStorage.tvDirectory(this);
+            new AlertDialog.Builder(this).setTitle("TV MT-32 ROM folder")
+                .setMessage("Copy your MT-32 control and PCM ROM files into this folder, "
+                    + "then choose Use this folder. Subfolders are supported.\n\n"
+                    + directory.getAbsolutePath()
+                    + "\n\nROMs are read only and are kept separate from your game files.")
+                .setPositiveButton("Use this folder",
+                    (choice, selected) -> useRomFolder(Mt32RomStorage.tvFolder()))
+                .setNegativeButton(android.R.string.cancel, null).show();
+        } catch (IOException | RuntimeException error) {
+            mt32Status.setText("Cannot use the TV ROM folder: " + error.getMessage());
         }
     }
 
@@ -816,6 +1131,10 @@ public final class LauncherActivity extends Activity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (result != RESULT_OK || data == null || data.getData() == null || importing || synchronizing) {
+            return;
+        }
+        if (request == REQUEST_MT32_FOLDER) {
+            selectRomFolder(data);
             return;
         }
         if (request == REQUEST_FOLDER || request == REQUEST_ZIP_FOLDER) {

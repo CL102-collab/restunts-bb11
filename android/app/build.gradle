@@ -28,8 +28,9 @@ android {
                     "-DRESTUNTS_ANDROID_BUILD_JOBS=${gradle.startParameter.maxWorkerCount}",
                     "-DFETCHCONTENT_SOURCE_DIR_SDL3=${sdlDirectory.absolutePath}",
                     "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_VPX=${file('../../out/android-deps/vpx').absolutePath}",
-                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_NESTEGG=${file('../../out/android-deps/nestegg').absolutePath}"
-                targets 'restunts', 'SDL3-shared', 'nuked_opl2'
+                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_NESTEGG=${file('../../out/android-deps/nestegg').absolutePath}",
+                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_MUNT=${file('../../out/android-deps/munt').absolutePath}"
+                targets 'restunts', 'SDL3-shared', 'nuked_opl2', 'mt32emu'
             }
         }
     }

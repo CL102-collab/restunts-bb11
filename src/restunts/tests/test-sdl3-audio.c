@@ -7,6 +7,11 @@
 #include <SDL3/SDL_main.h>
 #include "../platform/sdl3/audio.c"
 
+void dos_show_startup_error(const legacy_s8 *message)
+{
+	assert(message != NULL && message[0] != 0);
+}
+
 legacy_s32 sdl3_batch_mode;
 static legacy_u32 removed_callbacks;
 

@@ -43,7 +43,17 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --data-dir DIR   Read game data and saves in DIR; must be first." COMMAND_LINE_NEWLINE
 #endif
 	"  --nointro        Skip the startup intro." COMMAND_LINE_NEWLINE
+	"  --nosound        Alias for /ns; overrides sound mode regardless of "
+	"order." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
+	"  --soundmode:adlib|mt-32  Select original synthesized audio; default "
+	"adlib." COMMAND_LINE_NEWLINE
+#if !defined(__DJGPP__)
+	"  --mt-32-rom-dir DIR  Folder containing user-supplied MT-32 ROM images." COMMAND_LINE_NEWLINE
+	"  --mt-32-model ID  Choose a detected ROM set; required when several "
+	"exist." COMMAND_LINE_NEWLINE "  --list-mt-32-roms DIR  List complete ROM sets as JSON without "
+	"starting the game." COMMAND_LINE_NEWLINE
+#endif
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
@@ -83,7 +93,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #endif
 	"  /ns              Start with music and sound effects disabled." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
-	"  /sXX             Legacy audio selection; SDL3 always uses AdLib." COMMAND_LINE_NEWLINE
+	"  /sXX             Legacy selection; use --soundmode for native audio." COMMAND_LINE_NEWLINE
 	"  /h               Legacy video switch; no alternate mode in SDL3." COMMAND_LINE_NEWLINE
 #elif defined(RESTUNTS_AMIGA)
 	"  /sXX             Legacy selection; Amiga uses Paula with AdLib "

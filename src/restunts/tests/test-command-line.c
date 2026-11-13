@@ -94,7 +94,14 @@ static void test_help_contents(void)
 		"  --data-dir DIR",
 #endif
 		"  --nointro",
+		"  --nosound",
 #ifdef RESTUNTS_SDL3
+		"  --soundmode:adlib|mt-32",
+#ifndef __DJGPP__
+		"  --mt-32-rom-dir DIR",
+		"  --mt-32-model ID",
+		"  --list-mt-32-roms DIR",
+#endif
 		"  --ogg:on|off",
 #ifndef __DJGPP__
 		"  --multi-core:on|off",

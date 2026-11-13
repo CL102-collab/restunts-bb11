@@ -360,6 +360,14 @@ jobs:
             org.restunts.android.GameDataSyncTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.LocalGameFolderTest
+          source android/toolchain.properties
+          android_sdk_root=${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Set the Android SDK path}}
+          android_api_jar="$android_sdk_root/platforms/android-$ANDROID_COMPILE_SDK/android.jar"
+          "$JAVA_HOME/bin/javac" -cp "$android_api_jar" -d "$RUNNER_TEMP/android-import-tests" \
+            android/app/src/main/java/org/restunts/android/Mt32RomLibrary.java \
+            android/tests/Mt32RomSelectionTest.java
+          "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests:$android_api_jar" \
+            org.restunts.android.Mt32RomSelectionTest
           python3 -m unittest discover -s tools/scripts/tests -p 'test_android_build_helpers.py'
           python3 tools/scripts/test-release-packages.py
 

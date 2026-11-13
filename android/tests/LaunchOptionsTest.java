@@ -14,8 +14,17 @@ public final class LaunchOptionsTest {
     }
 
     private static void requireArguments(LaunchOptions options, String... expected) {
+        java.util.ArrayList<String> modernExpected = new java.util.ArrayList<>(Arrays.asList(expected));
+        int mute = modernExpected.indexOf("/ns");
+        if (mute >= 0) {
+            modernExpected.set(mute, "--nosound");
+        } else {
+            int intro = modernExpected.indexOf("--nointro");
+            modernExpected.add(intro < 0 ? modernExpected.size() : intro, "--soundmode:adlib");
+        }
         String[] actual = options.arguments(DATA_DIRECTORY);
-        require(Arrays.equals(actual, expected), "Unexpected arguments: " + Arrays.toString(actual));
+        require(Arrays.equals(actual, modernExpected.toArray(new String[0])),
+            "Unexpected arguments: " + Arrays.toString(actual));
     }
 
     public static void main(String[] args) {
@@ -184,15 +193,15 @@ public final class LaunchOptionsTest {
                                     String[] startup = new LaunchOptions(midi, fps, controls, vision,
                                         pg, lc, lcb, dws, fastGrass, owoot, grass, sound, skipIntro)
                                         .arguments(DATA_DIRECTORY);
-                                    require(Arrays.equals(normal,
-                                            Arrays.copyOf(startup, normal.length)),
+                                    require(Arrays.equals(Arrays.copyOf(normal, normal.length - 1),
+                                            Arrays.copyOf(startup, normal.length - 1)),
                                         "Sound and intro must preserve all other launch choices.");
-                                    require(Arrays.asList(startup).contains("/ns") == !sound,
+                                    require(Arrays.asList(startup).contains("--nosound") == !sound,
                                         "Only disabling Sound must request native silence.");
                                     require(Arrays.asList(startup).contains("--nointro") == skipIntro,
                                         "Only selecting Skip intro must skip the native intro.");
                                     require(startup.length == normal.length
-                                            + (sound ? 0 : 1) + (skipIntro ? 1 : 0),
+                                            + (skipIntro ? 1 : 0),
                                         "Startup options must add only their own arguments.");
                                 }
                             }
@@ -201,6 +210,51 @@ public final class LaunchOptionsTest {
                 }
             }
         }
+        require(LaunchOptions.SoundMode.fromStored(null, true) == LaunchOptions.SoundMode.ADLIB,
+            "Existing enabled sound preferences must migrate to Ad Lib.");
+        require(LaunchOptions.SoundMode.fromStored(null, false) == LaunchOptions.SoundMode.NONE,
+            "Existing disabled sound preferences must migrate to No sound.");
+        require(LaunchOptions.SoundMode.fromStored("invalid", false) == LaunchOptions.SoundMode.NONE,
+            "Invalid stored modes must preserve the old disabled sound preference.");
+        require(LaunchOptions.SoundMode.fromStored("MT32", false) == LaunchOptions.SoundMode.MT32,
+            "An explicit mode must supersede the legacy sound preference.");
+        String[] soundLabels = {"No sound", "Ad Lib", "MT-32"};
+        for (int index = 0; index < soundLabels.length; index++) {
+            LaunchOptions.SoundMode mode = LaunchOptions.SoundMode.values()[index];
+            require(mode.toString().equals(soundLabels[index]), "Unexpected sound dropdown label.");
+            require(LaunchOptions.SoundMode.fromStored(mode.name(), true) == mode,
+                "Sound mode must survive saving and restoring.");
+        }
+        LaunchOptions defaults = new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF);
+        String romDirectory = "/data/user/0/org.restunts.android/files/mt32-roms";
+        String model = "mt32_1_07";
+        LaunchOptions mt32 = defaults.withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
+        java.util.List<String> mt32Arguments = Arrays.asList(mt32.arguments(DATA_DIRECTORY));
+        require(mt32.sound && mt32.soundMode == LaunchOptions.SoundMode.MT32,
+            "MT-32 is an enabled sound mode.");
+        require(mt32Arguments.contains("--soundmode:mt-32")
+                && !mt32Arguments.contains("--soundmode:adlib")
+                && !mt32Arguments.contains("--nosound"),
+            "MT-32 must emit exactly its selected sound mode.");
+        require(mt32Arguments.get(mt32Arguments.indexOf("--mt-32-rom-dir") + 1).equals(romDirectory),
+            "Pass the app-private ROM directory as a separate argument.");
+        require(mt32Arguments.get(mt32Arguments.indexOf("--mt-32-model") + 1).equals(model),
+            "Pass the exact selected ROM set to native playback.");
+        for (LaunchOptions.SoundMode mode : new LaunchOptions.SoundMode[] {
+                LaunchOptions.SoundMode.ADLIB, LaunchOptions.SoundMode.NONE}) {
+            LaunchOptions inactive = mt32.withSoundMode(mode, romDirectory, model);
+            java.util.List<String> arguments = Arrays.asList(inactive.arguments(DATA_DIRECTORY));
+            require(!arguments.contains("--mt-32-rom-dir") && !arguments.contains("--mt-32-model")
+                    && !arguments.contains(romDirectory) && !arguments.contains(model),
+                "Inactive MT-32 settings must never affect Ad Lib or muted launches.");
+            require(arguments.contains("--nosound") == (mode == LaunchOptions.SoundMode.NONE),
+                "Only No sound emits --nosound.");
+            require(arguments.contains("--ogg:off"), "Keep the OGG selection independent of sound mode.");
+        }
+        LaunchOptions oggMt32 = new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF)
+            .withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
+        require(Arrays.asList(oggMt32.arguments(DATA_DIRECTORY)).contains("--ogg:on"),
+            "OGG music replacement can coexist with MT-32 effects.");
         System.out.println("Android defaults, saved option keys, graphics/driving/audio/intro flags passed.");
     }
 }

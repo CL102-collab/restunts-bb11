@@ -56,7 +56,8 @@ install(FILES "${SDL3_SOURCE_DIR}/LICENSE.txt"
     DESTINATION share/licenses/restunts RENAME SDL-LICENSE.txt COMPONENT Runtime)
 
 # The browser cannot replace a shared library. Ship the application objects,
-# SDL/WebM archives, linker inputs and exact OPL source so users can relink instead.
+# SDL/WebM archives, linker inputs and exact LGPL source so users can relink instead.
+# The adjoining share/restunts/mt32emu tree is installed by mt32emu-install.cmake.
 set(restunts_relink_directory share/restunts/wasm-relink)
 configure_file(cmake/wasm-relink.CMakeLists.txt.in
     "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/CMakeLists.txt" @ONLY)

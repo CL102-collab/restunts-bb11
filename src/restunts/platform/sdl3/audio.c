@@ -4,6 +4,9 @@
  * Only the main thread accesses this state. SDL consumes queued PCM separately. */
 #include "sdl3.h"
 #include "music.h"
+#include "mt32_audio.h"
+#include "../../c/startup_internal.h"
+#include "../../c/memmgr.h"
 #include <string.h>
 #include <stdio.h>
 #include "../../c/audio/audio.h"
@@ -202,6 +205,25 @@ static legacy_u8 adlib_output_registers[ADLIB_REGISTER_COUNT];
 static legacy_s32 adlib_music_muted;
 static legacy_u8 adlib_register_valid[ADLIB_REGISTER_COUNT];
 static legacy_s32 adlib_ready;
+static legacy_u8 configured_sound_mode;
+static legacy_u8 configured_sound_disabled;
+static const legacy_char *configured_mt32_directory;
+static const legacy_char *configured_mt32_model;
+
+void sdl3_audio_configure(legacy_u8 mode, const legacy_char *rom_directory,
+						  const legacy_char *model, legacy_u8 disabled)
+{
+	configured_sound_mode = mode;
+	configured_sound_disabled = disabled != 0;
+	configured_mt32_directory = rom_directory;
+	configured_mt32_model = model;
+}
+
+legacy_u8 sdl3_audio_uses_mt32(void)
+{
+	return configured_sound_mode == STARTUP_SOUND_MT32 && !configured_sound_disabled;
+}
+
 static const legacy_u8 adlib_slots[ADLIB_VOICES] = {0, 1, 2, 8, 9, 10, 16, 17, 18};
 static const legacy_u16 adlib_frequencies[] = {
 	21,	 23,  24,  25,	27,	 29,  30,  32,	34,	 36,  38,  40,	43,	 45,  48,
@@ -282,6 +304,13 @@ static void adlib_write(legacy_u32 reg, legacy_u32 value)
 
 void sdl3_audio_set_music_muted(legacy_s32 muted)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_audio_set_music_muted((legacy_u8)(muted != 0));
+		return;
+	}
+#endif
+
 	muted = muted != 0;
 	if (adlib_music_muted == muted) {
 		return;
@@ -494,11 +523,28 @@ static void adlib_control(legacy_s32 voice, legacy_u32 selector, legacy_u32 valu
 
 legacy_u8 dos_audio_driver_initialize(void)
 {
+
+	if (sdl3_audio_uses_mt32()) {
+#ifdef RESTUNTS_MT32
+		if (sdl3_batch_mode) {
+			return AUDIO_CONTEXT_COUNT;
+		}
+		if (!mt32_audio_initialize(configured_mt32_directory, configured_mt32_model)) {
+			dos_show_startup_error((const legacy_s8 *)mt32_audio_error());
+			return 0;
+		}
+		return AUDIO_CONTEXT_COUNT;
+#else
+		dos_show_startup_error("MT-32 playback is not available in this build.");
+		return 0;
+#endif
+	}
+
 	adlib_ready = 0;
 	adlib_music_muted = 0;
 	memset(adlib_register_valid, 0, sizeof(adlib_register_valid));
 	memset(adlib_voices, 0, sizeof(adlib_voices));
-	if (sdl3_batch_mode) {
+	if (sdl3_batch_mode || configured_sound_disabled) {
 		/* Dump tools still resolve instruments and maintain sequencer state,
 		 * but do not need an audio device or access to DOS hardware ports. */
 		adlib_ready = 0;
@@ -566,6 +612,12 @@ legacy_u8 dos_audio_driver_initialize(void)
 void sdl3_audio_update(void)
 {
 	sdl3_music_update();
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_audio_update();
+		return;
+	}
+#endif
 #ifndef __DJGPP__
 	if (!adlib_ready || !adlib_stream) {
 		return;
@@ -584,6 +636,14 @@ void sdl3_audio_update(void)
 void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 									  legacy_u8 *timer, void *resource)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_prepare(mt32_audio_driver(), driver_channel, (struct AUDIO_CHANNEL *)timer,
+							resource);
+		return;
+	}
+#endif
+
 	(void)context;
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice < 0 || !resource || resource_read_u32le(resource) < ADLIB_RESOURCE_SIZE) {
@@ -624,6 +684,14 @@ void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CO
 void dos_audio_driver_set_context_value(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 										legacy_u16 value)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_bend(mt32_audio_driver(), driver_channel,
+						 (legacy_u16)(value * MT32_ENGINE_PITCH_SCALE));
+		return;
+	}
+#endif
+
 	(void)context;
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice < 0) {
@@ -645,6 +713,14 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 									   legacy_u8 *timer, legacy_s16 pitch, legacy_u16 parameter,
 									   void *resource)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_activate(mt32_audio_driver(), driver_channel, context,
+							 (struct AUDIO_CHANNEL *)timer, pitch, parameter, resource);
+		return;
+	}
+#endif
+
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice < 0 || !resource) {
 		return;
@@ -673,6 +749,13 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 
 void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_stop(mt32_audio_driver(), driver_channel, context);
+		return;
+	}
+#endif
+
 	(void)context;
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice >= 0) {
@@ -683,6 +766,14 @@ void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONT
 
 void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		(void)driver_channel;
+		(void)context;
+		return;
+	}
+#endif
+
 	dos_audio_driver_start_context(driver_channel, context);
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice >= 0) {
@@ -695,6 +786,13 @@ void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEX
 
 void dos_audio_driver_release_channel(legacy_s16 driver_channel)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_silence_channel(mt32_audio_driver(), driver_channel);
+		return;
+	}
+#endif
+
 	dos_audio_driver_end_context(driver_channel, NULL);
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice >= 0) {
@@ -704,6 +802,13 @@ void dos_audio_driver_release_channel(legacy_s16 driver_channel)
 
 void dos_audio_driver_start(void)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_reset(mt32_audio_driver());
+		return;
+	}
+#endif
+
 	for (legacy_s16 channel = 1; (legacy_u16)channel <= ADLIB_VOICES; ++channel) {
 		dos_audio_driver_release_channel(channel);
 	}
@@ -712,6 +817,13 @@ void dos_audio_driver_start(void)
 void dos_audio_driver_suspend_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 									  legacy_u16 value, void *resource)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_update_context(mt32_audio_driver(), driver_channel, context, resource);
+		return;
+	}
+#endif
+
 	(void)value;
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice < 0 || !context || !context->state || !resource) {
@@ -755,6 +867,13 @@ void dos_audio_set_channel_volume(legacy_s16 channel, legacy_s16 volume)
 		return;
 	}
 	audio_channels[channel].volume = (legacy_u8)volume;
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_volume(mt32_audio_driver(), audio_channels[channel].driver_channel,
+						   (legacy_u8)volume);
+		return;
+	}
+#endif
 	for (legacy_u32 voice = 0; voice < ADLIB_VOICES; ++voice) {
 		if (dos_audio_contexts[voice + AUDIO_DRIVER_CHANNEL_BASE].channel == channel) {
 			adlib_volume(voice, (legacy_u8)volume);
@@ -774,6 +893,12 @@ void dos_audio_bind_channel_context(legacy_s16 channel, void *resource)
 		bytes[AUDIO_INSTRUMENT_DIRECT_CHANNEL_OFFSET] < AUDIO_DIRECT_CHANNEL_COUNT
 			? bytes[AUDIO_INSTRUMENT_DIRECT_CHANNEL_OFFSET]
 			: (legacy_u8)((channel & AUDIO_DIRECT_CHANNEL_MASK) + AUDIO_DRIVER_CHANNEL_BASE);
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_prepare(mt32_audio_driver(), state->driver_channel, state, resource);
+		return;
+	}
+#endif
 	for (legacy_s16 index = 1; (legacy_u16)index < ADLIB_CONTEXTS; ++index) {
 		if (dos_audio_contexts[index].channel == channel) {
 			dos_audio_driver_prepare_context(index, &dos_audio_contexts[index], (legacy_u8 *)state,
@@ -784,6 +909,17 @@ void dos_audio_bind_channel_context(legacy_s16 channel, void *resource)
 
 void dos_audio_set_context_pitch(legacy_s16 context_index, legacy_s16 pitch)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		if (context_index >= 0 && (legacy_u16)context_index < AUDIO_CONTEXT_COUNT) {
+			struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
+			mt32_driver_bend(mt32_audio_driver(), context->driver_channel,
+							 (legacy_u16)((legacy_u16)pitch * MT32_ENGINE_PITCH_SCALE));
+		}
+		return;
+	}
+#endif
+
 	if (context_index < 0 || (legacy_u16)context_index >= ADLIB_CONTEXTS) {
 		return;
 	}
@@ -794,6 +930,13 @@ void dos_audio_set_context_pitch(legacy_s16 context_index, legacy_s16 pitch)
 void dos_audio_driver_set_control(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 								  legacy_u16 control, legacy_u16 value)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_control(mt32_audio_driver(), driver_channel, control, value);
+		return;
+	}
+#endif
+
 	legacy_s32 voice = adlib_voice_index(driver_channel);
 	if (voice < 0 || !context || !context->state || !adlib_voices[voice].resource) {
 		return;
@@ -823,11 +966,32 @@ void dos_audio_driver_reset(void)
  * MT-32, and pitch changes are applied by the per-context 100 Hz update. */
 void dos_audio_driver_load_bank(void *bank)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		size_t length = mmgr_get_chunk_size_bytes((legacy_s8 *)bank);
+		if (!mt32_driver_load_bank(mt32_audio_driver(), bank, length)) {
+			dos_show_startup_error("Invalid MT32.PLB instrument bank.");
+			dos_process_exit(1);
+			return;
+		}
+		mt32_audio_finish_bank_upload();
+		return;
+	}
+#endif
+
 	(void)bank;
 }
 
 void dos_audio_driver_set_pitch(legacy_u8 *timer, legacy_s16 pitch, legacy_s16 driver_channel)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_bend(mt32_audio_driver(), driver_channel,
+						 LEGACY_U16_WRAP_ADD(pitch, MT32_PITCH_BEND_CENTER));
+		return;
+	}
+#endif
+
 	(void)timer;
 	(void)pitch;
 	(void)driver_channel;
@@ -835,6 +999,13 @@ void dos_audio_driver_set_pitch(legacy_u8 *timer, legacy_s16 pitch, legacy_s16 d
 
 void dos_audio_driver_send_data(legacy_u16 length, legacy_u8 *data)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		mt32_driver_send_data(mt32_audio_driver(), data, length);
+		return;
+	}
+#endif
+
 	(void)length;
 	(void)data;
 }
@@ -846,6 +1017,17 @@ void dos_audio_driver_suspend_all(struct AUDIO_CONTEXT *contexts)
 
 void dos_audio_driver_set_master_state(legacy_s16 operation, void *state)
 {
+#ifdef RESTUNTS_MT32
+	if (sdl3_audio_uses_mt32()) {
+		(void)operation;
+		(void)state;
+		mt32_driver_master_volume(mt32_audio_driver(), dos_audio_master_volume);
+		sdl3_music_set_volume((legacy_s16)((legacy_u16)dos_audio_master_volume *
+										   AUDIO_ENGINE_MAX_VOLUME / MT32_MASTER_VOLUME_MAX));
+		return;
+	}
+#endif
+
 	(void)operation;
 	(void)state;
 }
@@ -853,6 +1035,9 @@ void dos_audio_driver_set_master_state(legacy_s16 operation, void *state)
 void dos_audio_shutdown(void)
 {
 	sdl3_music_shutdown();
+#ifdef RESTUNTS_MT32
+	mt32_audio_shutdown();
+#endif
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 	timer_remove_callback(audio_sequence_timer);
 	dos_audio_driver_start();

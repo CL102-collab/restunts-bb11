@@ -41,6 +41,39 @@ complete kit with a redistributed browser package, even though only the HTML is
 needed to run it. The own-use modification and debugging permissions above also
 apply to browser builds.
 
+Munt libmt32emu
+--------------
+Copyright (C) 2003-2026 the Munt contributors.
+https://github.com/munt/munt
+Upstream revision: 91d2205eb8f2591d177b257b92e2c75f830508de (libmt32emu 2.8.6).
+The complete copyright roster is in share/restunts/mt32emu/AUTHORS.txt and the
+individual source files.
+
+Desktop, Android and browser builds use this library under LGPL version 2.1 or,
+at your option, any later version. The complete LGPL and referenced GPL texts
+are in share/licenses/restunts/MT32EMU-COPYING.LESSER.txt and MT32EMU-COPYING.txt.
+The library is provided WITHOUT ANY WARRANTY, including MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+Desktop and Android builds link it dynamically; browser builds link it
+statically. You may modify the application for your own use and reverse engineer
+it to debug modifications to this LGPL-covered library. The game does not check
+library signatures or prevent compatible modified replacements.
+
+The exact corresponding source, unmodified from the revision above, is in
+share/restunts/mt32emu/. README-restunts.md explains shared-library replacement
+and Android rebuild/repacking; mt32emu-build-info.txt records compiler/options.
+The rebuild/ wrapper supplies a standalone compatible build. Keep this complete
+source tree and licenses with redistributed packages. Browser packages also
+require the adjoining share/restunts/wasm-relink/ application objects, build
+settings and instructions for relinking with a modified mt32emu library.
+
+Roland control and PCM ROM images are proprietary data supplied separately by
+the player. They are not part of Munt's LGPL license and are never included in
+these packages, source trees, browser HTML or relink kits. Original Stunts music
+and instrument resources retain their own terms and are also supplied separately.
+DOS32/DOS16, Amiga and TempleOS builds do not include libmt32emu.
+
 stb_vorbis
 ----------
 Copyright (c) 2017 Sean Barrett.

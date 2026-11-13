@@ -13,6 +13,12 @@
 #include "../../c/asset_path.h"
 #include "../../c/fileio.h"
 #include "sdl3.h"
+#ifdef RESTUNTS_MT32
+#include "mt32_roms.h"
+#endif
+
+#define SDL3_MT32_INVENTORY_ARGUMENT_COUNT 3
+#define SDL3_MT32_INVENTORY_DIRECTORY_INDEX 2
 
 extern void full_data_initialize(void);
 extern legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[]);
@@ -73,6 +79,25 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		return info_result;
 	}
 #endif
+#if defined(RESTUNTS_MT32) && !defined(RESTUNTS_HEADLESS) && !defined(RESTUNTS_PIXLDUMP)
+	if (argc > SDL3_FIRST_OPTION_INDEX && strcmp(argv[1], "--list-mt-32-roms") == 0) {
+		if (argc != SDL3_MT32_INVENTORY_ARGUMENT_COUNT) {
+			fputs("Usage: restunts --list-mt-32-roms DIR\n", stderr);
+			return COMMAND_LINE_FAILURE;
+		}
+		legacy_char *inventory = mt32_rom_inventory_json(argv[SDL3_MT32_INVENTORY_DIRECTORY_INDEX]);
+		if (inventory == NULL) {
+			fputs("Cannot allocate MT-32 ROM inventory\n", stderr);
+			return COMMAND_LINE_FAILURE;
+		}
+		legacy_int result = puts(inventory) < 0 ? COMMAND_LINE_FAILURE : COMMAND_LINE_SUCCESS;
+		mt32_rom_inventory_free(inventory);
+		if (fflush(stdout) != 0) {
+			result = COMMAND_LINE_FAILURE;
+		}
+		return result;
+	}
+#endif
 #if !defined(__DJGPP__) && !defined(RESTUNTS_HEADLESS)
 	if (argc == 2 && strcmp(argv[1], "--licenses") == 0) {
 		fputs("Nuked OPL2 Lite - Copyright (C) 2026 Nuke.YKT.\n"
@@ -85,7 +110,19 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 			  "to debug modifications to this LGPL-covered library.\n"
 			  "See THIRD-PARTY-NOTICES.txt for dependency notices.\n",
 			  stdout);
-		return 0;
+#ifdef RESTUNTS_MT32
+		fputs("\nMunt libmt32emu - Copyright (C) 2003-2009 Dean Beeler and Jerome Fisher;\n"
+			  "Copyright (C) 2011-2026 Dean Beeler, Jerome Fisher, Sergey V. Mikayev.\n"
+			  "GNU LGPL version 2.1 or, at your option, any later version.\n"
+			  "Provided WITHOUT ANY WARRANTY. Complete license: \n"
+			  "share/licenses/restunts/MT32EMU-COPYING.LESSER.txt\n"
+			  "Corresponding source and rebuild instructions: share/restunts/mt32emu/\n"
+			  "You may modify this application for your own use and reverse engineer it\n"
+			  "to debug modifications to this LGPL-covered library.\n"
+			  "Roland ROM images are supplied separately and are not included.\n",
+			  stdout);
+#endif
+		return fflush(stdout) == 0 ? 0 : 1;
 	}
 #endif
 #if defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_PIXLDUMP)

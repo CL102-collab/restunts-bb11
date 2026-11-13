@@ -7,6 +7,9 @@ import java.util.List;
 public final class LaunchOptions {
     public static final String NEW_MIDI_KEY = "new_midi";
     public static final String SOUND_KEY = "sound";
+    public static final String SOUND_MODE_KEY = "sound_mode";
+    public static final String MT32_ROM_DIRECTORY_KEY = "mt32_rom_directory";
+    public static final String MT32_MODEL_KEY = "mt32_model";
     public static final String VIBRATION_KEY = "vibration";
     public static final String SKIP_INTRO_KEY = "skip_intro";
     public static final String TILT_STEERING_KEY = "tilt_steering";
@@ -38,6 +41,37 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_CHICANE_FAST_GRASS = true;
     public static final boolean DEFAULT_OWOOT = false;
     public static final boolean DEFAULT_AMIGA_GRASS = false;
+
+    public enum SoundMode {
+        NONE("No sound", "--nosound"),
+        ADLIB("Ad Lib", "--soundmode:adlib"),
+        MT32("MT-32", "--soundmode:mt-32");
+
+        private final String label;
+        private final String argument;
+
+        SoundMode(String label, String argument) {
+            this.label = label;
+            this.argument = argument;
+        }
+
+        /** Preserve the old Sound checkbox when no new selection is saved. */
+        public static SoundMode fromStored(String value, boolean oldSound) {
+            if (value != null) {
+                for (SoundMode option : values()) {
+                    if (option.name().equals(value)) {
+                        return option;
+                    }
+                }
+            }
+            return oldSound ? ADLIB : NONE;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 
     public enum HyperVision {
         OFF("Off", null),
@@ -74,6 +108,9 @@ public final class LaunchOptions {
 
     public final boolean newMidi;
     public final boolean sound;
+    public final SoundMode soundMode;
+    public final String mt32RomDirectory;
+    public final String mt32Model;
     public final boolean skipIntro;
     public final boolean showFps;
     public final boolean showMph;
@@ -129,8 +166,21 @@ public final class LaunchOptions {
             boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
             boolean owoot, boolean amigaGrass,
             boolean sound, boolean skipIntro, boolean multiCore, boolean showMph) {
+        this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
+            leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
+            sound ? SoundMode.ADLIB : SoundMode.NONE, skipIntro, multiCore, showMph, "", "");
+    }
+
+    private LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
+            HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
+            boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
+            boolean owoot, boolean amigaGrass, SoundMode soundMode, boolean skipIntro,
+            boolean multiCore, boolean showMph, String mt32RomDirectory, String mt32Model) {
         this.newMidi = newMidi;
-        this.sound = sound;
+        this.soundMode = soundMode == null ? SoundMode.ADLIB : soundMode;
+        this.sound = this.soundMode != SoundMode.NONE;
+        this.mt32RomDirectory = mt32RomDirectory == null ? "" : mt32RomDirectory;
+        this.mt32Model = mt32Model == null ? "" : mt32Model;
         this.skipIntro = skipIntro;
         this.showFps = showFps;
         this.showMph = showMph;
@@ -144,6 +194,12 @@ public final class LaunchOptions {
         this.chicaneFastGrass = chicaneFastGrass;
         this.owoot = owoot;
         this.amigaGrass = amigaGrass;
+    }
+
+    public LaunchOptions withSoundMode(SoundMode mode, String directory, String model) {
+        return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
+            legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
+            amigaGrass, mode, skipIntro, multiCore, showMph, directory, model);
     }
 
     public String[] arguments(String dataDirectory) {
@@ -169,8 +225,14 @@ public final class LaunchOptions {
         if (owoot) {
             arguments.add("--owoot");
         }
-        if (!sound) {
-            arguments.add("/ns");
+        arguments.add(soundMode.argument);
+        if (soundMode == SoundMode.MT32) {
+            arguments.add("--mt-32-rom-dir");
+            arguments.add(mt32RomDirectory);
+            if (!mt32Model.isEmpty()) {
+                arguments.add("--mt-32-model");
+                arguments.add(mt32Model);
+            }
         }
         if (skipIntro) {
             arguments.add("--nointro");

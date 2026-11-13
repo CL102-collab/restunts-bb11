@@ -27,7 +27,15 @@ when it changes. It remains usable after the launcher exits or the AppImage is
 unmounted. Flatpak browser entries are granted explicit read access through the
 document portal.
 
-**New MIDI** starts enabled and **HyperVision** starts at **Auto**. **Fullscreen**
+The **Sound settings** group contains the sound mode, **OGG music replacement**
+(formerly **New MIDI**), and the MT-32 ROM-folder/model controls. Controller
+vibration remains in **Startup options**. AdLib is the default sound mode; Ogg replacements start enabled.
+Choose MT-32, browse to your own read-only control/PCM ROM folder, and select a
+model when several complete sets are detected. The ROM path and model are saved
+separately from the game folder. Invalid or incomplete selections are reported
+before starting; they do not silently select AdLib. See [MT-32 setup](mt32.md).
+
+**HyperVision** starts at **Auto**. **Fullscreen**
 controls the game's initial window state. Selections, including the game folder,
 are saved per user on Start. Cancel leaves saved preferences unchanged. The game
 runs as a separate process and remains running after the launcher closes. The

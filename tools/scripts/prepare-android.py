@@ -53,6 +53,7 @@ def prepare(root):
     destination = dependency(root, "SDL3", "CMakeLists.txt", "sdl")
     vpx = dependency(root, "restunts_vpx", "cmake/webm.cmake", "vpx")
     nestegg = dependency(root, "restunts_nestegg", "cmake/webm.cmake", "nestegg")
+    munt = dependency(root, "restunts_munt", "cmake/mt32emu.cmake", "munt")
     # Upstream wrapper belongs with upstream Java glue; keep generated files in out/.
     wrapper = root / "out/android-gradle"
     wrapper.mkdir(parents=True, exist_ok=True)
@@ -71,6 +72,9 @@ def prepare(root):
                          (vpx / "PATENTS", "libvpx-PATENTS.txt"),
                          (nestegg / "LICENSE", "nestegg-LICENSE.txt")]:
         shutil.copy2(source, notices / name)
+    for name, output in (("COPYING.LESSER.txt", "MT32EMU-COPYING.LESSER.txt"),
+                         ("COPYING.txt", "MT32EMU-COPYING.txt")):
+        shutil.copy2(munt / "mt32emu" / name, notices / output)
 
 
 if __name__ == "__main__":
