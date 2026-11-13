@@ -27,12 +27,12 @@ static const size_t ROM_INVENTORY_MAX_CHARACTERS = 65536U;
 static const legacy_char DATA_DIRECTORY_ARGUMENT[] = "--data-dir";
 
 const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT] = {
-	{"new_midi", "OGG music replacement", "--ogg:on", "--ogg:off", false},
+	{"new_midi", "OGG music replacement (Shift+F10)", "--ogg:on", "--ogg:off", false},
 	{"skip_intro", "Skip intro", "--nointro", nullptr, false},
 	{"vibration", "Controller vibration", "--controller-vibration:on", "--controller-vibration:off",
 	 true},
-	{"fullscreen", "Fullscreen", "--fullscreen:on", "--fullscreen:off", false},
-	{"show_fps", "Show FPS", "--fps:on", "--fps:off", false},
+	{"fullscreen", "Fullscreen (Alt+Enter)", "--fullscreen:on", "--fullscreen:off", false},
+	{"show_fps", "Show FPS (F11)", "--fps:on", "--fps:off", false},
 	{"show_mph", "Show MPH (Ctrl+F9)", "--showmph:on", "--showmph:off", false},
 	{"multi_core", "Multi-core rendering", "--multi-core:on", "--multi-core:off", true},
 	{"power_gear", "Power Gear", "--pg:on", "--pg:off", true},

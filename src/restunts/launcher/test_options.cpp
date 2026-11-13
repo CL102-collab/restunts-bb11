@@ -54,7 +54,8 @@ legacy_int main()
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
-	check(wxString(launcher_option_definitions[LAUNCHER_NEW_MIDI].label) == "OGG music replacement",
+	check(wxString(launcher_option_definitions[LAUNCHER_NEW_MIDI].label) ==
+			  "OGG music replacement (Shift+F10)",
 		  "The replacement music control must use its descriptive public label.");
 	options.folder = wxString::FromUTF8("/game data/árvíz & test/");
 	const wxString game = "/program files/restunts";
