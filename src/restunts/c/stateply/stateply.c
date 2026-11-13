@@ -189,8 +189,9 @@ static void handle_breakable_object(struct CARSTATE *carstate, struct SIMD *simd
 	}
 }
 
-static legacy_s16 overlaps_start_finish_pole(struct SIMD *simd, struct VECTOR *car_pose,
-											 struct VECTOR *obstacle_pose, legacy_s16 angle)
+static legacy_s16 overlaps_gate_pole(struct SIMD *simd, struct VECTOR *car_pose,
+									 struct VECTOR *obstacle_pose, legacy_s16 column,
+									 legacy_s16 row, legacy_s16 angle)
 {
 	obstacle_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX].x = LEGACY_S16_WRAP_ADD(
 		track_column_centers[start_finish_column],
@@ -199,25 +200,33 @@ static legacy_s16 overlaps_start_finish_pole(struct SIMD *simd, struct VECTOR *c
 		track_row_centers[start_finish_row],
 		multiply_and_scale(cos_fast(angle), PLAYER_PHYSICS_START_FINISH_POLE_OFFSET));
 #ifdef RESTUNTS_SDL3
-	extended_player_start_finish_pole(obstacle_pose, angle,
-									  PLAYER_PHYSICS_START_FINISH_POLE_OFFSET);
+	extended_player_gate_pole(obstacle_pose, column, row, angle,
+							  PLAYER_PHYSICS_START_FINISH_POLE_OFFSET);
+#else
+	(void)column;
+	(void)row;
 #endif
 	return car_collision_boxes_overlap(simd->collide_points, car_pose, start_finish_pole_bounds,
 									   obstacle_pose) != 0;
 }
 
-static legacy_s16 handle_start_finish_poles(struct SIMD *simd, struct VECTOR *car_pose,
-											struct VECTOR *obstacle_pose, legacy_s16 column,
-											legacy_s16 row, legacy_s16 car_index)
+static legacy_s16 handle_gate_poles(struct SIMD *simd, struct VECTOR *car_pose,
+									struct VECTOR *obstacle_pose, legacy_s16 column, legacy_s16 row,
+									legacy_s16 car_index)
 {
-	if (column != start_finish_column || row != start_finish_row) {
+	legacy_s16 gate = column == start_finish_column && row == start_finish_row;
+	legacy_s16 angle = track_angle;
+#ifdef RESTUNTS_SDL3
+	extended_player_gate_tile(column, row, &gate, &angle);
+#endif
+	if (!gate) {
 		return 0;
 	}
 	obstacle_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX].y = hillHeightConsts[hillFlag];
-	if (overlaps_start_finish_pole(simd, car_pose, obstacle_pose,
-								   LEGACY_S16_WRAP_ADD(track_angle, ANGLE_QUARTER_TURN)) ||
-		overlaps_start_finish_pole(simd, car_pose, obstacle_pose,
-								   LEGACY_S16_WRAP_ADD(track_angle, ANGLE_THREE_QUARTER_TURN))) {
+	if (overlaps_gate_pole(simd, car_pose, obstacle_pose, column, row,
+						   LEGACY_S16_WRAP_ADD(angle, ANGLE_QUARTER_TURN)) ||
+		overlaps_gate_pole(simd, car_pose, obstacle_pose, column, row,
+						   LEGACY_S16_WRAP_ADD(angle, ANGLE_THREE_QUARTER_TURN))) {
 		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 		return 1;
 	}
@@ -251,7 +260,7 @@ static legacy_s16 handle_scenery_collisions(struct CARSTATE *carstate, struct SI
 		return 1;
 	}
 	handle_breakable_object(carstate, simd, car_pose, obstacle_pose, column, row);
-	return handle_start_finish_poles(simd, car_pose, obstacle_pose, column, row, car_index);
+	return handle_gate_poles(simd, car_pose, obstacle_pose, column, row, car_index);
 }
 
 void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
