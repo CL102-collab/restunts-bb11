@@ -47,6 +47,7 @@ endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/wasm-link.cmake")
 restunts_configure_wasm(restunts "${restunts_web_assets}" "${restunts_web_shell}")
+include("${CMAKE_CURRENT_LIST_DIR}/wasm-audio.cmake")
 install(TARGETS restunts RUNTIME DESTINATION . COMPONENT Runtime)
 install(FILES docs/wasm.md docs/track-editor.md docs/cstrk-format.md docs/csrpl-format.md docs/cshig-format.md
     THIRD-PARTY-NOTICES.txt DESTINATION . COMPONENT Runtime)
@@ -85,3 +86,22 @@ install(FILES third_party/nuked-opl2-lite/opl2.c third_party/nuked-opl2-lite/opl
     third_party/nuked-opl2-lite/CMakeLists.txt third_party/nuked-opl2-lite/LICENSE
     third_party/nuked-opl2-lite/README.md
     DESTINATION ${restunts_relink_directory}/nuked-opl2-lite COMPONENT Runtime)
+
+# Runtime objects and source strings make both independent WebAssembly realms
+# relinkable after replacing either LGPL emulator implementation.
+install(DIRECTORY "${restunts_audio_relink_inputs}/objects/"
+    DESTINATION ${restunts_relink_directory}/audio/objects COMPONENT Runtime)
+if(RESTUNTS_WASM_THREADS)
+    install(DIRECTORY "${restunts_audio_relink_inputs}/lib/"
+        DESTINATION ${restunts_relink_directory}/audio/lib COMPONENT Runtime)
+endif()
+install(FILES "${restunts_audio_worker_js}" "${restunts_audio_worklet_js}"
+    "${restunts_audio_bridge_js}" "${restunts_audio_generator}"
+    DESTINATION ${restunts_relink_directory}/audio COMPONENT Runtime)
+install(FILES "${restunts_audio_runtime_source}" "${restunts_audio_commands_source}"
+    "${restunts_audio_completions_source}"
+    DESTINATION ${restunts_relink_directory}/audio/source COMPONENT Runtime)
+configure_file(cmake/wasm-audio-relink.CMakeLists.txt.in
+    "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/audio/CMakeLists.txt" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/audio/CMakeLists.txt"
+    DESTINATION ${restunts_relink_directory}/audio COMPONENT Runtime)

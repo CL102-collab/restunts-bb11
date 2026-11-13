@@ -30,6 +30,14 @@ When the original package layout is retained, configuration also copies the
 standalone `tracked.html` editor beside the rebuilt game. If you move this relink
 directory separately, copy the packaged `tracked.html` beside `build/restunts.html`
 to use the game page's editor link.
+The same build relinks the independent audio runtime, embeds it with the
+AudioWorklet and worker scripts, and then produces the self-contained game page.
+Python 3 is required for this embedding step. Specialized audio application
+objects and their source inputs are supplied in `audio/`. Threaded packages also
+supply separate serial game/SDL/WebM archives for that audio realm; its emulator
+libraries are rebuilt in the `audio-serial` sub-build without pthread flags.
+Both runtime instances therefore use your modified Nuked OPL2 and Munt sources.
+
 Changes to the public ABI require recompiling the application from its source.
 The compiler options and SDK version must remain compatible with the supplied
 objects; the original build's toolchain information is included alongside them.

@@ -7,6 +7,10 @@ legacy_u8 sdl3_audio_uses_pc_speaker(void);
 legacy_int pc_speaker_audio_initialize(void);
 void pc_speaker_audio_shutdown(void);
 void pc_speaker_audio_update(void);
+#ifndef __DJGPP__
+void pc_speaker_audio_clear_queue(void);
+legacy_s32 pc_speaker_audio_queued_frames(void);
+#endif
 void pc_speaker_audio_set_music_muted(legacy_u8 muted);
 struct PC_SPEAKER_DRIVER *pc_speaker_audio_driver(void);
 const legacy_char *pc_speaker_audio_error(void);

@@ -397,6 +397,12 @@ add_library(restunts_vorbis OBJECT third_party/stb/stb_vorbis.c)
 target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    target_sources(restunts_game PRIVATE ${platform}/audio_worker.c
+        ${platform}/audio_commands.c ${platform}/audio_resources_worker.c
+        ${platform}/audio_completions.c)
+    target_compile_definitions(restunts_game PUBLIC RESTUNTS_AUDIO_WORKER)
+endif()
 if(DJGPP)
     # PC Speaker PWM shares PIT0 with the clock used by SDL's DOS timer.
     target_link_options(restunts_game INTERFACE "-Wl,--wrap=uclock")
@@ -596,6 +602,28 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        add_executable(test-audio-resources-worker src/restunts/tests/test-audio-resources-worker.c
+            ${platform}/memory.c ${platform}/audio_resources_worker.c)
+        target_link_libraries(test-audio-resources-worker PRIVATE restunts_options)
+        target_compile_definitions(test-audio-resources-worker PRIVATE RESTUNTS_AUDIO_WORKER)
+        target_compile_options(test-audio-resources-worker PRIVATE -UNDEBUG)
+        add_test(NAME audio-resources-worker COMMAND test-audio-resources-worker)
+        add_executable(test-audio-completions src/restunts/tests/test-audio-completions.c
+            ${platform}/audio_completions.c)
+        target_link_libraries(test-audio-completions PRIVATE restunts_options)
+        target_compile_definitions(test-audio-completions PRIVATE RESTUNTS_AUDIO_WORKER)
+        target_compile_options(test-audio-completions PRIVATE -UNDEBUG)
+        add_test(NAME audio-completions COMMAND test-audio-completions)
+        add_executable(test-audio-worker src/restunts/tests/test-audio-worker.c)
+        target_link_libraries(test-audio-worker PRIVATE restunts_game)
+        target_compile_options(test-audio-worker PRIVATE -UNDEBUG)
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/audio-worker-test")
+        add_test(NAME audio-worker COMMAND test-audio-worker "${CMAKE_SOURCE_DIR}/stunts")
+        set_tests_properties(audio-worker PROPERTIES TIMEOUT 20
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/audio-worker-test"
+            ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
+    endif()
     add_executable(test-pc-speaker-driver src/restunts/tests/test-pc-speaker-driver.c
         ${platform}/pc_speaker_driver.c)
     target_link_libraries(test-pc-speaker-driver PRIVATE restunts_options)

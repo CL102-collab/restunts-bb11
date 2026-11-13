@@ -1,4 +1,8 @@
 #include <stddef.h>
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "../../platform/sdl3/audio_commands.h"
+#include "../../platform/sdl3/sdl3.h"
+#endif
 #include "audio.h"
 #include "audio_internal.h"
 #include "../externs.h"
@@ -26,6 +30,7 @@
 #define AUDIO_DRIVER_LOAD_FAILURE 2
 #define AUDIO_DEFAULT_RATE 127U
 #define AUDIO_DRIVER_CHANNEL_COUNT_ERROR 255U
+#define AUDIO_ADLIB_CONTEXT_COUNT 10U
 #define AUDIO_DIRECT_CHANNEL_FLAG_THRESHOLD 127U
 #define AUDIO_DEFAULT_MASTER_VOLUME 100U
 #define AUDIO_DRIVER_MASTER_STATE_COMMAND 4
@@ -195,6 +200,23 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 #endif
 	audio_music_rate = AUDIO_DEFAULT_RATE;
 	audio_effect_rate = AUDIO_DEFAULT_RATE;
+#if defined(__EMSCRIPTEN__) && defined(RESTUNTS_AUDIO_WORKER) &&                                   \
+	!defined(RESTUNTS_BROWSER_AUDIO_RUNTIME)
+	legacy_u8 remote_mode, remote_disabled;
+	const legacy_char *remote_directory, *remote_model;
+	sdl3_audio_get_configuration(&remote_mode, &remote_disabled, &remote_directory, &remote_model);
+	if (sdl3_audio_command_requested() && !sdl3_audio_dispatch_is_owner() && !sdl3_batch_mode &&
+		!remote_disabled) {
+		dos_audio_driver_binary = audio_driver_prefix;
+		dos_audio_context_count = use_mt32		   ? AUDIO_CONTEXT_COUNT
+								  : use_pc_speaker ? PC_SPEAKER_CONTEXT_COUNT
+												   : 10U;
+		audio_suspended = AUDIO_STATE_DISABLED;
+		audio_music_enabled = AUDIO_STATE_ENABLED;
+		audio_effects_enabled = AUDIO_STATE_ENABLED;
+		return sdl3_audio_command_browser_load();
+	}
+#endif
 	legacy_u8 channel_count = dos_audio_driver_initialize();
 	dos_audio_context_count = channel_count;
 	if (channel_count == 0 || channel_count > AUDIO_CONTEXT_COUNT) {
@@ -259,6 +281,11 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 	audio_music_enabled = AUDIO_STATE_ENABLED;
 	audio_music_active = AUDIO_STATE_DISABLED;
 	audio_effects_enabled = AUDIO_STATE_ENABLED;
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (!sdl3_audio_command_start()) {
+		return AUDIO_DRIVER_LOAD_FAILURE;
+	}
+#endif
 	return 0;
 }
 
@@ -715,6 +742,11 @@ void audio_map_song_tracks(void far *song)
 
 void far *init_audio_resources(void far *song, void far *instruments, const legacy_s8 *name)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		return sdl3_audio_command_prepare(song, instruments, name);
+	}
+#endif
 	legacy_u8 far *song_chunk = (legacy_u8 far *)audioresource_find(song, name);
 	if (song_chunk == 0) {
 		return 0;
@@ -750,6 +782,12 @@ void far *init_audio_resources(void far *song, void far *instruments, const lega
 
 void load_audio_finalize(void far *audio_resource)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		sdl3_audio_command_finalize(audio_resource);
+		return;
+	}
+#endif
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 	audio_stop_music();
 	legacy_u8 far *resource = (legacy_u8 far *)audio_resource;

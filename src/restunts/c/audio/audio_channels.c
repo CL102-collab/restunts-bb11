@@ -14,6 +14,10 @@
 #include "../resource_bytes.h"
 #ifdef RESTUNTS_SDL3
 #include "../../platform/sdl3/music.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "../../platform/sdl3/audio_commands.h"
+#include "../../platform/sdl3/audio_completions.h"
+#endif
 #endif
 
 #include "audio_engine_internal.h"
@@ -31,6 +35,9 @@ void audio_unload(void)
 
 void audio_enable_music(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_ENABLE_MUSIC);
+#endif
 	audio_music_enabled = AUDIO_STATE_ENABLED;
 #ifdef RESTUNTS_SDL3
 	sdl3_music_sync();
@@ -39,6 +46,9 @@ void audio_enable_music(void)
 
 void audio_disable_music(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_DISABLE_MUSIC);
+#endif
 	audio_music_enabled = AUDIO_STATE_DISABLED;
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 	if (audio_music_channel_count != 0) {
@@ -53,6 +63,9 @@ void audio_disable_music(void)
 
 legacy_s16 audio_toggle_music(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT0(AUDIO_COMMAND_TOGGLE_MUSIC);
+#endif
 	if (audio_music_enabled == AUDIO_STATE_ENABLED) {
 		audio_disable_music();
 		return 0;
@@ -64,6 +77,9 @@ legacy_s16 audio_toggle_music(void)
 
 void audio_stop_music(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_STOP_MUSIC);
+#endif
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 #ifdef RESTUNTS_SDL3
 	sdl3_music_stop();
@@ -79,6 +95,9 @@ void audio_stop_music(void)
 
 void audio_enable_effects(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_ENABLE_EFFECTS);
+#endif
 	if (audio_effects_enabled == AUDIO_STATE_ENABLED) {
 		return;
 	}
@@ -92,6 +111,9 @@ void audio_enable_effects(void)
 
 void audio_disable_effects(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_DISABLE_EFFECTS);
+#endif
 	if (audio_effects_enabled == AUDIO_STATE_DISABLED) {
 		return;
 	}
@@ -107,6 +129,9 @@ void audio_disable_effects(void)
 
 legacy_s16 audio_toggle_effects(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT0(AUDIO_COMMAND_TOGGLE_EFFECTS);
+#endif
 	if (audio_effects_enabled == AUDIO_STATE_ENABLED) {
 		audio_disable_effects();
 		return 0;
@@ -118,6 +143,9 @@ legacy_s16 audio_toggle_effects(void)
 
 legacy_s16 audio_effect_channel_idle(legacy_s16 channel)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT1(AUDIO_COMMAND_EFFECT_CHANNEL_IDLE, channel);
+#endif
 	if (audio_effects_enabled == AUDIO_STATE_DISABLED ||
 		(legacy_u16)channel < AUDIO_EFFECT_CHANNEL_FIRST ||
 		(legacy_u16)channel > AUDIO_EFFECT_CHANNEL_LAST) {
@@ -129,6 +157,12 @@ legacy_s16 audio_effect_channel_idle(legacy_s16 channel)
 
 void audio_set_finish_callback(legacy_s16 channel, void far *value)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		sdl3_audio_completion_set(channel, value);
+		return;
+	}
+#endif
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	audio_write_far_pointer((legacy_u8 *)&audio_channels[channel].finish_callback, value);
 #else
@@ -210,6 +244,9 @@ void audio_clear_driver_context(struct AUDIO_CONTEXT *context)
 
 void audio_reset_channels(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_RESET_CHANNELS);
+#endif
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 	audio_init_channel_range(AUDIO_MUSIC_CHANNEL_FIRST, AUDIO_EFFECT_CHANNEL_LAST, 0, 0,
 							 AUDIO_CHANNEL_DEFAULT_RATE, 0);
@@ -271,6 +308,9 @@ void audio_release_channel_range(legacy_s16 first_channel, legacy_s16 last_chann
 
 void audio_suspend(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_SUSPEND);
+#endif
 	audio_suspended = AUDIO_STATE_ENABLED;
 #ifdef RESTUNTS_SDL3
 	sdl3_music_sync();
@@ -305,6 +345,9 @@ void audio_suspend(void)
 
 void audio_resume(void)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_RESUME);
+#endif
 	audio_suspended = AUDIO_STATE_ENABLED;
 	audio_update_lock = AUDIO_UPDATE_LOCKED;
 	if (dos_audio_uses_direct_channels != 0) {
@@ -418,6 +461,9 @@ void audio_stop_effect_channel(legacy_s16 channel)
 
 void audio_stop_skid_sound(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_STOP_SKID_SOUND, index);
+#endif
 	legacy_s16 channel = audio_timers[index].secondary_effect_channel;
 	audio_stop_effect_channel(channel);
 	audio_timers[index].secondary_effect_channel = -1;
@@ -425,6 +471,9 @@ void audio_stop_skid_sound(legacy_s16 index)
 
 void audio_stop_engine(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_STOP_ENGINE, index);
+#endif
 	if (audio_timers[index].active != 1 || audio_timers[index].engine_active != 1) {
 		return;
 	}
@@ -461,7 +510,10 @@ static void audio_start_impact_event(legacy_s16 index, legacy_u16 resource_index
 	if (audio_start_indexed_event(index, resource_index, priority) < 0) {
 		return;
 	}
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	/* The command acknowledgement applies game and controller feedback on the main thread. */
+	sdl3_audio_command_impact();
+#elif defined(RESTUNTS_SDL3)
 	/* Replay Play clears is_in_replay; pause and seeking set it to suppress audio. */
 	if (index == audio_player_engine_channel && is_in_replay == 0 &&
 		state.game_inputmode == GAME_INPUT_MODE_ACTIVE && audio_suspended == AUDIO_STATE_DISABLED) {
@@ -472,16 +524,25 @@ static void audio_start_impact_event(legacy_s16 index, legacy_u16 resource_index
 
 void audio_play_bump(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_PLAY_BUMP, index);
+#endif
 	audio_start_impact_event(index, 8U, AUDIO_EFFECT_DEFAULT_PRIORITY);
 }
 
 void audio_play_scrape(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_PLAY_SCRAPE, index);
+#endif
 	audio_start_impact_event(index, 9U, AUDIO_EFFECT_DEFAULT_PRIORITY);
 }
 
 void audio_play_crash_and_stop_engine(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_PLAY_CRASH_AND_STOP_ENGINE, index);
+#endif
 	audio_start_impact_event(index, 5U, AUDIO_EFFECT_HIGH_PRIORITY);
 	audio_stop_engine(index);
 }
@@ -501,11 +562,17 @@ static void audio_start_secondary_event(legacy_s16 index, legacy_u16 resource_in
 
 void audio_play_paved_skid(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_PLAY_PAVED_SKID, index);
+#endif
 	audio_start_secondary_event(index, 6U);
 }
 
 void audio_play_offroad_skid(legacy_s16 index)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_PLAY_OFFROAD_SKID, index);
+#endif
 	audio_start_secondary_event(index, 7U);
 }
 
@@ -524,6 +591,9 @@ void audio_request_context_fade(legacy_s16 index)
 
 legacy_s16 audio_set_music_channel_volume(legacy_s16 value)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT1(AUDIO_COMMAND_SET_MUSIC_CHANNEL_VOLUME, value);
+#endif
 	legacy_s16 channel;
 #ifdef RESTUNTS_SDL3
 	sdl3_music_set_volume(value);
@@ -542,15 +612,24 @@ void audio_fade_out(legacy_s16 delay_ticks)
 	legacy_u8 uses_direct_channels = dos_audio_uses_direct_channels;
 	legacy_s16 volume = uses_direct_channels != 0 ? AUDIO_DEFAULT_MASTER_VOLUME : audio_music_rate;
 	while (volume > 0) {
-		audio_update_lock = AUDIO_UPDATE_LOCKED;
-		if (uses_direct_channels != 0) {
-			dos_audio_master_volume = (legacy_u8)volume;
-			dos_audio_driver_set_master_state(AUDIO_DRIVER_MASTER_STATE_COMMAND,
-											  (void far *)dos_audio_master_state);
-		} else {
-			audio_set_music_channel_volume(volume);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+		if (sdl3_audio_dispatch_needed()) {
+			const legacy_s32 arguments[] = {volume, uses_direct_channels};
+			sdl3_audio_command_scalars(AUDIO_COMMAND_FADE_STEP, arguments,
+									   sizeof(arguments) / sizeof(arguments[0]));
+		} else
+#endif
+		{
+			audio_update_lock = AUDIO_UPDATE_LOCKED;
+			if (uses_direct_channels != 0) {
+				dos_audio_master_volume = (legacy_u8)volume;
+				dos_audio_driver_set_master_state(AUDIO_DRIVER_MASTER_STATE_COMMAND,
+												  (void far *)dos_audio_master_state);
+			} else {
+				audio_set_music_channel_volume(volume);
+			}
+			audio_update_lock = AUDIO_UPDATE_UNLOCKED;
 		}
-		audio_update_lock = AUDIO_UPDATE_UNLOCKED;
 		timer_set_deadline(delay);
 		timer_wait_for_deadline();
 		volume = LEGACY_S16_WRAP_SUB(volume, AUDIO_FADE_VOLUME_STEP);
@@ -560,6 +639,14 @@ void audio_fade_out(legacy_s16 delay_ticks)
 	if (dos_audio_uses_direct_channels != 0) {
 		timer_set_deadline(AUDIO_FADE_RESTORE_DELAY_TICKS);
 		timer_wait_for_deadline();
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+		if (sdl3_audio_dispatch_needed()) {
+			const legacy_s32 arguments[] = {AUDIO_DEFAULT_MASTER_VOLUME, uses_direct_channels};
+			sdl3_audio_command_scalars(AUDIO_COMMAND_FADE_STEP, arguments,
+									   sizeof(arguments) / sizeof(arguments[0]));
+			return;
+		}
+#endif
 		dos_audio_master_volume = AUDIO_DEFAULT_MASTER_VOLUME;
 		dos_audio_driver_set_master_state(AUDIO_DRIVER_MASTER_STATE_COMMAND,
 										  (void far *)dos_audio_master_state);

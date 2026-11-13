@@ -14,6 +14,10 @@ legacy_u8 sdl3_audio_uses_mt32(void);
 legacy_int mt32_audio_initialize(const legacy_char *rom_directory, const legacy_char *model);
 void mt32_audio_shutdown(void);
 void mt32_audio_update(void);
+#ifndef __DJGPP__
+void mt32_audio_clear_queue(void);
+legacy_s32 mt32_audio_queued_frames(void);
+#endif
 void mt32_audio_set_music_muted(legacy_u8 muted);
 struct MT32_DRIVER *mt32_audio_driver(void);
 void mt32_audio_finish_bank_upload(void);

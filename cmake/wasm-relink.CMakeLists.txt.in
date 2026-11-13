@@ -34,6 +34,40 @@ target_link_libraries(restunts PRIVATE restunts_game restunts_webm restunts_sdl 
 include(wasm-link.cmake)
 restunts_configure_wasm(restunts "${CMAKE_CURRENT_SOURCE_DIR}/data"
     "${CMAKE_CURRENT_SOURCE_DIR}/shell.html")
+if(RESTUNTS_WASM_THREADS)
+    include(ExternalProject)
+    set(audio_build "${CMAKE_CURRENT_BINARY_DIR}/audio-serial")
+    ExternalProject_Add(restunts_audio_serial
+        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/audio"
+        BINARY_DIR "${audio_build}"
+        CMAKE_ARGS "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
+            "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+            "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+        BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --target restunts_audio_runtime
+            --parallel "@RESTUNTS_WASM_AUDIO_BUILD_JOBS@"
+        INSTALL_COMMAND "" BUILD_ALWAYS TRUE
+        BUILD_BYPRODUCTS "${audio_build}/restunts_audio_runtime.js"
+        EXCLUDE_FROM_ALL TRUE)
+    set(audio_runtime "${audio_build}/restunts_audio_runtime.js")
+    set(audio_runtime_target restunts_audio_serial)
+else()
+    file(GLOB audio_objects "${CMAKE_CURRENT_SOURCE_DIR}/audio/objects/*.o")
+    if(NOT audio_objects)
+        message(FATAL_ERROR "The relink package is missing its independent audio objects")
+    endif()
+    add_executable(restunts_audio_runtime ${audio_objects})
+    target_link_libraries(restunts_audio_runtime PRIVATE restunts_game restunts_webm restunts_sdl
+        nuked_opl2 mt32emu m)
+    restunts_configure_wasm_audio_runtime(restunts_audio_runtime)
+    set(audio_runtime "${CMAKE_CURRENT_BINARY_DIR}/restunts_audio_runtime.js")
+    set(audio_runtime_target restunts_audio_runtime)
+endif()
+restunts_embed_wasm_audio(restunts "${audio_runtime}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/browser_audio_worker.js"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/browser_audio_worklet.js"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/browser_audio.js"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/generate-audio-sources.py")
+add_dependencies(restunts_audio_sources ${audio_runtime_target})
 # Reuse the editor from the complete package without duplicating it in the relink kit.
 set(restunts_editor_html "${CMAKE_CURRENT_SOURCE_DIR}/../../../tracked.html")
 if(EXISTS "${restunts_editor_html}")

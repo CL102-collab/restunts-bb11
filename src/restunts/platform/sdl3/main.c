@@ -13,6 +13,9 @@
 #include "../../c/asset_path.h"
 #include "../../c/fileio.h"
 #include "sdl3.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__) && defined(RESTUNTS_FULL)
+#include "audio_commands.h"
+#endif
 #ifdef RESTUNTS_MT32
 #include "mt32_roms.h"
 #endif
@@ -209,6 +212,9 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 #if defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_PIXLDUMP)
 	return stuntsmain((legacy_s16)argc, (legacy_s8 **)game_arguments);
 #else
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	sdl3_audio_command_enable(1);
+#endif
 	return run_main_menu_loop((legacy_s16)argc, (legacy_s8 **)game_arguments);
 #endif
 }

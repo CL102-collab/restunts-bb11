@@ -1,5 +1,10 @@
 #include "sdl3.h"
 #include "music.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "audio_commands.h"
+#include "audio_worker.h"
+#include "../../c/audio/audio_internal.h"
+#endif
 #include "../../c/platform.h"
 #include "../../c/hires/presentation.h"
 #include <string.h>
@@ -115,13 +120,25 @@ void sdl3_timer_pump(void)
 				}
 			}
 		}
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+		if (!sdl3_audio_command_requested()) {
+			sdl3_audio_update();
+		}
+#else
 		sdl3_audio_update();
+#endif
 	}
 	dispatching = false;
 }
 
 legacy_s16 dos_timer_register_callback(void (*callback)(void))
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_command_active() &&
+		(callback == audio_sequence_timer || callback == audio_driver_timer)) {
+		return sdl3_audio_worker_register_callback(callback);
+	}
+#endif
 	for (legacy_u32 index = 0; index < TIMER_CALLBACK_CAPACITY; index++) {
 		if (callbacks[index] == NULL) {
 			callbacks[index] = callback;
@@ -133,6 +150,13 @@ legacy_s16 dos_timer_register_callback(void (*callback)(void))
 
 void dos_timer_unregister_callback(void (*callback)(void))
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_command_active() &&
+		(callback == audio_sequence_timer || callback == audio_driver_timer)) {
+		sdl3_audio_worker_unregister_callback(callback);
+		return;
+	}
+#endif
 	for (legacy_u32 index = 0; index < TIMER_CALLBACK_CAPACITY; index++) {
 		if (callbacks[index] == callback) {
 			memmove(callbacks + index, callbacks + index + 1U,
@@ -174,6 +198,11 @@ void dos_timer_reset_counter(void)
 
 legacy_s32 sdl3_timer_callbacks_suspended(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_is_owner()) {
+		return sdl3_audio_command_callbacks_suspended();
+	}
+#endif
 	return suspended;
 }
 
@@ -181,6 +210,12 @@ void dos_timer_set_callbacks_suspended(legacy_s16 value)
 {
 	sdl3_timer_pump();
 	suspended = (value & DOS_TIMER_CALLBACK_SUSPENDED_MASK) != 0;
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		const legacy_s32 args[] = {suspended};
+		sdl3_audio_command_scalars(AUDIO_COMMAND_CALLBACKS_SUSPENDED, args, 1);
+	}
+#endif
 	sdl3_music_sync();
 }
 

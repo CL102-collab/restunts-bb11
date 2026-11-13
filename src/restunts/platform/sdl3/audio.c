@@ -1,11 +1,16 @@
 /* Native implementation of the AdLib driver interface. Resource offsets and
  * register arithmetic follow the supplied AD15.DRV; the portable sequencer
  * continues to own channel allocation, note timing, envelopes and modulation.
- * Only the main thread accesses this state. SDL consumes queued PCM separately. */
+ * The audio owner accesses this state. SDL consumes queued PCM separately. */
 #include "sdl3.h"
 #include "music.h"
 #include "mt32_audio.h"
 #include "pc_speaker_audio.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "audio_commands.h"
+#include "audio_worker.h"
+#include "audio_resources_worker.h"
+#endif
 #include "../../c/startup_internal.h"
 #include "../../c/memmgr.h"
 #include <string.h>
@@ -219,6 +224,17 @@ void sdl3_audio_configure(legacy_u8 mode, const legacy_char *rom_directory,
 	configured_mt32_directory = rom_directory;
 	configured_mt32_model = model;
 }
+
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+void sdl3_audio_get_configuration(legacy_u8 *mode, legacy_u8 *disabled,
+								  const legacy_char **directory, const legacy_char **model)
+{
+	*mode = configured_sound_mode;
+	*disabled = configured_sound_disabled;
+	*directory = configured_mt32_directory;
+	*model = configured_mt32_model;
+}
+#endif
 
 legacy_u8 sdl3_audio_uses_mt32(void)
 {
@@ -625,8 +641,8 @@ legacy_u8 dos_audio_driver_initialize(void)
 	return ADLIB_CONTEXTS;
 }
 
-/* Called once after each 100 Hz main-thread timer tick. Keeping the synthesizer
- * here avoids racing the sequencer or resource frees in SDL's audio thread. */
+/* Called after each 100 Hz audio tick. Sequencing and synthesis share one
+ * owner; the playback callback only consumes the generated PCM. */
 void sdl3_audio_update(void)
 {
 	sdl3_music_update();
@@ -754,7 +770,13 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 											PC_SPEAKER_SAMPLE_REFERENCE_OFFSET);
 			/* Sample references may point inside a bank. Bound both the
              * header read and the driver's copy by its owning allocation. */
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+			sample_bytes = sdl3_audio_resources_is_execution()
+							   ? sdl3_audio_resource_remaining(sample)
+							   : mmgr_get_pointer_size_bytes(sample);
+#else
 			sample_bytes = mmgr_get_pointer_size_bytes(sample);
+#endif
 			if (sample_bytes < PC_SPEAKER_SAMPLE_HEADER_BYTES) {
 				sample = NULL;
 				sample_bytes = 0;
@@ -1063,6 +1085,11 @@ void dos_audio_driver_set_control(legacy_s16 driver_channel, struct AUDIO_CONTEX
 
 void dos_audio_driver_reset(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_is_owner()) {
+		return;
+	}
+#endif
 	/* Account for loading time while the old song is stopped, before the
 	 * sequencer activates its replacement. Otherwise the next pump applies
 	 * that elapsed time to the new song and rushes its opening notes on OPL. */
@@ -1162,6 +1189,11 @@ void dos_audio_driver_set_master_state(legacy_s16 operation, void *state)
 
 void dos_audio_shutdown(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_command_shutdown()) {
+		return;
+	}
+#endif
 	sdl3_music_shutdown();
 #ifdef RESTUNTS_MT32
 	mt32_audio_shutdown();
@@ -1191,3 +1223,43 @@ void dos_audio_shutdown(void)
 	audio_effects_enabled = AUDIO_STATE_DISABLED;
 	audio_update_lock = AUDIO_UPDATE_UNLOCKED;
 }
+
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+void sdl3_audio_clear_queued(void)
+{
+	if (sdl3_audio_uses_pc_speaker()) {
+		pc_speaker_audio_clear_queue();
+	}
+#ifdef RESTUNTS_MT32
+	else if (sdl3_audio_uses_mt32()) {
+		mt32_audio_clear_queue();
+	}
+#endif
+	else if (adlib_stream != NULL) {
+		SDL_ClearAudioStream(adlib_stream);
+	}
+	sdl3_music_clear_queue();
+}
+
+legacy_s32 sdl3_audio_queued_frames(void)
+{
+	legacy_s32 queued = -1;
+	if (sdl3_audio_uses_pc_speaker()) {
+		queued = pc_speaker_audio_queued_frames();
+	}
+#ifdef RESTUNTS_MT32
+	else if (sdl3_audio_uses_mt32()) {
+		queued = mt32_audio_queued_frames();
+	}
+#endif
+	else if (adlib_stream != NULL) {
+		legacy_s32 bytes = SDL_GetAudioStreamQueued(adlib_stream);
+		queued = bytes < 0 ? -1 : bytes / (legacy_s32)sizeof(legacy_s16);
+	}
+	legacy_s32 music = sdl3_music_queued_frames();
+	if (music >= 0 && (queued < 0 || music < queued)) {
+		queued = music;
+	}
+	return queued;
+}
+#endif

@@ -1,5 +1,5 @@
-/* Main-thread Munt/SDL bridge. MIDI writes and PCM rendering share one
- * timeline, as with the native OPL path; the audio thread only consumes PCM. */
+/* Audio-owner Munt/SDL bridge. MIDI writes and PCM rendering share one
+ * timeline; SDL consumes the completed PCM queue. */
 #include "mt32_audio.h"
 #include "mt32_roms.h"
 #include <SDL3/SDL.h>
@@ -116,6 +116,24 @@ void mt32_audio_set_music_muted(legacy_u8 muted)
 		SDL_ClearAudioStream(mt32_stream);
 	}
 }
+
+#ifndef __DJGPP__
+void mt32_audio_clear_queue(void)
+{
+	if (mt32_stream != NULL) {
+		SDL_ClearAudioStream(mt32_stream);
+	}
+}
+
+legacy_s32 mt32_audio_queued_frames(void)
+{
+	if (mt32_stream == NULL) {
+		return -1;
+	}
+	legacy_s32 queued = SDL_GetAudioStreamQueued(mt32_stream);
+	return queued < 0 ? -1 : queued / (legacy_s32)(sizeof(legacy_s16) * MT32_AUDIO_CHANNELS);
+}
+#endif
 
 void mt32_audio_update(void)
 {

@@ -1,4 +1,4 @@
-/* The sequencer and renderer stay on the main thread. SDL consumes PCM;
+/* The audio owner advances the sequencer and renderer. SDL consumes PCM;
  * DOS hardware interrupts consume only a locked, pre-rendered command ring. */
 #include "pc_speaker_audio.h"
 #include "../../c/platform.h"
@@ -456,6 +456,24 @@ void pc_speaker_audio_set_music_muted(legacy_u8 muted)
 	SDL_ClearAudioStream(pc_stream);
 #endif
 }
+
+#ifndef __DJGPP__
+void pc_speaker_audio_clear_queue(void)
+{
+	if (pc_stream != NULL) {
+		SDL_ClearAudioStream(pc_stream);
+	}
+}
+
+legacy_s32 pc_speaker_audio_queued_frames(void)
+{
+	if (pc_stream == NULL) {
+		return -1;
+	}
+	legacy_s32 queued = SDL_GetAudioStreamQueued(pc_stream);
+	return queued < 0 ? -1 : queued / (legacy_s32)sizeof(legacy_s16);
+}
+#endif
 
 void pc_speaker_audio_update(void)
 {

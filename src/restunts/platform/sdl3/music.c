@@ -1,7 +1,10 @@
-/* Optional Ogg Vorbis replacements. Decoding and resource ownership stay on
- * the main thread; SDL consumes a bounded queue of decoded samples. */
+/* Optional Ogg Vorbis replacements. The audio owner decodes and manages
+ * resources; SDL consumes a bounded queue of decoded samples. */
 #include "music.h"
 #include "sdl3.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "audio_commands.h"
+#endif
 #include "../../c/asset_path.h"
 #include "../../c/platform.h"
 #include "../../c/audio/audio_internal.h"
@@ -36,6 +39,7 @@ static legacy_s32 music_track = MUSIC_NO_TRACK;
 static legacy_s32 music_audio_initialized;
 static legacy_s32 music_paused;
 static legacy_s32 music_channels;
+static legacy_u32 music_source_rate;
 static legacy_s32 music_queue_bytes;
 static legacy_s32 music_enabled;
 static legacy_s32 music_loading;
@@ -113,6 +117,7 @@ static void music_close(void)
 {
 	SDL_DestroyAudioStream(music_stream);
 	music_stream = NULL;
+	music_source_rate = 0;
 	if (music_decoder != NULL) {
 		stb_vorbis_close(music_decoder);
 		music_decoder = NULL;
@@ -143,6 +148,9 @@ void sdl3_music_tick(void)
 
 void sdl3_music_set_volume(legacy_s16 value)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_OGG_SET_VOLUME, value);
+#endif
 	if (value < 0) {
 		value = 0;
 	} else if (value > (legacy_s16)AUDIO_ENGINE_MAX_VOLUME) {
@@ -155,6 +163,9 @@ void sdl3_music_set_volume(legacy_s16 value)
 
 void sdl3_music_sync(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_OGG_SYNC);
+#endif
 	if (music_stream == NULL || music_loading) {
 		return;
 	}
@@ -224,6 +235,7 @@ static legacy_s32 music_open_current(void)
 		goto failed;
 	}
 	music_channels = info.channels;
+	music_source_rate = info.sample_rate;
 	music_queue_bytes =
 		(legacy_s32)(info.sample_rate * MUSIC_QUEUE_MILLISECONDS / MUSIC_MILLISECONDS_PER_SECOND *
 					 music_channels * sizeof(legacy_s16));
@@ -238,7 +250,12 @@ static legacy_s32 music_open_current(void)
 	}
 	/* Account for device/file setup before seeking. The original sequence keeps
 	 * running during a Shift+F10 switch, but is still stopped during song loading. */
-	sdl3_timer_pump();
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (!sdl3_audio_dispatch_is_owner())
+#endif
+	{
+		sdl3_timer_pump();
+	}
 	legacy_u32 frame = (legacy_u32)((music_elapsed_ticks * info.sample_rate /
 									 DOS_TIMER_REALTIME_TICKS_PER_SECOND) %
 									length);
@@ -276,13 +293,21 @@ legacy_s32 sdl3_music_start(const void *resource)
 
 void sdl3_music_set_enabled(legacy_s32 enabled)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_OGG_SET_ENABLED, enabled);
+#endif
 	enabled = enabled != 0;
 	if (music_enabled == enabled) {
 		return;
 	}
 	/* Catch up before choosing the new source so pending timer ticks cannot be
 	 * charged to a freshly opened decoder or lost when returning to AdLib. */
-	sdl3_timer_pump();
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (!sdl3_audio_dispatch_is_owner())
+#endif
+	{
+		sdl3_timer_pump();
+	}
 	music_enabled = enabled;
 	if (music_enabled && music_resource != NULL && !sdl3_batch_mode) {
 		music_open_current();
@@ -291,14 +316,50 @@ void sdl3_music_set_enabled(legacy_s32 enabled)
 	}
 }
 
+#ifndef __DJGPP__
+legacy_s32 sdl3_music_get_enabled(void)
+{
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT0(AUDIO_COMMAND_OGG_GET_ENABLED);
+#endif
+	return music_enabled;
+}
+#endif
+
 legacy_s32 sdl3_music_toggle(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC_RESULT0(AUDIO_COMMAND_OGG_TOGGLE);
+#endif
 	if (sdl3_batch_mode || music_resource == NULL) {
 		return 0;
 	}
 	sdl3_music_set_enabled(!music_enabled);
 	return 1;
 }
+
+#ifndef __DJGPP__
+void sdl3_music_clear_queue(void)
+{
+	if (music_stream != NULL) {
+		SDL_ClearAudioStream(music_stream);
+	}
+}
+
+legacy_s32 sdl3_music_queued_frames(void)
+{
+	if (music_stream == NULL || music_source_rate == 0) {
+		return -1;
+	}
+	legacy_s32 queued = SDL_GetAudioStreamQueued(music_stream);
+	if (queued < 0) {
+		return -1;
+	}
+	legacy_u64 frames = (legacy_u64)queued / (sizeof(legacy_s16) * music_channels);
+	/* SDL reports input bytes, including files whose rate differs from the device. */
+	return (legacy_s32)(frames * MUSIC_PLAYBACK_SAMPLE_RATE / music_source_rate);
+}
+#endif
 
 void sdl3_music_update(void)
 {

@@ -555,6 +555,7 @@
                 status.textContent = 'Downloaded screenshot ' + name + '.';
             },
             onExit(code) {
+                if (Module['restuntsBrowserAudio']) Module['restuntsBrowserAudio'].shutdown();
                 gameRunning = false;
                 status.textContent = code === 0 ? (directoryHandle ? 'Game closed. Reload to play again.' :
                     'Game closed. Export your saves, or reload to play again.') :
@@ -578,7 +579,7 @@
             }
         };
 
-        start.addEventListener('click', () => {
+        start.addEventListener('click', async () => {
             if (started || !gameLoaded || !soundSelectionReady()) return;
             started = true;
             gameRunning = true;
@@ -626,6 +627,10 @@
                 // Keep the browser request inside this click's user activation.
                 // SDL has not created its window or fullscreen helper yet.
                 if (document.getElementById('start-fullscreen').checked) requestCanvasFullscreen();
+                if (soundMode.value !== 'none' && Module['restuntsBrowserAudio']) {
+                    Module['restuntsBrowserAudio'].onError = fail;
+                    await Module['restuntsBrowserAudio'].start();
+                }
                 Module.callMain(args);
             } catch (error) {
                 fail(error);

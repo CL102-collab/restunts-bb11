@@ -23,7 +23,7 @@ struct PC_SPEAKER_VOICE {
 };
 
 /* The original driver has six logical tone contexts but one physical speaker.
- * Arbitration runs once per sequencer tick. Only the main thread mutates this
+ * Arbitration runs once per sequencer tick. Only the audio owner mutates this
  * state; the output backend consumes generated PCM or the current PIT state. */
 struct PC_SPEAKER_DRIVER {
 	struct PC_SPEAKER_VOICE voices[PC_SPEAKER_CONTEXT_COUNT];

@@ -1,4 +1,7 @@
 #include "sdl3.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "audio_commands.h"
+#endif
 #include "music.h"
 #include "touch.h"
 #include "soft_keyboard.h"
@@ -996,6 +999,9 @@ void sdl3_platform_pump(void)
 		return;
 	}
 	pumping = true;
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	sdl3_audio_command_pump();
+#endif
 	input_open_devices();
 	sdl3_touch_sync_game();
 #ifdef __EMSCRIPTEN__

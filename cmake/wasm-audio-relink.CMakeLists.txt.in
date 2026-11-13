@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.25)
+project(restunts_serial_audio_relink LANGUAGES C CXX)
+if(NOT EMSCRIPTEN)
+    message(FATAL_ERROR "Configure with emcmake cmake; audio objects contain WebAssembly")
+endif()
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+get_filename_component(relink_root "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+# This project has its own serial archives and emulator builds. Main-game
+# pthread flags never propagate into the independent audio realm.
+add_subdirectory("${relink_root}/nuked-opl2-lite" nuked-audio)
+add_subdirectory("${relink_root}/../mt32emu/rebuild" mt32emu-audio)
+foreach(library restunts_game restunts_webm SDL3)
+    add_library(audio_${library} STATIC IMPORTED)
+    set_target_properties(audio_${library} PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/lib${library}.a")
+endforeach()
+file(GLOB audio_objects "${CMAKE_CURRENT_SOURCE_DIR}/objects/*.o")
+if(NOT audio_objects)
+    message(FATAL_ERROR "The audio relink package is missing its specialized objects")
+endif()
+add_executable(restunts_audio_runtime ${audio_objects})
+target_link_libraries(restunts_audio_runtime PRIVATE audio_restunts_game audio_restunts_webm
+    audio_SDL3 nuked_opl2 mt32emu m)
+include("${relink_root}/wasm-link.cmake")
+restunts_configure_wasm_audio_runtime(restunts_audio_runtime)

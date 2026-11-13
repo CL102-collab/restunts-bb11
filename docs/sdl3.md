@@ -635,14 +635,36 @@ preferences are preserved. Select `--soundmode:pc-speaker` for original PC Speak
 music/effects, `--soundmode:adlib` for Ad Lib, or `--soundmode:mt-32` for emulated
 Roland audio. PC Speaker requires the original `PCSKIDMS.VCE` and `PCENG1.VCE`
 instruments, with no ROMs or additional dependencies. On desktop, Android and
-web it generates PCM through the normal SDL audio device; DOS32 drives the
+web it generates PCM for the platform audio output; DOS32 drives the
 physical speaker with the same instrument sequencing.
 
 MT-32 requires a separately supplied compatible control/PCM ROM set and the
 original MT instrument resources; see [MT-32 setup](mt32.md).
 `--nosound` and `/ns` disable all sound and override the mode in either argument
-order. Native sequencing remains on the main thread; SDL only consumes generated
-PCM, so an audio callback cannot race resource loading or freeing.
+order.
+
+Desktop and Android run music sequencing, engine interpolation, effects and the
+selected emulator on a dedicated audio worker. It follows audio-device
+consumption and keeps about 30 ms of PCM queued. Game rendering and loading do
+not advance this clock. Gameplay sends acknowledged commands and copies song,
+instrument and effect banks into the audio worker's private arena. Stop and
+release commands finish before gameplay reuses its source allocation; channel
+completion callbacks return to the game thread.
+
+The browser uses a separate serial audio WebAssembly runtime in a Web Worker.
+Its PCM buffers travel directly to an AudioWorklet, independently of the page's
+rendering thread, with about 40 ms queued. Both runtimes and worker scripts are
+embedded in the single HTML package. Audio requires AudioWorklet support; this
+path does not require shared memory or cross-origin isolation. The optional
+multicore renderer retains its own hosting requirements.
+
+Set `RESTUNTS_AUDIO_DIAGNOSTICS=1` on desktop to print worker tick/command counts,
+queue-empty observations, late wakeups and the maximum queue depth on shutdown.
+A queue-empty observation also counts deliberate clears, so it does not by itself
+prove an audible underrun. Browser diagnostics are available through
+`Module.restuntsBrowserAudio.state` (played frames, underrun frames and queued
+frames). Native audio regressions deliberately stall the game thread while
+checking independent song/PCM progress, pause behavior and resource reuse.
 
 DOS32 supports PC Speaker and hardware Ad Lib/OPL; MT-32 emulation remains a
 desktop/Android/web feature. Original DOS16 retains its existing driver selection.

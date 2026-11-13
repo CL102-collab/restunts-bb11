@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #define SDL_MAIN_HANDLED
+#ifndef RESTUNTS_AUDIO_WORKER
+#define RESTUNTS_AUDIO_WORKER
+#endif
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL.h>
 #include "../c/legacy.h"
@@ -66,6 +69,51 @@ static legacy_s32 original_muted;
 static legacy_s32 callbacks_suspended;
 static legacy_u32 pending_ticks;
 static legacy_u32 pump_count;
+static legacy_u8 test_dispatch_needed;
+static legacy_u8 test_dispatch_owner;
+static legacy_u32 test_dispatch_op;
+static legacy_s32 test_dispatch_argument;
+static size_t test_dispatch_count;
+#define TEST_DISPATCH_RESULT 37
+
+legacy_u8 sdl3_audio_dispatch_needed(void)
+{
+	return test_dispatch_needed;
+}
+
+legacy_u8 sdl3_audio_dispatch_is_owner(void)
+{
+	return test_dispatch_owner;
+}
+
+legacy_s32 sdl3_audio_command_scalars(legacy_u32 op, const legacy_s32 *arguments, size_t count)
+{
+	test_dispatch_op = op;
+	test_dispatch_count = count;
+	test_dispatch_argument = count != 0 ? arguments[0] : 0;
+	return TEST_DISPATCH_RESULT;
+}
+
+static void check_command_dispatch(void)
+{
+	legacy_u32 before = pump_count;
+	test_dispatch_needed = 1;
+	sdl3_music_set_enabled(1);
+	assert(test_dispatch_op == AUDIO_COMMAND_OGG_SET_ENABLED && test_dispatch_count == 1 &&
+		   test_dispatch_argument == 1 && !music_enabled);
+	sdl3_music_set_volume(-1);
+	assert(test_dispatch_op == AUDIO_COMMAND_OGG_SET_VOLUME && test_dispatch_count == 1 &&
+		   test_dispatch_argument == -1);
+	sdl3_music_sync();
+	assert(test_dispatch_op == AUDIO_COMMAND_OGG_SYNC && test_dispatch_count == 0);
+	assert(sdl3_music_toggle() == TEST_DISPATCH_RESULT);
+	assert(test_dispatch_op == AUDIO_COMMAND_OGG_TOGGLE && test_dispatch_count == 0);
+	assert(sdl3_music_get_enabled() == TEST_DISPATCH_RESULT);
+	assert(test_dispatch_op == AUDIO_COMMAND_OGG_GET_ENABLED && test_dispatch_count == 0);
+	assert(pump_count == before);
+	test_dispatch_needed = 0;
+	assert(!sdl3_music_get_enabled());
+}
 
 const legacy_char *test_asset_path_base(void)
 {
@@ -118,6 +166,7 @@ static void copy_fixture(const legacy_char *directory, const legacy_char *name,
 static void check_decoder_closed(void)
 {
 	assert(music_stream == NULL && music_decoder == NULL);
+	assert(sdl3_music_queued_frames() == -1);
 	assert(!music_audio_initialized && !original_muted);
 }
 
@@ -172,7 +221,11 @@ static void check_pcm_and_looping(legacy_s32 channels, legacy_s32 sample_rate)
 	legacy_s32 distinct_channels = 0;
 	for (legacy_s32 round = 0; round < TEST_DECODE_ROUNDS; ++round) {
 		assert(music_fill());
-		assert(SDL_GetAudioStreamQueued(music_stream) <=
+		legacy_s32 queued = SDL_GetAudioStreamQueued(music_stream);
+		legacy_u64 source_frames = (legacy_u64)queued / (channels * sizeof(legacy_s16));
+		assert(sdl3_music_queued_frames() ==
+			   (legacy_s32)(source_frames * MUSIC_PLAYBACK_SAMPLE_RATE / sample_rate));
+		assert(queued <=
 			   music_queue_bytes + MUSIC_DECODE_FRAMES * channels * (legacy_s32)sizeof(legacy_s16));
 		legacy_u8 bytes[TEST_READ_BYTES];
 		legacy_s32 read = SDL_GetAudioStreamData(music_stream, bytes, sizeof(bytes));
@@ -404,10 +457,37 @@ static void check_device_batch_and_recovery(const legacy_char *fixtures)
 	assert(SDL_RemovePath(tracks[1].path));
 }
 
+static void check_worker_owns_decoder(const legacy_char *fixtures)
+{
+	copy_fixture(fixtures, tracks[0].fixture, tracks[0].path);
+	sdl3_music_register(&resources[0], (const legacy_s8 *)music_names[0]);
+	sdl3_music_set_enabled(0);
+	assert(!sdl3_music_start(&resources[0]));
+	audio_music_enabled = AUDIO_STATE_ENABLED;
+	legacy_u32 before = pump_count;
+	pending_ticks = TEST_SECOND_SWITCH_TICKS;
+	test_dispatch_owner = 1;
+	sdl3_music_set_enabled(1);
+	assert(music_stream != NULL && original_muted);
+	assert(pump_count == before && pending_ticks == TEST_SECOND_SWITCH_TICKS);
+	assert(music_elapsed_ticks == 0);
+	sdl3_music_tick();
+	assert(music_elapsed_ticks == 1 && sdl3_music_get_enabled());
+	sdl3_music_update();
+	assert(pump_count == before);
+	sdl3_music_shutdown();
+	test_dispatch_owner = 0;
+	pending_ticks = 0;
+	audio_music_enabled = AUDIO_STATE_DISABLED;
+	check_stopped();
+	assert(SDL_RemovePath(tracks[0].path));
+}
+
 legacy_int main(legacy_int argc, legacy_char **argv)
 {
 	assert(argc == TEST_EXPECTED_ARGUMENTS);
 	SDL_SetMainReady();
+	check_command_dispatch();
 	SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 	static const legacy_char *const directories[] = {"assets/music", "exe/assets/music", "music",
 													 "exe/music", TEST_CONFIGURED_DIRECTORY};
@@ -432,6 +512,7 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 	sdl3_music_update();
 	sdl3_music_sync();
 	sdl3_music_set_volume(AUDIO_ENGINE_MAX_VOLUME);
+	check_worker_owns_decoder(argv[1]);
 	SDL_Quit();
 	puts("SDL3 music: default-off, position-preserving switches, fallback, paths, pause, and "
 		 "cleanup passed");

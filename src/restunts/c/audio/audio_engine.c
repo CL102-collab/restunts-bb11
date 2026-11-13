@@ -1,4 +1,7 @@
 #include <stddef.h>
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "../../platform/sdl3/audio_commands.h"
+#endif
 #include "audio.h"
 #include "audio_internal.h"
 #include "../externs.h"
@@ -53,6 +56,9 @@ void audio_write_far_pointer(legacy_u8 far *destination, const void far *value)
 
 void audio_add_driver_timer(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_ADD_DRIVER_TIMER);
+#endif
 	for (legacy_u16 index = 0; index < AUDIO_TIMER_COUNT; index++) {
 		audio_timers[index].active = 0;
 	}
@@ -61,6 +67,9 @@ void audio_add_driver_timer(void)
 
 void audio_remove_driver_timer(void)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC0(AUDIO_COMMAND_REMOVE_DRIVER_TIMER);
+#endif
 	for (legacy_u16 index = 0; index < AUDIO_TIMER_COUNT; index++) {
 		if (audio_timers[index].active == 1) {
 			legacy_s16 channel = audio_timers[index].channel;
@@ -127,6 +136,16 @@ static void audio_resolve_engine_definition(struct AUDIO_ENGINE_DEFINITION *engi
 legacy_s16 audio_init_engine(legacy_s16 unused_type, void far *source_pointer,
 							 void far *shape_resources, void far *audio_resources)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		legacy_s16 result = sdl3_audio_command_engine(unused_type, source_pointer, shape_resources,
+													  audio_resources);
+		if (result < 0) {
+			fatal_error("Cannot initialize audio engine.");
+		}
+		return result;
+	}
+#endif
 	(void)unused_type;
 	legacy_u16 index;
 	for (index = 0; index < AUDIO_TIMER_COUNT; index++) {
@@ -174,6 +193,9 @@ legacy_s16 audio_init_engine(legacy_s16 unused_type, void far *source_pointer,
 
 void audio_start_engine(legacy_s16 index)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	AUDIO_ASYNC1(AUDIO_COMMAND_START_ENGINE, index);
+#endif
 	struct AUDIO_TIMER *timer = &audio_timers[index];
 	if (timer->active != 1 || timer->engine_active != 0) {
 		return;
@@ -203,6 +225,19 @@ void audio_update_engine_spatial(legacy_s16 index, legacy_s16 base_value, legacy
 								 legacy_s16 first_y, legacy_s16 first_z, legacy_s16 second_x,
 								 legacy_s16 second_y, legacy_s16 second_z, legacy_s16 interval)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if (sdl3_audio_dispatch_needed()) {
+		const legacy_s16 values[] = {index,	   base_value, first_x,	 first_y, first_z,
+									 second_x, second_y,   second_z, interval};
+		sdl3_audio_command_spatial(values);
+		return;
+	}
+#endif
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	if ((legacy_u16)index >= AUDIO_TIMER_COUNT || !audio_timers[index].active) {
+		return;
+	}
+#endif
 	struct AUDIO_TIMER *timer = &audio_timers[index];
 	legacy_u16 second_distance =
 		(legacy_u16)polarRadius2D(polarRadius2D(second_x, second_z), second_y);

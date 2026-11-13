@@ -2,6 +2,9 @@
 #include "memmgr.h"
 #include "platform.h"
 #include "fatal.h"
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+#include "../platform/sdl3/audio_commands.h"
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
 #include "hires/memory.h"
 #endif
@@ -229,6 +232,9 @@ legacy_u16 mmgr_get_ofs_diff(void)
 
 void far *mmgr_free(legacy_s8 far *ptr)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	sdl3_audio_command_release(ptr);
+#endif
 	struct MEMCHUNK *chunk = mmgr_last_live_chunk;
 	legacy_u16 ptrseg = dos_memory_pointer_segment(ptr);
 
@@ -438,6 +444,9 @@ void far *mmgr_get_chunk_by_name(const legacy_s8 *name)
 
 void mmgr_release(void far *ptr)
 {
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+	sdl3_audio_command_release(ptr);
+#endif
 	legacy_u16 segment = dos_memory_pointer_segment(ptr);
 	struct MEMCHUNK *chunk = mmgr_last_live_chunk;
 
