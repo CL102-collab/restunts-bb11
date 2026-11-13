@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -21,6 +22,25 @@ with mock.patch.object(sys, "path", [str(SCRIPT.parent)] + sys.path):
 SAMPLE_RATE = 22050
 RECORDING_SECONDS = 6
 GAME_PID = 123
+
+
+class StartupControlContractTests(unittest.TestCase):
+    def test_automation_selectors_match_the_launcher_control_definitions(self):
+        script = (SCRIPT.parent / "macos-smoke.applescript").read_text()
+        definitions = (SCRIPT.parents[2] / "src/restunts/launcher/options.cpp").read_text()
+
+        def labels(array):
+            body = re.search(r"\b" + array + r"\[[^]]+\]\s*=\s*\{(.*?)\};",
+                             definitions, re.DOTALL)
+            self.assertIsNotNone(body, f"Missing launcher definitions: {array}")
+            return set(re.findall(r'\{"[^"]+",\s*"([^"]+)"', body.group(1)))
+
+        checkbox_labels = re.findall(r'my checkboxValue\(controls, "([^"]+)"', script)
+        self.assertTrue(checkbox_labels, "Startup automation must configure its checkboxes")
+        self.assertLessEqual(set(checkbox_labels), labels("launcher_option_definitions"))
+        sound_modes = re.findall(r'my soundModeValue\(controls, "([^"]+)"', script)
+        self.assertTrue(sound_modes, "Startup automation must explicitly select a sound mode")
+        self.assertLessEqual(set(sound_modes), labels("launcher_sound_definitions"))
 
 
 class MacOSSmokeDriverTests(unittest.TestCase):
