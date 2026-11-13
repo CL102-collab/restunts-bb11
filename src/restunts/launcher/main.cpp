@@ -10,9 +10,8 @@
 #include <wx/utils.h>
 #include "options.h"
 #include "game_data.h"
-#include "host_environment.h"
-#include "browser.h"
-#include "editor_export.h"
+#include "editor_open.h"
+#include <cstdio>
 #ifdef __WXQT__
 #include <QtGui/QKeyEvent>
 #include <QtWidgets/QApplication>
@@ -24,9 +23,8 @@ static const legacy_char LAUNCHER_APP_NAME[] = "Restunts";
 static const legacy_char DATA_DIRECTORY_OPTION[] = "--data-dir";
 static const legacy_char GAME_OPTION[] = "--game";
 static const legacy_char WAIT_FOR_GAME_OPTION[] = "--wait-for-game";
+static const legacy_char TRACK_EDITOR_OPTION[] = "--track-editor";
 static const legacy_char ROM_INVENTORY_OPTION[] = "--list-mt-32-roms";
-static const legacy_char TRACK_EDITOR_FILENAME[] = "tracked.html";
-static const legacy_char TRACK_EDITOR_DIRECTORY[] = "../share/restunts/editor/";
 #ifdef __WXMSW__
 static const legacy_char GAME_FILENAME[] = "restunts.exe";
 static const legacy_char GENGHOST_GUI_FILENAME[] = "genghost-gui.exe";
@@ -37,6 +35,7 @@ static const legacy_char GENGHOST_GUI_FILENAME[] = "genghost-gui";
 
 static const legacy_int FIRST_ARGUMENT = 1;
 static const legacy_int LAUNCHER_SUCCESS = 0;
+static const legacy_int LAUNCHER_FAILURE = 1;
 static const legacy_int PROCESS_START_FAILURE = 0;
 static const legacy_int SYNCHRONOUS_PROCESS_START_FAILURE = -1;
 static const legacy_int FIXED_LAYOUT = 0;
@@ -504,47 +503,9 @@ class LauncherDialog : public wxDialog
 
 	void open_track_editor(wxCommandEvent &)
 	{
-		const wxFileName launcher(wxStandardPaths::Get().GetExecutablePath());
-		wxFileName editor(launcher.GetPathWithSep() + TRACK_EDITOR_DIRECTORY +
-						  TRACK_EDITOR_FILENAME);
-		if (!editor.FileExists()) {
-			editor.Assign(launcher.GetPath(), TRACK_EDITOR_FILENAME);
-		}
-		if (!editor.Normalize(wxPATH_NORM_DOTS | wxPATH_NORM_ABSOLUTE) || !editor.FileExists()) {
-			set_status("The track editor is missing. Keep the complete runtime package together.");
-			return;
-		}
-		legacy_bool opened;
-		wxString browser_error;
-		{
-			wxLogNull quiet;
-#ifdef __linux__
-			wxFileName persistent;
-			const wxString export_error = launcher_export_editor(
-				editor, wxStandardPaths::Get().GetUserDir(wxStandardPaths::Dir_Downloads),
-				persistent);
-			if (!export_error.empty()) {
-				set_status(export_error);
-				return;
-			}
-			editor = persistent;
-			wxExecuteEnv browser_environment;
-			wxGetEnvMap(&browser_environment.env);
-			launcher_restore_host_environment(browser_environment.env);
-			opened = launcher_open_web_browser(editor, browser_environment, &browser_error);
-#else
-#ifdef __WXQT__
-			opened = wxLaunchDefaultApplication(editor.GetFullPath());
-#else
-			opened = wxLaunchDefaultBrowser(wxFileName::FileNameToURL(editor));
-#endif
-#endif
-		}
-		if (!opened) {
-			set_status(browser_error.empty()
-						   ? "Cannot open the track editor in your default browser: " +
-								 editor.GetFullPath()
-						   : browser_error);
+		const wxString error = launcher_open_editor();
+		if (!error.empty()) {
+			set_status(error);
 			return;
 		}
 		set_status("Track editor opened in your default browser. Choose your game folder there.");
@@ -646,6 +607,13 @@ class LauncherApp : public wxApp
 		SetAppDisplayName(LAUNCHER_TITLE);
 		for (legacy_int index = FIRST_ARGUMENT; index < argc; ++index) {
 			const wxString argument = argv[index];
+			if (argument == TRACK_EDITOR_OPTION) {
+				if (track_editor_) {
+					return argument_error("Specify " + argument + " only once.");
+				}
+				track_editor_ = true;
+				continue;
+			}
 			if (argument == WAIT_FOR_GAME_OPTION) {
 				if (wait_for_game_) {
 					return argument_error("Specify " + argument + " only once.");
@@ -665,6 +633,13 @@ class LauncherApp : public wxApp
 			}
 			value = argv[index];
 		}
+		if (track_editor_) {
+			if (wait_for_game_ || !game_.empty() || !folder_.empty()) {
+				return argument_error("Specify " + wxString(TRACK_EDITOR_OPTION) +
+									  " without other launcher options.");
+			}
+			return true;
+		}
 		wxFileName game;
 		if (game_.empty()) {
 			game = wxFileName(wxStandardPaths::Get().GetExecutablePath());
@@ -681,6 +656,14 @@ class LauncherApp : public wxApp
 
 	legacy_int OnRun() override
 	{
+		if (track_editor_) {
+			const wxString error = launcher_open_editor();
+			if (!error.empty()) {
+				std::fprintf(stderr, "%s\n", error.utf8_str().data());
+				return LAUNCHER_FAILURE;
+			}
+			return LAUNCHER_SUCCESS;
+		}
 		LauncherDialog dialog(game_, folder_, wait_for_game_);
 		SetTopWindow(&dialog);
 #ifdef __WXQT__
@@ -701,16 +684,21 @@ class LauncherApp : public wxApp
 	private:
 	legacy_bool argument_error(const wxString &message)
 	{
-		wxMessageBox(message +
-						 "\n\nUsage: restunts-launcher [--data-dir FOLDER] [--game EXECUTABLE] "
-						 "[--wait-for-game]",
-					 LAUNCHER_TITLE, wxOK | wxICON_ERROR);
+		const wxString usage =
+			message + "\n\nUsage: restunts-launcher [--data-dir FOLDER] [--game EXECUTABLE] "
+					  "[--wait-for-game]\n       restunts-launcher --track-editor";
+		if (track_editor_) {
+			std::fprintf(stderr, "%s\n", usage.utf8_str().data());
+		} else {
+			wxMessageBox(usage, LAUNCHER_TITLE, wxOK | wxICON_ERROR);
+		}
 		return false;
 	}
 
 	wxString game_;
 	wxString folder_;
 	legacy_bool wait_for_game_ = false;
+	legacy_bool track_editor_ = false;
 };
 
 wxIMPLEMENT_APP(LauncherApp);

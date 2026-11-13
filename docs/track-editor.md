@@ -15,11 +15,12 @@ or upload game files. Supported browsers can write tracks into that folder;
 other browsers require folder selection and download the resulting files.
 Reconnect a remembered folder when the browser requests permission.
 
-On Linux, the launcher's **Track editor…** button opens a persistent copy under
+On Linux, the launcher's **Track editor…** button and the game's **New/Edit Tracks**
+entry for an extended track open the same persistent copy under
 `Downloads/Chocolate Stunts/Track Editor/tracked.html` (or the home-folder
 fallback if no Downloads folder is configured). You can reopen or bookmark
-this self-contained file after closing the launcher. Opening the button again
-refreshes it from the bundled version when needed. Flatpak browsers receive
+this self-contained file after closing the game or launcher. Opening the editor
+again refreshes it from the bundled version when needed. Flatpak browsers receive
 explicit document-portal access; the temporary AppImage mount is not needed.
 
 The controls occupy the left 30% of a desktop window and the 2D track occupies

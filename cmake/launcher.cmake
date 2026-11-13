@@ -127,7 +127,7 @@ function(restunts_add_desktop_launcher)
         "${launcher_directory}/main.cpp" "${launcher_directory}/options.cpp"
         "${launcher_directory}/game_data.cpp" "${launcher_directory}/host_environment.cpp"
         "${launcher_directory}/browser.cpp" "${launcher_directory}/browser_command.cpp"
-        "${launcher_directory}/editor_export.cpp")
+        "${launcher_directory}/editor_export.cpp" "${launcher_directory}/editor_open.cpp")
     add_executable(genghost-gui WIN32
         "${genghost_gui_directory}/main.cpp" "${genghost_gui_directory}/options.cpp"
         "${genghost_gui_directory}/extended_options.cpp"
