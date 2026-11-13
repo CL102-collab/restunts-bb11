@@ -474,20 +474,38 @@ legacy_s16 extended_player_other_car_distant(const struct CARSTATE *other_carsta
 	return 0;
 }
 
-void extended_player_start_finish_pole(struct VECTOR *obstacle_pose, legacy_s16 angle,
-									   legacy_s16 offset)
+void extended_player_gate_tile(legacy_s16 column, legacy_s16 row, legacy_s16 *gate,
+							   legacy_s16 *angle)
 {
 	if (!extended_track_active()) {
 		return;
 	}
-	const struct CSTRK_OBJECT *object =
-		extended_track_object_at(start_finish_column, start_finish_row);
+	const struct CSTRK_OBJECT *object = extended_track_object_at(column, row);
+	if (object && cstrk_is_checkpoint(object->legacy_id)) {
+		*gate = 1;
+		/* Checkpoint road IDs retain only their axis, not the gate's full rotation. */
+		*angle = object->rotation * ANGLE_QUARTER_TURN;
+	}
+}
+
+void extended_player_gate_pole(struct VECTOR *obstacle_pose, legacy_s16 column, legacy_s16 row,
+							   legacy_s16 angle, legacy_s16 offset)
+{
+	if (!extended_track_active()) {
+		return;
+	}
+	const struct CSTRK_OBJECT *object = extended_track_object_at(column, row);
 	if (object) {
 		struct VECTOR origin;
 		extended_geometry_object_origin(extended_track_model(), object, &origin);
-		obstacle_pose[0] = (struct VECTOR){
-			LEGACY_S16_WRAP_ADD(origin.x, multiply_and_scale(sin_fast(angle), offset)), origin.y,
-			LEGACY_S16_WRAP_ADD(origin.z, multiply_and_scale(cos_fast(angle), offset))};
+		legacy_s16 local_x = multiply_and_scale(sin_fast(angle), offset);
+		legacy_s16 local_z = multiply_and_scale(cos_fast(angle), offset);
+		legacy_s16 grade = cstrk_is_checkpoint(object->legacy_id)
+							   ? extended_geometry_object_grade(object, local_x, local_z)
+							   : 0;
+		obstacle_pose[0] = (struct VECTOR){LEGACY_S16_WRAP_ADD(origin.x, local_x),
+										   LEGACY_S16_WRAP_ADD(origin.y, grade),
+										   LEGACY_S16_WRAP_ADD(origin.z, local_z)};
 		obstacle_pose[1] = (struct VECTOR){0, 0, 0};
 	}
 }

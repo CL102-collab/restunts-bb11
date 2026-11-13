@@ -32,8 +32,10 @@ void extended_player_finish_wheel_contact(struct VECTORLONG *position, legacy_s1
 legacy_s16 extended_player_clamp_world_pose(legacy_s32 *x, legacy_s32 *z);
 legacy_s16 extended_player_body_height_only(legacy_s16 height_only);
 legacy_s16 extended_player_other_car_distant(const struct CARSTATE *other_carstate);
-void extended_player_start_finish_pole(struct VECTOR *obstacle_pose, legacy_s16 angle,
-									   legacy_s16 offset);
+void extended_player_gate_tile(legacy_s16 column, legacy_s16 row, legacy_s16 *gate,
+							   legacy_s16 *angle);
+void extended_player_gate_pole(struct VECTOR *obstacle_pose, legacy_s16 column, legacy_s16 row,
+							   legacy_s16 angle, legacy_s16 offset);
 void extended_player_scenery_tile(const struct VECTOR *position, legacy_s16 *column,
 								  legacy_s16 *row, legacy_s16 *valid);
 #endif

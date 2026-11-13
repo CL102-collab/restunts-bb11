@@ -15,6 +15,7 @@
 #include "../c/owoot/owoot_road.c"
 #include "../c/track/trackdata_layout.h"
 #include "../c/extended/pine_trees.h"
+#include "../c/extended/checkpoint_shape.h"
 
 #undef memcpy
 
@@ -44,6 +45,9 @@ struct TRACKOBJECT trkObjectList[TEST_OBJECT_COUNT];
 struct CAR_SURFACE_ADHESION_SETTINGS car_surface_adhesion_settings[2];
 
 static legacy_int fixture_extended, fixture_lane_edges;
+static legacy_u8 fixture_collision_expected;
+static legacy_u16 fixture_collision_count;
+static legacy_s16 fixture_collision_car;
 static struct CSTRK_TRACK fixture_track;
 static struct CSTRK_OBJECT fixture_object;
 #define TEST_ROLL_RECEIVER_COUNT 3U
@@ -177,9 +181,10 @@ legacy_u16 owoot_wheel_footprint(const struct CARSTATE *car, legacy_u16 wheel,
 
 void update_crash_state(legacy_s16 event, legacy_s16 car_index)
 {
-	(void)event;
-	(void)car_index;
-	assert(0 && "A stationary contact must not crash the fixture car");
+	assert(fixture_collision_expected && "A stationary contact must not crash the fixture car");
+	assert(event == CRASH_EVENT_COLLISION);
+	assert(car_index == fixture_collision_car);
+	fixture_collision_count++;
 }
 
 static struct PLAYER_WHEEL_MOTION wall_response(legacy_int extended, legacy_s16 orientation)
@@ -994,6 +999,164 @@ static void test_pine_group_collision_bounds(void)
 	track_auxiliary_obstacle_bounds[1] = native_bounds[1];
 }
 
+enum {
+	TEST_GATE_COLUMN = 5,
+	TEST_GATE_ROW = 5,
+	TEST_GATE_FAR_COLUMN = 70,
+	TEST_GATE_FAR_ROW = 7,
+	TEST_GATE_CAR_EXTENT = 8,
+	TEST_GATE_CAR_RADIUS = 16,
+	TEST_GATE_RAISED_LEVEL = CSTRK_MAX_HEIGHT - 1,
+	TEST_GATE_CLEARANCE = 1
+};
+
+struct TEST_GATE_PROBE {
+	legacy_s16 lateral, height, depth, hit;
+};
+
+static const struct TEST_GATE_PROBE gate_probes[] = {
+	{0, 0, 0, 0},
+	{-PLAYER_PHYSICS_START_FINISH_POLE_OFFSET, 0, 0, 1},
+	{PLAYER_PHYSICS_START_FINISH_POLE_OFFSET, 0, 0, 1},
+	{PLAYER_PHYSICS_START_FINISH_POLE_OFFSET + CHECKPOINT_GATE_HALF_DEPTH + TEST_GATE_CAR_EXTENT +
+		 TEST_GATE_CLEARANCE,
+	 0, 0, 0},
+	{PLAYER_PHYSICS_START_FINISH_POLE_OFFSET,
+	 CHECKPOINT_GATE_SIGN_TOP + TEST_GATE_CAR_EXTENT + TEST_GATE_CLEARANCE, 0, 0},
+	{PLAYER_PHYSICS_START_FINISH_POLE_OFFSET, 0,
+	 CHECKPOINT_GATE_HALF_DEPTH + TEST_GATE_CAR_EXTENT + TEST_GATE_CLEARANCE, 0}};
+
+static struct VECTOR gate_probe_position(const struct TEST_GATE_PROBE *probe)
+{
+	legacy_s32 dx = probe->lateral, dz = probe->depth;
+	switch (fixture_object.rotation) {
+		case 1:
+			dx = probe->depth;
+			dz = -probe->lateral;
+			break;
+		case 2:
+			dx = -probe->lateral;
+			dz = -probe->depth;
+			break;
+		case 3:
+			dx = -probe->depth;
+			dz = probe->lateral;
+			break;
+	}
+	/* Compute authored support independently of the pole-placement helper. */
+	legacy_s32 rise =
+		(fixture_object.slope_x * dx - fixture_object.slope_y * dz) * CSTRK_LEVEL_WORLD_HEIGHT;
+	rise += rise < 0 ? -CSTRK_TILE_WORLD_SIZE / 2 : CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 support =
+		fixture_object.base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+		(fixture_object.slope_x + fixture_object.slope_y) * CSTRK_LEVEL_WORLD_HEIGHT / 2 +
+		rise / CSTRK_TILE_WORLD_SIZE;
+	struct VECTOR result = {
+		LEGACY_S16_FROM_BITS((legacy_u16)(fixture_object.x * CSTRK_TILE_WORLD_SIZE +
+										  CSTRK_TILE_WORLD_SIZE / 2 + dx)),
+		(legacy_s16)(support + probe->height),
+		LEGACY_S16_FROM_BITS(
+			(legacy_u16)((fixture_track.height - fixture_object.y) * CSTRK_TILE_WORLD_SIZE -
+						 CSTRK_TILE_WORLD_SIZE / 2 + dz))};
+	return result;
+}
+
+static void assert_gate_collision(const struct TEST_GATE_PROBE *probe, legacy_s16 column,
+								  legacy_s16 row, legacy_s16 car_index, legacy_s16 expected)
+{
+	struct SIMD simd = {0};
+	simd.collide_points[0] = (struct POINT2D){TEST_GATE_CAR_EXTENT, TEST_GATE_CAR_EXTENT};
+	simd.collide_points[1] = (struct POINT2D){TEST_GATE_CAR_EXTENT, TEST_GATE_CAR_RADIUS};
+	struct VECTOR car_pose[PLAYER_PHYSICS_POSE_VECTOR_COUNT] = {{0}};
+	struct VECTOR obstacle_pose[PLAYER_PHYSICS_POSE_VECTOR_COUNT] = {{0}};
+	car_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX] = gate_probe_position(probe);
+	fixture_collision_count = 0;
+	fixture_collision_car = car_index;
+	fixture_collision_expected = expected;
+	assert(handle_gate_poles(&simd, car_pose, obstacle_pose, column, row, car_index) == expected);
+	fixture_collision_expected = 0;
+	assert(fixture_collision_count == (legacy_u16)expected);
+}
+
+static void test_checkpoint_pole_collisions(void)
+{
+	static const legacy_u16 colors[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID,
+										CSTRK_COMBINED_CHECKPOINT_ID};
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, -1}};
+	fixture_extended = 1;
+	/* A checkpoint must collide without occupying the race's start/finish tile. */
+	start_finish_column = start_finish_row = 0;
+	track_angle = ANGLE_QUARTER_TURN;
+	for (legacy_u8 color = 0; color < sizeof(colors) / sizeof(colors[0]); color++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				for (legacy_u8 placement = 0; placement <= sizeof(slopes) / sizeof(slopes[0]);
+					 placement++) {
+					fixture_object = (struct CSTRK_OBJECT){0};
+					fixture_track.width = fixture_track.height = CSTRK_MAX_DIMENSION;
+					fixture_object.legacy_id = colors[color];
+					fixture_object.x = placement ? TEST_GATE_FAR_COLUMN : TEST_GATE_COLUMN;
+					fixture_object.y = placement ? TEST_GATE_FAR_ROW : TEST_GATE_ROW;
+					fixture_object.width = fixture_object.height = 1;
+					fixture_object.occupied_mask = 1;
+					fixture_object.rotation = rotation;
+					fixture_object.surface = surface;
+					if (placement) {
+						fixture_object.base_height = TEST_GATE_RAISED_LEVEL;
+						fixture_object.slope_x = slopes[placement - 1U][0];
+						fixture_object.slope_y = slopes[placement - 1U][1];
+					}
+					for (legacy_u16 probe = 0; probe < sizeof(gate_probes) / sizeof(gate_probes[0]);
+						 probe++) {
+						for (legacy_s16 car = PLAYER_CAR_INDEX; car <= OPPONENT_CAR_INDEX; car++) {
+							assert_gate_collision(&gate_probes[probe], fixture_object.x,
+												  fixture_object.y, car, gate_probes[probe].hit);
+						}
+					}
+					assert_gate_collision(&gate_probes[1], fixture_object.x + 1, fixture_object.y,
+										  PLAYER_CAR_INDEX, 0);
+				}
+			}
+		}
+	}
+	/* Other objects outside start/finish must not acquire invisible gate poles. */
+	fixture_object.legacy_id = TEST_OBJECT_ID;
+	assert_gate_collision(&gate_probes[1], fixture_object.x, fixture_object.y, PLAYER_CAR_INDEX, 0);
+}
+
+static void test_start_finish_pole_parity(void)
+{
+	fixture_object = (struct CSTRK_OBJECT){0};
+	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
+	fixture_object.legacy_id = CHECKPOINT_START_FINISH_ID;
+	fixture_object.x = TEST_GATE_COLUMN;
+	fixture_object.y = TEST_GATE_ROW;
+	fixture_object.width = fixture_object.height = 1;
+	fixture_object.occupied_mask = 1;
+	start_finish_column = TEST_GATE_COLUMN;
+	start_finish_row = TEST_GATE_ROW;
+	track_column_centers[TEST_GATE_COLUMN] =
+		TEST_GATE_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+	track_row_centers[TEST_GATE_ROW] =
+		(TRACK_GRID_SIZE - TEST_GATE_ROW) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+	for (legacy_u8 raised = 0; raised < 2U; raised++) {
+		fixture_object.base_height = raised;
+		hillFlag = raised;
+		for (legacy_u8 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
+			fixture_object.rotation = rotation;
+			track_angle = rotation * ANGLE_QUARTER_TURN;
+			for (legacy_u16 probe = 0; probe < sizeof(gate_probes) / sizeof(gate_probes[0]);
+				 probe++) {
+				for (legacy_u8 extended = 0; extended < 2U; extended++) {
+					fixture_extended = extended;
+					assert_gate_collision(&gate_probes[probe], TEST_GATE_COLUMN, TEST_GATE_ROW,
+										  PLAYER_CAR_INDEX, gate_probes[probe].hit);
+				}
+			}
+		}
+	}
+}
+
 legacy_int main(void)
 {
 	test_native_wall_response();
@@ -1010,5 +1173,7 @@ legacy_int main(void)
 	test_pine_group_scatter();
 	test_pine_group_collision_centers();
 	test_pine_group_collision_bounds();
+	test_checkpoint_pole_collisions();
+	test_start_finish_pole_parity();
 	return 0;
 }
