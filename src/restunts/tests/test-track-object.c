@@ -252,11 +252,13 @@ static void test_outside_track(void)
 #define TEST_CHICANE_OUTER_EDGE_Z 534
 #define TEST_COORDINATE_NEIGHBOR 1
 #define TEST_WATER_TERRAIN_TILE 1U
+#define TEST_EMPTY_TRACK_TILE 0U
 
-static void probe_chicane_point(legacy_s16 model, legacy_s16 rotation, legacy_s16 x, legacy_s16 z,
-								legacy_s16 material)
+static void probe_chicane_background(legacy_s16 model, legacy_s16 rotation, legacy_s16 x,
+									 legacy_s16 z, legacy_s16 material, legacy_u8 terrain_tile)
 {
 	initialize_track();
+	terrain[trackrows[TEST_ROW] + TEST_COLUMN] = terrain_tile;
 	trkObjectList[1].ss_physicalModel = (legacy_s8)model;
 	trkObjectList[1].ss_rotY = rotation;
 	trkObjectList[1].ss_multiTileFlag = 0;
@@ -281,6 +283,12 @@ static void probe_chicane_point(legacy_s16 model, legacy_s16 rotation, legacy_s1
 	terraincenterpos[TEST_ROW] = TEST_ORIGIN - world_z;
 	struct VECTOR position = {TEST_ORIGIN, 0, TEST_ORIGIN};
 	build_track_object(&position, &position);
+}
+
+static void probe_chicane_point(legacy_s16 model, legacy_s16 rotation, legacy_s16 x, legacy_s16 z,
+								legacy_s16 material)
+{
+	probe_chicane_background(model, rotation, x, z, material, 0);
 }
 
 static void test_chicane_fast_grass_options(void)
@@ -334,7 +342,7 @@ static void test_chicane_fast_grass_options(void)
 	assert(current_surf_type == CAR_SURFACE_PAVED);
 }
 
-static void test_chicane_grass_surfaces(void)
+static void test_chicane_background_surfaces(void)
 {
 	static const struct {
 		legacy_s16 x;
@@ -354,45 +362,50 @@ static void test_chicane_grass_surfaces(void)
 		{-TEST_CHICANE_OUTER_EDGE_X + TEST_COORDINATE_NEIGHBOR, -TEST_CHICANE_OUTER_EDGE_Z, 0},
 	};
 	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--cfg:off"};
-	configure_chicane_fast_grass(sizeof(arguments) / sizeof(arguments[0]), arguments);
-	for (legacy_s16 model = PHYSICAL_MODEL_CHICANE_RIGHT_LEFT;
-		 model <= PHYSICAL_MODEL_CHICANE_LEFT_RIGHT; model++) {
-		for (legacy_s16 rotation = 0; rotation < ANGLE_FULL_TURN; rotation += ANGLE_QUARTER_TURN) {
-			for (legacy_s16 material = CAR_SURFACE_PAVED; material <= CAR_SURFACE_ICE; material++) {
-				for (legacy_u16 index = 0; index < sizeof(points) / sizeof(points[0]); index++) {
-					legacy_s16 x = model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT ? points[index].x
-																			  : -points[index].x;
-					probe_chicane_point(model, rotation, x, points[index].z,
-										material - CAR_SURFACE_PAVED);
-					assert(current_surf_type ==
-						   (points[index].road ? material : CAR_SURFACE_GRASS));
-					if (!points[index].road) {
-						legacy_s16 chicane_height = terrainHeight;
-						elements[terrainrows[TEST_ROW] + TEST_COLUMN] = 0;
-						struct VECTOR position = {TEST_ORIGIN, 0, TEST_ORIGIN};
-						build_track_object(&position, &position);
-						assert(current_surf_type == CAR_SURFACE_GRASS);
-						assert(terrainHeight == chicane_height);
+	for (legacy_s16 fast_grass = 0; fast_grass <= 1; fast_grass++) {
+		configure_chicane_fast_grass(fast_grass ? 0 : sizeof(arguments) / sizeof(arguments[0]),
+									 fast_grass ? NULL : arguments);
+		for (legacy_s16 model = PHYSICAL_MODEL_CHICANE_RIGHT_LEFT;
+			 model <= PHYSICAL_MODEL_CHICANE_LEFT_RIGHT; model++) {
+			for (legacy_s16 rotation = 0; rotation < ANGLE_FULL_TURN;
+				 rotation += ANGLE_QUARTER_TURN) {
+				for (legacy_s16 material = CAR_SURFACE_PAVED; material <= CAR_SURFACE_ICE;
+					 material++) {
+					/* Every native background: grass, water, four shoreline directions,
+					 * and raised ground. The road always keeps its own material. */
+					for (legacy_u8 terrain_tile = 0; terrain_tile <= TERRAIN_RAISED_TILE;
+						 terrain_tile++) {
+						for (legacy_u16 index = 0; index < sizeof(points) / sizeof(points[0]);
+							 index++) {
+							legacy_s16 x = model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT
+											   ? points[index].x
+											   : -points[index].x;
+							probe_chicane_background(model, rotation, x, points[index].z,
+													 material - CAR_SURFACE_PAVED, terrain_tile);
+							legacy_s16 chicane_surface = current_surf_type;
+							legacy_s16 chicane_height = terrainHeight;
+							legacy_s16 chicane_plane = planindex;
+							if (fast_grass || points[index].road) {
+								assert(chicane_surface == material);
+								continue;
+							}
+							/* Outside the road, compare with the same background with
+							 * the chicane removed, including shoreline and height. */
+							elements[terrainrows[TEST_ROW] + TEST_COLUMN] = TEST_EMPTY_TRACK_TILE;
+							struct VECTOR position = {TEST_ORIGIN, 0, TEST_ORIGIN};
+							build_track_object(&position, &position);
+							assert(chicane_surface == current_surf_type);
+							assert(chicane_height == terrainHeight);
+							assert(chicane_plane == planindex);
+							if (terrain_tile == TEST_WATER_TERRAIN_TILE) {
+								assert(chicane_surface == CAR_SURFACE_WATER);
+							}
+						}
 					}
 				}
 			}
 		}
 	}
-	/* A chicane's green material stays ordinary grass even on water, and
-	 * raised terrain keeps the same height as grass outside the element. */
-	probe_chicane_point(PHYSICAL_MODEL_CHICANE_RIGHT_LEFT, 0, 0, TEST_CHICANE_GRASS_Z, 0);
-	terrain[trackrows[TEST_ROW] + TEST_COLUMN] = TEST_WATER_TERRAIN_TILE;
-	struct VECTOR position = {TEST_ORIGIN, 0, TEST_ORIGIN};
-	build_track_object(&position, &position);
-	assert(current_surf_type == CAR_SURFACE_GRASS);
-	terrain[trackrows[TEST_ROW] + TEST_COLUMN] = TERRAIN_RAISED_TILE;
-	build_track_object(&position, &position);
-	legacy_s16 raised_grass_height = terrainHeight;
-	assert(current_surf_type == CAR_SURFACE_GRASS);
-	elements[terrainrows[TEST_ROW] + TEST_COLUMN] = 0;
-	build_track_object(&position, &position);
-	assert(current_surf_type == CAR_SURFACE_GRASS);
-	assert(terrainHeight == raised_grass_height);
 	configure_chicane_fast_grass(0, NULL);
 }
 
@@ -444,6 +457,6 @@ int main(void)
 	test_road_boundaries();
 	test_outside_track();
 	test_chicane_fast_grass_options();
-	test_chicane_grass_surfaces();
+	test_chicane_background_surfaces();
 	return 0;
 }

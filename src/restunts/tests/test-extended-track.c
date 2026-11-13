@@ -17,6 +17,8 @@
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
 #include "../c/physics/physics_internal.h"
+#include "../c/stateply/stateply_internal.h"
+#include "../c/crash_state.h"
 #include "../c/car/car_speed.h"
 #include "../c/owoot/owoot_road.h"
 #include "../c/owoot/owoot_route.h"
@@ -1918,6 +1920,135 @@ static void general_slope_terrain(struct CSTRK_TRACK *track, struct CSTRK_OBJECT
 	}
 }
 
+#define CHICANE_BACKGROUND_DIRECTION_COUNT 4U
+#define CHICANE_BACKGROUND_LEVEL 2U
+#define CHICANE_BACKGROUND_GRASS_Z 500
+#define CHICANE_BACKGROUND_ROAD_X 350
+#define CHICANE_BACKGROUND_OFF_ROAD_X 32
+#define CHICANE_BACKGROUND_HEIGHT_PROBE 32
+
+static void assert_chicane_water_crash(struct VECTOR point)
+{
+	struct GAMESTATE saved = state;
+	memset(&state, 0, sizeof(state));
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	point.y = (legacy_s16)selected_height(&point);
+	struct PLAYER_WHEEL_MOTION motion = {0};
+	for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		struct VECTOR position = point;
+		position.x += wheel % 2U ? TEST_SPARSE_WHEEL_RADIUS : -TEST_SPARSE_WHEEL_RADIUS;
+		position.z += wheel / 2U ? TEST_SPARSE_WHEEL_RADIUS : -TEST_SPARSE_WHEEL_RADIUS;
+		motion.current[wheel] = (struct VECTORLONG){position.x * PLAYER_PHYSICS_POSITION_SCALE,
+													position.y * PLAYER_PHYSICS_POSITION_SCALE,
+													position.z * PLAYER_PHYSICS_POSITION_SCALE};
+		motion.previous[wheel] = motion.current[wheel];
+		state.playerstate.car_wheel_contact_positions[wheel] = position;
+	}
+	resolve_wheel_contacts(&state.playerstate, &motion, PLAYER_CAR_INDEX);
+	for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		assert(state.playerstate.car_surfaceWhl[wheel] == CAR_SURFACE_WATER);
+	}
+	assert(state.playerstate.car_crashBmpFlag == CRASH_EVENT_WATER);
+	state = saved;
+}
+
+static void test_chicane_background_surfaces(void)
+{
+	static const legacy_u16 ids[] = {60U, 62U};
+	static const legacy_s16 surfaces[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE, CAR_SURFACE_DIRT,
+										  CAR_SURFACE_WATER};
+	static const struct VECTOR probes[] = {
+		{-CHICANE_BACKGROUND_OFF_ROAD_X, 0, CHICANE_BACKGROUND_GRASS_Z},
+		{-CHICANE_BACKGROUND_ROAD_X, 0, CHICANE_BACKGROUND_GRASS_Z},
+		{CHICANE_BACKGROUND_OFF_ROAD_X, 0, -CHICANE_BACKGROUND_GRASS_Z},
+		{CHICANE_BACKGROUND_ROAD_X, 0, -CHICANE_BACKGROUND_GRASS_Z}};
+	legacy_s8 *disabled[] = {(legacy_s8 *)"game", (legacy_s8 *)"--cfg:off"};
+	legacy_s8 *enabled[] = {(legacy_s8 *)"game", (legacy_s8 *)"--cfg:on"};
+	configure_chicane_fast_grass(sizeof(disabled) / sizeof(disabled[0]), disabled);
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < CHICANE_BACKGROUND_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 graded = 0; graded <= 1U; graded++) {
+				struct CSTRK_OBJECT object = general_slope_object(ids[kind], rotation);
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+				if (graded) {
+					general_slope_terrain(&track, &object, 0);
+				} else {
+					object.base_height = CHICANE_BACKGROUND_LEVEL;
+					memset(track.corner_heights, object.base_height,
+						   (track.width + 1U) * (track.height + 1U));
+				}
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				for (legacy_u8 ground = CSTRK_TERRAIN_GRASS; ground <= CSTRK_TERRAIN_WATER;
+					 ground++) {
+					for (legacy_u16 cell = 0; cell < track.width * track.height; cell++) {
+						track.cells[cell].surface = ground;
+					}
+					for (legacy_u8 material = CSTRK_ROAD_PAVED; material <= CSTRK_ROAD_ICE;
+						 material++) {
+						track.objects[0].surface = material;
+						activate(&track);
+						legacy_u16 resolved =
+							extended_track_object_id(extended_track_model()->objects);
+						/* Probe in physical-model coordinates, including the native
+						 * catalog orientation as well as the additional placement turn. */
+						struct CSTRK_OBJECT oriented = object;
+						oriented.rotation = trkObjectList[resolved].ss_rotY / ANGLE_QUARTER_TURN;
+						legacy_s16 model = trkObjectList[resolved].ss_physicalModel;
+						for (legacy_u8 probe = 0; probe < sizeof(probes) / sizeof(probes[0]);
+							 probe++) {
+							struct VECTOR local = probes[probe];
+							if (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) {
+								local.x = LEGACY_S16_WRAP_NEGATE(local.x);
+							}
+							struct VECTOR point = sparse_corner_sample(&track, &oriented, local);
+							legacy_s16 expected =
+								probe % 2U ? material + CAR_SURFACE_PAVED : surfaces[ground];
+							assert(current_surf_type == expected);
+							if (probe % 2U == 0U) {
+								legacy_s16 height = (legacy_s16)selected_height(&point);
+								struct VECTOR nearby = point;
+								nearby.x += CHICANE_BACKGROUND_HEIGHT_PROBE;
+								nearby.z += CHICANE_BACKGROUND_HEIGHT_PROBE;
+								legacy_s16 nearby_height = (legacy_s16)selected_height(&nearby);
+								build_extended_track_terrain(&point);
+								assert(current_surf_type == expected);
+								if (selected_height(&point) != height) {
+									fprintf(stderr,
+											"Chicane offroad id %u turn %u grade %u ground %u road "
+											"%u probe %u: height %d vs terrain %d\n",
+											ids[kind], rotation, graded, ground, material, probe,
+											height, selected_height(&point));
+								}
+								assert(selected_height(&point) == height);
+								assert(selected_height(&nearby) == nearby_height);
+								if (ground == CSTRK_TERRAIN_WATER && !graded && probe == 0U) {
+									assert_chicane_water_crash(point);
+								}
+							}
+						}
+						/* The default fast-grass behavior still gives the full
+						 * chicane its road material regardless of background. */
+						configure_chicane_fast_grass(sizeof(enabled) / sizeof(enabled[0]), enabled);
+						struct VECTOR grass = probes[0];
+						if (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) {
+							grass.x = LEGACY_S16_WRAP_NEGATE(grass.x);
+						}
+						(void)sparse_corner_sample(&track, &oriented, grass);
+						assert(current_surf_type == material + CAR_SURFACE_PAVED);
+						configure_chicane_fast_grass(sizeof(disabled) / sizeof(disabled[0]),
+													 disabled);
+						extended_track_unload();
+					}
+				}
+				cstrk_free(&track);
+			}
+		}
+	}
+	configure_chicane_fast_grass(0, NULL);
+}
+
 #define OVERPASS_OPPONENT_ROUTE_COUNT 2U
 #define OVERPASS_OPPONENT_LOWER_ROUTE 1U
 #define OVERPASS_OPPONENT_REVERSED_ROUTE 16U
@@ -3632,6 +3763,7 @@ int main(void)
 	test_overpass_independent_surfaces();
 	test_overpass_opponent_speeds();
 	test_scenery_ignores_road_surface();
+	test_chicane_background_surfaces();
 	test_crop_field_scenery();
 	test_extended_material_variants();
 	test_shared_road_anchor();

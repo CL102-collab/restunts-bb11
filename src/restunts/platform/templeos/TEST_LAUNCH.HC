@@ -33,28 +33,33 @@ legacy_void TestLaunchConfigure(legacy_s32 count,legacy_s8 **arguments)
 legacy_void TestLaunchChicane(legacy_u8 fast_grass)
 {
   CTrackObjectSample sample;
-  legacy_s16 noreg model,noreg expected_surface=CAR_SURFACE_GRASS;
-  if(fast_grass) {
-    expected_surface=CAR_SURFACE_PAVED;
-  }
+  legacy_s16 noreg model,noreg surface,noreg expected_surface;
   sample.surface_type=CAR_SURFACE_PAVED;
   sample.position.y=0;
   for(model=PHYSICAL_MODEL_CHICANE_RIGHT_LEFT;model<=PHYSICAL_MODEL_CHICANE_LEFT_RIGHT;
       model++) {
     sample.physical_model=model;
-    sample.position.x=0;
-    sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
-    RsTrackObjectChicane(&sample);
-    TestLaunchAssert(current_surf_type==expected_surface,
-        "Chicane Fast-Grass controls the translated green surface");
-    sample.position.x=TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
-    if(model==PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) {
-      sample.position.x=-TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
+    for(surface=CAR_SURFACE_DIRT;surface<=CAR_SURFACE_WATER;surface++) {
+      expected_surface=surface;
+      if(fast_grass) {
+        expected_surface=CAR_SURFACE_PAVED;
+      }
+      sample.position.x=0;
+      sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
+      current_surf_type=surface;
+      RsTrackObjectChicane(&sample);
+      TestLaunchAssert(current_surf_type==expected_surface,
+          "disabled Chicane Fast-Grass preserves the translated background surface");
+      sample.position.x=TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
+      if(model==PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) {
+        sample.position.x=-TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
+      }
+      sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
+      current_surf_type=surface;
+      RsTrackObjectChicane(&sample);
+      TestLaunchAssert(current_surf_type==CAR_SURFACE_PAVED,
+          "the translated chicane keeps its visible road paved");
     }
-    sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
-    RsTrackObjectChicane(&sample);
-    TestLaunchAssert(current_surf_type==CAR_SURFACE_PAVED,
-        "the translated chicane keeps its visible road paved");
   }
 }
 

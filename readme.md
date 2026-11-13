@@ -643,12 +643,13 @@ The original switching behavior remains the default; `--dws:on` explicitly
 selects it. These switches are case-insensitive, and the last value wins.
 They are available on every port and can be combined with other startup options.
 
-Run `restunts.exe --cfg:off` to disable **Chicane Fast-Grass**: the green areas
-of chicane elements then use ordinary grass grip and drag. The visible road
-retains its road surface. Fast-grass remains enabled by default; `--cfg:on`
+Run `restunts.exe --cfg:off` to disable **Chicane Fast-Grass**: areas outside
+the visible road use the background terrain. Water sinks the car, and grass,
+ice, and dirt retain their normal grip and drag. The visible road retains its
+road surface. Fast-grass remains enabled by default; `--cfg:on`
 explicitly restores it. The switches are available on every port, are
 case-insensitive, and use the last on/off value. **Amiga Grass** also affects
-these green areas when fast-grass is disabled.
+grass areas when fast-grass is disabled.
 
 Run `restunts.exe --amigagrass` to use original Amiga grass grip for the 11 stock
 cars. This option is off by default and leaves road grip unchanged. Custom car
