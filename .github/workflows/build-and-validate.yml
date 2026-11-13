@@ -161,6 +161,12 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 40
             include-regex: '^genghost-extended-3$'
+          - name: thread-genghost-extended-4
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 40
+            include-regex: '^genghost-extended-4$'
           - name: thread-genghost-search
             sanitizer: thread
             compiler: gcc
@@ -197,7 +203,7 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 40
             include-regex: '^genghost-'
-            exclude-regex: '^genghost-(extended-[123]|search|fine-tune|parallel)$'
+            exclude-regex: '^genghost-(extended-[1234]|search|fine-tune|parallel)$'
           - name: undefined
             sanitizer: undefined
             compiler: gcc

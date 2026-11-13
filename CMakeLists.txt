@@ -1065,7 +1065,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
-            foreach(restunts_extended_part 1 2 3)
+            foreach(restunts_extended_part 1 2 3 4)
                 add_test(NAME genghost-extended-${restunts_extended_part} COMMAND "${Python3_EXECUTABLE}"
                     "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
                     "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
@@ -1109,6 +1109,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             # Propagate the same multiplier to the Python subprocess deadlines.
             foreach(restunts_genghost_test genghost-simulation genghost-search
                     genghost-extended-1 genghost-extended-2 genghost-extended-3
+                    genghost-extended-4
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout

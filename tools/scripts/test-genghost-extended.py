@@ -45,7 +45,8 @@ RESTRICTED = ("--owoot", "--pg:off", "--lc:off", "--lcb:off", "--dws:off")
 FORMAT_PART = 1
 REPLAY_PART = 2
 STUNT_PART = 3
-TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART)
+ROUTE_PART = 4
+TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART, ROUTE_PART)
 BARREL_ROTATION_COUNT = 4
 BLUE_CHECKPOINT_ID = 218
 RED_CHECKPOINT_ID = 219
@@ -395,6 +396,10 @@ def main():
                 # The same mandatory gate protection applies to permissive driving.
                 generate(checkpoint_path, "COUN", f"checkpoints-{kind}-free.csrpl",
                          evaluations=256, flags=("--pg:off", "--lc:off"))
+            print("Blue-only, red-only and mixed checkpoints generate verified ghosts on paved, dirt and ice", flush=True)
+
+        # Forks and shared gates balance the format/checkpoint/barrel work in part 1.
+        if args.part in (None, ROUTE_PART):
             for kind in ("branches", "branches-blue", "branches-red"):
                 branch_path = output / f"{kind}.cstrk"
                 branch_path.write_bytes(track_bytes(kind))
@@ -424,7 +429,8 @@ def main():
                 assert shared_playback["shared_passed"] == expected_shared
             print("Shared blue/red gates remain mandatory for both generated color cases and snapshots", flush=True)
             print("Checkpoint forks compile and finish every blue/red route case", flush=True)
-            print("Blue-only, red-only and mixed checkpoints generate verified ghosts on paved, dirt and ice", flush=True)
+
+        if args.part in (None, FORMAT_PART):
             second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
             assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
             print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
@@ -628,8 +634,9 @@ def main():
                         rejected = verify(previous_path, expected=2)
                         assert not rejected["finished"]
                         assert rejected["frames"] < checked["finish_frame"]
-        print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings "
-              f"for part {args.part or 'all'} in both collision modes", flush=True)
+        if args.part is None or args.part in BARREL_PARTS.values():
+            print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings "
+                  f"for part {args.part or 'all'} in both collision modes", flush=True)
     return 0
 
 
