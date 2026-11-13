@@ -23,9 +23,10 @@ the startup window.
 On Linux, this opens a persistent copy under your Downloads folder at
 `Chocolate Stunts/Track Editor/tracked.html`, with a home-folder fallback when
 Downloads is not configured. The launcher refreshes that copy from the package
-when it changes. It remains usable after the launcher exits or the AppImage is
-unmounted. Flatpak browser entries are granted explicit read access through the
-document portal.
+when it changes. The game's **New/Edit Tracks** entry for an extended track uses
+the same browser-opening path. The copy remains usable after the game or
+launcher exits or the AppImage is unmounted. Flatpak browser entries are granted
+explicit read access through the document portal.
 
 The **Sound settings** group contains the sound mode, **OGG music replacement**
 (formerly **New MIDI**), and the MT-32 ROM-folder/model controls. Controller
@@ -75,6 +76,8 @@ bin/restunts --data-dir /path/to/Stunts --fullscreen:on
 selects another compatible game executable instead of the sibling executable.
 `--wait-for-game` hides the window after Start and keeps the launcher process
 alive until the game exits; the AppImage uses this mode automatically.
+`restunts-launcher --track-editor` opens only the track editor, without showing
+the startup window or changing saved settings.
 
 ## Per-user settings
 
