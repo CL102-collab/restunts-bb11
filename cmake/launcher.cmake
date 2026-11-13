@@ -109,12 +109,12 @@ function(restunts_add_desktop_launcher)
             # GCC 13 misdiagnoses the zero-iteration initialization loop after
             # inlining the deprecated hash table's unsupported copy operation.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/hash.cpp"
-                TARGET_DIRECTORY wxbase APPEND PROPERTY COMPILE_OPTIONS -Wno-array-bounds)
+                TARGET_DIRECTORY wx::base APPEND PROPERTY COMPILE_OPTIONS -Wno-array-bounds)
         endif()
         if(NOT wxUSE_LIBPNG AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             # Pinned wx leaves PNG factory arguments unused when PNG is disabled.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/bmpbase.cpp"
-                TARGET_DIRECTORY wxcore APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
+                TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
         endif()
         set(launcher_wx_libraries wx::core wx::base)
         set(launcher_test_wx_libraries wx::base)

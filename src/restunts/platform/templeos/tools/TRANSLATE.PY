@@ -270,12 +270,18 @@ def prepare_sources(folder):
             if not match:
                 raise ValueError(f"Native pointer adaptation missing: {path.name}:{function}")
             end = text.index("\n}", match.end()) + 2
-            block = text[match.start():end].replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
-            if function == "sprite_free_wnd":
-                block = block.replace("hires_forget(", "TempleRasterForget(")
+            block = text[match.start():end]
             if function == "audio_load_dos_driver":
+                # Select the flat-pointer loader without enabling its nested
+                # SDL-only backend selection and worker dispatch branches.
+                block = block.replace("#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)",
+                                      "#ifdef RESTUNTS_TEMPLEOS")
                 block = block.replace("audio_driver_prefix[0] = 'a'", "audio_driver_prefix[0] = 'p'")
                 block = block.replace("audio_driver_prefix[1] = 'd'", "audio_driver_prefix[1] = 'c'")
+            else:
+                block = block.replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
+            if function == "sprite_free_wnd":
+                block = block.replace("hires_forget(", "TempleRasterForget(")
             text = text[:match.start()] + block + text[end:]
         if path.name == "shape2d_image.c":
             text, count = re.subn(r"video_pages_write_pixel\(bitmap, destination,\s*video_pages_read_pixel\(bitmap, destination\) \^ color_bits\);", "TempleRasterXorPixel(bitmap, destination, color_bits);", text)

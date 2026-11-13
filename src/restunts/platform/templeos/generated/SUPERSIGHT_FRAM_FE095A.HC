@@ -2,38 +2,38 @@
 
 legacy_s8 RsSupersightFrameIntegrationLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7732;
+  legacy_s32 noreg temple_tmp_7741;
   if((value<=127)) {
-    temple_tmp_7732=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7741=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7732=TempleCastS32(TempleCastS8(
+    temple_tmp_7741=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7732);
+  return TempleCastS8(temple_tmp_7741);
 }
 
 legacy_s16 RsSupersightFrameIntegrationLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7733;
+  legacy_s32 noreg temple_tmp_7742;
   if((value<=32767)) {
-    temple_tmp_7733=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7742=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7733=TempleCastS32(TempleCastS16(
+    temple_tmp_7742=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7733);
+  return TempleCastS16(temple_tmp_7742);
 }
 
 legacy_s32 RsSupersightFrameIntegrationLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7734;
+  legacy_s32 noreg temple_tmp_7743;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7734=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7743=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7734=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7743=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7734);
+  return TempleCastS32(temple_tmp_7743);
 }
 
 legacy_s16 RsSupersightFrameIntegrationCameraAdjustCustomDirection(legacy_u16 direction)
@@ -100,18 +100,18 @@ legacy_s16 RsFrameSupersightDrawScene(CFrameTileSelection *tiles,CFrameCamera *c
 
 legacy_s16 RsFrameSupersightDashboardTop(CRectangle *cliprect)
 {
-  legacy_s32 noreg temple_tmp_7735;
-  temple_tmp_7735=0;
+  legacy_s32 noreg temple_tmp_7744;
+  temple_tmp_7744=0;
   if((supersight_enabled==0)) {
-    temple_tmp_7735=1;
+    temple_tmp_7744=1;
   }
-  if(!temple_tmp_7735) {
-    temple_tmp_7735=0;
+  if(!temple_tmp_7744) {
+    temple_tmp_7744=0;
     if((replaybar_enabled==0)) {
-      temple_tmp_7735=1;
+      temple_tmp_7744=1;
     }
   }
-  if(temple_tmp_7735) {
+  if(temple_tmp_7744) {
     return TempleCastS16(0);
   }
   RsSpriteSetTargetClipBounds(TempleCastU16(0),TempleCastU16(320),TempleCastU16(0),

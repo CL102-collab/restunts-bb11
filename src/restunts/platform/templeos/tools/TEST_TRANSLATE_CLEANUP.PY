@@ -153,6 +153,30 @@ class CleanupTests(unittest.TestCase):
             self.assertTrue((sources / "extended/extended_track.h").is_file())
             self.assertFalse((sources / "shape2d_blit.c").exists())
 
+    def test_native_audio_loader_keeps_sdl_backend_selection_disabled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            sources = TRANSLATE.prepare_sources(directory)
+            headers = directory / "include"
+            headers.mkdir()
+            for name, text in TRANSLATE.FAKE_HEADERS.items():
+                (headers / name).write_text(text)
+            source = sources / "audio/audio_resources.c"
+            preprocessed = subprocess.run([
+                "gcc", "-E", "-nostdinc", "-I" + str(headers), "-I" + str(sources),
+                "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS", str(source),
+            ], text=True, capture_output=True, check=True).stdout
+            tree = TRANSLATE.c_parser.CParser().parse(preprocessed)
+        model = TRANSLATE.Model()
+        model.collect(tree, "audio_resources")
+        function = next(node for node in tree.ext if isinstance(node, TRANSLATE.A.FuncDef)
+                        and node.decl.name == "audio_load_dos_driver")
+        translated = "\n".join(TRANSLATE.Generator(model).function(function, function.decl.name))
+        self.assertIn("dos_audio_driver_initialize", model.external_used)
+        self.assertFalse(any(name.startswith("sdl3_") for name in model.external_used))
+        self.assertIn("'p'", translated)
+        self.assertIn("'c'", translated)
+
     def test_constants_follow_transitive_dependencies(self):
         definitions = {"BASE": "2", "NEXT": "BASE + 1", "LIMIT": "NEXT + 1",
                        "UNUSED": "BASE + 9"}
