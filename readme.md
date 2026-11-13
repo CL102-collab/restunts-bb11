@@ -192,8 +192,8 @@ selection regardless of argument order. DOS builds keep their existing audio pat
 The launcher's **OGG music replacement** checkbox (formerly **New MIDI**) controls
 recorded replacement songs independently of the selected synthesizer. Use
 `--ogg:on` to enable replacements or `--ogg:off` to hear the selected original
-synthesizer. Desktop and web launchers enable replacements by default; direct
-native CLI and Android defaults keep original music.
+synthesizer. Replacement music is off by default on every platform; saved
+launcher preferences still take precedence.
 Press **Shift+F10** during the
 intro, menus, or race-end/victory screens to switch to the included Ogg music.
 Press it again to return to the selected synthesizer at the same song position. The selection lasts

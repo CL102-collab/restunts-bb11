@@ -1248,6 +1248,7 @@ async function exerciseMt32Sound(browser, url, fixture, temporary) {
             'A failed folder replacement must preserve the last valid selected model');
         assert.deepEqual(await page.evaluate(() => Array.from(fixtureFiles, ([name, bytes]) => [name, Array.from(bytes)])
             .filter(([name]) => name.startsWith(ROM_DIRECTORY))), cachedRoms);
+        await page.locator('#new-midi').check();
         await page.locator('#start').click();
         const args = await page.evaluate(() => window.launchedArguments);
         assert.deepEqual(args.slice(0, 7), ['--data-dir', '/stunts', '--soundmode:mt-32', '--mt-32-rom-dir',
@@ -1464,7 +1465,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:on', '--fps:off', '--showmph:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--fps:off', '--showmph:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);

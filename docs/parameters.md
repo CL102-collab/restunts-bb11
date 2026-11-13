@@ -83,7 +83,7 @@ engine. **Sound** enabled means `/ns` is omitted.
 | Disable all sound `--nosound` or `/ns` | Overrides the selected sound mode regardless of argument order. |
 | MT-32 ROM directory `--mt-32-rom-dir DIR` | Read-only folder of recognized control/PCM ROMs. No ROMs are distributed. |
 | MT-32 model `--mt-32-model ID` | Optional when exactly one complete set is detected; required to disambiguate several sets. IDs come from Munt's detected compatible models. |
-| Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of AdLib/MT-32. Web and desktop default to on; direct native CLI and Android default to off. |
+| Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of AdLib/MT-32. Off by default on all platforms; saved launcher choices take precedence. |
 | Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
 | Touch control layout `--control-layout:on/off` | Android and web. |
 | Tilt steering | Android launcher and sensor backend. |

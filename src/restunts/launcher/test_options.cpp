@@ -56,7 +56,7 @@ legacy_int main()
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
 	const legacy_char *defaults[] = {"--soundmode:adlib",
-									 "--ogg:on",
+									 "--ogg:off",
 									 "--hv:auto",
 									 "--fullscreen:off",
 									 "--fps:off",
@@ -82,10 +82,10 @@ legacy_int main()
 	options.hypervision = LAUNCHER_HV_OFF;
 	arguments = launcher_game_arguments(game, options);
 	const legacy_char *changed[] = {
-		"--nosound",	   "--ogg:off", "--nointro",	"--controller-vibration:off",
-		"--fullscreen:on", "--fps:on",	"--showmph:on", "--multi-core:off",
-		"--pg:off",		   "--lc:off",	"--lcb:off",	"--dws:off",
-		"--cfg:off",	   "--owoot",	"--amigagrass"};
+		"--nosound",	   "--ogg:on", "--nointro",	   "--controller-vibration:off",
+		"--fullscreen:on", "--fps:on", "--showmph:on", "--multi-core:off",
+		"--pg:off",		   "--lc:off", "--lcb:off",	   "--dws:off",
+		"--cfg:off",	   "--owoot",  "--amigagrass"};
 	for (const legacy_char *argument : changed) {
 		check(contains(arguments, argument), "Missing changed game argument.");
 	}
@@ -228,7 +228,7 @@ legacy_int main()
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.mt32_rom_folder.empty() &&
 			  restored.mt32_model.empty() && restored.sound_mode == LAUNCHER_SOUND_ADLIB &&
-			  restored.enabled[LAUNCHER_NEW_MIDI] && !restored.enabled[LAUNCHER_FULLSCREEN] &&
+			  !restored.enabled[LAUNCHER_NEW_MIDI] && !restored.enabled[LAUNCHER_FULLSCREEN] &&
 			  !restored.enabled[LAUNCHER_SHOW_MPH] && restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,

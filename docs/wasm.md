@@ -107,8 +107,8 @@ build supports `file://` without a local web server. The HTML's location does no
    the ROM-folder picker and detected **ROM set** selector. The Ogg replacement
    choice is remembered independently of the sound mode.
    **OGG music replacement** (formerly **New MIDI**) selects recorded Ogg music
-   (`--ogg:on`); uncheck it to hear the chosen AdLib or MT-32 synthesizer
-   (`--ogg:off`). It is enabled by default.
+   (`--ogg:on`); leave it unchecked to hear the chosen AdLib or MT-32 synthesizer
+   (`--ogg:off`). It starts off unless a remembered choice enables it.
    **Graphics settings** contains **Show FPS** (`--fps:on`), followed by
    **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**

@@ -29,7 +29,8 @@ document portal.
 
 The **Sound settings** group contains the sound mode, **OGG music replacement**
 (formerly **New MIDI**), and the MT-32 ROM-folder/model controls. Controller
-vibration remains in **Startup options**. AdLib is the default sound mode; Ogg replacements start enabled.
+vibration remains in **Startup options**. AdLib is the default sound mode; Ogg
+replacements start disabled unless a saved preference enables them.
 Choose MT-32, browse to your own read-only control/PCM ROM folder, and select a
 model when several complete sets are detected. The ROM path and model are saved
 separately from the game folder. Invalid or incomplete selections are reported

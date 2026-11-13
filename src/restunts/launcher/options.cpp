@@ -27,7 +27,7 @@ static const size_t ROM_INVENTORY_MAX_CHARACTERS = 65536U;
 static const legacy_char DATA_DIRECTORY_ARGUMENT[] = "--data-dir";
 
 const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT] = {
-	{"new_midi", "OGG music replacement", "--ogg:on", "--ogg:off", true},
+	{"new_midi", "OGG music replacement", "--ogg:on", "--ogg:off", false},
 	{"skip_intro", "Skip intro", "--nointro", nullptr, false},
 	{"vibration", "Controller vibration", "--controller-vibration:on", "--controller-vibration:off",
 	 true},
