@@ -32,7 +32,10 @@ struct PC_SPEAKER_DRIVER {
 	legacy_u8 output_active;
 	legacy_u16 output_period;
 	legacy_s8 selected_voice;
-	legacy_u32 tone_phase;
+	legacy_u32 tone_period;
+	legacy_f64 tone_remaining;
+	legacy_f64 tone_level;
+	legacy_u8 tone_high;
 	legacy_u8 *sample_data;
 	size_t sample_length;
 	legacy_u64 sample_position;

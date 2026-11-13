@@ -32,9 +32,10 @@
 #define PC_CONTEXT_NOTE_OFFSET 0U
 #define PC_CONTEXT_BASE_OFFSET 1U
 #define PC_CONTEXT_CURRENT_OFFSET 3U
-#define PC_PCM_AMPLITUDE 8192
-#define PC_TONE_HALF_PHASE 0x80000000U
+#define PC_PCM_AMPLITUDE 5000
 #define PC_PIT_FULL_PERIOD 65536U
+#define PC_TONE_HALF_CYCLE 0.5
+#define PC_TONE_FULL_TRAVEL_SECONDS 0.000070
 
 /* Exact PC15.DRV tables, shared with the TempleOS implementation. */
 static const legacy_u16 pc_note_periods[PC_NOTE_COUNT] = {
@@ -277,9 +278,12 @@ static void pc_select_voice(struct PC_SPEAKER_DRIVER *driver)
 	legacy_u8 active = selected > (legacy_s8)PC_VOICE_SAMPLE;
 	if (active) {
 		legacy_u16 period = driver->voices[selected].period;
-		if (!driver->output_active || period != driver->output_period) {
-			/* Programming a new PIT divisor starts a new square-wave cycle. */
-			driver->tone_phase = 0;
+		if (!driver->output_active) {
+			/* Raising GATE starts mode3 high. Subsequent count-only writes
+			 * latch at a half-cycle boundary and do not restart the counter. */
+			driver->tone_period = period != 0 ? period : PC_PIT_FULL_PERIOD;
+			driver->tone_remaining = driver->tone_period * PC_TONE_HALF_CYCLE;
+			driver->tone_high = 1;
 		}
 		driver->output_period = period;
 	}
@@ -301,11 +305,41 @@ void pc_speaker_driver_set_music_muted(struct PC_SPEAKER_DRIVER *driver, legacy_
 	pc_select_voice(driver);
 }
 
-static legacy_u32 pc_tone_step(legacy_u16 divisor, legacy_u32 sample_rate)
+static legacy_f64 pc_tone_area(struct PC_SPEAKER_DRIVER *driver, legacy_f64 clocks)
 {
-	legacy_u32 period = divisor != 0 ? divisor : PC_PIT_FULL_PERIOD;
-	return (legacy_u32)(((legacy_u64)PC_SPEAKER_PIT_HZ << PC_SPEAKER_PHASE_BITS) /
-						((legacy_u64)period * sample_rate));
+	/* Integrate the speaker's finite travel over each output sample, including
+	 * every PIT edge inside it. Point-sampling a square wave folds ultrasonic
+	 * harmonics into audible whistles, especially in the high music voices.
+	 * A full cone excursion takes 70us in the DOSBox reference speaker model. */
+	const legacy_f64 speed =
+		(2.0 * PC_PCM_AMPLITUDE) / (PC_TONE_FULL_TRAVEL_SECONDS * PC_SPEAKER_PIT_HZ);
+	legacy_f64 area = 0.0;
+	while (clocks > 0.0) {
+		legacy_f64 duration = clocks < driver->tone_remaining ? clocks : driver->tone_remaining;
+		legacy_f64 target = driver->tone_high ? PC_PCM_AMPLITUDE : -PC_PCM_AMPLITUDE;
+		legacy_f64 difference = target - driver->tone_level;
+		legacy_f64 distance = difference < 0.0 ? -difference : difference;
+		legacy_f64 travel = distance / speed;
+		if (travel <= duration) {
+			area += (driver->tone_level + target) * travel * PC_TONE_HALF_CYCLE +
+					target * (duration - travel);
+			driver->tone_level = target;
+		} else {
+			legacy_f64 velocity = difference < 0.0 ? -speed : speed;
+			area +=
+				driver->tone_level * duration + velocity * duration * duration * PC_TONE_HALF_CYCLE;
+			driver->tone_level += velocity * duration;
+		}
+		clocks -= duration;
+		driver->tone_remaining -= duration;
+		if (driver->tone_remaining <= 0.0) {
+			driver->tone_high = !driver->tone_high;
+			driver->tone_period =
+				driver->output_period != 0 ? driver->output_period : PC_PIT_FULL_PERIOD;
+			driver->tone_remaining = driver->tone_period * PC_TONE_HALF_CYCLE;
+		}
+	}
+	return area;
 }
 
 void pc_speaker_driver_render(struct PC_SPEAKER_DRIVER *driver, legacy_s16 *samples,
@@ -314,7 +348,7 @@ void pc_speaker_driver_render(struct PC_SPEAKER_DRIVER *driver, legacy_s16 *samp
 	if (sample_rate == 0 || samples == NULL) {
 		return;
 	}
-	legacy_u32 tone_step = pc_tone_step(driver->output_period, sample_rate);
+	const legacy_f64 clocks_per_sample = (legacy_f64)PC_SPEAKER_PIT_HZ / sample_rate;
 	legacy_u64 sample_step =
 		((legacy_u64)driver->sample_rate << PC_SPEAKER_PHASE_BITS) / sample_rate;
 	for (legacy_u32 frame = 0; frame < frames; frame++) {
@@ -325,7 +359,6 @@ void pc_speaker_driver_render(struct PC_SPEAKER_DRIVER *driver, legacy_s16 *samp
 				driver->sample_active = 0;
 				driver->voices[PC_VOICE_SAMPLE].active = 0;
 				pc_select_voice(driver);
-				tone_step = pc_tone_step(driver->output_period, sample_rate);
 			} else {
 				if (driver->selected_voice == PC_VOICE_SAMPLE) {
 					sample =
@@ -336,8 +369,9 @@ void pc_speaker_driver_render(struct PC_SPEAKER_DRIVER *driver, legacy_s16 *samp
 			}
 		}
 		if (driver->output_active) {
-			sample = driver->tone_phase & PC_TONE_HALF_PHASE ? PC_PCM_AMPLITUDE : -PC_PCM_AMPLITUDE;
-			driver->tone_phase += tone_step;
+			sample = (legacy_s16)(pc_tone_area(driver, clocks_per_sample) / clocks_per_sample);
+		} else {
+			driver->tone_level = 0.0;
 		}
 		samples[frame] = sample;
 	}

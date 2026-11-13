@@ -120,7 +120,9 @@ static PC_IRQ_ATTRIBUTES void pc_hardware_irq(void)
 			outportb(PC_PIT_COUNTER2_PORT, 0);
 		} else if (frame.mode == PC_OUTPUT_TONE) {
 			if (pc_irq.mode != PC_OUTPUT_TONE || pc_irq.period != frame.period) {
-				outportb(PC_PIT_CONTROL_PORT, PC_PIT_SQUARE_MODE);
+				if (pc_irq.mode != PC_OUTPUT_TONE) {
+					outportb(PC_PIT_CONTROL_PORT, PC_PIT_SQUARE_MODE);
+				}
 				outportb(PC_PIT_COUNTER2_PORT, frame.period & LEGACY_U8_MAX);
 				outportb(PC_PIT_COUNTER2_PORT, frame.period >> LEGACY_BYTE_BITS);
 				outportb(PC_GATE_PORT, inportb(PC_GATE_PORT) | PC_GATE_BITS);
@@ -335,7 +337,9 @@ static void pc_hardware_update(void)
 	}
 	legacy_s16 samples[(PC_PWM_RENDER_RATE + DOS_TIMER_REALTIME_TICKS_PER_SECOND - 1U) /
 					   DOS_TIMER_REALTIME_TICKS_PER_SECOND];
-	pc_speaker_driver_render(&pc_driver, samples, frames, PC_PWM_RENDER_RATE);
+	if (pc_driver.sample_active) {
+		pc_speaker_driver_render(&pc_driver, samples, frames, PC_PWM_RENDER_RATE);
+	}
 	if (pcm_frames != 0 && !pc_hardware_activate()) {
 		return;
 	}
@@ -343,7 +347,9 @@ static void pc_hardware_update(void)
 		/* Tones use channel2 directly; the OS timer and uclock remain normal. */
 		if (pc_driver.output_active) {
 			if (pc_irq.mode != PC_OUTPUT_TONE || pc_irq.period != pc_driver.output_period) {
-				outportb(PC_PIT_CONTROL_PORT, PC_PIT_SQUARE_MODE);
+				if (pc_irq.mode != PC_OUTPUT_TONE) {
+					outportb(PC_PIT_CONTROL_PORT, PC_PIT_SQUARE_MODE);
+				}
 				outportb(PC_PIT_COUNTER2_PORT, pc_driver.output_period & LEGACY_U8_MAX);
 				outportb(PC_PIT_COUNTER2_PORT, pc_driver.output_period >> LEGACY_BYTE_BITS);
 				outportb(PC_GATE_PORT, inportb(PC_GATE_PORT) | PC_GATE_BITS);
