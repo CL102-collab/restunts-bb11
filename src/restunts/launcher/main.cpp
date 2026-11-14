@@ -147,6 +147,14 @@ class LauncherDialog : public wxDialog
 		add_sound_group(content, fields);
 		wxStaticBoxSizer *graphics = new wxStaticBoxSizer(wxVERTICAL, content, "Graphics settings");
 		wxFlexGridSizer *graphics_grid = new wxFlexGridSizer(OPTION_COLUMNS, spacing, border);
+		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Video mode"),
+						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		video_mode_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
+		for (const LauncherVideoDefinition &mode : launcher_video_definitions) {
+			video_mode_->Append(mode.label);
+		}
+		video_mode_->SetSelection(options_.video_mode);
+		graphics_grid->Add(video_mode_, FIXED_LAYOUT, wxEXPAND);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_FULLSCREEN);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_FPS);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_MPH);
@@ -160,14 +168,6 @@ class LauncherDialog : public wxDialog
 		}
 		hypervision_->SetSelection(options_.hypervision);
 		graphics_grid->Add(hypervision_, FIXED_LAYOUT, wxEXPAND);
-		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Video mode"),
-						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
-		video_mode_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
-		for (const LauncherVideoDefinition &mode : launcher_video_definitions) {
-			video_mode_->Append(mode.label);
-		}
-		video_mode_->SetSelection(options_.video_mode);
-		graphics_grid->Add(video_mode_, FIXED_LAYOUT, wxEXPAND);
 		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
 		fields->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 		add_group(content, fields, "Driving rules", LAUNCHER_POWER_GEAR, LAUNCHER_OPTION_COUNT);
