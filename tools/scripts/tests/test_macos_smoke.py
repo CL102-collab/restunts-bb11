@@ -97,6 +97,37 @@ class ScreenshotEvidenceTests(TemporaryEvidence):
         metrics = VALIDATION.validate_screenshot(self.menu(), "intro", title)
         self.assertEqual(metrics["intro_words"], [])
 
+    def test_dark_intro_uses_saturated_color_contrast(self):
+        image = Image.new("RGB", IMAGE_SIZE, "black")
+        draw = ImageDraw.Draw(image)
+        draw.polygon(((0, 270), (640, 230), (640, 480), (0, 480)), fill=(55, 55, 55))
+        draw.polygon(((0, 300), (180, 280), (0, 400)), fill=(0, 0, 170))
+        draw.polygon(((0, 280), (320, 240), (640, 260), (640, 285), (0, 285)),
+                     fill=(70, 70, 70))
+        draw.polygon(((35, 340), (630, 285), (630, 310), (80, 360)), fill=(70, 70, 70))
+        draw.rectangle((300, 322, 400, 326), fill=(77, 77, 77))
+        for point in ((75, 70), (310, 150), (550, 110)):
+            draw.point(point, fill="white")
+        metrics = VALIDATION.validate_screenshot(self.save_image(image), "intro", [])
+        self.assertGreaterEqual(metrics["dynamic_range"], VALIDATION.MINIMUM_IMAGE_RANGE)
+        self.assertLess(metrics["luminance_range"], VALIDATION.MINIMUM_IMAGE_RANGE)
+        self.assertGreaterEqual(metrics["luminance_deviation"],
+                                VALIDATION.MINIMUM_IMAGE_DEVIATION)
+
+    def test_uniform_saturated_images_are_rejected(self):
+        for color in ((0, 0, 255), (255, 0, 255)):
+            with self.subTest(color=color):
+                image = Image.new("RGB", IMAGE_SIZE, color)
+                with self.assertRaisesRegex(ValueError, "blank"):
+                    VALIDATION.validate_screenshot(self.save_image(image), "intro", [])
+
+    def test_low_contrast_saturated_gradient_is_rejected(self):
+        image = Image.new("RGB", IMAGE_SIZE)
+        image.putdata([(170 + x % 64, x % 64, 170 + x % 64)
+                       for y in range(image.height) for x in range(image.width)])
+        with self.assertRaisesRegex(ValueError, "blank"):
+            VALIDATION.validate_screenshot(self.save_image(image), "intro", [])
+
     def test_blank_and_transparent_images_are_rejected(self):
         for image in (Image.new("RGB", IMAGE_SIZE, "black"),
                       Image.new("RGBA", IMAGE_SIZE, (255, 0, 0, 0))):

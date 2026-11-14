@@ -104,7 +104,10 @@ def _load_png(path):
         luminance = client.convert("L")
         histogram = luminance.histogram()
         occupied = [index for index, count in enumerate(histogram) if count]
-        dynamic_range = occupied[-1] - occupied[0]
+        luminance_range = occupied[-1] - occupied[0]
+        # Saturated DOS colors can contrast strongly without approaching white.
+        # Compare each channel spatially so a uniform saturated image still fails.
+        dynamic_range = max(high - low for low, high in client.getextrema())
         deviation = ImageStat.Stat(luminance).stddev[0]
         colors = len(client.getcolors(client.width * client.height))
         if (colors < MINIMUM_IMAGE_COLORS or dynamic_range < MINIMUM_IMAGE_RANGE
@@ -112,7 +115,8 @@ def _load_png(path):
             raise ValueError("screenshot is blank or lacks meaningful rendered detail")
         return image, analysis, {
             "width": width, "height": height, "colors": colors,
-            "dynamic_range": dynamic_range, "luminance_deviation": deviation,
+            "dynamic_range": dynamic_range, "luminance_range": luminance_range,
+            "luminance_deviation": deviation,
             "opaque_fraction": opaque_fraction,
         }
     except (OSError, EOFError, SyntaxError) as error:
