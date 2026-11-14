@@ -353,18 +353,18 @@
     ],
     "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
   },
-  "dashboard_note": "Edited cockpit backdrop from the user-supplied PURE_FINAL_021.zip, combined with the existing procedural MCMU steering wheel and live instruments. The original gloves, arms and wheel are removed. Bodywork uses MCMU light turquoise. The hood antenna is removed with a local patch, preserving every source pixel outside its former footprint. The existing windshield edge has a shallow symmetric center dip, preserving its rounded side pillars. Wheel greys are darkened to match the cockpit while white labels, the centered speed display, live RPM bar and 90% battery indicator remain readable. Wheel geometry, all three steering poses and the imt1/imt3, spdc and revb instrument descriptors are retained. The native roof and dast/dasm pair preserve live scenery through the windshield. The edited backdrop is stored as a full-screen indexed VSH source; generation uses only the standard library and remains within DIA3 dashboard memory limits.",
+  "dashboard_note": "Edited cockpit backdrop from the user-supplied PURE_FINAL_021.zip, combined with the existing procedural MCMU steering wheel and live instruments. The original gloves, arms and wheel are removed. Bodywork uses MCMU light turquoise. An earlier local patch removed the hood antenna. A separate patch replaces only dark bodywork contour pixels along the turquoise-to-transparent boundary with adjacent turquoise shades, preserving transparency and every other source pixel. The existing windshield edge has a shallow symmetric center dip, preserving its rounded side pillars. Wheel greys are darkened to match the cockpit while white labels, the centered speed display, live RPM bar and 90% battery indicator remain readable. Wheel geometry, all three steering poses and the imt1/imt3, spdc and revb instrument descriptors are retained. The native roof and dast/dasm pair preserve live scenery through the windshield. The edited backdrop is stored as a full-screen indexed VSH source; generation uses only the standard library and remains within DIA3 dashboard memory limits.",
   "dashboard_source": {
     "file": "tools/scripts/cars/MCMU-cockpit.VSH",
-    "sha256": "249541c309fd7444d4311f2f62b894f928b121ad8e9c2ef9b30b2f4fc9f158b2",
+    "sha256": "27f9cac5b5db77fa8d9b15fb9ac3221814be821736f3caae7aaf5666b53931c2",
     "origin": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH, supplied by the user; cockpit artwork only",
-    "editing": "Image-assisted backdrop edit, converted to the native 320x200 indexed palette with binary windshield transparency. The antenna is removed with a local patch without regenerating the surrounding artwork; MCMU wheel and live instruments are composited by the generator."
+    "editing": "Image-assisted backdrop edit, converted to the native 320x200 indexed palette with binary windshield transparency. Local patches remove the antenna and replace dark bodywork contour pixels along the turquoise-to-transparent boundary with adjacent turquoise shades. The contour patch preserves transparency and every other source pixel without regenerating the artwork; MCMU wheel and live instruments are composited by the generator."
   },
   "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
   "dashboard_reference_images": [
     {
       "file": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH",
-      "view": "User-supplied cockpit backdrop, edited to remove gloves and original wheel, recolour bodywork turquoise and gently bow the existing upper windshield edge. A later local patch removes the antenna without changing the surrounding artwork."
+      "view": "User-supplied cockpit backdrop, edited to remove gloves and original wheel, recolour bodywork turquoise and gently bow the existing upper windshield edge. Local patches remove the antenna and replace only dark bodywork contour pixels along the turquoise-to-transparent boundary with adjacent turquoise shades. The contour patch preserves transparency and every other source pixel."
     },
     {
       "file": "middle.png",
@@ -398,13 +398,13 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "MCMU": 29808,
+    "MCMU": 29824,
     "DIA3": 66176
   },
   "dashboard_ram_bytes": {
     "MCMU": {
       "extracted_resources_bytes": 139354,
-      "prepared_resources_bytes": 29808,
+      "prepared_resources_bytes": 29824,
       "scratch_bitmap_bytes": 3792,
       "scratch_dimensions": [
         [
@@ -412,7 +412,7 @@
           38
         ]
       ],
-      "resident_arena_bytes": 33600
+      "resident_arena_bytes": 33616
     },
     "DIA3": {
       "extracted_resources_bytes": 148036,
@@ -712,7 +712,7 @@
     },
     "STDAMCMU.VSH": {
       "bytes": 137346,
-      "sha256": "54fb4f9d9329ce08a2adf0ffad34ec1c8693fc4886021a3a34c88a56c2a9dc2e"
+      "sha256": "e504d3db710dbbcda97865168c4c54d19b351b325d27d059f77465f92bab8eec"
     },
     "STDBMCMU.VSH": {
       "bytes": 2008,
