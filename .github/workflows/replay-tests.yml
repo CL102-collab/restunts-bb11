@@ -69,7 +69,7 @@ jobs:
       matrix:
         shard: ${{ fromJSON(inputs.shard-matrix) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Validate candidate platform
         env:
@@ -99,12 +99,12 @@ jobs:
           fi
 
       - name: Download the replay shard plan
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ inputs.shard-plan-artifact }}
           path: shard-plan
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.0.x
 
@@ -123,14 +123,14 @@ jobs:
               -c "mount c $RUNNER_TEMP" -c "c:" -c "exit"
 
       - name: Download the DOS executables and original references
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ inputs.exe-artifact }}
           path: exes
 
       - name: Download the SDL3 runtime
         if: inputs.candidate-platform == 'sdl3'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ inputs.native-artifact }}
           path: native-package
@@ -237,7 +237,7 @@ jobs:
               -RendererTimeoutSeconds "$RENDERER_TIMEOUT_SECONDS" \
               -RendererTestPercentage "$RENDERER_TEST_PERCENTAGE"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: ${{ inputs.candidate-platform == 'sdl3' && 'sdl3-' || '' }}${{ inputs.phase }}-partitions-cam${{ inputs.camera }}-target${{ inputs.target }}-${{ matrix.shard }}
@@ -247,7 +247,7 @@ jobs:
           retention-days: 14
 
       - name: Upload this shard's PDO files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7.0.1
         if: ${{ always() && inputs.phase == 'renderer' }}
         with:
           name: ${{ inputs.candidate-platform == 'sdl3' && 'sdl3-' || '' }}renderer-pdo-cam${{ inputs.camera }}-target${{ inputs.target }}-${{ matrix.shard }}
@@ -264,22 +264,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Download the replay shard plan
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ inputs.shard-plan-artifact }}
           path: shard-plan
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.0.x
 
       - name: Publish the shared regression runner
         run: dotnet publish tools/scripts/dumpsrv/dumpsrv/dumpsrv.csproj --configuration Release --output "$RUNNER_TEMP/dumpsrv"
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@v8.0.1
         continue-on-error: true
         with:
           pattern: ${{ inputs.candidate-platform == 'sdl3' && 'sdl3-' || '' }}${{ inputs.phase }}-partitions-cam${{ inputs.camera }}-target${{ inputs.target }}-*
@@ -305,7 +305,7 @@ jobs:
               -OutputFile partitions_all.txt \
               -SummaryFile "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: ${{ inputs.candidate-platform == 'sdl3' && 'sdl3-' || '' }}${{ inputs.phase }}-cam${{ inputs.camera }}-target${{ inputs.target }}-report
@@ -314,7 +314,7 @@ jobs:
           retention-days: 14
 
       - name: Combine all PDO files into a downloadable ZIP
-        uses: actions/upload-artifact/merge@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact/merge@v7.0.1
         if: ${{ always() && inputs.phase == 'renderer' }}
         with:
           name: ${{ inputs.candidate-platform == 'sdl3' && 'sdl3-' || '' }}renderer-pdo-cam${{ inputs.camera }}-target${{ inputs.target }}
