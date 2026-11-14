@@ -1,4 +1,5 @@
 #include "extended_menu_runtime.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,7 +79,7 @@ void extended_menu_warn_track_version(void)
 			 "The track may not work correctly.]Press OK to continue racing.]}[ OK ]",
 			 (legacy_u32)track->version, (legacy_u32)CSTRK_VERSION);
 	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 }
 void extended_menu_validation_error(legacy_s16 result, legacy_s16 column, legacy_s16 row)
 {
@@ -86,7 +87,8 @@ void extended_menu_validation_error(legacy_s16 result, legacy_s16 column, legacy
 		legacy_char message[192];
 		extended_track_validation_message(result, column, row, message, sizeof(message));
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message,
-					DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+					DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+					0, 0);
 	}
 }
 void extended_menu_load_startup_track(void)
@@ -141,7 +143,7 @@ legacy_s16 extended_menu_load_selected_track(const legacy_s8 *extension, const l
 			extended_track_set_name(previous_name);
 			show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 						(void *)extended_file_error(), DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-						dialog_border_color, 0, 0);
+						VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 			return 0;
 		}
 	} else {
@@ -160,7 +162,7 @@ legacy_s16 extended_menu_open_editor(void)
 	if (!extended_editor_open()) {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 					"Open tracked.html to edit Chocolate Stunts tracks.]", DIALOG_AUTO_POSITION,
-					DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+					DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	}
 	return 0;
 }

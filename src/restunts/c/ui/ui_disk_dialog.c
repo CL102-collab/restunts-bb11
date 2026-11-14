@@ -1,4 +1,5 @@
 #include "ui_dialog_private.h"
+#include "../video/video_color.h"
 #define FILE_DIALOG_STEM_MAX_LENGTH 8U
 
 const legacy_u8 far quiz_question_suffixes[20] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -12,7 +13,8 @@ void ensure_file_exists(legacy_s16 file_index)
 	legacy_s8 *message_id = message_ids[file_index - 1];
 	while (file_find(findfilenames[file_index]) == 0) {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-					locate_text_res(mainresptr, message_id), -1, -1, dialog_border_color, 0, 0);
+					locate_text_res(mainresptr, message_id), -1, -1,
+					VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 		mouse_draw_opaque_check();
 		kbormouse = 0;
 	}
@@ -21,8 +23,8 @@ void ensure_file_exists(legacy_s16 file_index)
 void show_waiting(void)
 {
 	show_dialog(DIALOG_TYPE_MESSAGE, DIALOG_NO_BACKGROUND_SAVE,
-				locate_text_res(mainresptr, waiting_message_id), -1, waitflag, dialog_border_color,
-				0, 0);
+				locate_text_res(mainresptr, waiting_message_id), -1, waitflag,
+				VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	mouse_draw_opaque_check();
 }
 
@@ -32,15 +34,16 @@ static legacy_s16 do_savefile_dialog_impl(legacy_s8 *primary, legacy_s8 *seconda
 	legacy_s16 positions[6];
 	legacy_s16 result = LEGACY_S16_FROM_BITS(show_text_input_dialog(
 		DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, file_save_dialog_id),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, positions));
+		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+		positions));
 	if (result < 0) {
 		return 0;
 	}
 
-	font_set_colors(dialog_fnt_colour, dialog_background_color);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 	copy_string(&resID_byte1, prompt);
 	font_draw_text_opaque(&resID_byte1, positions[0], positions[1]);
-	font_set_colors(dialog_fnt_colour, dialog_background_color);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 	font_draw_text_opaque(primary, positions[2], positions[3]);
 	font_draw_text_opaque(secondary, positions[4], positions[5]);
 	mouse_draw_transparent_check();
@@ -98,11 +101,11 @@ legacy_s16 show_disk_error_dialog(void)
 	if (g_is_busy != 0) {
 		result = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
 							 locate_text_res(mainresptr, disk_retry_dialog_id), -1, -1,
-							 dialog_border_color, 0, 0) == 0;
+							 VIDEO_UI_COLOR(dialog_border_color), 0, 0) == 0;
 	} else {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-					locate_text_res(mainresptr, disk_error_dialog_id), -1, -1, dialog_border_color,
-					0, 0);
+					locate_text_res(mainresptr, disk_error_dialog_id), -1, -1,
+					VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 		result = 1;
 	}
 	input_pop_status();
@@ -127,7 +130,7 @@ void security_check(legacy_s16 question_index)
 
 	legacy_s16 positions[8];
 	show_text_input_dialog(DIALOG_SAVE_BACKGROUND, (void far *)question_text, DIALOG_AUTO_POSITION,
-						   SECURITY_DIALOG_Y, performGraphColor, positions);
+						   SECURITY_DIALOG_Y, VIDEO_UI_COLOR(performGraphColor), positions);
 	(&resID_byte1)[2] = 0;
 	(&resID_byte1)[0] = question_parts[0];
 	(&resID_byte1)[1] = question_parts[1];

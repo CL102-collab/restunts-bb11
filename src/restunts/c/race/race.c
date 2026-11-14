@@ -1,4 +1,5 @@
 #include "race_internal.h"
+#include "../video/video_color.h"
 #include "../extended/extended_replay_ui.h"
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
@@ -148,9 +149,9 @@ static void race_check_recording_limit(void)
 	if (recording_limit_warning_requested != 0) {
 		input_push_status();
 		audio_suspend();
-		legacy_s16 dialog_choice =
-			show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
-						locate_text_res(gameresptr, "rbf"), -1, -1, dialog_border_color, 0, 0);
+		legacy_s16 dialog_choice = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
+											   locate_text_res(gameresptr, "rbf"), -1, -1,
+											   VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 		if (dialog_choice == -1) {
 			dialog_choice = 0;
 		}
@@ -492,7 +493,7 @@ static void race_finish_opponent(void)
 		state.opponentstate.car_crashBmpFlag == CRASH_EVENT_NONE) {
 		show_dialog(DIALOG_TYPE_PLACEHOLDERS, DIALOG_NO_BACKGROUND_SAVE,
 					locate_text_res(gameresptr, "cop"), -1, RACE_OPPONENT_PROGRESS_DIALOG_Y,
-					performGraphColor, opponent_progress_text_position, 0);
+					VIDEO_UI_COLOR(performGraphColor), opponent_progress_text_position, 0);
 		replay_overflow_acknowledged_word = LEGACY_S16_FROM_BITS(
 			LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 1U));
 		legacy_s16 frame_counter = framespersec;
@@ -571,7 +572,8 @@ void run_game(void)
 		replay_recording_flags = 0;
 		ghost_end_race();
 		show_dialog(DIALOG_TYPE_MESSAGE, DIALOG_NO_BACKGROUND_SAVE,
-					"Unable to prepare ghost replay.", -1, -1, dialog_border_color, 0, 0);
+					"Unable to prepare ghost replay.", -1, -1, VIDEO_UI_COLOR(dialog_border_color),
+					0, 0);
 		return;
 	}
 	if (setup_player_cars() != 0) {

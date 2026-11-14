@@ -1,0 +1,44 @@
+#ifndef RESTUNTS_SDL3_VIDEO_MODE_COLORS_H
+#define RESTUNTS_SDL3_VIDEO_MODE_COLORS_H
+
+#include "../../c/legacy.h"
+
+/* These identify DOS drawing roles, independently of their shared VGA index. */
+enum SDL3_VIDEO_UI_COLOR {
+	SDL3_VIDEO_UI_dialog_fnt_colour,
+	SDL3_VIDEO_UI_menu_highlight_second_color,
+	SDL3_VIDEO_UI_menu_highlight_first_color,
+	SDL3_VIDEO_UI_end_animation_border_shadow_color,
+	SDL3_VIDEO_UI_credits_text_color,
+	SDL3_VIDEO_UI_credits_text_shadow_color,
+	SDL3_VIDEO_UI_credits_title_color,
+	SDL3_VIDEO_UI_credits_title_shadow_color,
+	SDL3_VIDEO_UI_credits_design_heading_color,
+	SDL3_VIDEO_UI_credits_design_heading_shadow_color,
+	SDL3_VIDEO_UI_credits_production_heading_color,
+	SDL3_VIDEO_UI_credits_production_heading_shadow_color,
+	SDL3_VIDEO_UI_credits_art_heading_color,
+	SDL3_VIDEO_UI_credits_art_heading_shadow_color,
+	SDL3_VIDEO_UI_credits_music_heading_color,
+	SDL3_VIDEO_UI_credits_music_heading_shadow_color,
+	SDL3_VIDEO_UI_track_editor_frame_outer_color,
+	SDL3_VIDEO_UI_track_editor_frame_inner_color,
+	SDL3_VIDEO_UI_track_editor_frame_opposite_color,
+	SDL3_VIDEO_UI_track_editor_highlight_color,
+	SDL3_VIDEO_UI_button_top_color,
+	SDL3_VIDEO_UI_button_bottom_color,
+	SDL3_VIDEO_UI_button_fill_color,
+	SDL3_VIDEO_UI_graphics_menu_background_color,
+	SDL3_VIDEO_UI_replay_timeline_background_color,
+	SDL3_VIDEO_UI_replay_marker_color,
+	SDL3_VIDEO_UI_performGraphColor,
+	SDL3_VIDEO_UI_dialog_border_color,
+	SDL3_VIDEO_UI_COLOR_COUNT
+};
+
+legacy_u16 sdl3_video_mode_ui_color(enum SDL3_VIDEO_UI_COLOR role, legacy_u16 vga);
+legacy_u16 sdl3_video_mode_color_value(legacy_u16 color);
+void sdl3_video_mode_color_begin(legacy_u16 color);
+void sdl3_video_mode_material_begin(legacy_u16 material);
+
+#endif

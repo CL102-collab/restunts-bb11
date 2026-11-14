@@ -1,4 +1,5 @@
 #include "highscore_internal.h"
+#include "../video/video_color.h"
 
 void end_format_time(legacy_s8 *out, legacy_u32 frame)
 {
@@ -22,7 +23,8 @@ void end_hiscore_append_text(legacy_s8 far *resource, legacy_s8 *text_id)
 
 void end_hiscore_draw_current_text(legacy_s16 *y)
 {
-	hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), *y, dialog_fnt_colour, 0);
+	hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), *y,
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	*y = LEGACY_S16_WRAP_ADD(*y, HIGHSCORE_ROW_HEIGHT);
 }
 

@@ -1,4 +1,5 @@
 #include "../fileio.h"
+#include "../video/video_color.h"
 #include "../legacy.h"
 #include "../memmgr.h"
 #include "menu_internal.h"
@@ -42,7 +43,7 @@ void show_insufficient_memory_dialog(void)
 {
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 				locate_text_res(mainresptr, insufficient_memory_dialog_id), -1, -1,
-				dialog_border_color, 0, 0);
+				VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 }
 
 void select_keyboard_driving(void)
@@ -52,7 +53,7 @@ void select_keyboard_driving(void)
 	audio_suspend();
 	show_dialog(DIALOG_TYPE_DELAY, DIALOG_SAVE_BACKGROUND,
 				locate_text_res(mainresptr, keyboard_driving_dialog_id), -1, -1,
-				dialog_border_color, 0, 0);
+				VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	dos_joystick_set_enabled(0);
 	mouse_driving_enabled = 0;
 #ifdef RESTUNTS_SDL3
@@ -83,14 +84,14 @@ static void joy_dialog_draw_grid(legacy_s16 *positions, legacy_s16 *button_x, le
 	legacy_s16 line_height =
 		LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_SUB(positions[13], positions[3]), 8);
 	sprite_fill_rect(LEGACY_S16_WRAP_SUB(positions[2], 4), positions[3], 1, line_height,
-					 dialog_border_color);
+					 VIDEO_UI_COLOR(dialog_border_color));
 	sprite_fill_rect(LEGACY_S16_WRAP_SUB(positions[4], 4), positions[5], 1, line_height,
-					 dialog_border_color);
+					 VIDEO_UI_COLOR(dialog_border_color));
 	legacy_s16 line_width = LEGACY_S16_WRAP_SUB(positions[6], positions[0]);
 	sprite_fill_rect(positions[0], LEGACY_S16_WRAP_SUB(positions[9], 4), line_width, 1,
-					 dialog_border_color);
+					 VIDEO_UI_COLOR(dialog_border_color));
 	sprite_fill_rect(positions[0], LEGACY_S16_WRAP_SUB(positions[11], 4), line_width, 1,
-					 dialog_border_color);
+					 VIDEO_UI_COLOR(dialog_border_color));
 
 	button_x[0] = positions[2];
 	button_x[1] = positions[2];
@@ -123,9 +124,10 @@ void calibrate_joystick_driving(void)
 	dos_timer_set_callbacks_suspended(1);
 	audio_suspend();
 	legacy_s16 positions[15];
-	if (LEGACY_S16_FROM_BITS(show_dialog(
-			DIALOG_TYPE_PLACEHOLDERS, DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, "joy"),
-			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, positions, 0)) <= 0) {
+	if (LEGACY_S16_FROM_BITS(show_dialog(DIALOG_TYPE_PLACEHOLDERS, DIALOG_SAVE_BACKGROUND,
+										 locate_text_res(mainresptr, "joy"), DIALOG_AUTO_POSITION,
+										 DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+										 positions, 0)) <= 0) {
 		dos_joystick_set_enabled(0);
 		joy_dialog_finish();
 		return;
@@ -162,7 +164,7 @@ void calibrate_joystick_driving(void)
 							 dialog_background_color);
 		}
 		sprite_fill_rect(button_x[next_selected], button_y[next_selected], button_width,
-						 button_height, dialog_fnt_colour);
+						 button_height, VIDEO_UI_COLOR(dialog_fnt_colour));
 		selected = next_selected;
 		visited[next_selected] = 1;
 	}
@@ -174,7 +176,7 @@ void calibrate_joystick_driving(void)
 	if (dos_joystick_is_enabled() == 0) {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 					locate_text_res(mainresptr, "jox"), DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-					dialog_border_color, 0, 0);
+					VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	}
 
 	joy_dialog_finish();
@@ -190,8 +192,8 @@ void select_mouse_driving(void)
 	sdl3_input_set_driving_mode(SDL3_DRIVING_MOUSE);
 #endif
 	show_dialog(DIALOG_TYPE_DELAY, DIALOG_SAVE_BACKGROUND,
-				locate_text_res(mainresptr, mouse_driving_dialog_id), -1, -1, dialog_border_color,
-				0, 0);
+				locate_text_res(mainresptr, mouse_driving_dialog_id), -1, -1,
+				VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	dos_timer_set_callbacks_suspended(0);
 	audio_resume();
 	input_pop_status();
@@ -203,7 +205,8 @@ void show_pause_dialog(void)
 	dos_timer_set_callbacks_suspended(1);
 	audio_suspend();
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-				locate_text_res(mainresptr, pause_dialog_id), -1, -1, dialog_border_color, 0, 0);
+				locate_text_res(mainresptr, pause_dialog_id), -1, -1,
+				VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	dos_timer_set_callbacks_suspended(0);
 	audio_resume();
 	input_pop_status();
@@ -216,7 +219,7 @@ void toggle_music_with_dialog(void)
 	legacy_s8 *message_id =
 		audio_toggle_music() != 0 ? music_enabled_message_id : music_disabled_message_id;
 	show_dialog(DIALOG_TYPE_DELAY, DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, message_id),
-				-1, -1, dialog_border_color, 0, 0);
+				-1, -1, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	dos_timer_set_callbacks_suspended(0);
 	input_pop_status();
 }
@@ -228,7 +231,7 @@ void toggle_effects_with_dialog(void)
 	legacy_s8 *message_id =
 		audio_toggle_effects() != 0 ? effects_enabled_message_id : effects_disabled_message_id;
 	show_dialog(DIALOG_TYPE_DELAY, DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, message_id),
-				-1, -1, dialog_border_color, 0, 0);
+				-1, -1, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	dos_timer_set_callbacks_suspended(0);
 	input_pop_status();
 }
@@ -240,7 +243,7 @@ void show_exit_to_dos_dialog(void)
 	audio_suspend();
 	legacy_s16 result = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
 									locate_text_res(mainresptr, exit_to_dos_dialog_id), -1, -1,
-									dialog_border_color, 0, 0);
+									VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	if (result == 1) {
 		call_exitlist2();
 	}
@@ -285,9 +288,9 @@ void show_graphic_levels_menu(void)
 	for (;;) {
 		option_menu_mark_graphics(menu_text);
 
-		selected = LEGACY_S8_FROM_BITS(show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
-												   (void far *)menu_text, -1, -1, performGraphColor,
-												   0, (legacy_s16)selected));
+		selected = LEGACY_S8_FROM_BITS(
+			show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, (void far *)menu_text, -1, -1,
+						VIDEO_UI_COLOR(performGraphColor), 0, (legacy_s16)selected));
 		if (selected == -1 || selected == 9) {
 			break;
 		}
@@ -313,7 +316,7 @@ void show_graphic_levels_menu(void)
 	if (original_frame_rate != configured_frame_rate) {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 					locate_text_res(mainresptr, frame_rate_changed_message_id), -1, -1,
-					dialog_border_color, 0, 0);
+					VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	}
 	dos_timer_set_callbacks_suspended(0);
 	audio_resume();
@@ -347,7 +350,7 @@ static void option_menu_select_input(void)
 	legacy_s8 far *input_text = locate_text_res(miscptr, "mid");
 	legacy_s8 selected = LEGACY_S8_FROM_BITS(
 		show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, input_text, DIALOG_AUTO_POSITION,
-					DIALOG_AUTO_POSITION, performGraphColor, 0, initial_input));
+					DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0, initial_input));
 	if (selected == OPTION_INPUT_KEYBOARD) {
 		select_keyboard_driving();
 	} else if (selected == OPTION_INPUT_JOYSTICK) {
@@ -367,22 +370,28 @@ legacy_u16 run_option_menu(void)
 #endif
 	miscptr = file_load_resfile("misc");
 	sprite_select_screen_compat();
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	VIDEO_CLEAR_TARGET(VIDEO_UI_COLOR(graphics_menu_background_color));
+#else
 	sprite_clear_target((legacy_u8)graphics_menu_background_color);
+#endif
 	legacy_s8 title_text[] = "Chocolate Stunts";
-	intro_draw_text(title_text, font_centered_text_x(title_text), 6, dialog_fnt_colour, 0);
+	intro_draw_text(title_text, font_centered_text_x(title_text), 6,
+					VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	legacy_s8 version_text[] = "Version 0000000 (" RESTUNTS_BUILD_DATE ")";
 	for (legacy_u16 i = 0; i < OPTION_MENU_GIT_HASH_LENGTH; i++) {
 		version_text[sizeof("Version ") - 1U + i] = RESTUNTS_GIT_HASH[i];
 	}
 	intro_draw_text(version_text, font_centered_text_x(version_text), OPTION_MENU_VERSION_TEXT_Y,
-					dialog_fnt_colour, 0);
+					VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 
 	legacy_s8 far *prompt;
 	legacy_u8 menu_active = 1;
 	while (menu_active != 0) {
-		legacy_s8 selected = LEGACY_S8_FROM_BITS(
-			show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(miscptr, "mop"),
-						DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0));
+		legacy_s8 selected = LEGACY_S8_FROM_BITS(show_dialog(
+			DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(miscptr, "mop"),
+			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0));
 		switch (selected) {
 			case -1:
 			case 6:
@@ -412,7 +421,8 @@ legacy_u16 run_option_menu(void)
 #ifdef RESTUNTS_SDL3
 						show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 									(void *)extended_file_error(), DIALOG_AUTO_POSITION,
-									DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+									DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0,
+									0);
 #endif
 						break;
 					}

@@ -16,6 +16,7 @@
 #include "../ui/ui_dialog.h"
 #include "menu_common.h"
 #include "../externs.h"
+#include "../video/video_color.h"
 #include "../keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../game_input.h"
@@ -128,7 +129,8 @@ legacy_s8 run_menu(void)
 		}
 #endif
 		legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
-			selected, menu_buttons, menu_highlight_second_color, menu_highlight_first_color);
+			selected, menu_buttons, VIDEO_UI_COLOR(menu_highlight_second_color),
+			VIDEO_UI_COLOR(menu_highlight_first_color));
 #ifdef RESTUNTS_AMIGA_TRACE
 		if (first_loop) {
 			AMIGA_MENU_TRACE("highlight complete; input begin");

@@ -1,4 +1,5 @@
 #include "fileio.h"
+#include "video/video_color.h"
 #include "game_input.h"
 #include "keyboard.h"
 #include "memmgr.h"
@@ -481,10 +482,10 @@ static void mouse_track_draw(legacy_s16 horizontal, legacy_s16 x, legacy_s16 wid
 	sprite_fill_rect(x, y, width, height, 0);
 	if (horizontal) {
 		sprite_fill_rect(LEGACY_S16_WRAP_ADD(x, thumb_start), y, thumb_size, height,
-						 dialog_fnt_colour);
+						 VIDEO_UI_COLOR(dialog_fnt_colour));
 	} else {
 		sprite_fill_rect(x, LEGACY_S16_WRAP_ADD(y, thumb_start), width, thumb_size,
-						 dialog_fnt_colour);
+						 VIDEO_UI_COLOR(dialog_fnt_colour));
 	}
 }
 

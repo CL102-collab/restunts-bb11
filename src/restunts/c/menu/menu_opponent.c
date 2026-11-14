@@ -1,4 +1,5 @@
 #include "../fileio.h"
+#include "../video/video_color.h"
 #include "../legacy.h"
 #include "../memmgr.h"
 #include "menu_internal.h"
@@ -75,7 +76,7 @@ static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 		description = locate_text_res((legacy_s8 far *)miscptr, opponent_racing_car_label_id);
 	}
 	font_set_fontdef2(fontnptr);
-	font_set_colors(0, dialog_fnt_colour);
+	font_set_colors(0, VIDEO_UI_COLOR(dialog_fnt_colour));
 	legacy_s16 line_y = 0;
 	legacy_u16 line_length = 0;
 	for (;;) {
@@ -127,8 +128,8 @@ static void opponent_menu_draw_background(void)
 					LEGACY_S16_WRAP_ADD(OPPONENT_MENU_BUTTON_FIRST_X,
 										LEGACY_U16_WRAP_MUL(index, OPPONENT_MENU_BUTTON_SPACING)),
 					opponentmenu_buttons[0].y1 + 1, OPPONENT_MENU_BUTTON_WIDTH,
-					OPPONENT_MENU_BUTTON_HEIGHT, button_top_color, button_bottom_color,
-					button_fill_color, 0);
+					OPPONENT_MENU_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+					VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	}
 
 	shape2d_select_ega_palette(opp_res, (legacy_u8)gameconfig.game_opponenttype);
@@ -206,8 +207,8 @@ static legacy_u16 opponent_menu_poll_input(struct OPPONENT_MENU_STATE *menu)
 	}
 
 	legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
-		menu->selected, opponentmenu_buttons, menu_highlight_second_color,
-		menu_highlight_first_color);
+		menu->selected, opponentmenu_buttons, VIDEO_UI_COLOR(menu_highlight_second_color),
+		VIDEO_UI_COLOR(menu_highlight_first_color));
 	legacy_u16 key = (legacy_u16)input_checking(LEGACY_S16_FROM_BITS(elapsed));
 	legacy_s16 hit =
 		(legacy_s16)mouse_multi_hittest(OPPONENT_MENU_BUTTON_COUNT, opponentmenu_buttons);
@@ -295,7 +296,7 @@ static legacy_u8 opponent_menu_activate_selection(struct OPPONENT_MENU_STATE *me
 #endif
 					show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 								"Unable to load ghost replay.]", DIALOG_AUTO_POSITION,
-								DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+								DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 				}
 			}
 			menu->previous_selection = OPPONENT_MENU_NO_SELECTION;

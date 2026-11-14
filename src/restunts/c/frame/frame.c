@@ -1,4 +1,5 @@
 #include "frame_render_private.h"
+#include "../video/video_color.h"
 
 const struct GAMESTATE *frame_state = &state;
 
@@ -356,11 +357,12 @@ void frame_draw_elapsed_time(void)
 			if (slow_video_mgmt_copy != 0) {
 				rect_union(intro_draw_text(&resID_byte1, FRAME_ELAPSED_TIME_X,
 										   roofbmpheight + FRAME_ELAPSED_TIME_Y_OFFSET,
-										   dialog_fnt_colour, 0),
+										   VIDEO_UI_COLOR(dialog_fnt_colour), 0),
 						   &frame_elapsed_time_rect, &frame_elapsed_time_rect);
 			} else {
 				intro_draw_text(&resID_byte1, FRAME_ELAPSED_TIME_X,
-								roofbmpheight + FRAME_ELAPSED_TIME_Y_OFFSET, dialog_fnt_colour, 0);
+								roofbmpheight + FRAME_ELAPSED_TIME_Y_OFFSET,
+								VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 			}
 
 			font_set_fontdef();

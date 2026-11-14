@@ -1,4 +1,5 @@
 #include "../ui/ui_dialog_internal.h"
+#include "../video/video_color.h"
 #include "extended_ui_dialog.h"
 #include "extended_file_dialog.h"
 #define FILE_DIALOG_LEGACY_STEM_MAX_LENGTH 8U
@@ -56,7 +57,7 @@ void extended_ui_dialog_label(struct FILE_DIALOG *dialog, legacy_s16 candidate, 
 	if (dialog->format.extended[(legacy_u8)candidate]) {
 		extension = extended_ui_dialog_suffix(extension);
 		font_set_colors(FILE_DIALOG_EXTENDED_TEXT_COLOR, candidate == dialog->selected
-															 ? dialog_fnt_colour
+															 ? VIDEO_UI_COLOR(dialog_fnt_colour)
 															 : dialog_background_color);
 	}
 	strcat(text, extension);

@@ -1,6 +1,7 @@
 #include "frame/frame_internal.h"
 #include "shape2d/shape2d.h"
 #include "skybox.h"
+#include "video/video_color.h"
 #include "externs.h"
 #ifdef RESTUNTS_SDL3
 #include "hires/skybox_hires.h"
@@ -55,7 +56,9 @@ void skybox_render_level_rect(struct RECTANGLE *rect, legacy_s16 angle, legacy_s
 	}
 	if (LEGACY_S16_FROM_BITS(sky_lines) > 0) {
 		sprite_set_target_clip_bounds(left, right, top, LEGACY_U16_WRAP_ADD(top, sky_lines));
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)skybox.sky_color);
+		VIDEO_DIRECT_END();
 	}
 
 	if (detail_level != SKYBOX_LOWEST_DETAIL_LEVEL &&
@@ -88,7 +91,9 @@ void skybox_render_level_rect(struct RECTANGLE *rect, legacy_s16 angle, legacy_s
 	if (LEGACY_S16_FROM_BITS(ground_lines) > 0) {
 		sprite_set_target_clip_bounds(left, right, ground_top,
 									  LEGACY_U16_WRAP_ADD(ground_top, ground_lines));
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 		sprite_clear_target((legacy_u8)skybox.ground_color);
+		VIDEO_DIRECT_END();
 	}
 }
 
@@ -137,7 +142,9 @@ static legacy_u8 skybox_project_rolled_horizon(legacy_s16 direction, struct MATR
 	mat_mul_vector(&source, rotation, &vectors[1]);
 
 	if (vectors[0].z < 0 || vectors[1].z < 0) {
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)skybox.sky_color);
+		VIDEO_DIRECT_END();
 		return 1;
 	}
 	vector_to_point(&vectors[0], &points[0]);
@@ -152,22 +159,34 @@ static legacy_u8 skybox_clear_outside_horizon(struct RECTANGLE *clip, const stru
 
 	if (points[0].px > SKYBOX_SCREEN_WIDTH && points[1].px > SKYBOX_SCREEN_WIDTH) {
 		fill_color = points[0].py < points[1].py ? skybox.sky_color : skybox.ground_color;
+		VIDEO_MATERIAL_BEGIN(points[0].py < points[1].py ? SKYBOX_MATERIAL_SKY
+														 : SKYBOX_MATERIAL_GROUND);
 		sprite_clear_target((legacy_u8)fill_color);
+		VIDEO_DIRECT_END();
 		return 1;
 	}
 	if (points[0].px < 0 && points[1].px < 0) {
 		fill_color = points[0].py <= points[1].py ? skybox.ground_color : skybox.sky_color;
+		VIDEO_MATERIAL_BEGIN(points[0].py <= points[1].py ? SKYBOX_MATERIAL_GROUND
+														  : SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)fill_color);
+		VIDEO_DIRECT_END();
 		return 1;
 	}
 	if (clip->bottom < points[0].py && clip->bottom < points[1].py) {
 		fill_color = points[0].px <= points[1].px ? skybox.ground_color : skybox.sky_color;
+		VIDEO_MATERIAL_BEGIN(points[0].px <= points[1].px ? SKYBOX_MATERIAL_GROUND
+														  : SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)fill_color);
+		VIDEO_DIRECT_END();
 		return 1;
 	}
 	if (clip->top > points[0].py && clip->top > points[1].py) {
 		fill_color = points[0].px >= points[1].px ? skybox.ground_color : skybox.sky_color;
+		VIDEO_MATERIAL_BEGIN(points[0].px >= points[1].px ? SKYBOX_MATERIAL_GROUND
+														  : SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)fill_color);
+		VIDEO_DIRECT_END();
 		return 1;
 	}
 	return 0;
@@ -234,11 +253,15 @@ static void skybox_prepare_horizon_rect(struct RECTANGLE *clip, legacy_s16 base_
 
 			work_rect->top = 0;
 			work_rect->bottom = rect_skybox.top;
+			VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 			skybox_clear_changed_rects(work_rect, clip, skybox.sky_color);
+			VIDEO_DIRECT_END();
 
 			work_rect->top = rect_skybox.bottom;
 			work_rect->bottom = SKYBOX_SCREEN_BOTTOM;
+			VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 			skybox_clear_changed_rects(work_rect, clip, skybox.ground_color);
+			VIDEO_DIRECT_END();
 		}
 		work_rect->top = rect_skybox.top;
 		work_rect->bottom = rect_skybox.bottom;
@@ -317,10 +340,14 @@ static void skybox_render_horizon_polygons(struct POINT2D *points)
 	struct POINT2D point_swap = points[2];
 	points[2] = points[3];
 	points[3] = point_swap;
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 	skybox_fill_polygon(skybox.sky_color, SKYBOX_POLYGON_POINT_COUNT, points);
+	VIDEO_DIRECT_END();
 	points[2] = points[4];
 	points[3] = points[5];
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 	skybox_fill_polygon(skybox.ground_color, SKYBOX_POLYGON_POINT_COUNT, points);
+	VIDEO_DIRECT_END();
 }
 
 static legacy_s16 skybox_render_rolled(struct RECTANGLE *clip, legacy_s16 direction,
@@ -403,7 +430,9 @@ static legacy_s16 skybox_render_reversed_horizon(struct RECTANGLE *clip, legacy_
 		work_rect.right = SKYBOX_SCREEN_WIDTH;
 		work_rect.top = clip->top;
 		work_rect.bottom = LEGACY_S16_WRAP_ADD(clip->top, fill_height);
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 		skybox_clear_rect(&work_rect, skybox.ground_color);
+		VIDEO_DIRECT_END();
 	}
 	fill_height = LEGACY_S16_WRAP_SUB(clip->bottom, horizon);
 	if (fill_height > 0) {
@@ -411,7 +440,9 @@ static legacy_s16 skybox_render_reversed_horizon(struct RECTANGLE *clip, legacy_
 		work_rect.right = SKYBOX_SCREEN_WIDTH;
 		work_rect.top = horizon;
 		work_rect.bottom = LEGACY_S16_WRAP_ADD(horizon, fill_height);
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 		skybox_clear_rect(&work_rect, skybox.sky_color);
+		VIDEO_DIRECT_END();
 	}
 	return 1;
 }
@@ -432,7 +463,9 @@ static legacy_s16 skybox_render_legacy(legacy_s16 view_index, struct RECTANGLE *
 	struct VECTOR vectors[SKYBOX_ROLL_VECTOR_COUNT];
 	mat_mul_vector(&source, rotation, &vectors[0]);
 	if (vectors[0].z < 0) {
+		VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 		sprite_clear_target((legacy_u8)skybox.sky_color);
+		VIDEO_DIRECT_END();
 		if (slow_video_mgmt_copy == 0) {
 			return 0;
 		}

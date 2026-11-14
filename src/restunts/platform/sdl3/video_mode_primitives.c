@@ -1,6 +1,7 @@
 #include "video_mode_primitives.h"
 #include "video_mode.h"
 #include "video_mode_materials.h"
+#include "video_mode_colors.h"
 #include "../../c/externs.h"
 #include "../../c/shape2d/shape2d_internal.h"
 #include "../../c/shape3d/shape3d.h"
@@ -160,4 +161,13 @@ void sdl3_video_mode_render_primitive(const legacy_u8 *record, struct POINT2D *p
 	imagefunc = saved_image;
 	raster_fill_pattern = saved_pattern;
 	raster_alternate_color = saved_alternate;
+}
+
+void sdl3_video_mode_material_begin(legacy_u16 material)
+{
+	if (material >= VIDEO_MODE_MATERIAL_COUNT) {
+		material = 0;
+	}
+	sdl3_video_mode_direct_begin(video_mode_ega_primary[material],
+								 video_mode_cga_primary[material]);
 }

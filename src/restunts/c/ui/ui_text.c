@@ -1,6 +1,7 @@
 #include "ui_text.h"
 #include "../resource_bytes.h"
 #include "../externs.h"
+#include "../video/video_color.h"
 
 legacy_u8 far *active_font_definition;
 
@@ -137,9 +138,24 @@ void font_set_colors(legacy_s16 color, legacy_s16 background_color)
 {
 	legacy_u8 far *font_definition = active_font_definition;
 	font_definition[0] = (legacy_u8)color;
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	font_definition[1] = (legacy_u16)VIDEO_COLOR_VALUE(color) != (legacy_u16)color
+							 ? (legacy_u8)((legacy_u16)color >> LEGACY_BYTE_BITS)
+							 : 0;
+#else
 	font_definition[1] = 0;
+#endif
 	font_definition[2] = (legacy_u8)background_color;
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	font_definition[3] =
+		(legacy_u16)VIDEO_COLOR_VALUE(background_color) != (legacy_u16)background_color
+			? (legacy_u8)((legacy_u16)background_color >> LEGACY_BYTE_BITS)
+			: 0;
+#else
 	font_definition[3] = 0;
+#endif
 }
 
 struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,

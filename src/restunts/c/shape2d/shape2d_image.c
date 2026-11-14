@@ -10,6 +10,7 @@
 #include "shape2d_internal.h"
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
+#include "../video/video_color.h"
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
 #include "../../platform/sdl3/video_mode.h"
 #define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y) sdl3_video_mode_source_begin_at(shape, x, y)
@@ -572,7 +573,11 @@ void sprite_putpixel_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 color)
 		dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr), 0);
 	legacy_u16 destination = LEGACY_U16_WRAP_ADD(
 		shape2d_get_line_offset(dos_memory_pointer_segment(&drawing_sprite), y_bits), x_bits);
+	VIDEO_COLOR_BEGIN(color);
+	VIDEO_POINT_BEGIN();
 	video_pages_write_pixel(bitmap, destination, (legacy_u8)color);
+	VIDEO_POINT_END();
+	VIDEO_DIRECT_END();
 }
 
 void set_fontdefseg(void far *data)
@@ -602,6 +607,7 @@ void sprite_xor_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legac
 	legacy_u16 row_count = (legacy_u16)clipped_height;
 	legacy_u8 color_bits = (legacy_u8)color;
 	legacy_u16 old_row_count;
+	VIDEO_COLOR_BEGIN(color);
 	do {
 		legacy_u16 column_count = (legacy_u16)clipped_width;
 		do {
@@ -621,6 +627,7 @@ void sprite_xor_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legac
 		old_row_count = row_count;
 		row_count = LEGACY_U16_WRAP_SUB(row_count, 1U);
 	} while (old_row_count != LEGACY_U16_SIGN_BIT && LEGACY_S16_FROM_BITS(row_count) > 0);
+	VIDEO_DIRECT_END();
 }
 
 void sprite_copy_rect_shifted(legacy_s16 source_x, legacy_s16 source_y, legacy_s16 width,

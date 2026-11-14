@@ -1,4 +1,5 @@
 #include "ui_dialog_private.h"
+#include "../video/video_color.h"
 
 legacy_s8 selected_file_extension[7];
 
@@ -12,8 +13,8 @@ static void file_dialog_draw_frame(struct FILE_DIALOG *dialog, const legacy_s8 *
 {
 	preRender_line(dialog->positions[4] - 4, dialog->positions[5] + 4,
 				   dialog->positions[4] + FILE_DIALOG_SEPARATOR_WIDTH, dialog->positions[5] + 4,
-				   dialog_border_color);
-	font_set_colors(dialog_fnt_colour, dialog_background_color);
+				   VIDEO_UI_COLOR(dialog_border_color));
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 	copy_string(&resID_byte1, prompt);
 	font_draw_text_opaque(&resID_byte1, dialog->positions[0], dialog->positions[1]);
 	for (legacy_u16 index = 0; index < 10U; index++) {
@@ -26,13 +27,13 @@ static void file_dialog_draw_frame(struct FILE_DIALOG *dialog, const legacy_s8 *
 		}
 		dialog->hit_areas[index].y2 = dialog->hit_areas[index].y1 + 10;
 	}
-	font_set_colors(dialog_fnt_colour, dialog_background_color);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 	font_draw_text_opaque(directory, dialog->positions[2], dialog->positions[3]);
 }
 
 static legacy_u16 file_dialog_edit_directory(struct FILE_DIALOG *dialog, legacy_s8 *directory)
 {
-	font_set_colors(dialog_fnt_colour, dialog_background_color);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 	return (legacy_u16)call_read_line(directory, FILE_DIALOG_DIRECTORY_MAX_LENGTH,
 									  dialog->positions[2], dialog->positions[3],
 									  DIALOG_INPUT_TIMEOUT);
@@ -104,9 +105,9 @@ static void file_dialog_draw_rows(struct FILE_DIALOG *dialog)
 	for (legacy_u16 visible_row = 0; visible_row < 7U; visible_row++) {
 		legacy_s16 candidate = (legacy_s16)(dialog->scroll + (legacy_s16)visible_row);
 		if (dialog->file_count != 0 && candidate == dialog->selected) {
-			font_set_colors(dialog_background_color, dialog_fnt_colour);
+			font_set_colors(dialog_background_color, VIDEO_UI_COLOR(dialog_fnt_colour));
 		} else {
-			font_set_colors(dialog_fnt_colour, dialog_background_color);
+			font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 		}
 		if (candidate < (legacy_s16)dialog->file_count) {
 			strcpy(&resID_byte1, dialog->filenames[(legacy_u8)candidate]);
@@ -267,7 +268,8 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 	}
 	legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_text_input_dialog(
 		DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, file_load_dialog_id),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, dialog.positions));
+		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+		dialog.positions));
 	if (dialog_result < 0) {
 		return 0;
 	}

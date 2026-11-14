@@ -279,6 +279,18 @@ void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16
 	target_clip.bottom = bottom;
 }
 
+#ifdef RESTUNTS_SDL3
+/* Preview fixtures trace draws without a framebuffer or native color metadata. */
+void sdl3_video_mode_material_begin(legacy_u16 material)
+{
+	(void)material;
+}
+
+void sdl3_video_mode_direct_end(void)
+{
+}
+#endif
+
 void sprite_clear_target(legacy_u8 color)
 {
 	record_word(2);

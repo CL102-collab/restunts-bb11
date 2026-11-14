@@ -1,4 +1,5 @@
 #include "extended/extended_menu_runtime.h"
+#include "video/video_color.h"
 #include <stddef.h>
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
@@ -349,9 +350,9 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 		}
 		if (result == 27) {
 			legacy_s8 far *textresptr = locate_text_res(mainresptr, "dos");
-			result =
-				show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, textresptr,
-							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+			result = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, textresptr,
+								 DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+								 VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 			if (result >= 1) {
 				shutdown_dos_game();
 				return result;

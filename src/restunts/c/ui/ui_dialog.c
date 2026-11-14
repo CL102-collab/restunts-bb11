@@ -1,4 +1,5 @@
 #include "ui_dialog_private.h"
+#include "../video/video_color.h"
 
 const legacy_u8 far g_ascii_props[256] = {
 	32,	 32, 32,  32,  32,	32,	 32,  32,  32,	40,	 40,  40,  40,	40,	 32,  32,  32,	32,	 32,
@@ -127,9 +128,9 @@ static legacy_s16 dialog_draw_frame(struct DIALOG_CONTENT *dialog, legacy_u16 x_
 		LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(dialog->x, dialog->dialog_width), 4),
 		LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(dialog->y, dialog->dialog_height), 4),
 		border_color);
-	font_set_colors(dialog_fnt_colour, 0);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	dialog_background_color = 0;
-	font_set_colors(dialog_fnt_colour, 0);
+	font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 
 	return 1;
 }
@@ -227,12 +228,12 @@ static void dialog_draw_choices(struct DIALOG_CONTENT *dialog, legacy_u8 selecte
 	legacy_s8 choice_buffer[DIALOG_CHOICE_BUFFER_CAPACITY];
 	for (legacy_u16 index = 0; index < dialog->choice_count; index++) {
 		if (selected == (legacy_u8)index) {
-			font_set_colors(dialog_background_color, dialog_fnt_colour);
+			font_set_colors(dialog_background_color, VIDEO_UI_COLOR(dialog_fnt_colour));
 		} else {
-			font_set_colors(dialog_fnt_colour, dialog_background_color);
+			font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), dialog_background_color);
 		}
 		if (disabled_choices != 0 && disabled_choices[index] != 0) {
-			font_set_colors(performGraphColor, dialog_background_color);
+			font_set_colors(VIDEO_UI_COLOR(performGraphColor), dialog_background_color);
 		}
 		for (copied = 0; copied < dialog->choice_lengths[index]; copied++) {
 			choice_buffer[copied] = dialog->choice_texts[index][copied];

@@ -1,10 +1,11 @@
 #include "menu_track_editor_internal.h"
+#include "../video/video_color.h"
 
 void track_editor_toggle_highlight(legacy_s16 x, legacy_s16 y, legacy_u8 width, legacy_u8 height)
 {
 	sprite_xor_rect_outline(x, LEGACY_S16_WRAP_SUB(y, 1), LEGACY_S16_WRAP_ADD(x, width),
 							LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(y, height), 1),
-							track_editor_highlight_color);
+							VIDEO_UI_COLOR(track_editor_highlight_color));
 }
 
 void track_editor_draw_window(struct TRACK_EDITOR_SESSION *editor)
@@ -12,29 +13,38 @@ void track_editor_draw_window(struct TRACK_EDITOR_SESSION *editor)
 	sprite_select_render_window_and_clear();
 	draw_button(locate_text_res(editor->text_resource, "bti"), TRACK_EDITOR_TITLE_X,
 				TRACK_EDITOR_TITLE_Y, TRACK_EDITOR_TITLE_WIDTH, TRACK_EDITOR_TITLE_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_three_color_beveled_border(TRACK_EDITOR_LEFT_FRAME_X, TRACK_EDITOR_LEFT_FRAME_Y,
 									TRACK_EDITOR_LEFT_FRAME_WIDTH, TRACK_EDITOR_LEFT_FRAME_HEIGHT,
-									11, 9, 1);
+									VIDEO_UI_VALUE(track_editor_frame_outer_color, 11),
+									VIDEO_UI_VALUE(track_editor_frame_inner_color, 9),
+									VIDEO_UI_VALUE(track_editor_frame_opposite_color, 1));
 	draw_three_color_beveled_border(TRACK_EDITOR_RIGHT_FRAME_X, TRACK_EDITOR_RIGHT_FRAME_Y,
 									TRACK_EDITOR_RIGHT_FRAME_WIDTH, TRACK_EDITOR_RIGHT_FRAME_HEIGHT,
-									11, 9, 1);
+									VIDEO_UI_VALUE(track_editor_frame_outer_color, 11),
+									VIDEO_UI_VALUE(track_editor_frame_inner_color, 9),
+									VIDEO_UI_VALUE(track_editor_frame_opposite_color, 1));
 	draw_button(locate_text_res(editor->text_resource, "bsc"), TRACK_EDITOR_WIDE_BUTTON_X,
 				TRACK_EDITOR_WIDE_BUTTON_Y, TRACK_EDITOR_WIDE_BUTTON_WIDTH,
-				TRACK_EDITOR_BUTTON_HEIGHT, button_top_color, button_bottom_color,
-				button_fill_color, 0);
+				TRACK_EDITOR_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(editor->text_resource, "blo"), TRACK_EDITOR_BUTTON_LEFT_X,
 				TRACK_EDITOR_BUTTON_UPPER_Y, TRACK_EDITOR_BUTTON_WIDTH, TRACK_EDITOR_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(editor->text_resource, "bsa"), TRACK_EDITOR_BUTTON_LEFT_X,
 				TRACK_EDITOR_BUTTON_LOWER_Y, TRACK_EDITOR_BUTTON_WIDTH, TRACK_EDITOR_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(editor->text_resource, "bcl"), TRACK_EDITOR_BUTTON_RIGHT_X,
 				TRACK_EDITOR_BUTTON_UPPER_Y, TRACK_EDITOR_BUTTON_WIDTH, TRACK_EDITOR_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(editor->text_resource, "bex"), TRACK_EDITOR_BUTTON_RIGHT_X,
 				TRACK_EDITOR_BUTTON_LOWER_Y, TRACK_EDITOR_BUTTON_WIDTH, TRACK_EDITOR_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 }
 
 static void track_editor_keep_selection_visible(struct TRACK_EDITOR_SESSION *editor)
@@ -154,12 +164,14 @@ void track_editor_redraw(struct TRACK_EDITOR_SESSION *editor)
 			sprite_select_target(editor->cursor_sprites[editor->multi_tile]);
 			if (editor->page == 0) {
 				sprite_shape_to_1(track_editor_terrain_shapes[editor->selected_tile], 0, 0);
-				preRender_line(1, 0, TRACK_EDITOR_TILE_PREVIEW_RIGHT, 0, performGraphColor);
+				preRender_line(1, 0, TRACK_EDITOR_TILE_PREVIEW_RIGHT, 0,
+							   VIDEO_UI_COLOR(performGraphColor));
 				preRender_line(1, TRACK_EDITOR_TILE_PREVIEW_BOTTOM, TRACK_EDITOR_TILE_PREVIEW_RIGHT,
-							   TRACK_EDITOR_TILE_PREVIEW_BOTTOM, performGraphColor);
-				preRender_line(1, 0, 1, TRACK_EDITOR_TILE_PREVIEW_BOTTOM, performGraphColor);
+							   TRACK_EDITOR_TILE_PREVIEW_BOTTOM, VIDEO_UI_COLOR(performGraphColor));
+				preRender_line(1, 0, 1, TRACK_EDITOR_TILE_PREVIEW_BOTTOM,
+							   VIDEO_UI_COLOR(performGraphColor));
 				preRender_line(TRACK_EDITOR_TILE_PREVIEW_RIGHT, 0, TRACK_EDITOR_TILE_PREVIEW_RIGHT,
-							   TRACK_EDITOR_TILE_PREVIEW_BOTTOM, performGraphColor);
+							   TRACK_EDITOR_TILE_PREVIEW_BOTTOM, VIDEO_UI_COLOR(performGraphColor));
 			} else {
 				sprite_shape_to_1(track_editor_cursor_shapes[editor->multi_tile], 0, 0);
 				if (editor->selected_tile != 0) {
@@ -237,7 +249,7 @@ void track_editor_draw_tile_label(struct TRACK_EDITOR_SESSION *editor)
 {
 	if (editor->hovered_tile != editor->previous_hovered_tile) {
 		mouse_draw_opaque_check();
-		font_set_colors(dialog_fnt_colour, 0);
+		font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 		legacy_s8 *resource_id = &resID_byte1;
 		__fmemcpy(resource_id, editor->text_name_resource + (legacy_u16)editor->hovered_tile * 3U,
 				  3U);
