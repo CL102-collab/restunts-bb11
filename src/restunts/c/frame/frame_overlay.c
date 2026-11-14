@@ -39,7 +39,7 @@
 #define OPPONENT_RIGHT_ICON_X 228
 #define OPPONENT_ICON_Y 113
 #define OPPONENT_TEXT_Y 116
-#define OPPONENT_TEXT_SHADOW_HEIGHT 1
+#define INGAME_TEXT_SHADOW_HEIGHT 1
 #define PENALTY_TEXT_Y 102
 
 enum DIRECTION_ICON_SHAPE_INDEX { DIRECTION_ICON_LEFT_SHAPE = 3, DIRECTION_ICON_RIGHT_SHAPE = 4 };
@@ -136,76 +136,96 @@ static void draw_centered_ingame_resource(legacy_s8 *resource_id, legacy_s16 y)
 			   &rect_ingame_text);
 }
 
-static void draw_opponent_route_information(void)
+static struct SHAPE2D far *route_direction_shape(legacy_s8 indicator)
 {
-	legacy_s16 shape_index;
-	legacy_s16 x;
-	switch (state.game_opponent_route_indicator) {
+	switch (indicator) {
 		case ROUTE_INDICATOR_LEFT:
-			shape_index = DIRECTION_ICON_LEFT_SHAPE;
-			x = OPPONENT_LEFT_ICON_X;
-			break;
+			return sdgame2shapes[DIRECTION_ICON_LEFT_SHAPE];
 		case ROUTE_INDICATOR_RIGHT:
-			shape_index = DIRECTION_ICON_RIGHT_SHAPE;
-			x = OPPONENT_RIGHT_ICON_X;
-			break;
+			return sdgame2shapes[DIRECTION_ICON_RIGHT_SHAPE];
 		default:
-			return;
+			return 0;
 	}
+}
 
-	struct SHAPE2D far *shape = sdgame2shapes[shape_index];
-	legacy_s32 icon_bottom = OPPONENT_ICON_Y + (legacy_s32)shape2d_get_height(shape);
-	legacy_s32 text_bottom =
-		OPPONENT_TEXT_Y + (legacy_s32)font_glyph_height + OPPONENT_TEXT_SHADOW_HEIGHT;
-	legacy_s32 bottom = icon_bottom > text_bottom ? icon_bottom : text_bottom;
-	legacy_s32 top = OPPONENT_ICON_Y < OPPONENT_TEXT_Y ? OPPONENT_ICON_Y : OPPONENT_TEXT_Y;
-	legacy_s32 viewport_top = drawing_sprite.sprite_top;
-	legacy_s32 viewport_bottom = drawing_sprite.sprite_bottom;
-	if (bottom - top > viewport_bottom - viewport_top) {
-		return;
+static void include_route_extent(legacy_s32 y, legacy_s32 height, legacy_s32 *top,
+								 legacy_s32 *bottom)
+{
+	if (y < *top) {
+		*top = y;
 	}
-	/* Keep the arrow and label together above every car's dashboard boundary.
-	 * The bitmap is clipped by this viewport, while font pixels are not. */
-	legacy_s32 offset = bottom > viewport_bottom ? viewport_bottom - bottom : 0;
-	if (top + offset < viewport_top) {
-		offset = viewport_top - top;
+	if (y + height > *bottom) {
+		*bottom = y + height;
 	}
-	legacy_s16 icon_y = (legacy_s16)(OPPONENT_ICON_Y + offset);
-	struct RECTANGLE icon_bounds;
-	icon_bounds.left = x;
-	icon_bounds.right = (legacy_s16)(x + shape2d_get_width(shape));
-	icon_bounds.top = icon_y;
-	icon_bounds.bottom = (legacy_s16)(icon_bottom + offset);
-	sprite_putimage_transparent(shape, x, icon_y);
-	rect_union(&rect_ingame_text, &icon_bounds, &rect_ingame_text);
-	draw_centered_ingame_resource("opp", (legacy_s16)(OPPONENT_TEXT_Y + offset));
+}
+
+static void draw_route_direction(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
+{
+	struct RECTANGLE bounds;
+	bounds.left = x;
+	bounds.right = (legacy_s16)(x + shape2d_get_width(shape));
+	bounds.top = y;
+	bounds.bottom = (legacy_s16)(y + shape2d_get_height(shape));
+	sprite_putimage_transparent(shape, x, y);
+	rect_union(&rect_ingame_text, &bounds, &rect_ingame_text);
 }
 
 static void draw_ingame_route_information(void)
 {
-	switch (state.game_player_route_indicator) {
-		case ROUTE_INDICATOR_LEFT:
-			sprite_putimage_transparent(sdgame2shapes[DIRECTION_ICON_LEFT_SHAPE],
-										DIRECTION_ICON_CENTER_X, DIRECTION_ICON_CENTER_Y);
-			rect_union(&rect_ingame_text, &rect_ingame_text2, &rect_ingame_text);
-			break;
-		case ROUTE_INDICATOR_RIGHT:
-			sprite_putimage_transparent(sdgame2shapes[DIRECTION_ICON_RIGHT_SHAPE],
-										DIRECTION_ICON_CENTER_X, DIRECTION_ICON_CENTER_Y);
-			rect_union(&rect_ingame_text, &rect_ingame_text2, &rect_ingame_text);
-			break;
-		case ROUTE_INDICATOR_WRONG_WAY:
-			draw_centered_ingame_resource("www", WRONG_WAY_TEXT_Y);
-			break;
+	struct SHAPE2D far *player_arrow = route_direction_shape(state.game_player_route_indicator);
+	struct SHAPE2D far *opponent_arrow = route_direction_shape(state.game_opponent_route_indicator);
+	legacy_s32 text_height = (legacy_s32)font_glyph_height + INGAME_TEXT_SHADOW_HEIGHT;
+	legacy_s32 top = OVERLAY_REFERENCE_HEIGHT;
+	legacy_s32 bottom = 0;
+	if (player_arrow != 0) {
+		include_route_extent(DIRECTION_ICON_CENTER_Y, shape2d_get_height(player_arrow), &top,
+							 &bottom);
+	} else if (state.game_player_route_indicator == ROUTE_INDICATOR_WRONG_WAY) {
+		include_route_extent(WRONG_WAY_TEXT_Y, text_height, &top, &bottom);
+	}
+	if (opponent_arrow != 0) {
+		include_route_extent(OPPONENT_ICON_Y, shape2d_get_height(opponent_arrow), &top, &bottom);
+		include_route_extent(OPPONENT_TEXT_Y, text_height, &top, &bottom);
+	}
+	if (show_penalty_counter != 0) {
+		include_route_extent(PENALTY_TEXT_Y, text_height, &top, &bottom);
 	}
 
-	draw_opponent_route_information();
+	legacy_s32 viewport_top = drawing_sprite.sprite_top;
+	legacy_s32 viewport_bottom = drawing_sprite.sprite_bottom;
+	legacy_s32 group_height = bottom - top;
+	legacy_s32 viewport_height = viewport_bottom - viewport_top;
+	if (group_height <= 0 || group_height > viewport_height) {
+		return;
+	}
+	/* Keep every active route notice, including text shadows, in the refreshed
+	 * windshield. Bitmaps clip at its edge, but font pixels can otherwise spill
+	 * into the cached cockpit and survive after the notice disappears. Move the
+	 * group together to preserve the original spacing between its messages. */
+	legacy_s32 offset = bottom > viewport_bottom ? viewport_bottom - bottom : 0;
+	if (top + offset < viewport_top) {
+		offset = viewport_top - top;
+	}
 
+	if (player_arrow != 0) {
+		draw_route_direction(player_arrow, DIRECTION_ICON_CENTER_X,
+							 (legacy_s16)(DIRECTION_ICON_CENTER_Y + offset));
+	} else if (state.game_player_route_indicator == ROUTE_INDICATOR_WRONG_WAY) {
+		draw_centered_ingame_resource("www", (legacy_s16)(WRONG_WAY_TEXT_Y + offset));
+	}
+	if (opponent_arrow != 0) {
+		legacy_s16 x = state.game_opponent_route_indicator == ROUTE_INDICATOR_LEFT
+						   ? OPPONENT_LEFT_ICON_X
+						   : OPPONENT_RIGHT_ICON_X;
+		draw_route_direction(opponent_arrow, x, (legacy_s16)(OPPONENT_ICON_Y + offset));
+		draw_centered_ingame_resource("opp", (legacy_s16)(OPPONENT_TEXT_Y + offset));
+	}
 	if (show_penalty_counter != 0) {
 		copy_string(&resID_byte1, locate_text_res(gameresptr, "pen"));
 		format_frame_as_string(&resID_byte1 + strlen(&resID_byte1), penalty_time, 0);
 		rect_union(&rect_ingame_text,
-				   intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), PENALTY_TEXT_Y,
+				   intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1),
+								   (legacy_s16)(PENALTY_TEXT_Y + offset),
 								   VIDEO_UI_COLOR(dialog_fnt_colour), 0),
 				   &rect_ingame_text);
 	}

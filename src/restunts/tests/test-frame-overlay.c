@@ -17,6 +17,7 @@
 #include "../c/game_input.h"
 #include "../c/dashboard.h"
 #include "../c/race/race_graphics.h"
+#include "../c/race/race_stats.h"
 #include "extended-replay-test-stubs.h"
 
 #undef strcmp
@@ -80,6 +81,29 @@ enum {
 	OPPONENT_TEST_TALL_FONT_Y = 104,
 	OPPONENT_TEST_HIGH_ROOF = 114,
 	OPPONENT_TEST_HIGH_ROOF_TEXT_Y = 117
+};
+
+enum {
+	ROUTE_TEST_ICON_X = 148,
+	ROUTE_TEST_DEFAULT_Y = 93,
+	ROUTE_TEST_COMPACT_BOTTOM = 100,
+	ROUTE_TEST_ROOF_TOP = 8,
+	ROUTE_TEST_HIGH_ROOF = 96,
+	ROUTE_TEST_SMALL_BOTTOM = 105,
+	ROUTE_TEST_ARROW_Y = 85,
+	ROUTE_TEST_TEXT_Y = 91,
+	ROUTE_TEST_TALL_ARROW_Y = 77,
+	ROUTE_TEST_TALL_TEXT_Y = 79,
+	ROUTE_TEST_GROUP_Y = 82,
+	ROUTE_TEST_OPPONENT_GROUP_Y = 65,
+	ROUTE_TEST_OPPONENT_PENALTY_Y = 74,
+	ROUTE_TEST_OPPONENT_ICON_Y = 85,
+	ROUTE_TEST_OPPONENT_LABEL_Y = 88,
+	ROUTE_TEST_PENALTY_FRAMES = 40,
+	ROUTE_TEST_TEXT_X = 124,
+	ROUTE_TEST_TEXT_RIGHT = 197,
+	ROUTE_TEST_PAGE_COUNT = 2,
+	ROUTE_TEST_PHASE_COUNT = 6
 };
 
 static struct SHAPE2D opponent_direction_shapes[OPPONENT_TEST_SHAPE_COUNT];
@@ -456,6 +480,12 @@ legacy_s8 far *locate_text_res(legacy_s8 far *resource, const legacy_s8 *name)
 	if (strcmp((const legacy_char *)name, "opp") == 0) {
 		return (legacy_s8 *)"Opponent Near";
 	}
+	if (strcmp((const legacy_char *)name, "www") == 0) {
+		return (legacy_s8 *)"Wrong Way";
+	}
+	if (strcmp((const legacy_char *)name, "pen") == 0) {
+		return (legacy_s8 *)"Penalty: ";
+	}
 	if (strcmp((const legacy_char *)name, "dm1") == 0) {
 		return (legacy_s8 *)"Demo";
 	}
@@ -500,10 +530,8 @@ legacy_s16 font_centered_text_x(const legacy_s8 *text)
 void format_frame_as_string(legacy_s8 *destination, legacy_s16 frame_count,
 							legacy_s16 include_hundredths)
 {
-	(void)destination;
-	(void)frame_count;
-	(void)include_hundredths;
-	assert(0 && "Unexpected penalty text");
+	assert(frame_count == ROUTE_TEST_PENALTY_FRAMES && include_hundredths == 0);
+	copy_string(destination, (legacy_s8 *)"2.00");
 }
 
 void sprite_putpixel_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 color)
@@ -532,6 +560,17 @@ void sprite_putimage_transparent(struct SHAPE2D far *shape, legacy_s16 x, legacy
 	opponent_icon_draw.x = x;
 	opponent_icon_draw.y = y;
 	opponent_icon_draw.count++;
+	if (composition.active != 0) {
+		struct RECTANGLE bounds = {x, x + shape->width, y, y + shape->height};
+		/* Native bitmaps obey the viewport, unlike the legacy text writer. */
+		if (bounds.top < drawing_sprite.sprite_top) {
+			bounds.top = drawing_sprite.sprite_top;
+		}
+		if (bounds.bottom > drawing_sprite.sprite_bottom) {
+			bounds.bottom = drawing_sprite.sprite_bottom;
+		}
+		composition_fill(&bounds, (legacy_u8)dialog_fnt_colour);
+	}
 }
 
 legacy_s8 far *locate_shape_alt(legacy_s8 far *resource, const legacy_s8 *name)
@@ -957,6 +996,202 @@ static void test_opponent_indicator_requires_room(void)
 	drawing_sprite.sprite_bottom = OPPONENT_TEST_COMPACT_BOTTOM;
 	assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(empty_rect)) == 0);
 	assert(text_draw_count == 0 && opponent_icon_draw.count == 0);
+}
+
+static void reset_player_route(legacy_u8 indicator, legacy_s16 top, legacy_s16 bottom)
+{
+	reset_ingame_text("");
+	game_replay_mode = REPLAY_MODE_LIVE;
+	cameramode = CAMERA_MODE_COCKPIT;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	state.game_player_route_indicator = indicator;
+	followOpponentFlag = 0;
+	show_penalty_counter = 0;
+	drawing_sprite.sprite_top = top;
+	drawing_sprite.sprite_bottom = bottom;
+	for (legacy_u16 direction = 0; direction < OPPONENT_TEST_SHAPE_COUNT; direction++) {
+		opponent_direction_shapes[direction].width = OPPONENT_TEST_WIDTH;
+		opponent_direction_shapes[direction].height = OPPONENT_TEST_HEIGHT;
+		sdgame2shapes[OPPONENT_TEST_LEFT_SHAPE + direction] = &opponent_direction_shapes[direction];
+	}
+	/* Leave the old default bounds: moved icons must report their actual size
+	 * and position rather than using this fixed rectangle. */
+	rect_ingame_text2 =
+		(struct RECTANGLE){ROUTE_TEST_ICON_X, ROUTE_TEST_ICON_X + OPPONENT_TEST_WIDTH,
+						   ROUTE_TEST_DEFAULT_Y, ROUTE_TEST_DEFAULT_Y + OPPONENT_TEST_HEIGHT};
+}
+
+static void test_player_route_fits_viewport(void)
+{
+	static const struct {
+		legacy_s16 top;
+		legacy_s16 bottom;
+		legacy_u16 arrow_height;
+		legacy_s16 font_height;
+		legacy_s16 icon_y;
+		legacy_s16 text_y;
+	} cases[] = {{ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM, OPPONENT_TEST_HEIGHT,
+				  OPPONENT_TEST_FONT_HEIGHT, ROUTE_TEST_ARROW_Y, ROUTE_TEST_TEXT_Y},
+				 {OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_COMPACT_BOTTOM, OPPONENT_TEST_HEIGHT,
+				  OPPONENT_TEST_FONT_HEIGHT, ROUTE_TEST_DEFAULT_Y, ROUTE_TEST_DEFAULT_Y},
+				 {OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_STOCK_BOTTOM, OPPONENT_TEST_HEIGHT,
+				  OPPONENT_TEST_FONT_HEIGHT, ROUTE_TEST_DEFAULT_Y, ROUTE_TEST_DEFAULT_Y},
+				 {OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_SCREEN_BOTTOM, OPPONENT_TEST_HEIGHT,
+				  OPPONENT_TEST_FONT_HEIGHT, ROUTE_TEST_DEFAULT_Y, ROUTE_TEST_DEFAULT_Y},
+				 {ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM, OPPONENT_TEST_TALL_ARROW_HEIGHT,
+				  OPPONENT_TEST_TALL_FONT_HEIGHT, ROUTE_TEST_TALL_ARROW_Y, ROUTE_TEST_TALL_TEXT_Y},
+				 {ROUTE_TEST_HIGH_ROOF, OPPONENT_TEST_STOCK_BOTTOM, OPPONENT_TEST_HEIGHT,
+				  OPPONENT_TEST_FONT_HEIGHT, ROUTE_TEST_HIGH_ROOF, ROUTE_TEST_HIGH_ROOF}};
+	static const legacy_u8 indicators[] = {ROUTE_INDICATOR_LEFT, ROUTE_INDICATOR_RIGHT,
+										   ROUTE_INDICATOR_WRONG_WAY};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		for (legacy_u16 indicator = 0; indicator < sizeof(indicators) / sizeof(indicators[0]);
+			 indicator++) {
+			reset_player_route(indicators[indicator], cases[index].top, cases[index].bottom);
+			font_glyph_height = cases[index].font_height;
+			for (legacy_u16 direction = 0; direction < OPPONENT_TEST_SHAPE_COUNT; direction++) {
+				opponent_direction_shapes[direction].height = cases[index].arrow_height;
+			}
+			struct RECTANGLE bounds = *draw_ingame_text();
+			assert(bounds.top >= cases[index].top && bounds.bottom <= cases[index].bottom);
+			if (indicators[indicator] == ROUTE_INDICATOR_WRONG_WAY) {
+				assert(text_draw_count == 1 && opponent_icon_draw.count == 0);
+				assert_text(0, "Wrong Way", ROUTE_TEST_TEXT_X, cases[index].text_y);
+				assert(bounds.left == ROUTE_TEST_TEXT_X && bounds.right == ROUTE_TEST_TEXT_RIGHT);
+				assert(bounds.top == cases[index].text_y);
+				assert(bounds.bottom == cases[index].text_y + cases[index].font_height +
+											OPPONENT_TEST_TEXT_SHADOW_HEIGHT);
+			} else {
+				assert(text_draw_count == 0 && opponent_icon_draw.count == 1);
+				assert(opponent_icon_draw.shape == &opponent_direction_shapes[indicator]);
+				assert(opponent_icon_draw.x == ROUTE_TEST_ICON_X &&
+					   opponent_icon_draw.y == cases[index].icon_y);
+				assert(bounds.left == ROUTE_TEST_ICON_X &&
+					   bounds.right == ROUTE_TEST_ICON_X + OPPONENT_TEST_WIDTH);
+				assert(bounds.top == cases[index].icon_y &&
+					   bounds.bottom == cases[index].icon_y + cases[index].arrow_height);
+			}
+			state.game_player_route_indicator = ROUTE_INDICATOR_NONE;
+			text_draw_count = opponent_icon_draw.count = 0;
+			assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(bounds)) == 0);
+			assert(text_draw_count == 0 && opponent_icon_draw.count == 0);
+		}
+	}
+}
+
+static void test_route_information_moves_together(void)
+{
+	static const legacy_u8 players[] = {ROUTE_INDICATOR_LEFT, ROUTE_INDICATOR_RIGHT,
+										ROUTE_INDICATOR_WRONG_WAY};
+	for (legacy_u16 player = 0; player < sizeof(players) / sizeof(players[0]); player++) {
+		reset_player_route(players[player], ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM);
+		show_penalty_counter = 1;
+		penalty_time = ROUTE_TEST_PENALTY_FRAMES;
+		struct RECTANGLE bounds = *draw_ingame_text();
+		assert(bounds.top == ROUTE_TEST_GROUP_Y && bounds.bottom == ROUTE_TEST_COMPACT_BOTTOM);
+		if (players[player] == ROUTE_INDICATOR_WRONG_WAY) {
+			assert(text_draw_count == 2 && opponent_icon_draw.count == 0);
+			assert_text(0, "Wrong Way", ROUTE_TEST_TEXT_X, ROUTE_TEST_GROUP_Y);
+		} else {
+			assert(text_draw_count == 1 && opponent_icon_draw.count == 1);
+			assert(opponent_icon_draw.y == ROUTE_TEST_GROUP_Y);
+		}
+		assert(strcmp(text_draws[text_draw_count - 1].text, "Penalty: 2.00") == 0);
+		assert(text_draws[text_draw_count - 1].y == ROUTE_TEST_TEXT_Y);
+	}
+	for (legacy_u8 penalty = 0; penalty <= 1; penalty++) {
+		reset_player_route(ROUTE_INDICATOR_WRONG_WAY, ROUTE_TEST_ROOF_TOP,
+						   ROUTE_TEST_COMPACT_BOTTOM);
+		state.game_opponent_route_indicator = ROUTE_INDICATOR_LEFT;
+		show_penalty_counter = penalty;
+		penalty_time = ROUTE_TEST_PENALTY_FRAMES;
+		struct RECTANGLE bounds = *draw_ingame_text();
+		assert(bounds.top == ROUTE_TEST_OPPONENT_GROUP_Y &&
+			   bounds.bottom == ROUTE_TEST_COMPACT_BOTTOM);
+		assert_text(0, "Wrong Way", ROUTE_TEST_TEXT_X, ROUTE_TEST_OPPONENT_GROUP_Y);
+		assert(opponent_icon_draw.count == 1 && opponent_icon_draw.y == ROUTE_TEST_OPPONENT_ICON_Y);
+		assert_text(1, "Opponent Near", OPPONENT_TEST_LABEL_X, ROUTE_TEST_OPPONENT_LABEL_Y);
+		assert(text_draw_count == (legacy_u32)(2 + penalty));
+		if (penalty != 0) {
+			assert(text_draws[2].y == ROUTE_TEST_OPPONENT_PENALTY_Y);
+		}
+	}
+	/* Each notice fits alone here, but the combined layout does not. Never
+	 * clip one notice or spill a text shadow into the cached dashboard. */
+	reset_player_route(ROUTE_INDICATOR_WRONG_WAY, ROUTE_TEST_HIGH_ROOF, ROUTE_TEST_SMALL_BOTTOM);
+	show_penalty_counter = 1;
+	assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(empty_rect)) == 0);
+	assert(text_draw_count == 0 && opponent_icon_draw.count == 0);
+	show_penalty_counter = 0;
+	reset_ingame_text("");
+}
+
+static void test_player_route_disappearance_preserves_dashboard(void)
+{
+	static const legacy_u8 indicators[ROUTE_TEST_PHASE_COUNT] = {
+		ROUTE_INDICATOR_WRONG_WAY, ROUTE_INDICATOR_NONE,  ROUTE_INDICATOR_LEFT,
+		ROUTE_INDICATOR_NONE,	   ROUTE_INDICATOR_RIGHT, ROUTE_INDICATOR_NONE};
+	const struct RECTANGLE screen = {0, COMPOSITION_TEST_WIDTH, 0, COMPOSITION_TEST_HEIGHT};
+	const struct RECTANGLE scene = {0, COMPOSITION_TEST_WIDTH, ROUTE_TEST_ROOF_TOP,
+									ROUTE_TEST_COMPACT_BOTTOM};
+	for (legacy_u8 flipping = 0; flipping <= 1; flipping++) {
+		reset_player_route(ROUTE_INDICATOR_NONE, scene.top, scene.bottom);
+		video_uses_page_flipping = flipping;
+		legacy_u16 pages = flipping != 0 ? ROUTE_TEST_PAGE_COUNT : COMPOSITION_TEST_SINGLE_PAGE;
+		memset(&composition, 0, sizeof(composition));
+		composition.active = 1;
+		/* The static cockpit is seeded once, matching cached redraws. */
+		for (legacy_u8 target = 0; target < COMPOSITION_TEST_BUFFER_COUNT; target++) {
+			composition.target = target;
+			composition_fill(&screen, COMPOSITION_TEST_DASHBOARD_COLOR);
+		}
+		for (legacy_u16 phase = 0; phase < ROUTE_TEST_PHASE_COUNT; phase++) {
+			state.game_player_route_indicator = indicators[phase];
+			for (legacy_u16 page = 0; page < pages; page++) {
+				legacy_u8 target =
+					flipping != 0 ? COMPOSITION_TEST_FIRST_PAGE + page : COMPOSITION_TEST_RENDER;
+				frame_buffer_index = dashboard_buffer_index = (legacy_s8)page;
+				composition.target = target;
+				composition_fill(&scene, COMPOSITION_TEST_SCENE_COLOR);
+				text_draw_count = opponent_icon_draw.count = 0;
+				struct RECTANGLE bounds = *draw_ingame_text();
+				legacy_u32 drawn = 0;
+				for (legacy_s16 y = scene.top; y < scene.bottom; y++) {
+					for (legacy_s16 x = scene.left; x < scene.right; x++) {
+						drawn += composition.pixels[target][y][x] == dialog_fnt_colour;
+					}
+				}
+				if (indicators[phase] == ROUTE_INDICATOR_NONE) {
+					assert(drawn == 0 && memcmp(&bounds, &empty_rect, sizeof(bounds)) == 0);
+				} else {
+					legacy_u32 expected =
+						indicators[phase] == ROUTE_INDICATOR_WRONG_WAY
+							? (ROUTE_TEST_TEXT_RIGHT - ROUTE_TEST_TEXT_X) *
+								  (OPPONENT_TEST_FONT_HEIGHT + OPPONENT_TEST_TEXT_SHADOW_HEIGHT)
+							: OPPONENT_TEST_WIDTH * OPPONENT_TEST_HEIGHT;
+					assert(drawn == expected);
+					assert(bounds.top >= scene.top && bounds.bottom <= scene.bottom);
+				}
+				if (flipping == 0) {
+					for (legacy_s16 y = scene.top; y < scene.bottom; y++) {
+						memcpy(composition.pixels[COMPOSITION_TEST_FIRST_PAGE][y],
+							   composition.pixels[COMPOSITION_TEST_RENDER][y],
+							   COMPOSITION_TEST_WIDTH);
+					}
+				}
+				for (legacy_u8 buffer = 0; buffer < COMPOSITION_TEST_BUFFER_COUNT; buffer++) {
+					for (legacy_s16 y = scene.bottom; y < COMPOSITION_TEST_HEIGHT; y++) {
+						for (legacy_s16 x = 0; x < COMPOSITION_TEST_WIDTH; x++) {
+							assert(composition.pixels[buffer][y][x] ==
+								   COMPOSITION_TEST_DASHBOARD_COLOR);
+						}
+					}
+				}
+			}
+		}
+		composition.active = 0;
+	}
+	reset_ingame_text("");
 }
 
 static void test_fps_sampling(void)
@@ -1878,6 +2113,9 @@ legacy_int main(void)
 	test_filename_hidden_in_live_race_and_demo();
 	test_opponent_indicator_fits_viewport();
 	test_opponent_indicator_requires_room();
+	test_player_route_fits_viewport();
+	test_route_information_moves_together();
+	test_player_route_disappearance_preserves_dashboard();
 	test_fps_sampling();
 	test_fps_outside_race();
 	test_fps_idle_expiry();
