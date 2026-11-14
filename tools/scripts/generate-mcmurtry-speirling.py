@@ -666,7 +666,11 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Original indexed artwork following the supplied left.png, middle.png and right.png cockpit views. Upright side control panels have smooth dark-grey metal faces, beveled edges and a slight inward curve beside the recessed central steering column. The upper carbon fascia and its air outlets sit flush with the raised side panels, forming a continuous surround ahead of the steering-column well. Each panel joins the outer corner of its rounded air scoop, which has a deep curved mouth and lower lip, and a mostly open throat with four subdued internal ribs. The left panel has a red circular control, a screw, a black potentiometer and two lower screws; the right substitutes a red release handle for the circular control. A centered white digital speedometer sits between a live white vertical RPM bar on the left and a matching battery bar fixed at 90% on the right. The wheel has substantial textured side grips, each joined to the central body by one broad connector, with no upper or lower connecting rim. Its upper bezel and ten unlit LEDs follow a gentle arch. McMurtry branding has a small C aligned with the top of the M, above five unlabelled knobs matching the side-panel potentiometers, each with a raised black cap, fluted sidewall and short silver index mark. Record-holder text and adjacent inscriptions are omitted. The display, grips, controls and deterministic material texture turn together. Optional spdc centers the visible speed digits; imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap. The optional revb descriptor fills the RPM bar from the bottom; original Stunts ignores these descriptors, keeps the display upright and draws a thin vertical white RPM indicator. A native steering dot shows the angle between wheel poses. The shallow dark-carbon roof edge is centered and symmetric, with no side pillars obstructing the forward view. Native roof and dast/dasm artwork preserve live scenery above the curved cowl and solid turquoise exterior fender crowns; wheel-top openings are not visible from the cockpit. Palette-reduced material shading and carbon weave retain the native DIA3 dashboard memory limits without redistributing photograph pixels.",
+        "dashboard_note": "Edited cockpit backdrop from the user-supplied PURE_FINAL_021.zip, combined with the existing procedural MCMU steering wheel and live instruments. The original gloves, arms and wheel are removed. Bodywork uses MCMU light turquoise. A straight tapered black antenna has a small ball tip and no surrounding frame or pedestal. The existing windshield edge has a shallow symmetric center dip, preserving its rounded side pillars. Wheel greys are darkened to match the cockpit while white labels, the centered speed display, live RPM bar and 90% battery indicator remain readable. Wheel geometry, all three steering poses and the imt1/imt3, spdc and revb instrument descriptors are retained. The native roof and dast/dasm pair preserve live scenery through the windshield. The edited backdrop is stored as a full-screen indexed VSH source; generation uses only the standard library and remains within DIA3 dashboard memory limits.",
+        "dashboard_source": {"file": str(dashboard.COCKPIT_SOURCE),
+                             "sha256": hashlib.sha256((repository / dashboard.COCKPIT_SOURCE).read_bytes()).hexdigest(),
+                             "origin": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH, supplied by the user; cockpit artwork only",
+                             "editing": "Image-assisted backdrop edit, converted to the native 320x200 indexed palette with binary windshield transparency; MCMU wheel and live instruments composited by the generator."},
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -866,19 +870,15 @@ Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
 to the car0 body checksum before procedural lamps. Classic meshes retain their
 original byte limits and driving specifications, with smaller wheel controls.
-The cockpit artwork follows the supplied left.png, middle.png and right.png
-views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
-fender crowns frame the live road view; wheel-top openings are not visible
-from the cockpit. Upright side control panels have smooth dark-grey metal
-faces, beveled edges and a slight inward curve beside the recessed central
-steering column. The upper carbon fascia and its air outlets sit flush with
-the raised side panels, forming a continuous surround ahead of the
-steering-column well. Each panel joins the outer corner of its rounded air scoop.
-The scoop has a deep curved mouth and lower lip, with four subdued ribs
-inside its mostly open throat.
-The left panel carries a red circular control, a screw, a black potentiometer
-and two lower screws; the right uses the same vertical sequence with a red
-release handle at the top.
+The cockpit backdrop is edited from the user-supplied PURE_FINAL_021.zip,
+using only its cockpit artwork. The original gloves, arms and wheel are removed.
+The existing MCMU wheel and live instruments are retained, with darker grey
+shading to match the surrounding cockpit. The chassis is light turquoise.
+The hood antenna is straight, black and tapered, with a small ball tip and
+no surrounding frame or pedestal. The existing black windshield edge has a
+shallow symmetric center dip and retains its rounded side pillars.
+The edited 320x200 indexed source is tools/scripts/cars/MCMU-cockpit.VSH;
+ordinary generation requires only the Python standard library.
 The white digital speedometer sits in the middle of the wheel display,
 between a live white vertical RPM bar on the left and a matching battery bar
 fixed at 90% on the right. Substantial textured side grips each join the
@@ -896,8 +896,8 @@ keeps its display upright and shows RPM as a thin vertical white indicator.
 A native steering dot shows the angle between wheel poses. Palette-reduced
 shading and carbon weave follow the wheel as it turns. Native roof artwork
 and dast/dasm masks preserve live scenery around the roof edge, curved cowl
-and fender silhouettes. The original artwork stays within the native DIA3
-dashboard memory limits; reference photograph pixels are not redistributed.
+and fender silhouettes. The edited artwork stays within the native DIA3
+dashboard memory limits.
 
 REBUILD
 python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
