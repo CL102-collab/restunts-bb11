@@ -1,4 +1,5 @@
 #include "frame_fps.h"
+#include "../video/video_color.h"
 #include "frame_internal.h"
 #include "../renderer/frame_overlay.h"
 #include "../game_input.h"
@@ -196,7 +197,8 @@ static struct RECTANGLE *frame_render_timing_draw_text(void)
 	timing[count++] = '.';
 	timing[count++] = (legacy_s8)('0' + tenths % RENDER_TIME_TENTHS_PER_MS);
 	copy_string(timing + count, "ms");
-	return intro_draw_text(timing, REPLAY_TEXT_LEFT_X, REPLAY_TEXT_Y, dialog_fnt_colour, 0);
+	return intro_draw_text(timing, REPLAY_TEXT_LEFT_X, REPLAY_TEXT_Y,
+						   VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 }
 #endif
 

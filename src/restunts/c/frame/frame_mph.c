@@ -1,4 +1,5 @@
 #include "frame_mph.h"
+#include "../video/video_color.h"
 #include "frame_fps.h"
 #include "../game_input.h"
 #include "../ui/ui_text.h"
@@ -157,7 +158,7 @@ struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
 	sprite_clear_shape_alt(background, x, y);
 	mph_background_valid[page] = 1;
 	struct RECTANGLE *bounds =
-		intro_draw_text(text, x, y, dialog_fnt_colour, MPH_TEXT_SHADOW_COLOR);
+		intro_draw_text(text, x, y, VIDEO_UI_COLOR(dialog_fnt_colour), MPH_TEXT_SHADOW_COLOR);
 	sprite_restore_context(saved_context);
 	return bounds;
 }

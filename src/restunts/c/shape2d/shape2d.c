@@ -10,6 +10,7 @@
 #include "shape2d_internal.h"
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
+#include "../video/video_color.h"
 
 #define FONTDEF_LINE_START_X_OFFSET 4U
 #define FONTDEF_START_X_OFFSET 8U
@@ -128,6 +129,7 @@ void sprite_fill_rect(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 h
 	legacy_u16 row_count = (legacy_u16)height;
 	legacy_u16 column_count = (legacy_u16)width;
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
+	VIDEO_COLOR_BEGIN(color);
 	for (legacy_u16 row = 0; row < row_count; row++) {
 		if (planar != 0) {
 			video_pages_fill_span(bitmap, offset, column_count, (legacy_u8)color);
@@ -139,6 +141,7 @@ void sprite_fill_rect(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 h
 		}
 		offset = LEGACY_U16_WRAP_ADD(offset, drawing_sprite.sprite_pitch);
 	}
+	VIDEO_DIRECT_END();
 }
 
 legacy_s16 shape2d_clip_rectangle(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
@@ -216,8 +219,14 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 static void font_draw_glyph(legacy_u8 far *font_definition, legacy_u8 far *glyph_data,
 							legacy_u8 far *bitmap, legacy_u16 current_x, legacy_s16 opaque)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	legacy_u16 color = shape2d_get_word(font_definition);
+	legacy_u16 background = shape2d_get_word(font_definition + LEGACY_WORD_BYTES);
+#else
 	legacy_u8 color = font_definition[0];
 	legacy_u8 background = font_definition[2];
+#endif
 	legacy_u16 current_y = shape2d_get_word(font_definition + FONTDEF_START_Y_OFFSET);
 	legacy_u16 row_index = current_y;
 	legacy_s16 row_count =
@@ -233,9 +242,13 @@ static void font_draw_glyph(legacy_u8 far *font_definition, legacy_u8 far *glyph
 			legacy_u8 bits = *glyph_data++;
 			for (legacy_u8 bit = 0; bit < FONT_GLYPH_BITS_PER_BYTE; bit++) {
 				if ((bits & FONT_GLYPH_FIRST_BIT) != 0) {
+					VIDEO_COLOR_BEGIN(color);
 					video_pages_write_pixel(bitmap, destination, color);
+					VIDEO_DIRECT_END();
 				} else if (opaque != 0) {
+					VIDEO_COLOR_BEGIN(background);
 					video_pages_write_pixel(bitmap, destination, background);
+					VIDEO_DIRECT_END();
 				}
 				bits <<= 1;
 				destination++;

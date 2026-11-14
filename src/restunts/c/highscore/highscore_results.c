@@ -1,4 +1,5 @@
 #include "highscore_internal.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../opponent/opponent_animation.h"
 #endif
@@ -106,10 +107,11 @@ static void end_hiscore_initialize(struct END_SCREEN_STATE *screen)
 	}
 	screen->blit_mode = MENU_BLIT_MODE_INITIAL;
 	sprite_select_render_window_and_clear();
-	draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
-				button_bottom_color, button_fill_color, 0);
+	draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(0, 0, END_SCREEN_BOTTOM_Y, END_SCREEN_WIDTH, END_SCREEN_BOTTOM_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 }
 
 static void end_hiscore_draw_player_time(struct END_SCREEN_STATE *screen)
@@ -220,7 +222,7 @@ static void end_hiscore_draw_statistics(struct END_SCREEN_STATE *screen)
 		format_integer(number, gState_jumpCount, 0, END_SCREEN_NUMBER_WIDTH);
 		strcat(&resID_byte1, number);
 		hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), screen->text_y,
-						  dialog_fnt_colour, 0);
+						  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	}
 }
 
@@ -317,10 +319,10 @@ static void end_hiscore_validate_track(struct END_SCREEN_STATE *screen)
 	legacy_u8 far *track_resource =
 		(legacy_u8 far *)file_load_resource(FILE_RESOURCE_BINARY_OPTIONAL, g_path_buf);
 	if (track_resource == 0) {
-		legacy_u16 result =
-			show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-						locate_text_res(mainresptr, highscore_track_disk_prompt_id),
-						DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+		legacy_u16 result = show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
+										locate_text_res(mainresptr, highscore_track_disk_prompt_id),
+										DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+										VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 		if (result != 0) {
 			track_resource =
 				(legacy_u8 far *)file_load_resource(FILE_RESOURCE_BINARY_OPTIONAL, g_path_buf);
@@ -394,7 +396,7 @@ static void end_hiscore_show_opponent(struct END_SCREEN_STATE *screen)
 		LEGACY_S16_WRAP_SUB(screen->animation_y, END_SCREEN_ANIMATION_BORDER_INSET),
 		LEGACY_S16_WRAP_ADD(animation_width, END_SCREEN_ANIMATION_BORDER_GROWTH),
 		LEGACY_S16_WRAP_ADD(shape2d_get_height(frame_shape), END_SCREEN_ANIMATION_BORDER_GROWTH),
-		dialog_fnt_colour, 0, end_animation_border_shadow_color);
+		VIDEO_UI_COLOR(dialog_fnt_colour), 0, VIDEO_UI_COLOR(end_animation_border_shadow_color));
 	opponent_animation_frame_id[3] =
 		(legacy_s8)(screen->animation_sequence[screen->animation_frame] + '0');
 	shape2d_rle_copy((struct SHAPE2D far *)locate_shape_fatal(screen->animation_resource,
@@ -416,8 +418,8 @@ static void end_hiscore_enter_opponent_score(struct END_SCREEN_STATE *screen)
 	screen->evaluation_screen = 1;
 	draw_button(locate_text_res(screen->misc_resource, result_continue_button_id),
 				END_SCREEN_EVALUATION_BUTTON_X, END_SCREEN_BUTTON_Y, END_SCREEN_BUTTON_WIDTH,
-				END_SCREEN_BUTTON_HEIGHT, button_top_color, button_bottom_color, button_fill_color,
-				0);
+				END_SCREEN_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	(void)sprite_blit_to_video(render_window_sprite, LEGACY_S8_FROM_BITS(screen->blit_mode));
 	screen->blit_mode = MENU_BLIT_MODE_REFRESH;
 	menu_reset_animation_timers();
@@ -434,8 +436,8 @@ static void end_hiscore_enter_opponent_score(struct END_SCREEN_STATE *screen)
 		screen->outcome == END_SCREEN_OUTCOME_NONE ? 1U : END_SCREEN_TEXT_VARIANT_COUNT;
 	for (;;) {
 		legacy_s16 delta = (legacy_s16)menu_animate_button_highlight(
-			END_SCREEN_BUTTON_COUNT, menu_areas, menu_highlight_second_color,
-			menu_highlight_first_color);
+			END_SCREEN_BUTTON_COUNT, menu_areas, VIDEO_UI_COLOR(menu_highlight_second_color),
+			VIDEO_UI_COLOR(menu_highlight_first_color));
 		end_hiscore_update_animation(delta, &screen->animation_timer, &screen->animation_frame,
 									 &screen->previous_animation_frame, screen->animation_resource,
 									 screen->animation_sequence, screen->animation_x,
@@ -455,12 +457,12 @@ static void end_hiscore_enter_opponent_score(struct END_SCREEN_STATE *screen)
 	}
 
 	sprite_select_render_window();
-	draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
-				button_bottom_color, button_fill_color, 0);
+	draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	sprite_set_target_clip_bounds(END_SCREEN_TEXT_LEFT, END_SCREEN_ANIMATION_RIGHT,
 								  hiscore_buttons_y1[0],
 								  LEGACY_S16_WRAP_ADD(hiscore_buttons_y2[0], 1));
-	sprite_clear_target(button_fill_color);
+	VIDEO_CLEAR_TARGET(VIDEO_UI_COLOR(button_fill_color));
 	mouse_draw_opaque_check();
 	end_hiscore_enter_score(screen,
 							locate_text_res(screen->misc_resource, opponent_highscore_prompt_id),
@@ -491,7 +493,8 @@ static void end_hiscore_draw_evaluation(struct END_SCREEN_STATE *screen)
 			if (screen->score_status == -1) {
 				end_hiscore_set_text(screen->misc_resource, highscore_unavailable_message_id);
 				hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1),
-								  END_SCREEN_NO_SCORE_MESSAGE_Y, dialog_fnt_colour, 0);
+								  END_SCREEN_NO_SCORE_MESSAGE_Y, VIDEO_UI_COLOR(dialog_fnt_colour),
+								  0);
 			} else {
 				highscore_draw_table();
 			}
@@ -520,23 +523,27 @@ static void end_hiscore_draw_menu(struct END_SCREEN_STATE *screen)
 															   ? result_evaluation_button_id
 															   : result_highscore_button_id),
 					LEGACY_S16_WRAP_ADD(result_button_left[0], 1), END_SCREEN_BUTTON_Y,
-					END_SCREEN_BUTTON_WIDTH, END_SCREEN_BUTTON_HEIGHT, button_top_color,
-					button_bottom_color, button_fill_color, 0);
+					END_SCREEN_BUTTON_WIDTH, END_SCREEN_BUTTON_HEIGHT,
+					VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+					VIDEO_UI_COLOR(button_fill_color), 0);
 	}
 	draw_button(locate_text_res(screen->misc_resource, result_replay_button_id),
 				LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(result_button_left[1], menu_offset), 1),
 				END_SCREEN_BUTTON_Y, END_SCREEN_BUTTON_WIDTH, END_SCREEN_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(screen->misc_resource, screen->opponent_active != 0
 														   ? result_race_button_id
 														   : result_drive_button_id),
 				LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(result_button_left[2], menu_offset), 1),
 				END_SCREEN_BUTTON_Y, END_SCREEN_BUTTON_WIDTH, END_SCREEN_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(screen->misc_resource, result_main_menu_button_data),
 				LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(result_button_left[3], menu_offset), 1),
 				END_SCREEN_BUTTON_Y, END_SCREEN_BUTTON_WIDTH, END_SCREEN_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	for (legacy_u16 i = 0; i < END_SCREEN_BUTTON_COUNT; i++) {
 		screen->button_areas[i].x1 = LEGACY_S16_WRAP_ADD(result_button_left[i], menu_offset);
 		screen->button_areas[i].x2 = LEGACY_S16_WRAP_ADD(result_button_right[i], menu_offset);
@@ -624,8 +631,9 @@ static legacy_s16 end_hiscore_handle_menu_input(struct END_SCREEN_STATE *screen,
 
 	if (screen->selected == 0) {
 		sprite_select_render_window();
-		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
-					button_bottom_color, button_fill_color, 0);
+		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT,
+					VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+					VIDEO_UI_COLOR(button_fill_color), 0);
 		screen->score_status = screen->evaluation_screen != 0 ? 0 : 2;
 		return -1;
 	}
@@ -637,8 +645,8 @@ static legacy_s16 end_hiscore_run_menu(struct END_SCREEN_STATE *screen)
 	for (;;) {
 		end_hiscore_redraw_selection(screen);
 		legacy_s16 delta = (legacy_s16)menu_animate_button_highlight(
-			screen->selected, screen->button_areas, menu_highlight_second_color,
-			menu_highlight_first_color);
+			screen->selected, screen->button_areas, VIDEO_UI_COLOR(menu_highlight_second_color),
+			VIDEO_UI_COLOR(menu_highlight_first_color));
 		if (screen->evaluation_screen == 0 && screen->outcome != END_SCREEN_OUTCOME_NONE) {
 			end_hiscore_update_animation(delta, &screen->animation_timer, &screen->animation_frame,
 										 &screen->previous_animation_frame,

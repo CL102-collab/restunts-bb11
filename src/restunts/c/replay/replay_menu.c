@@ -1,4 +1,5 @@
 #include "replay_viewer_private.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_file_dialog.h"
 #endif
@@ -27,10 +28,11 @@ static legacy_s8 replay_choose_pause_action(void)
 		options[REPLAY_PAUSE_ACTION_FINISH] = 1;
 	}
 	full_redraw_frames_remaining = (legacy_u8)video_page_count;
-	return LEGACY_S8_FROM_BITS(show_dialog(
-		DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-		locate_text_res(gameresptr, replay_pause_menu_id), DIALOG_AUTO_POSITION,
-		DIALOG_AUTO_POSITION, dialog_border_color, options, REPLAY_DIALOG_INITIAL_CHOICE));
+	return LEGACY_S8_FROM_BITS(show_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+										   locate_text_res(gameresptr, replay_pause_menu_id),
+										   DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+										   VIDEO_UI_COLOR(dialog_border_color), options,
+										   REPLAY_DIALOG_INITIAL_CHOICE));
 }
 
 static legacy_s16 replay_confirm_restart(void)
@@ -57,7 +59,7 @@ static legacy_s16 replay_confirm_restart(void)
 	}
 	question[length] = 0;
 	return show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, question, DIALOG_AUTO_POSITION,
-					   DIALOG_AUTO_POSITION, dialog_border_color, 0,
+					   DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0,
 					   REPLAY_DIALOG_INITIAL_CHOICE) == REPLAY_DIALOG_CONFIRMED_CHOICE;
 }
 
@@ -83,10 +85,11 @@ static legacy_s16 replay_continue_recording(void)
 	if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_MODIFIED_FLAG) != 0) {
 		replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG | REPLAY_RECORDING_MODIFIED_FLAG;
 	} else if (replay_recorded_frames() != replay_input_frame()) {
-		legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_dialog(
-			DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-			locate_text_res(gameresptr, replay_continue_dialog_id), DIALOG_AUTO_POSITION,
-			DIALOG_AUTO_POSITION, performGraphColor, 0, REPLAY_DIALOG_INITIAL_CHOICE));
+		legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(
+			show_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+						locate_text_res(gameresptr, replay_continue_dialog_id),
+						DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+						VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE));
 		if (dialog_result < REPLAY_DIALOG_ACCEPTED_MINIMUM) {
 			return 0;
 		}
@@ -236,10 +239,11 @@ static legacy_s8 replay_choose_save_path(void)
 		save_status = REPLAY_SAVE_READY;
 		g_is_busy = 1;
 		if (file_find(g_path_buf) != 0) {
-			legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_dialog(
-				DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-				locate_text_res(mainresptr, replay_overwrite_dialog_id), DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, performGraphColor, 0, REPLAY_DIALOG_INITIAL_CHOICE));
+			legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(
+				show_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+							locate_text_res(mainresptr, replay_overwrite_dialog_id),
+							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+							VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE));
 			if (dialog_result == REPLAY_SAVE_CANCELLED) {
 				save_status = REPLAY_SAVE_CANCELLED;
 			} else if (dialog_result == REPLAY_SAVE_RETRY) {
@@ -264,7 +268,8 @@ static void replay_save_recording(void)
 		}
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_NO_BACKGROUND_SAVE,
 					locate_text_res(mainresptr, replay_save_error_message_id), DIALOG_AUTO_POSITION,
-					DIALOG_AUTO_POSITION, performGraphColor, 0, REPLAY_DIALOG_INITIAL_CHOICE);
+					DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0,
+					REPLAY_DIALOG_INITIAL_CHOICE);
 	}
 }
 
@@ -277,10 +282,11 @@ static void replay_display_options(void)
 	if (gameconfig.game_opponenttype == 0 && ghost_car_state() == 0) {
 		mode_options[REPLAY_MODE_ACTION_FOLLOW_OPPONENT] = 1;
 	}
-	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(show_dialog(
-		DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-		locate_text_res(gameresptr, replay_mode_options_dialog_id), DIALOG_AUTO_POSITION,
-		DIALOG_AUTO_POSITION, dialog_border_color, mode_options, REPLAY_DIALOG_INITIAL_CHOICE));
+	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(
+		show_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+					locate_text_res(gameresptr, replay_mode_options_dialog_id),
+					DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+					mode_options, REPLAY_DIALOG_INITIAL_CHOICE));
 	switch (menu_result) {
 		case REPLAY_MODE_ACTION_DASHBOARD:
 			dashb_toggle ^= 1;

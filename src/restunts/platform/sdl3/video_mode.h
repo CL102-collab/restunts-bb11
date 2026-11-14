@@ -42,6 +42,10 @@ void sdl3_video_mode_line_end(void);
 void sdl3_video_mode_point_begin(void);
 void sdl3_video_mode_point_end(void);
 
+/* Paint a procedural DOS color while keeping the ordinary VGA-byte writes. */
+void sdl3_video_mode_direct_begin(legacy_u16 ega_word, legacy_u16 cga_word);
+void sdl3_video_mode_direct_end(void);
+
 /* Return hardware palette indices without changing the original VGA bytes. */
 const legacy_u8 *sdl3_video_mode_framebuffer(const legacy_u8 *pixels);
 void sdl3_video_mode_palette(const legacy_u32 *palette);

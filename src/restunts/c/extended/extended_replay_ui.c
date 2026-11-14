@@ -1,4 +1,5 @@
 #include "extended_replay_ui.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../fileio.h"
 #include "../game_input.h"
@@ -194,7 +195,8 @@ legacy_s16 extended_replay_ui_load_error(legacy_s8 saved_flags)
 	}
 	replay_recording_flags = saved_flags;
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, (void *)extended_file_error(),
-				DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+				DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0,
+				0);
 	return 1;
 }
 legacy_s16 extended_replay_ui_advance_input(legacy_s16 *handled)

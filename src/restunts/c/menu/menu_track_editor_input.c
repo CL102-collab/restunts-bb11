@@ -1,4 +1,5 @@
 #include "menu_track_editor_internal.h"
+#include "../video/video_color.h"
 
 legacy_u8 track_editor_palette_tile(legacy_u8 page, legacy_u8 row, legacy_u8 column)
 {
@@ -22,7 +23,7 @@ void track_editor_show_message(legacy_s8 far *text_resource, const legacy_s8 *re
 {
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 				locate_text_res(text_resource, (legacy_s8 *)resource_id), DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, performGraphColor, 0, 0);
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0, 0);
 }
 
 static void track_editor_save_track(legacy_u8 *track_changed, legacy_u8 *map_dirty)
@@ -40,10 +41,10 @@ static void track_editor_save_track(legacy_u8 *track_changed, legacy_u8 *map_dir
 		file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
 		save_status = 1;
 		if (file_find(g_path_buf) != 0) {
-			legacy_s16 result = LEGACY_S16_FROM_BITS(
-				show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
-							locate_text_res((legacy_s8 far *)mainresptr, "fex"),
-							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, performGraphColor, 0, 0));
+			legacy_s16 result = LEGACY_S16_FROM_BITS(show_dialog(
+				DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
+				locate_text_res((legacy_s8 far *)mainresptr, "fex"), DIALOG_AUTO_POSITION,
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0, 0));
 			if (result == -1) {
 				save_status = TRACK_EDITOR_SAVE_CANCELLED;
 				break;
@@ -296,7 +297,7 @@ static void track_editor_select_skybox(struct TRACK_EDITOR_SESSION *editor)
 {
 	legacy_u8 dialog_result = LEGACY_S8_FROM_BITS(show_dialog(
 		DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(editor->text_resource, "mss"),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0,
+		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0,
 		track_element_map[TRACK_EDITOR_SKYBOX_MAP_INDEX]));
 	if (dialog_result != TRACK_EDITOR_DIALOG_CANCELLED &&
 		dialog_result != TRACK_EDITOR_DIALOG_NO_CHANGE) {
@@ -310,7 +311,7 @@ static void track_editor_select_terrain(struct TRACK_EDITOR_SESSION *editor)
 {
 	legacy_u8 dialog_result = LEGACY_S8_FROM_BITS(show_dialog(
 		DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(editor->text_resource, "men"),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0));
+		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0));
 	legacy_s8 terrain_id[5];
 	struct SHAPE2D far *terrain_shape;
 	if (dialog_result != TRACK_EDITOR_DIALOG_CANCELLED &&
@@ -337,7 +338,7 @@ static void track_editor_load_track(struct TRACK_EDITOR_SESSION *editor)
 	if (editor->track_changed != 0) {
 		result = (legacy_s16)show_dialog(
 			DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(editor->text_resource, "chl"),
-			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, performGraphColor, 0, 0);
+			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0, 0);
 	}
 	if (result == 0) {
 		track_editor_save_track(&editor->track_changed, &editor->map_dirty);
@@ -366,7 +367,7 @@ static void track_editor_exit(struct TRACK_EDITOR_SESSION *editor)
 	if (editor->track_changed != 0) {
 		result = (legacy_s16)show_dialog(
 			DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(editor->text_resource, "chx"),
-			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, performGraphColor, 0, 0);
+			DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0, 0);
 	}
 	if (result == 0) {
 		track_editor_save_track(&editor->track_changed, &editor->map_dirty);

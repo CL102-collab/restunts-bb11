@@ -17,6 +17,7 @@
 #include "../ui/ui_input.h"
 #include "../track/track_objects.h"
 #include "../skybox.h"
+#include "../video/video_color.h"
 #include "../highscore/highscore.h"
 #include "menu_common.h"
 #include "../externs.h"
@@ -101,7 +102,9 @@ static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 				   TRACK_MENU_SCREEN_WIDTH, TRACK_MENU_SCREEN_HEIGHT);
 	init_game_state(GAMESTATE_INIT_SKIP_ROUTE_SETUP);
 	sprite_select_render_window();
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 	sprite_clear_target((legacy_u8)skybox.ground_color);
+	VIDEO_DIRECT_END();
 	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
 	draw_track_preview();
 #ifdef RESTUNTS_SDL3
@@ -120,7 +123,7 @@ static void track_menu_draw_highscore_label(void)
 {
 	copy_string(&resID_byte1, locate_text_res(mainresptr, "hs0"));
 	intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), TRACK_MENU_HIGHSCORE_LABEL_Y,
-					dialog_fnt_colour, 0);
+					VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 }
 
 static void track_menu_draw_highscore_fields(const legacy_s8 *text, const legacy_u8 *text_offsets)
@@ -182,15 +185,16 @@ static void track_menu_draw_buttons(void)
 	legacy_s8 far *text_resource = (legacy_s8 far *)file_load_resfile("tedit");
 	draw_button(locate_text_res(text_resource, "bmt"), TRACK_MENU_FIRST_BUTTON_X,
 				TRACK_MENU_BUTTON_Y, TRACK_MENU_BUTTON_WIDTH, TRACK_MENU_BUTTON_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(text_resource, "bet"),
 				TRACK_MENU_FIRST_BUTTON_X + TRACK_MENU_BUTTON_SPACING, TRACK_MENU_BUTTON_Y,
-				TRACK_MENU_BUTTON_WIDTH, TRACK_MENU_BUTTON_HEIGHT, button_top_color,
-				button_bottom_color, button_fill_color, 0);
+				TRACK_MENU_BUTTON_WIDTH, TRACK_MENU_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(locate_text_res(text_resource, "bmm"),
 				TRACK_MENU_FIRST_BUTTON_X + TRACK_MENU_BUTTON_SPACING * 2, TRACK_MENU_BUTTON_Y,
-				TRACK_MENU_BUTTON_WIDTH, TRACK_MENU_BUTTON_HEIGHT, button_top_color,
-				button_bottom_color, button_fill_color, 0);
+				TRACK_MENU_BUTTON_WIDTH, TRACK_MENU_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	unload_resource(text_resource);
 }
 
@@ -206,7 +210,7 @@ static void track_menu_draw_title(void)
 #endif
 	strcat(&resID_byte1, "'");
 	intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), TRACK_MENU_NAME_Y,
-					dialog_fnt_colour, 0);
+					VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 }
 
 static void track_menu_draw_overlay(legacy_u8 diagnostics)
@@ -276,7 +280,8 @@ static legacy_u16 track_menu_poll_input(struct TRACK_MENU_STATE *menu)
 	hires_track_menu_preview_present(&menu->preview, track_menu_draw_preview_header);
 #endif
 	legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
-		menu->selected, trackmenu_buttons, menu_highlight_second_color, menu_highlight_first_color);
+		menu->selected, trackmenu_buttons, VIDEO_UI_COLOR(menu_highlight_second_color),
+		VIDEO_UI_COLOR(menu_highlight_first_color));
 	menu_update_idle_counter(elapsed, TRACK_MENU_IDLE_LIMIT_TICKS);
 	legacy_u16 key = (legacy_u16)input_checking(LEGACY_S16_FROM_BITS(elapsed));
 	legacy_s16 hit = (legacy_s16)mouse_multi_hittest(TRACK_MENU_BUTTON_COUNT, trackmenu_buttons);

@@ -1,4 +1,5 @@
 #include "../fileio.h"
+#include "../video/video_color.h"
 #include "../legacy.h"
 #include "../memmgr.h"
 #include "menu_internal.h"
@@ -94,8 +95,8 @@ static void car_menu_draw_standard_button(legacy_s8 far *text, legacy_u16 button
 {
 	draw_button(text, LEGACY_S16_WRAP_ADD(carmenu_buttons[0].x1, 1),
 				LEGACY_S16_WRAP_ADD(carmenu_buttons[button_index].y1, 1), CAR_MENU_BUTTON_WIDTH,
-				CAR_MENU_BUTTON_HEIGHT, button_top_color, button_bottom_color, button_fill_color,
-				0);
+				CAR_MENU_BUTTON_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 }
 
 struct CAR_MENU_STATE {
@@ -221,7 +222,7 @@ static void car_menu_draw_graph(void)
 			(legacy_u16)LEGACY_U32_DIV_OR_ZERO(
 				LEGACY_U32_WRAP_MUL(CAR_MENU_GRAPH_WIDTH, graph_step), CAR_MENU_GRAPH_STEPS),
 			CAR_MENU_GRAPH_FIRST_X);
-		sprite_putpixel_clipped(graph_x, graph_y, performGraphColor);
+		sprite_putpixel_clipped(graph_x, graph_y, VIDEO_UI_COLOR(performGraphColor));
 		graph_step++;
 		if (graph_step >= CAR_MENU_GRAPH_STEPS) {
 			break;
@@ -271,17 +272,20 @@ static void car_menu_load_car(struct CAR_MENU_STATE *menu)
 
 	sprite_select_render_window_and_clear();
 	draw_button(0, 0, CAR_MENU_BACKGROUND_Y, CAR_MENU_SCREEN_WIDTH, CAR_MENU_BACKGROUND_HEIGHT,
-				button_top_color, button_bottom_color, button_fill_color, 0);
+				VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+				VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(0, CAR_MENU_LEFT_PANEL_X, CAR_MENU_PANEL_Y, CAR_MENU_LEFT_PANEL_WIDTH,
-				CAR_MENU_PANEL_HEIGHT, button_top_color, button_bottom_color, button_fill_color, 0);
+				CAR_MENU_PANEL_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	draw_button(0, CAR_MENU_RIGHT_PANEL_X, CAR_MENU_PANEL_Y, CAR_MENU_RIGHT_PANEL_WIDTH,
-				CAR_MENU_PANEL_HEIGHT, button_top_color, button_bottom_color, button_fill_color, 0);
+				CAR_MENU_PANEL_HEIGHT, VIDEO_UI_COLOR(button_top_color),
+				VIDEO_UI_COLOR(button_bottom_color), VIDEO_UI_COLOR(button_fill_color), 0);
 	struct SHAPE2D far *shape =
 		(struct SHAPE2D far *)locate_shape_fatal(menu->selector_resource, car_graph_shape_id);
 	sprite_shape_to_1_alt(shape);
 
 	font_set_fontdef2(fontnptr);
-	font_set_colors(0, dialog_fnt_colour);
+	font_set_colors(0, VIDEO_UI_COLOR(dialog_fnt_colour));
 	font_draw_text(car_graph_one_fifty_label, CAR_MENU_GRAPH_LABEL_X, CAR_MENU_GRAPH_LABEL_150_Y);
 	font_draw_text(car_graph_hundred_label, CAR_MENU_GRAPH_LABEL_X, CAR_MENU_GRAPH_LABEL_100_Y);
 	font_draw_text(car_graph_fifty_label, CAR_MENU_GRAPH_LABEL_X, CAR_MENU_GRAPH_LABEL_50_Y);
@@ -468,7 +472,8 @@ static legacy_u16 car_menu_read_input(struct CAR_MENU_STATE *menu)
 {
 	sprite_select_screen_compat();
 	menu->rotation_delta = (legacy_s16)menu_animate_button_highlight(
-		menu->selected, carmenu_buttons, menu_highlight_second_color, menu_highlight_first_color);
+		menu->selected, carmenu_buttons, VIDEO_UI_COLOR(menu_highlight_second_color),
+		VIDEO_UI_COLOR(menu_highlight_first_color));
 #ifdef RESTUNTS_SDL3
 	hires_showroom_record_rotation(&menu->hires);
 #endif

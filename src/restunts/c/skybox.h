@@ -13,6 +13,13 @@
 #define SKYBOX_LOWEST_DETAIL_LEVEL 4
 #define SKYBOX_ROLL_VECTOR_Z 15000U
 
+/* World materials are independent of bitmap palette-map color indexes. */
+enum SKYBOX_MATERIAL {
+	SKYBOX_MATERIAL_GROUND = 16,
+	SKYBOX_MATERIAL_SKY = 17,
+	SKYBOX_MATERIAL_WATER = 100
+};
+
 struct SHAPE2D;
 
 /* The four horizon band images and the colours drawn around them. heights

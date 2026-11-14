@@ -1,4 +1,5 @@
 #include "fileio.h"
+#include "video/video_color.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
 #endif
@@ -208,91 +209,112 @@ static void intro_draw_resource_line(legacy_s8 far *resource, legacy_s8 *resourc
 static void credits_draw_title(legacy_s8 far *credit_resource)
 {
 	intro_draw_resource_line(credit_resource, credits_title_id, CREDITS_LINE_TEXT, CREDITS_TITLE_X,
-							 CREDITS_TITLE_Y, credits_title_color, credits_title_shadow_color);
+							 CREDITS_TITLE_Y, VIDEO_UI_COLOR(credits_title_color),
+							 VIDEO_UI_COLOR(credits_title_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_first_logo_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_FIRST_LOGO_X, CREDITS_FIRST_LOGO_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_FIRST_LOGO_X, CREDITS_FIRST_LOGO_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_second_logo_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_SECOND_LOGO_X, CREDITS_SECOND_LOGO_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_SECOND_LOGO_X, CREDITS_SECOND_LOGO_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 }
 
 static void credits_draw_designers(legacy_s8 far *credit_resource)
 {
 	intro_draw_resource_line(credit_resource, credits_design_heading_id, CREDITS_LINE_TEXT,
 							 CREDITS_LEFT_COLUMN_X, CREDITS_DESIGN_HEADING_Y,
-							 credits_design_heading_color, credits_design_heading_shadow_color);
+							 VIDEO_UI_COLOR(credits_design_heading_color),
+							 VIDEO_UI_COLOR(credits_design_heading_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_first_designer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_FIRST_DESIGNER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_FIRST_DESIGNER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_second_designer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_SECOND_DESIGNER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_SECOND_DESIGNER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_third_designer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_THIRD_DESIGNER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_THIRD_DESIGNER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_fourth_designer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_FOURTH_DESIGNER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_FOURTH_DESIGNER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_fifth_designer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_FIFTH_DESIGNER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_FIFTH_DESIGNER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 }
 
 static void credits_draw_musicians(legacy_s8 far *credit_resource)
 {
 	intro_draw_resource_line(credit_resource, credits_music_heading_id, CREDITS_LINE_TEXT,
 							 CREDITS_LEFT_COLUMN_X, CREDITS_MUSIC_HEADING_Y,
-							 credits_music_heading_color, credits_music_heading_shadow_color);
+							 VIDEO_UI_COLOR(credits_music_heading_color),
+							 VIDEO_UI_COLOR(credits_music_heading_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_first_musician_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_FIRST_MUSICIAN_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_FIRST_MUSICIAN_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_second_musician_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_SECOND_MUSICIAN_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_SECOND_MUSICIAN_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_third_musician_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_LEFT_COLUMN_X, CREDITS_THIRD_MUSICIAN_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_LEFT_COLUMN_X, CREDITS_THIRD_MUSICIAN_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 }
 
 static void credits_draw_production(legacy_s8 far *credit_resource)
 {
 	intro_draw_resource_line(credit_resource, credits_production_heading_id, CREDITS_LINE_TEXT,
 							 CREDITS_RIGHT_COLUMN_X, CREDITS_PRODUCTION_HEADING_Y,
-							 credits_production_heading_color,
-							 credits_production_heading_shadow_color);
+							 VIDEO_UI_COLOR(credits_production_heading_color),
+							 VIDEO_UI_COLOR(credits_production_heading_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_producer_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_PRODUCER_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_PRODUCER_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_opponent_heading_id, CREDITS_LINE_TEXT,
 							 CREDITS_RIGHT_COLUMN_X, CREDITS_OPPONENT_HEADING_Y,
-							 credits_production_heading_color,
-							 credits_production_heading_shadow_color);
+							 VIDEO_UI_COLOR(credits_production_heading_color),
+							 VIDEO_UI_COLOR(credits_production_heading_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_first_opponent_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_FIRST_OPPONENT_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_FIRST_OPPONENT_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_second_opponent_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_SECOND_OPPONENT_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_SECOND_OPPONENT_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 }
 
 static void credits_draw_artists(legacy_s8 far *credit_resource)
 {
 	intro_draw_resource_line(credit_resource, credits_art_heading_id, CREDITS_LINE_TEXT,
 							 CREDITS_RIGHT_COLUMN_X, CREDITS_ART_HEADING_Y,
-							 credits_art_heading_color, credits_art_heading_shadow_color);
+							 VIDEO_UI_COLOR(credits_art_heading_color),
+							 VIDEO_UI_COLOR(credits_art_heading_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_first_artist_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_FIRST_ARTIST_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_FIRST_ARTIST_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_second_artist_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_SECOND_ARTIST_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_SECOND_ARTIST_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_third_artist_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_THIRD_ARTIST_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_THIRD_ARTIST_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 	intro_draw_resource_line(credit_resource, credits_fourth_artist_shape_id, CREDITS_LINE_SHAPE,
-							 CREDITS_RIGHT_COLUMN_X, CREDITS_FOURTH_ARTIST_Y, credits_text_color,
-							 credits_text_shadow_color);
+							 CREDITS_RIGHT_COLUMN_X, CREDITS_FOURTH_ARTIST_Y,
+							 VIDEO_UI_COLOR(credits_text_color),
+							 VIDEO_UI_COLOR(credits_text_shadow_color));
 }
 
 static legacy_s16 credits_slide_arrow(struct SHAPE2D far *arrow_shape, legacy_s16 target_x,

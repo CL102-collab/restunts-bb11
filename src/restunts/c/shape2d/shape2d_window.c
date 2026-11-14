@@ -14,6 +14,7 @@
 #include "shape2d_internal.h"
 #include "../game_input.h"
 #include "../video/video_pages.h"
+#include "../video/video_color.h"
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
 	!defined(RESTUNTS_TEMPLEOS)
 #include "../../platform/sdl3/video_mode.h"
@@ -318,6 +319,16 @@ void sprite_clear_target(legacy_u8 color)
 		ofs += widthdiff;
 	}
 }
+
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+void sprite_clear_target_color(legacy_u16 color)
+{
+	VIDEO_COLOR_BEGIN(color);
+	sprite_clear_target((legacy_u8)color);
+	VIDEO_DIRECT_END();
+}
+#endif
 
 void sprite_present_mcga_backbuffer(void)
 {

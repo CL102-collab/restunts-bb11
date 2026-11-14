@@ -8,6 +8,7 @@
 #include "../camera.h"
 #include "../video/video_frame.h"
 #include "../skybox.h"
+#include "../video/video_color.h"
 #include "../race/race_graphics.h"
 #include "../externs.h"
 #include "../memmgr.h"
@@ -59,7 +60,9 @@ struct RECTANGLE *do_sinking(legacy_s16 frame, legacy_s16 top, legacy_s16 height
 	rect_ingame_text.bottom = bottom;
 	sprite_set_target_clip_bounds(0, OVERLAY_SCREEN_WIDTH, rect_ingame_text.top,
 								  rect_ingame_text.bottom);
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_WATER);
 	sprite_clear_target((legacy_u8)skybox.water_color);
+	VIDEO_DIRECT_END();
 	return &rect_ingame_text;
 }
 
@@ -101,7 +104,8 @@ struct RECTANGLE *init_crak(legacy_s16 frame, legacy_s16 top, legacy_s16 height)
 			start_x, LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(scaled_start_y, top), 1), end_x,
 			LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(scaled_end_y, top), 1), 0);
 		preRender_crack_line(start_x, LEGACY_S16_WRAP_ADD(scaled_start_y, top), end_x,
-							 LEGACY_S16_WRAP_ADD(scaled_end_y, top), dialog_fnt_colour);
+							 LEGACY_S16_WRAP_ADD(scaled_end_y, top),
+							 VIDEO_UI_COLOR(dialog_fnt_colour));
 
 		if (slow_video_mgmt_copy != 0) {
 			point.px = start_x;
@@ -126,10 +130,10 @@ struct RECTANGLE *init_crak(legacy_s16 frame, legacy_s16 top, legacy_s16 height)
 static void draw_centered_ingame_resource(legacy_s8 *resource_id, legacy_s16 y)
 {
 	copy_string(&resID_byte1, locate_text_res(gameresptr, resource_id));
-	rect_union(
-		&rect_ingame_text,
-		intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), y, dialog_fnt_colour, 0),
-		&rect_ingame_text);
+	rect_union(&rect_ingame_text,
+			   intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), y,
+							   VIDEO_UI_COLOR(dialog_fnt_colour), 0),
+			   &rect_ingame_text);
 }
 
 static void draw_opponent_route_information(void)
@@ -202,7 +206,7 @@ static void draw_ingame_route_information(void)
 		format_frame_as_string(&resID_byte1 + strlen(&resID_byte1), penalty_time, 0);
 		rect_union(&rect_ingame_text,
 				   intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), PENALTY_TEXT_Y,
-								   dialog_fnt_colour, 0),
+								   VIDEO_UI_COLOR(dialog_fnt_colour), 0),
 				   &rect_ingame_text);
 	}
 }
@@ -211,7 +215,7 @@ static void draw_replay_text(legacy_s8 *text, legacy_s16 y)
 {
 	legacy_s16 x = LEGACY_S16_WRAP_SUB(
 		REPLAY_TEXT_RIGHT_X, LEGACY_U16_WRAP_MUL(strlen(text), REPLAY_TEXT_CHARACTER_WIDTH));
-	rect_union(&rect_ingame_text, intro_draw_text(text, x, y, dialog_fnt_colour, 0),
+	rect_union(&rect_ingame_text, intro_draw_text(text, x, y, VIDEO_UI_COLOR(dialog_fnt_colour), 0),
 			   &rect_ingame_text);
 }
 

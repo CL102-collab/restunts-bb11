@@ -1,4 +1,5 @@
 #include "extended_fileio.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,7 @@ void file_warn_replay_version(legacy_u16 version)
 			 "Press OK to continue playback.]}[ OK ]",
 			 (legacy_u32)version, (legacy_u32)CSRPL_VERSION);
 	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 #else
 	(void)version;
 #endif
@@ -52,7 +53,7 @@ void file_warn_replay_driving_rules(legacy_u16 recorded)
 			 recorded & DRIVING_RULE_AMIGA_GRASS ? "On" : "Off",
 			 recorded & DRIVING_RULE_OWOOT ? "On" : "Off");
 	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 #else
 	(void)recorded;
 #endif

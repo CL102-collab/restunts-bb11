@@ -23,7 +23,7 @@ legacy_u8 sdl3_video_bitmap_source_phase(const void *source);
  * NULL means an unregistered or tableless source and requires color matching. */
 const legacy_u8 *sdl3_video_bitmap_table(const void *source, legacy_u8 mode);
 
-/* UI primitives use the current palette-bearing resource's default table. */
+/* Fallback for bitmap samples without an explicitly registered source. */
 const legacy_u8 *sdl3_video_bitmap_default_table(legacy_u8 mode);
 
 /* DOS bitmap copies retain their nominal resource row phase after moving. */

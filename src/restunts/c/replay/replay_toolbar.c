@@ -1,4 +1,5 @@
 #include "replay_viewer_private.h"
+#include "../video/video_color.h"
 
 legacy_u32 replay_current_frame(void)
 {
@@ -59,7 +60,7 @@ static void replay_controls_prepare_background(legacy_u16 buffer_index)
 		replay_displayed_time_cache[buffer_index] = -1;
 		replay_recorded_position_cache[buffer_index] = -1;
 		replay_format_time(replay_recorded_frames() + elapsed_time1, REPLAY_TIME_INCLUDE_FRACTION);
-		font_set_colors(dialog_fnt_colour, 0);
+		font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 		font_set_fontdef2(fontledresptr);
 		font_draw_text_opaque(&resID_byte1, REPLAY_TOTAL_TIME_X, REPLAY_TIME_Y);
 		font_set_fontdef();
@@ -79,7 +80,7 @@ static void replay_controls_draw_time(legacy_u16 buffer_index, legacy_u32 curren
 		(legacy_u16)replay_displayed_time_cache[buffer_index] != displayed_time) {
 		replay_displayed_time_cache[buffer_index] = (legacy_s16)displayed_time;
 		replay_format_time(displayed_time, REPLAY_TIME_INCLUDE_FRACTION);
-		font_set_colors(dialog_fnt_colour, 0);
+		font_set_colors(VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 		mouse_draw_opaque_check();
 		font_set_fontdef2(fontledresptr);
 		font_draw_text_opaque(&resID_byte1, REPLAY_CURRENT_TIME_X, REPLAY_TIME_Y);
@@ -126,14 +127,14 @@ static void replay_controls_draw_timeline(legacy_u16 buffer_index, legacy_u32 re
 		replay_recorded_position_cache[buffer_index] = recorded_position;
 		replay_current_position_cache[buffer_index] = current_position;
 		sprite_fill_rect(REPLAY_TIMELINE_X, REPLAY_TIMELINE_Y, REPLAY_TIMELINE_WIDTH,
-						 REPLAY_TIMELINE_HEIGHT, replay_timeline_background_color);
+						 REPLAY_TIMELINE_HEIGHT, VIDEO_UI_COLOR(replay_timeline_background_color));
 		sprite_fill_rect(LEGACY_S16_WRAP_ADD(REPLAY_TIMELINE_X, recorded_position),
 						 REPLAY_TIMELINE_Y, REPLAY_TIMELINE_HEIGHT, REPLAY_TIMELINE_HEIGHT,
-						 dialog_fnt_colour);
+						 VIDEO_UI_COLOR(dialog_fnt_colour));
 		sprite_draw_rect_outline(
 			LEGACY_S16_WRAP_ADD(REPLAY_TIMELINE_X, current_position), REPLAY_TIMELINE_Y,
 			LEGACY_S16_WRAP_ADD(REPLAY_TIMELINE_CURSOR_RIGHT_X, current_position),
-			REPLAY_TIMELINE_CURSOR_BOTTOM_Y, replay_marker_color);
+			REPLAY_TIMELINE_CURSOR_BOTTOM_Y, VIDEO_UI_COLOR(replay_marker_color));
 	}
 }
 
@@ -187,7 +188,7 @@ static void replay_controls_draw_buttons(legacy_u16 buffer_index)
 								 game_camera_buttons[replay_selected_control].y1,
 								 game_camera_buttons[replay_selected_control].x2,
 								 game_camera_buttons[replay_selected_control].y2,
-								 replay_marker_color);
+								 VIDEO_UI_COLOR(replay_marker_color));
 	}
 }
 
@@ -209,7 +210,7 @@ void replay_draw_waiting(void)
 	copy_string(&resID_byte1, locate_text_res(gameresptr, "wai"));
 	struct RECTANGLE *text_rectangle =
 		intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), REPLAY_WAITING_TEXT_Y,
-						dialog_fnt_colour, 0);
+						VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	if (slow_video_mgmt_copy != 0) {
 		rect_union(alternate_frame_rects, text_rectangle, alternate_frame_rects);
 	}

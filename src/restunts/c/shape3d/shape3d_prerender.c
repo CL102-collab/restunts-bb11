@@ -2,6 +2,7 @@
 #include "../legacy.h"
 #include "../shape2d/shape2d.h"
 #include "../shape2d/shape2d_internal.h"
+#include "../video/video_color.h"
 #include "shape3d.h"
 #include "shape3d_internal.h"
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
@@ -121,32 +122,23 @@ static void prerender_grille_line(legacy_u16 start_x, legacy_u16 start_y, legacy
 void preRender_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end_x, legacy_u16 end_y,
 					legacy_u16 color)
 {
+	VIDEO_COLOR_BEGIN(color);
+	VIDEO_LINE_BEGIN();
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
 	!defined(RESTUNTS_TEMPLEOS)
-	legacy_u8 native_line = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA;
-	if (native_line) {
-		sdl3_video_mode_line_begin();
-	}
+	color = VIDEO_COLOR_VALUE(color);
 #endif
 	if (color == PRERENDER_GHOST_COLOR) {
 		prerender_grille_line(start_x, start_y, end_x, end_y, 0);
-#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
-	!defined(RESTUNTS_TEMPLEOS)
-		if (native_line) {
-			sdl3_video_mode_line_end();
-		}
-#endif
+		VIDEO_LINE_END();
+		VIDEO_DIRECT_END();
 		return;
 	}
 	legacy_u16 line[DRAW_LINE_WORD_COUNT];
 
 	prerender_line(start_x, start_y, end_x, end_y, color, line);
-#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
-	!defined(RESTUNTS_TEMPLEOS)
-	if (native_line) {
-		sdl3_video_mode_line_end();
-	}
-#endif
+	VIDEO_LINE_END();
+	VIDEO_DIRECT_END();
 }
 
 void preRender_crack_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end_x,
@@ -155,7 +147,15 @@ void preRender_crack_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end
 	legacy_u16 line[DRAW_LINE_WORD_COUNT];
 	legacy_s16 drawn;
 
+	VIDEO_COLOR_BEGIN(color);
+	VIDEO_LINE_BEGIN();
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	color = VIDEO_COLOR_VALUE(color);
+#endif
 	drawn = prerender_line(start_x, start_y, end_x, end_y, color, line);
+	VIDEO_LINE_END();
+	VIDEO_DIRECT_END();
 	shape3d_retain_legacy_crack_line(line, end_y, slow_video_mgmt_copy, drawn);
 }
 

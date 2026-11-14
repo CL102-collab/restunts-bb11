@@ -1,5 +1,6 @@
 #if defined(RESTUNTS_SDL3)
 #include "frame_overlay.h"
+#include "../video/video_color.h"
 #include "../frame/frame_fps.h"
 #include "settings.h"
 #include "../ui/ui_text.h"
@@ -97,7 +98,7 @@ struct RECTANGLE *frame_hires_status_draw_text(void)
 		bounds = frame_hires_status_bounds();
 		if (hires_status_active != 0) {
 			intro_draw_text(hires_status_text, REPLAY_TEXT_LEFT_X, HIRES_STATUS_Y,
-							dialog_fnt_colour, 0);
+							VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 			hires_status_clear_frames =
 				video_uses_page_flipping != 0 ? HIRES_STATUS_RESTORE_PAGES : 1U;
 		} else {

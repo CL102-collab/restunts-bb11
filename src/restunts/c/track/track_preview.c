@@ -8,6 +8,7 @@
 #include "track_objects.h"
 #include "../scene_resources.h"
 #include "../skybox.h"
+#include "../video/video_color.h"
 #include "../externs.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_track_preview.h"
@@ -89,7 +90,9 @@ static void track_preview_prepare(const struct VECTOR *camera)
 
 	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
 								  LEGACY_S16_WRAP_SUB(horizon, skybox.minimum_height));
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_SKY);
 	sprite_clear_target((legacy_u8)skybox.sky_color);
+	VIDEO_DIRECT_END();
 	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
 								  TRACK_PREVIEW_SKYBOX_HEIGHT);
 	skybox_copy_image(TRACK_PREVIEW_SKYBOX_LEFT, 0,
@@ -98,7 +101,9 @@ static void track_preview_prepare(const struct VECTOR *camera)
 					  LEGACY_S16_WRAP_SUB(horizon, skybox.heights[TRACK_PREVIEW_SKYBOX_RIGHT]));
 	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, horizon,
 								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
+	VIDEO_MATERIAL_BEGIN(SKYBOX_MATERIAL_GROUND);
 	sprite_clear_target((legacy_u8)skybox.ground_color);
+	VIDEO_DIRECT_END();
 	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
 								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
 	select_cliprect_rotate(0, camera_angle, 0, &trackpreview_cliprect, TRACK_PREVIEW_ROTATE_CLIP);

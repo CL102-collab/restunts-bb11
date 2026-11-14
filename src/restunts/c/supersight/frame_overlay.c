@@ -1,5 +1,6 @@
 #if !defined(RESTUNTS_SDL3)
 #include "frame_overlay.h"
+#include "../video/video_color.h"
 #include "../frame/frame_fps.h"
 #include "settings.h"
 #include "../ui/ui_text.h"
@@ -97,7 +98,7 @@ struct RECTANGLE *frame_supersight_status_draw_text(void)
 		bounds = frame_supersight_status_bounds();
 		if (supersight_status_active != 0) {
 			intro_draw_text(supersight_status_text, REPLAY_TEXT_LEFT_X, SUPERSIGHT_STATUS_Y,
-							dialog_fnt_colour, 0);
+							VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 			supersight_status_clear_frames =
 				video_uses_page_flipping != 0 ? SUPERSIGHT_STATUS_RESTORE_PAGES : 1U;
 		} else {

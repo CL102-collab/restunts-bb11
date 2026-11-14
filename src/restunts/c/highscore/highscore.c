@@ -1,4 +1,5 @@
 #include "highscore_internal.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_track.h"
 #endif
@@ -171,24 +172,24 @@ void highscore_draw_table(void)
 #endif
 	strcat(&resID_byte1, "'");
 	hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), HIGHSCORE_TITLE_Y,
-					  dialog_fnt_colour, 0);
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 
 	legacy_s8 far *text = locate_text_res(mainresptr, "hs2");
 	copy_string(&resID_byte1, text);
 	hiscore_draw_text(&resID_byte1, HIGHSCORE_PLAYER_COLUMN_X, HIGHSCORE_HEADING_Y,
-					  dialog_fnt_colour, 0);
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	text = locate_text_res(mainresptr, "hs3");
 	copy_string(&resID_byte1, text);
-	hiscore_draw_text(&resID_byte1, HIGHSCORE_CAR_COLUMN_X, HIGHSCORE_HEADING_Y, dialog_fnt_colour,
-					  0);
+	hiscore_draw_text(&resID_byte1, HIGHSCORE_CAR_COLUMN_X, HIGHSCORE_HEADING_Y,
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	text = locate_text_res(mainresptr, "hs5");
 	copy_string(&resID_byte1, text);
 	hiscore_draw_text(&resID_byte1, HIGHSCORE_OPPONENT_COLUMN_X, HIGHSCORE_HEADING_Y,
-					  dialog_fnt_colour, 0);
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 	text = locate_text_res(mainresptr, "hs4");
 	copy_string(&resID_byte1, text);
-	hiscore_draw_text(&resID_byte1, HIGHSCORE_TIME_COLUMN_X, HIGHSCORE_HEADING_Y, dialog_fnt_colour,
-					  0);
+	hiscore_draw_text(&resID_byte1, HIGHSCORE_TIME_COLUMN_X, HIGHSCORE_HEADING_Y,
+					  VIDEO_UI_COLOR(dialog_fnt_colour), 0);
 
 	font_set_fontdef2(fontnptr);
 	legacy_u8 text_offsets[HIGHSCORE_TEXT_FIELD_COUNT];
@@ -196,7 +197,8 @@ void highscore_draw_table(void)
 		print_highscore_entry(entry, text_offsets);
 		legacy_s16 row = LEGACY_S16_WRAP_ADD(LEGACY_U16_WRAP_MUL(entry, HIGHSCORE_ROW_HEIGHT),
 											 HIGHSCORE_FIRST_ROW_Y);
-		legacy_s16 color = entry == (legacy_u8)ranking_highlight ? dialog_border_color : 0;
+		legacy_s16 color =
+			entry == (legacy_u8)ranking_highlight ? VIDEO_UI_COLOR(dialog_border_color) : 0;
 		font_set_colors(color, 0);
 		font_draw_text(&resID_byte1 + text_offsets[0], HIGHSCORE_PLAYER_COLUMN_X, row);
 		font_draw_text(&resID_byte1 + text_offsets[1], HIGHSCORE_CAR_COLUMN_X, row);
@@ -261,7 +263,7 @@ void enter_hiscore(legacy_s16 frame_count, void far *prompt, legacy_u8 car_flag)
 	sprite_blit_to_video(render_window_sprite, -1);
 	legacy_s16 positions[2];
 	show_text_input_dialog(DIALOG_NO_BACKGROUND_SAVE, prompt, DIALOG_AUTO_POSITION,
-						   DIALOG_AUTO_POSITION, dialog_border_color, positions);
+						   DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), positions);
 	check_input();
 	call_read_line(highscore_player_name_input, HIGHSCORE_NAME_MAX_CHARACTERS, positions[0],
 				   positions[1], HIGHSCORE_NAME_INPUT_TIMEOUT);

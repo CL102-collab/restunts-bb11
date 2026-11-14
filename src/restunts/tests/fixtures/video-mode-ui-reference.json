@@ -1,0 +1,211 @@
+{
+  "description": "Original Stunts 1.1 DOS driver UI color words, excluding intro_color_limit (a count).",
+  "decoded_drivers": {
+    "ega": {
+      "sha256": "90841d1ac8aa27d47c94af74911a36b0ed4baf03db5f9500121da5965b8d93df",
+      "data_segment_file_offset": "0x30650"
+    },
+    "cga": {
+      "sha256": "dcb5096182fdb4b257da67555ef734a517e6827907cdc4d1c2524e9fcad193c1",
+      "data_segment_file_offset": "0x2d490"
+    }
+  },
+  "colors": [
+    {
+      "symbol": "dialog_fnt_colour",
+      "ds_offset": "0x505a",
+      "mcga": "0xf",
+      "ega": "0xffff",
+      "cga": "0xffff"
+    },
+    {
+      "symbol": "menu_highlight_second_color",
+      "ds_offset": "0x505e",
+      "mcga": "0x5",
+      "ega": "0x5555",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "menu_highlight_first_color",
+      "ds_offset": "0x5060",
+      "mcga": "0xe",
+      "ega": "0xeeee",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "end_animation_border_shadow_color",
+      "ds_offset": "0x5062",
+      "mcga": "0x8",
+      "ega": "0x8888",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_text_color",
+      "ds_offset": "0x5064",
+      "mcga": "0xf",
+      "ega": "0xffff",
+      "cga": "0xffff"
+    },
+    {
+      "symbol": "credits_text_shadow_color",
+      "ds_offset": "0x5066",
+      "mcga": "0x8",
+      "ega": "0x8888",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_title_color",
+      "ds_offset": "0x5068",
+      "mcga": "0xb",
+      "ega": "0xbbbb",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "credits_title_shadow_color",
+      "ds_offset": "0x506a",
+      "mcga": "0x3",
+      "ega": "0x3333",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_design_heading_color",
+      "ds_offset": "0x506c",
+      "mcga": "0xc",
+      "ega": "0xcccc",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "credits_design_heading_shadow_color",
+      "ds_offset": "0x506e",
+      "mcga": "0x4",
+      "ega": "0x4444",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_production_heading_color",
+      "ds_offset": "0x5070",
+      "mcga": "0x9",
+      "ega": "0x9999",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "credits_production_heading_shadow_color",
+      "ds_offset": "0x5072",
+      "mcga": "0x1",
+      "ega": "0x1111",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_art_heading_color",
+      "ds_offset": "0x5074",
+      "mcga": "0xa",
+      "ega": "0xaaaa",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "credits_art_heading_shadow_color",
+      "ds_offset": "0x5076",
+      "mcga": "0x2",
+      "ega": "0x2222",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "credits_music_heading_color",
+      "ds_offset": "0x5078",
+      "mcga": "0xd",
+      "ega": "0xdddd",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "credits_music_heading_shadow_color",
+      "ds_offset": "0x507a",
+      "mcga": "0x5",
+      "ega": "0x5555",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "track_editor_frame_outer_color",
+      "ds_offset": "0x507c",
+      "mcga": "0xb",
+      "ega": "0xbbbb",
+      "cga": "0xffff"
+    },
+    {
+      "symbol": "track_editor_frame_inner_color",
+      "ds_offset": "0x507e",
+      "mcga": "0x9",
+      "ega": "0x9999",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "track_editor_frame_opposite_color",
+      "ds_offset": "0x5080",
+      "mcga": "0x1",
+      "ega": "0x1111",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "track_editor_highlight_color",
+      "ds_offset": "0x5082",
+      "mcga": "0xc",
+      "ega": "0xcccc",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "button_top_color",
+      "ds_offset": "0x5084",
+      "mcga": "0xf",
+      "ega": "0xffff",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "button_bottom_color",
+      "ds_offset": "0x5086",
+      "mcga": "0x8",
+      "ega": "0x8888",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "button_fill_color",
+      "ds_offset": "0x5088",
+      "mcga": "0x7",
+      "ega": "0x7777",
+      "cga": "0xffff"
+    },
+    {
+      "symbol": "graphics_menu_background_color",
+      "ds_offset": "0x508a",
+      "mcga": "0x9",
+      "ega": "0x9999",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "replay_timeline_background_color",
+      "ds_offset": "0x508c",
+      "mcga": "0x1",
+      "ega": "0x1111",
+      "cga": "0xaaaa"
+    },
+    {
+      "symbol": "replay_marker_color",
+      "ds_offset": "0x508e",
+      "mcga": "0x4",
+      "ega": "0x4444",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "performGraphColor",
+      "ds_offset": "0x5090",
+      "mcga": "0x1",
+      "ega": "0x1111",
+      "cga": "0x5555"
+    },
+    {
+      "symbol": "dialog_border_color",
+      "ds_offset": "0x5092",
+      "mcga": "0x4",
+      "ega": "0x4444",
+      "cga": "0xaaaa"
+    }
+  ]
+}

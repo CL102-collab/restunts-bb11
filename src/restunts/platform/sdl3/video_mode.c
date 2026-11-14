@@ -1,5 +1,6 @@
 #include "video_mode.h"
 #include "video_mode_bitmaps.h"
+#include "video_mode_colors.h"
 #include "../../c/shape2d/shape2d.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -13,6 +14,8 @@
 #define MODE_EGA_COLOR_COUNT 16U
 #define MODE_SOURCE_STACK_CAPACITY 8U
 #define MODE_NATIVE_COLOR_COUNT 3U
+#define MODE_DIRECT_STACK_CAPACITY 8U
+#define MODE_UI_COLOR_TAG 0x4000U
 #define MODE_COLOR_MASK LEGACY_U8_MAX
 #define MODE_EXPECTED_SHIFT LEGACY_BYTE_BITS
 #define MODE_XOR_SHIFT LEGACY_WORD_BITS
@@ -43,6 +46,11 @@ struct VIDEO_MODE_SOURCE {
 	legacy_u8 source_phase;
 };
 
+struct VIDEO_MODE_DIRECT {
+	legacy_u16 word;
+	legacy_u8 active;
+};
+
 legacy_u8 sdl3_video_mode_selected = SDL3_VIDEO_MODE_VGA;
 static struct VIDEO_MODE_SURFACE *mode_surfaces;
 static struct VIDEO_MODE_SOURCE mode_sources[MODE_SOURCE_STACK_CAPACITY];
@@ -58,11 +66,72 @@ static legacy_u8 mode_primitive_capture;
 static legacy_u16 mode_line_depth;
 static legacy_u16 mode_point_depth;
 static legacy_u16 mode_native_colors[MODE_NATIVE_COLOR_COUNT];
+static struct VIDEO_MODE_DIRECT mode_direct;
+static struct VIDEO_MODE_DIRECT mode_direct_stack[MODE_DIRECT_STACK_CAPACITY];
+static legacy_u32 mode_direct_depth;
 static const legacy_u8 mode_cga_colors[] = {0, 3, 5, 7};
 static const legacy_u8 *mode_xor_base;
 static legacy_u16 mode_xor_offset;
 static legacy_u8 mode_xor_mask;
 static legacy_u8 mode_xor_pending;
+
+/* Native UI words at DS:505A and DS:505E..5092 in the original DOS drivers.
+ * The count at DS:505C is deliberately excluded. Provenance is recorded in
+ * tests/fixtures/video-mode-ui-reference.json. */
+static const legacy_u16 mode_ui_ega[SDL3_VIDEO_UI_COLOR_COUNT] = {
+	0xffffU, 0x5555U, 0xeeeeU, 0x8888U, 0xffffU, 0x8888U, 0xbbbbU, 0x3333U, 0xccccU, 0x4444U,
+	0x9999U, 0x1111U, 0xaaaaU, 0x2222U, 0xddddU, 0x5555U, 0xbbbbU, 0x9999U, 0x1111U, 0xccccU,
+	0xffffU, 0x8888U, 0x7777U, 0x9999U, 0x1111U, 0x4444U, 0x1111U, 0x4444U};
+static const legacy_u16 mode_ui_cga[SDL3_VIDEO_UI_COLOR_COUNT] = {
+	0xffffU, 0x5555U, 0xaaaaU, 0xaaaaU, 0xffffU, 0xaaaaU, 0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU,
+	0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU, 0xffffU, 0xaaaaU, 0x5555U, 0xaaaaU,
+	0x5555U, 0xaaaaU, 0xffffU, 0x5555U, 0xaaaaU, 0x5555U, 0x5555U, 0xaaaaU};
+
+static void mode_direct_push(void)
+{
+	if (mode_direct_depth < MODE_DIRECT_STACK_CAPACITY) {
+		mode_direct_stack[mode_direct_depth] = mode_direct;
+	}
+	mode_direct_depth++;
+}
+
+void sdl3_video_mode_direct_begin(legacy_u16 ega_word, legacy_u16 cga_word)
+{
+	mode_direct_push();
+	mode_direct.word = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA ? cga_word : ega_word;
+	mode_direct.active = sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA;
+}
+
+void sdl3_video_mode_direct_end(void)
+{
+	if (mode_direct_depth && --mode_direct_depth < MODE_DIRECT_STACK_CAPACITY) {
+		mode_direct = mode_direct_stack[mode_direct_depth];
+	}
+}
+
+legacy_u16 sdl3_video_mode_ui_color(enum SDL3_VIDEO_UI_COLOR role, legacy_u16 vga)
+{
+	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_VGA || role >= SDL3_VIDEO_UI_COLOR_COUNT) {
+		return vga;
+	}
+	return (legacy_u16)(MODE_UI_COLOR_TAG | ((role + 1U) << LEGACY_BYTE_BITS) | (legacy_u8)vga);
+}
+
+legacy_u16 sdl3_video_mode_color_value(legacy_u16 color)
+{
+	legacy_u16 role = (color ^ MODE_UI_COLOR_TAG) >> LEGACY_BYTE_BITS;
+	return role && role <= SDL3_VIDEO_UI_COLOR_COUNT ? (legacy_u8)color : color;
+}
+
+void sdl3_video_mode_color_begin(legacy_u16 color)
+{
+	legacy_u16 role = (color ^ MODE_UI_COLOR_TAG) >> LEGACY_BYTE_BITS;
+	if (role && role <= SDL3_VIDEO_UI_COLOR_COUNT) {
+		sdl3_video_mode_direct_begin(mode_ui_ega[role - 1U], mode_ui_cga[role - 1U]);
+	} else {
+		mode_direct_push();
+	}
+}
 
 static struct VIDEO_MODE_SURFACE *mode_surface(const legacy_u8 *base, legacy_u8 create)
 {
@@ -191,6 +260,9 @@ static legacy_u8 mode_bitmap_color(legacy_u8 value, legacy_u8 phase, legacy_u8 e
 
 static legacy_u16 mode_native_word(legacy_u8 color)
 {
+	if (!mode_primitive_capture && mode_direct.active) {
+		return mode_direct.word;
+	}
 	return color >= SDL3_VIDEO_NATIVE_PRIMARY && color <= SDL3_VIDEO_NATIVE_TERTIARY
 			   ? mode_native_colors[color - SDL3_VIDEO_NATIVE_PRIMARY]
 			   : color;
@@ -208,6 +280,16 @@ static legacy_u8 mode_native_color(legacy_u8 color, legacy_u8 phase)
 	return mode_cga_colors[(packed >> shift) & 3U];
 }
 
+static legacy_u8 mode_cga_logical(legacy_u8 hardware)
+{
+	for (legacy_u8 index = 0; index < sizeof(mode_cga_colors); index++) {
+		if (mode_cga_colors[index] == hardware) {
+			return index;
+		}
+	}
+	return 0;
+}
+
 /* CGA's original single-pixel writer ORs the low material byte into its
  * packed four-pixel byte. Higher material bits can therefore affect pixels
  * to the left of the requested point, while VGA memory stays untouched. */
@@ -220,13 +302,7 @@ static void mode_native_point(struct VIDEO_MODE_SURFACE *surface, legacy_u16 off
 	for (legacy_u8 pixel = 0; pixel <= MODE_PHASE_X_MASK; pixel++) {
 		legacy_u16 at = (legacy_u16)(first + pixel);
 		legacy_u8 hardware = mode_hardware(surface->cells[at], surface->base[at]);
-		legacy_u8 logical = 0;
-		for (legacy_u8 candidate = 0; candidate < sizeof(mode_cga_colors); candidate++) {
-			if (hardware == mode_cga_colors[candidate]) {
-				logical = candidate;
-				break;
-			}
-		}
+		legacy_u8 logical = mode_cga_logical(hardware);
 		packed |= (legacy_u8)(logical << (6U - pixel * 2U));
 	}
 	legacy_u8 shift = (legacy_u8)(6U - x * 2U);
@@ -345,10 +421,26 @@ legacy_u8 sdl3_video_mode_write(const legacy_u8 *base, legacy_u16 offset, legacy
 			mode_cell_matches(old, base[offset]) ? (legacy_u8)(old >> MODE_XOR_SHIFT) : 0;
 		legacy_u8 hardware =
 			mode_cell_matches(old, base[offset]) ? (legacy_u8)old : mode_nearest[base[offset]];
-		mode_store(surface, offset, color, hardware, xor_mask ^ mode_xor_mask);
+		if (mode_direct.active && !mode_source_depth) {
+			legacy_u8 native = mode_native_color(color, surface->phase[offset]);
+			hardware = mode_hardware(old, base[offset]);
+			hardware = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA
+						   ? mode_cga_colors[mode_cga_logical(hardware) ^ mode_cga_logical(native)]
+						   : hardware ^ native;
+			mode_store(surface, offset, color, hardware, 0);
+		} else {
+			mode_store(surface, offset, color, hardware, xor_mask ^ mode_xor_mask);
+		}
 		mode_xor_pending = 0;
 	} else if (mode_primitive_freeze) {
 		mode_store(surface, offset, color, mode_hardware(old, base[offset]), 0);
+	} else if (mode_direct.active && !mode_source_depth) {
+		if (mode_point_depth && sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
+			mode_native_point(surface, offset, color);
+			mode_store(surface, offset, color, (legacy_u8)surface->cells[offset], 0);
+		} else {
+			mode_store(surface, offset, color, mode_native_color(color, surface->phase[offset]), 0);
+		}
 	} else {
 		mode_store(surface, offset, color,
 				   mode_bitmap_color(color, explicit_phase ? source_phase : surface->phase[offset],
@@ -477,7 +569,7 @@ void sdl3_video_mode_primitive_end(void)
 
 void sdl3_video_mode_line_begin(void)
 {
-	if (mode_primitive_capture && sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
+	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
 		mode_line_depth++;
 	}
 }
@@ -491,7 +583,7 @@ void sdl3_video_mode_line_end(void)
 
 void sdl3_video_mode_point_begin(void)
 {
-	if (mode_primitive_capture) {
+	if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
 		mode_point_depth++;
 	}
 }
@@ -538,6 +630,8 @@ static void mode_clear_surfaces(void)
 		mode_surfaces = next;
 	}
 	mode_source_depth = 0;
+	mode_direct_depth = 0;
+	mode_direct.active = 0;
 	mode_sample_pending = 0;
 	mode_line_depth = 0;
 	mode_point_depth = 0;

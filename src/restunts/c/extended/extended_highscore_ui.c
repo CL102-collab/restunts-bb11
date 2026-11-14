@@ -1,4 +1,5 @@
 #include "extended_highscore_ui.h"
+#include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../fileio.h"
 #include "../legacy.h"
@@ -122,7 +123,7 @@ void extended_hiscore_show_error(void)
 	}
 	message[used] = 0;
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 }
 legacy_s16 extended_highscore_enter_current(legacy_u32 frames, void far *prompt, legacy_u8 car_flag)
 {
@@ -162,7 +163,7 @@ legacy_s16 extended_highscore_enter_current(legacy_u32 frames, void far *prompt,
 	sprite_blit_to_video(render_window_sprite, -1);
 	legacy_s16 positions[2];
 	show_text_input_dialog(DIALOG_NO_BACKGROUND_SAVE, prompt, DIALOG_AUTO_POSITION,
-						   DIALOG_AUTO_POSITION, dialog_border_color, positions);
+						   DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), positions);
 	check_input();
 	call_read_line(highscore_player_name_input, HIGHSCORE_NAME_MAX_CHARACTERS, positions[0],
 				   positions[1], HIGHSCORE_NAME_INPUT_TIMEOUT);
@@ -221,8 +222,9 @@ legacy_s16 extended_highscore_load_current(legacy_s16 create_default, legacy_s16
 void extended_highscore_clear_table(void)
 {
 	if (extended_track_active()) {
-		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
-					button_bottom_color, button_fill_color, 0);
+		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT,
+					VIDEO_UI_COLOR(button_top_color), VIDEO_UI_COLOR(button_bottom_color),
+					VIDEO_UI_COLOR(button_fill_color), 0);
 	}
 }
 legacy_s16 extended_highscore_time_x(const legacy_s8 *text, legacy_s16 fallback, legacy_s16 width)
