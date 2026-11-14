@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Indexed-palette PURE cockpit with the MCMU wheel and live instruments.
 
-The edited PURE backdrop supplies the cockpit, light-turquoise bodywork,
-straight black antenna and gently bowed windscreen edge. The supplied VSH
+The edited PURE backdrop supplies the cockpit, light-turquoise bodywork
+and gently bowed windscreen edge. A local patch removes the hood antenna
+while preserving every source pixel outside its former footprint. The supplied VSH
 contains one transparent full-screen indexed bitmap, without the original
 hands or wheel. The existing MCMU wheel and its live display are composited
 with darker grey shading to match the fixed cockpit.
@@ -137,7 +138,7 @@ MATERIAL_TONES = {
     "wheel_trim": (28, 27, 26, 25, 24),
 }
 DASHBOARD_REFERENCES = [
-    {"file": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH", "view": "User-supplied cockpit backdrop, edited to remove gloves and original wheel, recolour bodywork turquoise, straighten the black ball-tipped antenna without its frame or base, and gently bow the existing upper windshield edge."},
+    {"file": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH", "view": "User-supplied cockpit backdrop, edited to remove gloves and original wheel, recolour bodywork turquoise and gently bow the existing upper windshield edge. A later local patch removes the antenna without changing the surrounding artwork."},
     {"file": "middle.png", "view": "Reference for the retained MCMU open steering wheel and white speedometer centered between the live left RPM bar and right battery bar fixed at 90%. The fixed cockpit now uses the edited PURE backdrop."},
     {"file": "left.png", "view": "Left cockpit and open grip detail, white vertical RPM bar, McMurtry branding above five fluted rotary controls. Record-holder and adjacent inscriptions are omitted."},
     {"file": "right.png", "view": "Reference for the retained right open steering grip and white vertical battery bar."},

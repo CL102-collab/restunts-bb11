@@ -34,7 +34,7 @@ light gray.
 
 [2026 specifications in the car menu](cars/mcmurtry-menu.png)
 
-![Edited PURE cockpit with turquoise bodywork, straight black antenna and the darker MCMU wheel](cars/mcmurtry-cockpit.png)
+![Edited PURE cockpit with turquoise bodywork, a clear view over the hood and the darker MCMU wheel](cars/mcmurtry-cockpit.png)
 
 [Left steering](cars/mcmurtry-cockpit-left.png) ·
 [Right steering](cars/mcmurtry-cockpit-right.png)
@@ -350,8 +350,9 @@ and original wheel are removed, leaving the dark steering-column recess for
 the existing MCMU wheel and live instruments. The side pillars, air outlets
 and red controls retain the PURE layout.
 
-The bodywork uses MCMU light turquoise. The central hood antenna is straight,
-black and gently tapered, with a small ball tip and no frame or pedestal.
+The bodywork uses MCMU light turquoise. The central hood antenna is removed
+with a local patch that restores the transparent glazing and turquoise hood.
+Every source pixel outside the antenna footprint is preserved.
 The existing black upper windshield edge bends into a shallow symmetric
 center dip, retaining its rounded corners instead of adding another line.
 The edited background is stored in `tools/scripts/cars/MCMU-cockpit.VSH` as
@@ -392,7 +393,7 @@ Original Stunts ignores the descriptors, keeps the display upright and draws
 a thin vertical white RPM indicator.
 
 Native `dast`/`dasm` artwork and masks draw the roof edge, side pillars,
-antenna, cowl and turquoise fenders while keeping the road live around them.
+cowl and turquoise fenders while keeping the road live around them.
 These bitmap fenders retain their turquoise finish in every exterior paint
 scheme, as with fixed-colour bodywork in stock Stunts dashboards. The opaque
 `roof` strip covers the top eight rows; the masked overlay extends to the
@@ -569,9 +570,9 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
 | Extracted STDA + STDB | 139,354 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 29,968 bytes | 66,176 bytes |
+| Prepared STDA + STDB in the arena | 29,808 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **33,760 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **33,600 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses

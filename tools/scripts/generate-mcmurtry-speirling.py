@@ -666,11 +666,11 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Edited cockpit backdrop from the user-supplied PURE_FINAL_021.zip, combined with the existing procedural MCMU steering wheel and live instruments. The original gloves, arms and wheel are removed. Bodywork uses MCMU light turquoise. A straight tapered black antenna has a small ball tip and no surrounding frame or pedestal. The existing windshield edge has a shallow symmetric center dip, preserving its rounded side pillars. Wheel greys are darkened to match the cockpit while white labels, the centered speed display, live RPM bar and 90% battery indicator remain readable. Wheel geometry, all three steering poses and the imt1/imt3, spdc and revb instrument descriptors are retained. The native roof and dast/dasm pair preserve live scenery through the windshield. The edited backdrop is stored as a full-screen indexed VSH source; generation uses only the standard library and remains within DIA3 dashboard memory limits.",
+        "dashboard_note": "Edited cockpit backdrop from the user-supplied PURE_FINAL_021.zip, combined with the existing procedural MCMU steering wheel and live instruments. The original gloves, arms and wheel are removed. Bodywork uses MCMU light turquoise. The hood antenna is removed with a local patch, preserving every source pixel outside its former footprint. The existing windshield edge has a shallow symmetric center dip, preserving its rounded side pillars. Wheel greys are darkened to match the cockpit while white labels, the centered speed display, live RPM bar and 90% battery indicator remain readable. Wheel geometry, all three steering poses and the imt1/imt3, spdc and revb instrument descriptors are retained. The native roof and dast/dasm pair preserve live scenery through the windshield. The edited backdrop is stored as a full-screen indexed VSH source; generation uses only the standard library and remains within DIA3 dashboard memory limits.",
         "dashboard_source": {"file": str(dashboard.COCKPIT_SOURCE),
                              "sha256": hashlib.sha256((repository / dashboard.COCKPIT_SOURCE).read_bytes()).hexdigest(),
                              "origin": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH, supplied by the user; cockpit artwork only",
-                             "editing": "Image-assisted backdrop edit, converted to the native 320x200 indexed palette with binary windshield transparency; MCMU wheel and live instruments composited by the generator."},
+                             "editing": "Image-assisted backdrop edit, converted to the native 320x200 indexed palette with binary windshield transparency. The antenna is removed with a local patch without regenerating the surrounding artwork; MCMU wheel and live instruments are composited by the generator."},
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -874,8 +874,8 @@ The cockpit backdrop is edited from the user-supplied PURE_FINAL_021.zip,
 using only its cockpit artwork. The original gloves, arms and wheel are removed.
 The existing MCMU wheel and live instruments are retained, with darker grey
 shading to match the surrounding cockpit. The chassis is light turquoise.
-The hood antenna is straight, black and tapered, with a small ball tip and
-no surrounding frame or pedestal. The existing black windshield edge has a
+The hood antenna is removed with a local patch that preserves every source
+pixel outside its former footprint. The existing black windshield edge has a
 shallow symmetric center dip and retains its rounded side pillars.
 The edited 320x200 indexed source is tools/scripts/cars/MCMU-cockpit.VSH;
 ordinary generation requires only the Python standard library.
