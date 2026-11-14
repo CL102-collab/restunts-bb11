@@ -267,6 +267,23 @@ public final class LauncherActivity extends Activity {
         addSoundSettings(layout, textSize, spacing);
 
         WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
+        WrappingLayout videoModeOption = new WrappingLayout(this, 0, 0);
+        TextView videoModeLabel = new TextView(this);
+        videoModeLabel.setText("Video mode");
+        videoModeLabel.setTextSize(textSize);
+        videoModeOption.addView(videoModeLabel);
+        videoMode = new Spinner(this);
+        videoMode.setId(View.generateViewId());
+        videoModeLabel.setLabelFor(videoMode.getId());
+        ArrayAdapter<LaunchOptions.VideoMode> videoModeAdapter = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, LaunchOptions.VideoMode.values());
+        videoModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        videoMode.setAdapter(videoModeAdapter);
+        videoMode.setSelection(LaunchOptions.VideoMode.fromStored(
+            preferences.getString(LaunchOptions.VIDEO_MODE_KEY, null)).ordinal());
+        videoModeOption.addView(videoMode);
+        graphics.addView(videoModeOption);
+
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
         showMph = option(graphics, "Show MPH (Ctrl+F9)", LaunchOptions.SHOW_MPH_KEY,
@@ -293,23 +310,6 @@ public final class LauncherActivity extends Activity {
             preferences.getString(LaunchOptions.HYPERVISION_KEY, null)).ordinal());
         hyperVisionOption.addView(hyperVision);
         graphics.addView(hyperVisionOption);
-
-        WrappingLayout videoModeOption = new WrappingLayout(this, 0, 0);
-        TextView videoModeLabel = new TextView(this);
-        videoModeLabel.setText("Video mode");
-        videoModeLabel.setTextSize(textSize);
-        videoModeOption.addView(videoModeLabel);
-        videoMode = new Spinner(this);
-        videoMode.setId(View.generateViewId());
-        videoModeLabel.setLabelFor(videoMode.getId());
-        ArrayAdapter<LaunchOptions.VideoMode> videoModeAdapter = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, LaunchOptions.VideoMode.values());
-        videoModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        videoMode.setAdapter(videoModeAdapter);
-        videoMode.setSelection(LaunchOptions.VideoMode.fromStored(
-            preferences.getString(LaunchOptions.VIDEO_MODE_KEY, null)).ordinal());
-        videoModeOption.addView(videoMode);
-        graphics.addView(videoModeOption);
 
         WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
         tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,

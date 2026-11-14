@@ -125,8 +125,8 @@ async function assertSettingsLayout(page, narrow) {
     assert.ok(layout.soundTop >= layout.startupBottom, 'Sound settings must follow startup options');
     assert.ok(layout.graphicsTop >= layout.soundBottom, 'Sound settings must precede graphics settings');
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'video-mode', 'hypervision'],
-        'Fullscreen must precede the shared graphics controls, with HyperVision last');
+    assert.deepEqual(layout.graphicsControls, ['video-mode', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'hypervision'],
+        'Video mode must precede the shared graphics controls, with HyperVision last');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
