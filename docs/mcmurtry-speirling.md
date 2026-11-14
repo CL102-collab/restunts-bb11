@@ -350,9 +350,11 @@ and original wheel are removed, leaving the dark steering-column recess for
 the existing MCMU wheel and live instruments. The side pillars, air outlets
 and red controls retain the PURE layout.
 
-The bodywork uses MCMU light turquoise. The central hood antenna is removed
-with a local patch that restores the transparent glazing and turquoise hood.
-Every source pixel outside the antenna footprint is preserved.
+The bodywork uses MCMU light turquoise. An earlier local patch removed the
+central hood antenna, restoring the transparent glazing and turquoise hood.
+A separate patch replaces only dark bodywork contour pixels along the
+boundary with the transparent glazing, using adjacent turquoise shades.
+This contour patch preserves transparency and every other source pixel.
 The existing black upper windshield edge bends into a shallow symmetric
 center dip, retaining its rounded corners instead of adding another line.
 The edited background is stored in `tools/scripts/cars/MCMU-cockpit.VSH` as
@@ -570,9 +572,9 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
 | Extracted STDA + STDB | 139,354 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 29,808 bytes | 66,176 bytes |
+| Prepared STDA + STDB in the arena | 29,824 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **33,600 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **33,616 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses

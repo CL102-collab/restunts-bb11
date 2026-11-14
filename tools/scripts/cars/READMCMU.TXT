@@ -179,9 +179,11 @@ The cockpit backdrop is edited from the user-supplied PURE_FINAL_021.zip,
 using only its cockpit artwork. The original gloves, arms and wheel are removed.
 The existing MCMU wheel and live instruments are retained, with darker grey
 shading to match the surrounding cockpit. The chassis is light turquoise.
-The hood antenna is removed with a local patch that preserves every source
-pixel outside its former footprint. The existing black windshield edge has a
-shallow symmetric center dip and retains its rounded side pillars.
+An earlier local patch removed the hood antenna. A separate patch replaces
+only dark bodywork contour pixels along the turquoise-to-transparent boundary
+with adjacent turquoise shades, preserving transparency and every other
+source pixel. The existing black upper windshield edge has a shallow symmetric
+center dip and retains its rounded side pillars.
 The edited 320x200 indexed source is tools/scripts/cars/MCMU-cockpit.VSH;
 ordinary generation requires only the Python standard library.
 The white digital speedometer sits in the middle of the wheel display,
@@ -211,8 +213,8 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
 Extracted A+B: 139,354 vs 148,036 bytes.
-Prepared A+B: 29,808 vs 66,176 bytes.
-With scratch: 33,600 vs 80,304 bytes.
+Prepared A+B: 29,824 vs 66,176 bytes.
+With scratch: 33,616 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.
