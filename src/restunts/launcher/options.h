@@ -64,6 +64,19 @@ struct LauncherSoundDefinition {
 	const legacy_char *argument;
 };
 
+enum LauncherVideoMode {
+	LAUNCHER_VIDEO_VGA,
+	LAUNCHER_VIDEO_EGA,
+	LAUNCHER_VIDEO_CGA,
+	LAUNCHER_VIDEO_MODE_COUNT
+};
+
+struct LauncherVideoDefinition {
+	const legacy_char *value;
+	const legacy_char *label;
+	const legacy_char *argument;
+};
+
 struct LauncherRomSet {
 	wxString id;
 	wxString label;
@@ -76,12 +89,14 @@ struct LauncherOptions {
 	legacy_int sound_mode;
 	legacy_bool enabled[LAUNCHER_OPTION_COUNT];
 	legacy_int hypervision;
+	legacy_int video_mode;
 	LauncherOptions();
 };
 
 extern const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT];
 extern const LauncherSoundDefinition launcher_sound_definitions[LAUNCHER_SOUND_MODE_COUNT];
 extern const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT];
+extern const LauncherVideoDefinition launcher_video_definitions[LAUNCHER_VIDEO_MODE_COUNT];
 
 legacy_bool launcher_parse_rom_inventory(const wxString &json, std::vector<LauncherRomSet> &sets,
 										 wxString &error);

@@ -103,7 +103,8 @@ void sprite_draw_dissolve_phase(struct SHAPE2D far *shape, legacy_u16 phase);
 void sprite_draw_palette_mapped(struct SHAPE2D far *shape);
 
 /* EGA conversion tables can change between shapes in the same resource. */
-#ifdef RESTUNTS_TEMPLEOS
+#if defined(RESTUNTS_TEMPLEOS) ||                                                                  \
+	(defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS))
 void shape2d_select_ega_palette(void far *resource, legacy_u8 index);
 #else
 #define shape2d_select_ega_palette(resource, index) ((void)0)

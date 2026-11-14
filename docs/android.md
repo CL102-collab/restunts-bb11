@@ -95,8 +95,8 @@ selecting Skip intro passes `--nointro`. **Controls** contains the saved **Tilt 
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,
 **Show Control Layout** for the touch circles, **Multi-core rendering**
-(`--multi-core:on/off`, initially on unless a saved choice overrides it), and
-finally the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
+(`--multi-core:on/off`, initially on unless a saved choice overrides it),
+**Video mode**, and finally the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
 Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group
@@ -115,6 +115,11 @@ driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
 `--cfg:off` and give green chicane areas ordinary grass grip and drag.
 **Amiga Grass** uses the original Amiga grass grip for stock cars. Use the same
 driving rules that were selected when generating a ghost or recording a replay.
+
+**Video mode** selects **VGA** (the default), **EGA**, or **CGA** for classic
+graphics, using the original DOS conversion tables and dithering. HyperVision
+always keeps VGA graphics. The selection is remembered and restored when
+returning to the classic renderer.
 
 Custom car capabilities are declared by each car's resources and activate
 automatically. For example, a car with the `fand=1` resource uses surface adhesion

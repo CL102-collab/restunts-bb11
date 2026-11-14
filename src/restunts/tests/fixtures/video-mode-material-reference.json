@@ -1,0 +1,441 @@
+{
+  "description": "Original Broderbund Stunts 1.1 EGA/CGA numeric 3D material tables and packed bitmap phases",
+  "archive_url": "https://zak.stunts.hu/dl/stunts.zip",
+  "archive_sha256": "ed375337d3afc5e5a23797c48e925e550cfaac587b4ba19e7e7d5e590574fadf",
+  "procedure": "Decompress EGA.CMN and MODE.COD with the Stunts RLE/VLE codec; for CGA apply its decompressed DIF to common bytes; concatenate common+COD then decode EXEPACK backward RLE. Offsets address the decoded load image without MZ header.",
+  "bitmap_phases": {
+    "ega": "Each !egN byte selects its high nibble for even logical X+Y and its low nibble for odd X+Y. Conversion seeds row phase from stored shape Y.",
+    "cga": "Each !cgN byte is a 2x2 tile: top-left bits7:6, top-right bits5:4, bottom-left bits3:2, bottom-right bits1:0. Conversion seeds row phase from stored shape Y.",
+    "cga_evidence_offsets": [
+      "0x24210 expands four 2-bit samples into tables at DS:5516/5616/5716/5816",
+      "0x27440 tests stored shape Y, then alternates tables0/1 on even rows and2/3 on odd rows"
+    ],
+    "cga_raw_draw_evidence": "The unconverted runtime bitmap draw routines at0x25762/0x25786 derive Y phase from shape[+0xA] stored Y and X phase from actual draw X at[BP-2]. Ordinary file assets are converted earlier by0x27338, so preserve their baked source phase instead.",
+    "loaded_file_phase": "Normal EGA/CGA file_load_shape2d converts VGA resources to native pixels before raw drawing or RLE parsing. Conversion starts source X at zero and uses stored shape Y. Preserve the baked phase on relocation: phaseX=destinationX-drawX; phaseY=destinationY-drawY+storedShapeY. Stored shape X does not seed conversion. The alternate loader is an exception described below.",
+    "loaded_file_evidence_offsets": [
+      "CGA PVS loader0x2c20d calls0x2c2c7 then helper0x2c4b2, which loads !cg0 and invokes entire-resource converter0x27338 before generic parse_shape2d",
+      "EGA PVS loader0x2f6d3 calls helper0x2f75c, which loads !eg0 and invokes entire-resource converter0x2a0b0 before generic parse_shape2d",
+      "asmorig/seg035.asm file_load_shape2d_res invokes file_load_shape2d before parse_shape2d"
+    ],
+    "alternate_file_phase": "file_load_shape2d_nofatal2 bypasses native resource conversion. Alternate resources therefore convert at draw time, using destination X and stored shape Y. These include opponent portraits and sdgame2 effects. Register the load family independently of raw/RLE format.",
+    "alternate_file_evidence_offsets": [
+      "CGA alternate entry0x2c690/0x2c6a2: PVS path0x2c771..0x2c7c7 decompresses/unflips, then returns at0x2c72d without the normal0x2c4b2 conversion helper",
+      "EGA alternate entry0x2f8ba/0x2f8cc: PVS path0x2f99b decompresses,0x2f9db unflips, then0x2f9f1 returns at0x2f957 without the normal0x2f75c conversion helper",
+      "Reconstruction alternate callers: menu/menu_opponent.c::run_opponent_menu and race/race_resources.c::load_sdgame2_shapes"
+    ]
+  },
+  "cga_material_phase": "Each packed16-bit material repeats a4x2 tile. Even Y uses the high byte; odd Y uses the low byte. Each byte contains four2-bit pixels, most significant first. Rectangle fill0x23cc5 swaps AL/AH on even Y before storing AL, then alternates bytes by row.",
+  "cga_palette": {
+    "ega_indices": [
+      0,
+      3,
+      5,
+      7
+    ],
+    "rgb6": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        42,
+        42
+      ],
+      [
+        42,
+        0,
+        42
+      ],
+      [
+        42,
+        42,
+        42
+      ]
+    ],
+    "evidence": "CGA driver decoded image0x241fa sets BIOS mode4;0x24200 selects AH0B/BH1/BL1 palette1;0x24208 selects AH0B/BX0 black background and low intensity."
+  },
+  "modes": {
+    "ega": {
+      "decoded_image_size": 221312,
+      "decoded_image_sha256": "90841d1ac8aa27d47c94af74911a36b0ed4baf03db5f9500121da5965b8d93df",
+      "data_segment_base": "0x30650",
+      "pointer_block": "0x35aec",
+      "tables": {
+        "primary": {
+          "offset": "0x356e4",
+          "pointer": "0x5094",
+          "sha256": "81e793ab63b0ce5d9a90361f46f224e71165a731622f7bf43cf220ee2c73c2d8",
+          "fnv1a_le32": "0x3C28D83A"
+        },
+        "secondary": {
+          "offset": "0x359ea",
+          "pointer": "0x539a",
+          "sha256": "5c23c5484c120e0b900683f4b3ce48c34f42f8fe5b505e4eee5991c285d050cd",
+          "fnv1a_le32": "0xFD250415"
+        },
+        "pattern_types": {
+          "offset": "0x357e6",
+          "pointer": "0x5196",
+          "sha256": "4fbedd865904b2ef9b5f266c4af699a5272a0330dd331ef1dedfc2dd34a293c8",
+          "fnv1a_le32": "0x761895E7"
+        },
+        "pattern_bits": {
+          "offset": "0x358e8",
+          "pointer": "0x5298",
+          "sha256": "d424a659f14d1fecb38abd86a9438e53fa9078fa8ab2f78c9ec7bf89c7649651",
+          "fnv1a_le32": "0x56C5ADC7"
+        }
+      }
+    },
+    "cga": {
+      "decoded_image_size": 208944,
+      "decoded_image_sha256": "dcb5096182fdb4b257da67555ef734a517e6827907cdc4d1c2524e9fcad193c1",
+      "data_segment_base": "0x2d490",
+      "pointer_block": "0x3282a",
+      "tables": {
+        "primary": {
+          "offset": "0x32524",
+          "pointer": "0x5094",
+          "sha256": "c4c5fb4937c9ff794c7cf972b4900c867d522c7f9c2d5a651308034e8aa02435",
+          "fnv1a_le32": "0x7260FF33"
+        },
+        "secondary": {
+          "offset": "0x32524",
+          "pointer": "0x5094",
+          "sha256": "c4c5fb4937c9ff794c7cf972b4900c867d522c7f9c2d5a651308034e8aa02435",
+          "fnv1a_le32": "0x7260FF33"
+        },
+        "pattern_types": {
+          "offset": "0x32626",
+          "pointer": "0x5196",
+          "sha256": "a45fdc39b59192157e0ed389f46a832d11311cb366309947813be2424462641d",
+          "fnv1a_le32": "0x0C00E3B5"
+        },
+        "pattern_bits": {
+          "offset": "0x32728",
+          "pointer": "0x5298",
+          "sha256": "bba11342a68e570ead7d9bfa129dc3775551037b70a8400db6333366f7404f09",
+          "fnv1a_le32": "0xC71B9085"
+        }
+      }
+    }
+  },
+  "cga_mask_phase": "Masked polygons retain one bit of coverage per logical pixel. The driver expands each mask byte through DS:3a56 by duplicating every bit. Original CGA uses the mask LOW byte on EVEN Y and HIGH byte on ODD Y; the shared VGA raster therefore needs the original CGA mask byte-swapped. Original function0x25a59 was executed in a16-bit x86 emulator to verify this.",
+  "cga_line_phase": "preRender_line at0x1fdde stores a16-bit color, but the line raster at0x2392a reads only its LOW byte. That byte repeats four MSB-first2-bit pixels horizontally, independent of Y. The original function was tested at Y0 and Y1 with colors0x1889,0xc00c,0x5566.",
+  "raster_goldens": [
+    {
+      "operation": "masked_span",
+      "function": "0x25a59",
+      "color": "0xFFFF",
+      "mask": "0x8001",
+      "x": 0,
+      "y": 0,
+      "width": 16,
+      "height": 2,
+      "initial_pixel": 0,
+      "rows": [
+        "0000000300000003",
+        "3000000030000000"
+      ]
+    },
+    {
+      "operation": "masked_span",
+      "function": "0x25a59",
+      "color": "0xFFFF",
+      "mask": "0x77DD",
+      "x": 0,
+      "y": 0,
+      "width": 16,
+      "height": 2,
+      "initial_pixel": 0,
+      "rows": [
+        "3303330333033303",
+        "0333033303330333"
+      ]
+    },
+    {
+      "operation": "solid_span",
+      "function": "0x2510e",
+      "color": "0x1889",
+      "x": 0,
+      "y": 0,
+      "width": 16,
+      "height": 2,
+      "initial_pixel": 0,
+      "rows": [
+        "0120012001200120",
+        "2021202120212021"
+      ]
+    },
+    {
+      "operation": "line",
+      "function": "0x1fdde",
+      "color": "0x1889",
+      "x": 0,
+      "y": 0,
+      "end_x": 15,
+      "end_y": 0,
+      "initial_pixel": 1,
+      "rows": [
+        "2021202120212021"
+      ]
+    },
+    {
+      "operation": "line",
+      "function": "0x1fdde",
+      "color": "0x1889",
+      "x": 0,
+      "y": 1,
+      "end_x": 15,
+      "end_y": 1,
+      "initial_pixel": 1,
+      "rows": [
+        "2021202120212021"
+      ]
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 0,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "1000"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 1,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "1100"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 2,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "1110"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 3,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 0,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "1000"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 1,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "2100"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 2,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "0210"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 3,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 0,
+      "packed_byte_pixels": "2021"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 0,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 1,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 2,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x5555",
+      "x": 3,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 0,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 1,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "3111"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 2,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "1311"
+    },
+    {
+      "operation": "point_and_size1_sphere",
+      "functions": [
+        "0x26ab6",
+        "0x234e8"
+      ],
+      "color": "0x1889",
+      "x": 3,
+      "tested_y": [
+        0,
+        1
+      ],
+      "initial_pixel": 1,
+      "packed_byte_pixels": "3131"
+    }
+  ],
+  "cga_point_phase": "Actual queued POINT dispatch asmorig/seg006.asm _fill_pixel passes the full material word to putpixel_single_maybe. Original preRender_sphere0x234e8 with half-height zero also passes the full word at0x23515. Original putpixel0x26ab6 reads the LOW byte and shifts it left without masking to2bits; it clears only the target2-bit pixel and ORs the shifted byte into the existing packed4-pixel byte. This can alter up to three preceding pixels within the same byte. Formula: outByte=(oldByte & ~(3 << shift)) | ((colorLow << shift)&255), shift=6-2*(x&3). Original point and size1 sphere were executed independently with identical output atX0..3,Y0..1.",
+  "ega_two_color_phase": "Original preRender0x1f3da stores the pattern at DS:4bae and alternate color at DS:4bb0, then chooses span raster0x23caf. That raster uses the mask HIGH byte on EVEN Y and LOW byte on ODD Y, fills the base color, and overlays the alternate color where mask bits are set. Therefore the shared call preRender_two_color(pattern,secondary,primary) preserves the original material roles without a mask byte swap."
+}

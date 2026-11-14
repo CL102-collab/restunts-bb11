@@ -8,6 +8,7 @@
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/mt32_audio.h"
 #include "../platform/sdl3/video_game.h"
+#include "../platform/sdl3/video_mode.h"
 #ifndef __ANDROID__
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -163,6 +164,36 @@ static const legacy_s8 *startup_option_suffix(const legacy_s8 *argument, const l
 	return argument;
 }
 
+static legacy_u8 startup_parse_video_mode(const legacy_s8 *argument,
+										  struct STARTUP_OPTIONS *options)
+{
+	const legacy_s8 *value = startup_option_suffix(argument, STARTUP_VIDEO_MODE_PREFIX);
+	if (value == NULL) {
+		return 0;
+	}
+	if (options->video_mode_specified != 0) {
+		startup_option_error_text("Only one video mode may be specified (--videomode:).\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	static const struct {
+		const legacy_s8 *name;
+		legacy_u8 mode;
+	} modes[] = {
+		{"vga", SDL3_VIDEO_MODE_VGA}, {"ega", SDL3_VIDEO_MODE_EGA}, {"cga", SDL3_VIDEO_MODE_CGA}};
+	for (legacy_u16 index = 0; index < sizeof(modes) / sizeof(modes[0]); index++) {
+		if (stricmp(value, modes[index].name) == 0) {
+			options->video_mode = modes[index].mode;
+			options->video_mode_specified = 1;
+			return 1;
+		}
+	}
+	startup_option_error_text(
+		"Invalid video mode; use --videomode:vga, --videomode:ega or --videomode:cga.\n");
+	dos_process_exit(1);
+	return 1;
+}
+
 static legacy_u8 startup_parse_sound_option(legacy_s16 argc, legacy_s8 *argv[], legacy_u16 *index,
 											struct STARTUP_OPTIONS *options)
 {
@@ -222,6 +253,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	options->mph_display_specified = 0;
 #ifdef RESTUNTS_SDL3
+	options->video_mode = SDL3_VIDEO_MODE_VGA;
+	options->video_mode_specified = 0;
 	options->sound_mode = STARTUP_SOUND_ADLIB;
 	options->mt32_rom_directory = NULL;
 	options->mt32_model = NULL;
@@ -251,6 +284,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 			continue;
 		}
 #ifdef RESTUNTS_SDL3
+		if (startup_parse_video_mode(argv[i], options) != 0) {
+			continue;
+		}
 		if (startup_parse_sound_option(argc, argv, &i, options) != 0) {
 			continue;
 		}
@@ -402,6 +438,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	mph_display_enabled = startup_options.mph_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+	sdl3_video_set_startup_mode(startup_options.video_mode);
 #ifndef __DJGPP__
 	hires_render_workers_set_enabled(startup_options.multi_core_enabled);
 #endif

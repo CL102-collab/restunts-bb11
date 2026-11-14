@@ -312,6 +312,7 @@ set(platform_files ${platform}/file.c ${platform}/car_zip.c third_party/puff/puf
 set(platform_common ${platform}/memory.c ${platform_files} ${platform}/runtime.c
     ${core}/extended/extended_file_dialog.c)
 set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c
+    ${platform}/video_mode.c ${platform}/video_mode_bitmaps.c ${platform}/video_mode_primitives.c
 ${platform}/timer.c
     ${platform}/audio.c ${platform}/music.c ${platform}/pc_speaker_driver.c
     ${platform}/pc_speaker_audio.c ${platform}/touch.c ${platform}/soft_keyboard.c)
@@ -739,6 +740,23 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-extended-editor PRIVATE -UNDEBUG)
         add_test(NAME extended-editor COMMAND test-extended-editor)
     endif()
+    add_executable(test-video-mode-bitmaps src/restunts/tests/test-video-mode-bitmaps.c
+        ${platform}/video_mode_bitmaps.c)
+    target_link_libraries(test-video-mode-bitmaps PRIVATE restunts_options)
+    target_compile_definitions(test-video-mode-bitmaps PRIVATE RESTUNTS_FULL)
+    target_compile_options(test-video-mode-bitmaps PRIVATE -UNDEBUG)
+    add_test(NAME video-mode-bitmaps COMMAND test-video-mode-bitmaps)
+    add_executable(test-video-modes src/restunts/tests/test-video-modes.c
+        ${platform}/video_mode.c ${platform}/video_mode_bitmaps.c)
+    target_link_libraries(test-video-modes PRIVATE restunts_options)
+    target_compile_definitions(test-video-modes PRIVATE RESTUNTS_FULL)
+    target_compile_options(test-video-modes PRIVATE -UNDEBUG)
+    add_test(NAME video-modes COMMAND test-video-modes)
+    add_executable(test-video-mode-primitives src/restunts/tests/test-video-mode-primitives.c)
+    target_link_libraries(test-video-mode-primitives PRIVATE restunts_game)
+    target_compile_definitions(test-video-mode-primitives PRIVATE RESTUNTS_FULL)
+    target_compile_options(test-video-mode-primitives PRIVATE -UNDEBUG)
+    add_test(NAME video-mode-primitives COMMAND test-video-mode-primitives)
     add_executable(test-extended-track ${common_sources} ${core}/headless/headless.c ${platform_common}
         src/restunts/tests/test-extended-track.c)
     target_compile_definitions(test-extended-track PRIVATE RESTUNTS_HEADLESS)
@@ -1157,7 +1175,8 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_test(NAME sdl3-soft-keyboard COMMAND test-sdl3-soft-keyboard)
     add_executable(test-sdl3-input src/restunts/tests/test-sdl3-input.c
         ${platform}/input.c ${platform}/video.c ${platform}/timer.c ${platform}/touch.c
-        ${platform}/soft_keyboard.c ${core}/hires/frame_adaptive.c)
+        ${platform}/soft_keyboard.c ${core}/hires/frame_adaptive.c
+        ${platform}/video_mode.c ${platform}/video_mode_bitmaps.c)
     target_link_libraries(test-sdl3-input PRIVATE restunts_options)
     target_compile_options(test-sdl3-input PRIVATE -UNDEBUG)
     add_test(NAME sdl3-input COMMAND test-sdl3-input)
@@ -1226,6 +1245,9 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-render-replay PRIVATE -UNDEBUG)
         add_test(NAME render-replay COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-replay.py"
+            "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
+        add_test(NAME video-mode-replay COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-video-mode-replay.py"
             "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
         add_executable(test-ghost-racing-line ${platform}/main.c
             src/restunts/tests/test-ghost-racing-line.c)

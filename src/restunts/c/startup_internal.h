@@ -22,6 +22,9 @@
 #define STARTUP_NO_SOUND_OPTION "--nosound"
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
 #define STARTUP_SOUND_MODE_PREFIX "--soundmode:"
+#ifdef RESTUNTS_SDL3
+#define STARTUP_VIDEO_MODE_PREFIX "--videomode:"
+#endif
 #define STARTUP_SOUND_ADLIB 0U
 #define STARTUP_SOUND_MT32 1U
 #define STARTUP_SOUND_PC_SPEAKER 2U
@@ -62,6 +65,8 @@ struct STARTUP_OPTIONS {
 	legacy_u8 mph_display_enabled;
 	legacy_u8 mph_display_specified;
 #ifdef RESTUNTS_SDL3
+	legacy_u8 video_mode;
+	legacy_u8 video_mode_specified;
 	legacy_u8 sound_mode;
 	const legacy_s8 *mt32_rom_directory;
 	const legacy_s8 *mt32_model;

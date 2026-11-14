@@ -96,6 +96,7 @@ static void test_help_contents(void)
 		"  --nointro",
 		"  --nosound",
 #ifdef RESTUNTS_SDL3
+		"  --videomode:vga|ega|cga",
 		"  --soundmode:pc-speaker|adlib|mt-32",
 #ifndef __DJGPP__
 		"  --mt-32-rom-dir DIR",
@@ -185,6 +186,10 @@ static void test_help_contents(void)
 	assert(strstr(output, "Controller vibration") == NULL);
 #endif
 #ifdef RESTUNTS_SDL3
+	expect_text("Select classic graphics; default VGA; supply once.");
+	expect_text("Video mode starts at VGA; HyperVision always uses VGA graphics.");
+	expect_text("Video mode options are case-insensitive.");
+	expect_text("use --videomode for classic graphics.");
 	expect_text("HyperVision starts off.");
 	expect_text("Ogg music starts off.");
 	expect_text("Shift+F10 switches music sources outside races.");
@@ -196,6 +201,8 @@ static void test_help_contents(void)
 #if !defined(RESTUNTS_AMIGA) && !(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 	assert(strstr(output, "--data-dir") == NULL);
 #endif
+	assert(strstr(output, "--videomode") == NULL);
+	assert(strstr(output, "Video mode starts") == NULL);
 	assert(strstr(output, "--ogg") == NULL);
 	assert(strstr(output, "hv:") == NULL);
 	assert(strstr(output, "--licenses") == NULL);

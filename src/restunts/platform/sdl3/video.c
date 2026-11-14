@@ -1,5 +1,6 @@
 #include "../../c/video/video_framebuffer.h"
 #include "sdl3.h"
+#include "video_mode.h"
 #include "touch.h"
 #include "soft_keyboard.h"
 #include "../../c/platform.h"
@@ -52,6 +53,7 @@ static SDL_Color palette_colors[VGA_PALETTE_COLOR_COUNT];
 static legacy_u32 palette_pixels[VGA_PALETTE_COLOR_COUNT];
 static legacy_u8 previous_pixels[SCREEN_BYTES];
 static legacy_u32 previous_generation;
+static legacy_u32 previous_classic_generation;
 static legacy_u64 last_present;
 static legacy_u8 palette_changed = true;
 static legacy_u8 drawing_frame;
@@ -372,7 +374,9 @@ static void prepare_presentation_page(const legacy_u8 *legacy_pixels)
 	/* Compose from the original address so high-resolution companion pixels
 	 * remain associated with it. Bake the palette into the owned hidden page,
 	 * then flip only after the entire composition is complete. */
-	video_copy_framebuffer_argb(legacy_pixels, palette_pixels, page->pixels,
+	const legacy_u8 *composed =
+		hires_enabled() ? legacy_pixels : sdl3_video_mode_framebuffer(legacy_pixels);
+	video_copy_framebuffer_argb(composed, palette_pixels, page->pixels,
 								width * sizeof(*page->pixels));
 	front_page = back_page;
 }
@@ -487,6 +491,9 @@ void sdl3_video_present(void)
 			height = hires_render_height();
 		} else {
 			pixels = video_framebuffer(legacy_pixels, &width, &height);
+			if (!hires_enabled()) {
+				pixels = sdl3_video_mode_framebuffer(pixels);
+			}
 		}
 		present_surface(pixels, argb, width, height);
 	} else {
@@ -495,6 +502,7 @@ void sdl3_video_present(void)
 	}
 	memcpy(previous_pixels, legacy_pixels, SCREEN_BYTES);
 	previous_generation = hires_generation();
+	previous_classic_generation = sdl3_video_mode_generation();
 	palette_changed = false;
 	last_present = SDL_GetTicks();
 }
@@ -615,6 +623,7 @@ void sdl3_video_refresh(void)
 	if (window != NULL && !drawing_frame && SDL_GetTicks() - last_present >= PRESENT_INTERVAL_MS) {
 		const legacy_u8 *pixels = dos_memory_make_pointer(VGA_MEMORY_SEGMENT, 0);
 		if (palette_changed || hires_generation() != previous_generation ||
+			sdl3_video_mode_generation() != previous_classic_generation ||
 			memcmp(pixels, previous_pixels, SCREEN_BYTES) != 0) {
 			sdl3_video_present();
 		}
@@ -625,6 +634,7 @@ void sdl3_video_refresh(void)
 
 void sdl3_video_shutdown(void)
 {
+	sdl3_video_mode_shutdown();
 	SDL_DestroySurface(frame_surface);
 	SDL_DestroyTexture(texture);
 	for (legacy_u32 index = 0; index < PRESENTATION_PAGE_COUNT; index++) {
@@ -741,6 +751,7 @@ void dos_video_set_palette(legacy_u16 start, legacy_u16 count, legacy_u8 *palett
 								((legacy_u32)color->g << LEGACY_BYTE_BITS) | color->b;
 		palette += VGA_PALETTE_CHANNEL_COUNT;
 	}
+	sdl3_video_mode_palette(palette_pixels);
 	palette_changed = true;
 }
 

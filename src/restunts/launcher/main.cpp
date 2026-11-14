@@ -160,6 +160,14 @@ class LauncherDialog : public wxDialog
 		}
 		hypervision_->SetSelection(options_.hypervision);
 		graphics_grid->Add(hypervision_, FIXED_LAYOUT, wxEXPAND);
+		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Video mode"),
+						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		video_mode_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
+		for (const LauncherVideoDefinition &mode : launcher_video_definitions) {
+			video_mode_->Append(mode.label);
+		}
+		video_mode_->SetSelection(options_.video_mode);
+		graphics_grid->Add(video_mode_, FIXED_LAYOUT, wxEXPAND);
 		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
 		fields->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 		add_group(content, fields, "Driving rules", LAUNCHER_POWER_GEAR, LAUNCHER_OPTION_COUNT);
@@ -488,6 +496,7 @@ class LauncherDialog : public wxDialog
 			options_.enabled[index] = checks_[index]->GetValue();
 		}
 		options_.hypervision = hypervision_->GetSelection();
+		options_.video_mode = video_mode_->GetSelection();
 		wxString save_error;
 		{
 			wxLogNull quiet;
@@ -581,6 +590,7 @@ class LauncherDialog : public wxDialog
 	LauncherOptions options_;
 	wxTextCtrl *folder_;
 	wxChoice *hypervision_;
+	wxChoice *video_mode_;
 	wxChoice *sound_mode_;
 	wxChoice *rom_set_;
 	wxTextCtrl *rom_folder_;

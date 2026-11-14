@@ -46,6 +46,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --nosound        Alias for /ns; overrides sound mode regardless of "
 	"order." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
+	"  --videomode:vga|ega|cga  Select classic graphics; default VGA; supply "
+	"once." COMMAND_LINE_NEWLINE
 	"  --soundmode:pc-speaker|adlib|mt-32  Select original synthesized audio; default "
 	"adlib." COMMAND_LINE_NEWLINE
 #if !defined(__DJGPP__)
@@ -94,7 +96,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  /ns              Start with music and sound effects disabled." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  /sXX             Legacy selection; use --soundmode for native audio." COMMAND_LINE_NEWLINE
-	"  /h               Legacy video switch; no alternate mode in SDL3." COMMAND_LINE_NEWLINE
+	"  /h               Legacy video switch; use --videomode for classic "
+	"graphics." COMMAND_LINE_NEWLINE
 #elif defined(RESTUNTS_AMIGA)
 	"  /sXX             Legacy selection; Amiga uses Paula with AdLib "
 	"instruments." COMMAND_LINE_NEWLINE
@@ -113,6 +116,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"With --cfg:off, chicane off-road areas use the terrain surface." COMMAND_LINE_NEWLINE
 	"Amiga grass grip starts off; enable with --amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
+	"Video mode starts at VGA; HyperVision always uses VGA graphics." COMMAND_LINE_NEWLINE
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
 	"Multi-core rendering starts on." COMMAND_LINE_NEWLINE
@@ -133,6 +137,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
+	"Video mode options are case-insensitive." COMMAND_LINE_NEWLINE
 	"HyperVision presets and Ogg music options are also case-insensitive." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
 	"Multi-core rendering options are case-insensitive." COMMAND_LINE_NEWLINE

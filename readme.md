@@ -228,6 +228,22 @@ Replay pan and zoom controls still work; the next F3 preset uses its fixed posit
 
 <a id="supersight-and-fps-display"></a>
 
+### Classic video modes
+
+SDL3 builds support **VGA** (the default), **EGA**, and **CGA** in the
+**Video mode** dropdown under **Graphics settings** on desktop, Web, and Android.
+The choice is remembered separately from HyperVision. Command-line launches,
+including 32-bit DOS, use `--videomode:vga`, `--videomode:ega`, or
+`--videomode:cga`; 32-bit DOS has no startup window.
+
+EGA and CGA use the original DOS bitmap conversion tables, material colors,
+and dithering patterns. EGA displays sixteen colors; CGA uses the original
+black, cyan, magenta, and light-gray palette. Custom bitmap resources without
+conversion tables use color matching. HyperVision always retains VGA graphics,
+regardless of the selected classic mode. Switching HyperVision off restores
+the selected classic graphics. Original 16-bit DOS video-driver selection is
+unchanged.
+
 ### HyperVision and FPS display
 
 Press **F12** while driving or viewing a replay to toggle HyperVision. In SDL3
