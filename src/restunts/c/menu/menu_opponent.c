@@ -110,7 +110,7 @@ static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 
 static void opponent_menu_draw_ghost(const struct SHAPE2D far *portrait)
 {
-	static const legacy_s8 pixels[OPPONENT_GHOST_ROWS][OPPONENT_GHOST_COLUMNS + 1] = {
+	static const legacy_s8 far pixels[OPPONENT_GHOST_ROWS][OPPONENT_GHOST_COLUMNS + 1] = {
 		".............############.............", "..........##################..........",
 		"........######################........", "......##########################......",
 		".....############################.....", "....##############################....",
