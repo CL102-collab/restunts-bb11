@@ -85,6 +85,19 @@ void opponent_portrait_unload(void)
 
 #define OPPONENT_TEST_EVENT_CAPACITY 32U
 #define OPPONENT_TEST_RESOURCE_COUNT 3U
+#define OPPONENT_TEST_PORTRAIT_X 112U
+#define OPPONENT_TEST_PORTRAIT_Y 6U
+#define OPPONENT_TEST_PORTRAIT_WIDTH 80U
+#define OPPONENT_TEST_PORTRAIT_HEIGHT 83U
+#define OPPONENT_TEST_INTERIOR_X 2U
+#define OPPONENT_TEST_INTERIOR_Y 2U
+#define OPPONENT_TEST_INTERIOR_WIDTH 74U
+#define OPPONENT_TEST_INTERIOR_HEIGHT 79U
+#define OPPONENT_TEST_PORTRAIT_SENTINEL 7U
+#define OPPONENT_TEST_BLACK 0U
+#define OPPONENT_TEST_WHITE 15U
+#define OPPONENT_TEST_EYE_COUNT 2U
+#define OPPONENT_TEST_MIN_ZIGZAG_TURNS 2U
 
 enum OPPONENT_TEST_DRAW_TARGET { OPPONENT_TEST_RENDER_WINDOW, OPPONENT_TEST_BACKBUFFER };
 
@@ -212,6 +225,135 @@ static legacy_s16 ghost_selected, ghost_selection_result;
 static legacy_s8 file_dialog_result;
 static legacy_u32 ghost_dialogs, ghost_selections, ghost_button_draws, ghost_descriptions;
 static legacy_u32 clock_descriptions, car_menu_calls, error_dialogs;
+static legacy_u32 ghost_picture_checks, clock_picture_checks;
+static legacy_u32 opponent_ghost_fill_calls;
+static legacy_u8 opponent_picture[OPPONENT_TEST_PORTRAIT_HEIGHT][OPPONENT_TEST_PORTRAIT_WIDTH];
+
+legacy_u16 shape2d_get_pos_x(const struct SHAPE2D *shape)
+{
+	assert(shape == &fixture_shapes[1]);
+	return shape->position_x;
+}
+
+legacy_u16 shape2d_get_pos_y(const struct SHAPE2D *shape)
+{
+	assert(shape == &fixture_shapes[1]);
+	return shape->position_y;
+}
+
+void sprite_fill_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+							  legacy_s16 color)
+{
+	assert(gameconfig.game_opponenttype == 0 && ghost_selected != 0);
+#ifdef RESTUNTS_SDL3
+	assert(background_ready != 0 && background_mapped_draws == OPPONENT_TEST_MAPPED_PORTRAIT);
+	assert(background_overlay_ready == 0);
+#endif
+	legacy_s16 local_x = x - fixture_shapes[1].position_x;
+	legacy_s16 local_y = y - fixture_shapes[1].position_y;
+	assert(local_x >= (legacy_s16)OPPONENT_TEST_INTERIOR_X &&
+		   local_y >= (legacy_s16)OPPONENT_TEST_INTERIOR_Y);
+	assert(width > 0 && height > 0);
+	assert(local_x + width <=
+		   (legacy_s16)(OPPONENT_TEST_INTERIOR_X + OPPONENT_TEST_INTERIOR_WIDTH));
+	assert(local_y + height <=
+		   (legacy_s16)(OPPONENT_TEST_INTERIOR_Y + OPPONENT_TEST_INTERIOR_HEIGHT));
+	if (opponent_ghost_fill_calls++ == 0) {
+		assert(color == OPPONENT_TEST_BLACK);
+		assert(local_x == OPPONENT_TEST_INTERIOR_X && local_y == OPPONENT_TEST_INTERIOR_Y);
+		assert(width == OPPONENT_TEST_INTERIOR_WIDTH && height == OPPONENT_TEST_INTERIOR_HEIGHT);
+	} else {
+		assert(color == OPPONENT_TEST_WHITE);
+	}
+	for (legacy_s16 row = local_y; row < local_y + height; row++) {
+		for (legacy_s16 column = local_x; column < local_x + width; column++) {
+			opponent_picture[row][column] = (legacy_u8)color;
+		}
+	}
+}
+
+static void assert_ghost_picture(void)
+{
+	assert(opponent_ghost_fill_calls > 1);
+	legacy_u16 left = OPPONENT_TEST_PORTRAIT_WIDTH, right = 0;
+	legacy_u16 top = OPPONENT_TEST_PORTRAIT_HEIGHT, bottom = 0;
+	for (legacy_u16 y = 0; y < OPPONENT_TEST_PORTRAIT_HEIGHT; y++) {
+		for (legacy_u16 x = 0; x < OPPONENT_TEST_PORTRAIT_WIDTH; x++) {
+			legacy_u8 color = opponent_picture[y][x];
+			if (x < OPPONENT_TEST_INTERIOR_X ||
+				x >= OPPONENT_TEST_INTERIOR_X + OPPONENT_TEST_INTERIOR_WIDTH ||
+				y < OPPONENT_TEST_INTERIOR_Y ||
+				y >= OPPONENT_TEST_INTERIOR_Y + OPPONENT_TEST_INTERIOR_HEIGHT) {
+				assert(color == OPPONENT_TEST_PORTRAIT_SENTINEL);
+				continue;
+			}
+			assert(color == OPPONENT_TEST_BLACK || color == OPPONENT_TEST_WHITE);
+			assert(color == opponent_picture[y][OPPONENT_TEST_INTERIOR_X * 2 +
+												OPPONENT_TEST_INTERIOR_WIDTH - 1 - x]);
+			if (color == OPPONENT_TEST_WHITE) {
+				if (x < left) {
+					left = x;
+				}
+				if (x > right) {
+					right = x;
+				}
+				if (y < top) {
+					top = y;
+				}
+				if (y > bottom) {
+					bottom = y;
+				}
+			}
+		}
+	}
+	/* Leave a black margin around the silhouette and retain its rounded crown. */
+	assert(left > OPPONENT_TEST_INTERIOR_X && top > OPPONENT_TEST_INTERIOR_Y);
+	assert(right + 1U < OPPONENT_TEST_INTERIOR_X + OPPONENT_TEST_INTERIOR_WIDTH);
+	assert(bottom + 1U < OPPONENT_TEST_INTERIOR_Y + OPPONENT_TEST_INTERIOR_HEIGHT);
+	assert(opponent_picture[top][left] == OPPONENT_TEST_BLACK);
+	/* Two enclosed black gaps in the upper half are the eye cutouts. */
+	legacy_u16 maximum_eye_gaps = 0;
+	for (legacy_u16 y = top; y <= (top + bottom) / 2; y++) {
+		legacy_u16 row_left = left, row_right = right;
+		while (row_left < right && opponent_picture[y][row_left] != OPPONENT_TEST_WHITE) {
+			row_left++;
+		}
+		while (row_right > row_left && opponent_picture[y][row_right] != OPPONENT_TEST_WHITE) {
+			row_right--;
+		}
+		legacy_u16 gaps = 0;
+		for (legacy_u16 x = row_left + 1; x < row_right; x++) {
+			if (opponent_picture[y][x] == OPPONENT_TEST_BLACK &&
+				opponent_picture[y][x - 1] == OPPONENT_TEST_WHITE) {
+				gaps++;
+			}
+		}
+		assert(gaps <= OPPONENT_TEST_EYE_COUNT);
+		if (gaps > maximum_eye_gaps) {
+			maximum_eye_gaps = gaps;
+		}
+	}
+	assert(maximum_eye_gaps == OPPONENT_TEST_EYE_COUNT);
+	/* A zigzag hem repeatedly changes direction; a flat or rounded bottom fails. */
+	legacy_s16 previous_direction = 0;
+	legacy_u16 previous_bottom = 0, turns = 0;
+	for (legacy_u16 x = left; x <= right; x++) {
+		legacy_u16 column_bottom = bottom;
+		while (column_bottom > top && opponent_picture[column_bottom][x] != OPPONENT_TEST_WHITE) {
+			column_bottom--;
+		}
+		if (x != left && column_bottom != previous_bottom) {
+			legacy_s16 direction = column_bottom > previous_bottom ? 1 : -1;
+			if (previous_direction != 0 && direction != previous_direction) {
+				turns++;
+			}
+			previous_direction = direction;
+		}
+		previous_bottom = column_bottom;
+	}
+	assert(turns >= OPPONENT_TEST_MIN_ZIGZAG_TURNS);
+	ghost_picture_checks++;
+}
 
 legacy_s16 ghost_is_selected(void)
 {
@@ -285,6 +427,14 @@ void draw_button(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 width, 
 
 void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 {
+	if (gameconfig.game_opponenttype == 0 && ghost_selected != 0) {
+		assert_ghost_picture();
+	} else {
+		assert(opponent_ghost_fill_calls == 0);
+		if (gameconfig.game_opponenttype == 0) {
+			clock_picture_checks++;
+		}
+	}
 #ifdef RESTUNTS_SDL3
 	assert(background_ready != 0 && background_mapped_draws == OPPONENT_TEST_MAPPED_CLIP);
 	assert(background_overlay_ready != 0);
@@ -421,6 +571,10 @@ void locate_many_resources(legacy_s8 *resource, const legacy_s8 *names, legacy_s
 
 void sprite_draw_palette_mapped(struct SHAPE2D *shape)
 {
+	if (shape == &fixture_shapes[1]) {
+		memset(opponent_picture, OPPONENT_TEST_PORTRAIT_SENTINEL, sizeof(opponent_picture));
+		opponent_ghost_fill_calls = 0;
+	}
 	assert(shape == &fixture_shapes[0] || shape == &fixture_shapes[1]);
 	assert((legacy_u8)gameconfig.game_opponenttype <= 6);
 #ifdef RESTUNTS_SDL3
@@ -490,6 +644,9 @@ static void begin_case(legacy_u8 opponent, legacy_u8 page_flipping)
 	file_dialog_result = 1;
 	ghost_dialogs = ghost_selections = ghost_button_draws = ghost_descriptions = 0;
 	clock_descriptions = car_menu_calls = error_dialogs = 0;
+	ghost_picture_checks = clock_picture_checks = opponent_ghost_fill_calls = 0;
+	fixture_shapes[1].position_x = OPPONENT_TEST_PORTRAIT_X;
+	fixture_shapes[1].position_y = OPPONENT_TEST_PORTRAIT_Y;
 	event_count = event_index = expected_load_count = load_count = 0;
 	resource_allocations = resource_releases = window_allocations = window_releases = 0;
 	expect_load(opponent);
@@ -522,6 +679,8 @@ static void finish_case(legacy_u8 opponent, legacy_u32 refresh_count)
 	assert(resource_allocations == resource_releases && window_allocations == window_releases);
 	assert(resource_allocations == expected_load_count + 2 && window_allocations == refresh_count);
 	assert(window_live == 0);
+	assert(ghost_picture_checks == ghost_descriptions);
+	assert(clock_picture_checks == clock_descriptions);
 	for (legacy_u32 index = 0; index < OPPONENT_TEST_RESOURCE_COUNT; index++) {
 		assert(resource_live[index] == 0);
 	}
@@ -672,6 +831,24 @@ static void test_opponent_car(legacy_u8 page_flipping, legacy_u8 initial_fps)
 	assert(car_menu_calls == 1 && ghost_dialogs == 0 && ghost_button_draws == 0);
 }
 
+static void test_ghost_renderer_toggle(legacy_u8 page_flipping)
+{
+	begin_case(0, page_flipping);
+	ghost_selected = 1;
+	/* Also honor a portrait resource relocated from its stock screen position. */
+	fixture_shapes[1].position_x += OPPONENT_TEST_INTERIOR_WIDTH;
+	fixture_shapes[1].position_y += OPPONENT_TEST_INTERIOR_Y;
+	add_event(KEY_F12, 0);
+	add_event(KEY_F12, 0);
+	add_event(KEY_ENTER, 0);
+	opponent_hits[event_count - 1] = 4;
+	finish_case(0, 1);
+	assert(ghost_selected != 0 && renderer_active == 0);
+	assert(ghost_picture_checks == 3 && clock_picture_checks == 0);
+	assert(opponent_background_draws == 3);
+	assert(opponent_background_copies == (page_flipping != 0 ? 3 : 0));
+}
+
 static void test_notice_expiry(legacy_u8 page_flipping, legacy_u16 shortcut, legacy_u8 initial_fps)
 {
 	begin_case(3, page_flipping);
@@ -728,6 +905,7 @@ int main(void)
 		}
 		test_return_to_clock(page_flipping);
 		test_escape_after_opponent_change(page_flipping);
+		test_ghost_renderer_toggle(page_flipping);
 		for (legacy_u8 selection = 0; selection < OPPONENT_TEST_BUTTON_COUNT; selection++) {
 			for (legacy_u8 use_mouse = 0; use_mouse < 2; use_mouse++) {
 				test_escape_back(page_flipping, 0, selection, use_mouse);

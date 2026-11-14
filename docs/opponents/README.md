@@ -21,7 +21,10 @@ SDL3 builds display the enhanced photos while HyperVision is enabled.
 **F12** also switches the artwork while the opponent menu is open. If an
 individual replacement cannot be loaded, that opponent keeps the original
 portrait. Turning HyperVision off restores the original artwork for all six.
-Clock and Ghost retain their original illustration.
+Clock retains its original illustration. Selecting a ghost replay replaces the
+clock with a symmetric white pixel-art ghost on a black backdrop, with black
+eye cutouts and a zigzag hem. The ghost uses the same illustration in classic
+and enhanced modes.
 
 The original portraits occupy 80 x 83 VGA pixels. The final tile's photo interior
 is 148 x 158 at `(4,4)`. The loader crops this interior and displays it beneath
