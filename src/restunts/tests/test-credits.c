@@ -4,9 +4,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "../c/keyboard.h"
 #include "../c/intro.c"
 #undef printf
 #undef strcpy
+#undef strcmp
 #undef memcpy
 
 static legacy_u32 trace_hash = UINT32_C(2166136261);
@@ -17,6 +19,65 @@ static legacy_u32 poll_count, cancel_poll, blit_count, cancel_blit;
 static legacy_u32 elapsed;
 static legacy_s16 repeat_result;
 static legacy_s8 resource[16];
+static legacy_u8 scripted_input;
+static legacy_s16 scripted_key;
+static legacy_u32 scripted_poll, scripted_blit, shortcut_count, shape_count;
+static legacy_u8 fps_visible, enhanced_visible;
+static legacy_u8 font_data[4];
+legacy_u8 *active_font_definition;
+
+enum INTRO_INPUT_PHASE {
+	INTRO_INPUT_PRODUCTION_FADE,
+	INTRO_INPUT_PRODUCTION_WAIT,
+	INTRO_INPUT_TITLE_FADE,
+	INTRO_INPUT_TITLE_WAIT,
+	INTRO_INPUT_PHASE_COUNT
+};
+
+#define INTRO_INPUT_TEST_TICKS 100U
+#define INTRO_INPUT_TEST_WAIT_POLLS (INTRO_PAGE_INPUT_DELAY / INTRO_INPUT_TEST_TICKS)
+
+legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
+{
+	assert(key == KEY_F11 || key == KEY_F12 || key == KEY_SHIFT_F12);
+	shortcut_count++;
+	if (key == KEY_F11) {
+		fps_visible ^= 1U;
+	} else if (key == KEY_F12) {
+		enhanced_visible ^= 1U;
+	} else {
+		enhanced_visible = 1;
+	}
+	return 1;
+}
+
+void sprite_select_screen_and_clear(void)
+{
+}
+
+legacy_s8 *locate_shape_fatal(legacy_s8 *chunk, const legacy_s8 *name)
+{
+	assert(chunk == resource);
+	assert(strcmp((const legacy_char *)name, "prod") == 0 ||
+		   strcmp((const legacy_char *)name, "titl") == 0);
+	return (legacy_s8 *)&shapes[0];
+}
+
+void load_audio_finalize(void *audio)
+{
+	assert(audio == NULL);
+}
+
+void font_set_fontdef2(void *data)
+{
+	active_font_definition = data;
+}
+
+void font_set_colors(legacy_s16 color, legacy_s16 background)
+{
+	(void)color;
+	(void)background;
+}
 
 static void trace(legacy_u32 value)
 {
@@ -107,7 +168,11 @@ legacy_s16 sprite_blit_to_video(struct SPRITE far *sprite, legacy_s16 fade)
 	assert(sprite == &window);
 	trace(8);
 	trace(fade);
-	return ++blit_count == cancel_blit;
+	blit_count++;
+	if (scripted_input != 0) {
+		return blit_count == scripted_blit ? scripted_key : 0;
+	}
+	return blit_count == cancel_blit;
 }
 void sprite_select_screen_compat(void)
 {
@@ -148,7 +213,14 @@ legacy_s16 input_do_checking(legacy_s16 ticks)
 	trace(15);
 	trace(ticks);
 	assert(poll_count < 2000);
-	return ++poll_count == cancel_poll ? 27 : 0;
+	poll_count++;
+	if (scripted_input != 0) {
+		return poll_count == scripted_poll ? scripted_key : 0;
+	}
+	if (blit_count >= 2 && repeat_result != 0) {
+		return repeat_result;
+	}
+	return poll_count == cancel_poll ? KEY_ESCAPE : 0;
 }
 void sprite_select_render_window(void)
 {
@@ -172,6 +244,7 @@ void sprite_shape_to_1_alt(struct SHAPE2D far *shape)
 {
 	trace(19);
 	trace(shape - shapes);
+	shape_count++;
 }
 void sprite_putimage(struct SHAPE2D far *shape)
 {
@@ -190,7 +263,143 @@ legacy_s16 input_repeat_check(legacy_s16 ticks)
 	return repeat_result;
 }
 
-int main(void)
+static void prepare_input_script(legacy_s16 key)
+{
+	scripted_input = 1;
+	scripted_key = key;
+	scripted_poll = scripted_blit = shortcut_count = shape_count = 0;
+	poll_count = blit_count = 0;
+	fps_visible = enhanced_visible = 0;
+	elapsed = INTRO_INPUT_TEST_TICKS;
+	ui_temp_resource = resource;
+	render_window_sprite = &window;
+	window.sprite_bitmapptr = &shapes[0];
+	fontnptr = font_data;
+	active_font_definition = font_data;
+	shapes[0].position_y = 0;
+}
+
+static void select_input_phase(enum INTRO_INPUT_PHASE phase)
+{
+	switch (phase) {
+		case INTRO_INPUT_PRODUCTION_FADE:
+			scripted_blit = 1;
+			break;
+		case INTRO_INPUT_PRODUCTION_WAIT:
+			scripted_poll = 1;
+			break;
+		case INTRO_INPUT_TITLE_FADE:
+			scripted_blit = 2;
+			break;
+		case INTRO_INPUT_TITLE_WAIT:
+			scripted_poll = INTRO_INPUT_TEST_WAIT_POLLS + 1U;
+			break;
+		default:
+			assert(0);
+	}
+}
+
+static void assert_shortcut_effect(legacy_s16 key)
+{
+	assert(shortcut_count == 1);
+	assert(fps_visible == (key == KEY_F11));
+	assert(enhanced_visible == (key != KEY_F11));
+}
+
+static void test_title_shortcuts(void)
+{
+	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_F12,
+#ifdef RESTUNTS_SDL3
+										   KEY_SHIFT_F12
+#endif
+	};
+	for (legacy_u16 key = 0; key < sizeof(shortcuts) / sizeof(shortcuts[0]); key++) {
+		for (legacy_u16 phase = 0; phase < INTRO_INPUT_PHASE_COUNT; phase++) {
+			prepare_input_script(shortcuts[key]);
+			select_input_phase((enum INTRO_INPUT_PHASE)phase);
+			assert(run_intro(NULL) == 0);
+			assert(blit_count == 2);
+			assert(poll_count == INTRO_INPUT_TEST_WAIT_POLLS * 2U);
+			assert_shortcut_effect(shortcuts[key]);
+		}
+	}
+	static const legacy_s16 dismissals[] = {KEY_ESCAPE, KEY_SPACE, KEY_ENTER, 'x'};
+	for (legacy_u16 key = 0; key < sizeof(dismissals) / sizeof(dismissals[0]); key++) {
+		for (legacy_u16 phase = 0; phase < INTRO_INPUT_PHASE_COUNT; phase++) {
+			prepare_input_script(dismissals[key]);
+			select_input_phase((enum INTRO_INPUT_PHASE)phase);
+			assert(run_intro(NULL) == dismissals[key]);
+			assert(shortcut_count == 0);
+		}
+	}
+	scripted_input = 0;
+}
+
+static void test_credits_shortcuts(void)
+{
+	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_F12,
+#ifdef RESTUNTS_SDL3
+										   KEY_SHIFT_F12
+#endif
+	};
+	for (legacy_u16 key = 0; key < sizeof(shortcuts) / sizeof(shortcuts[0]); key++) {
+		prepare_input_script(shortcuts[key]);
+		elapsed = CREDITS_ANIMATION_INTERVAL;
+		scripted_poll = 1;
+		assert(credits_slide_arrow(&shapes[1], CREDITS_LEFT_COLUMN_X, 0, 0, 0) == 0);
+		assert(poll_count > 1);
+		assert_shortcut_effect(shortcuts[key]);
+
+		prepare_input_script(shortcuts[key]);
+		elapsed = CREDITS_ANIMATION_INTERVAL;
+		scripted_poll = 1;
+		struct SHAPE2D *credit_shapes[CREDITS_RESOURCE_COUNT];
+		for (legacy_u16 shape = 0; shape < CREDITS_RESOURCE_COUNT; shape++) {
+			credit_shapes[shape] = &shapes[shape];
+		}
+		credits_animate_shapes(credit_shapes, 0, 0);
+		assert(shape_count == CREDITS_ANIMATION_END_INDEX - CREDITS_FIRST_ANIMATION_INDEX);
+		assert_shortcut_effect(shortcuts[key]);
+
+		for (legacy_u16 fade = 0; fade < 2U; fade++) {
+			prepare_input_script(shortcuts[key]);
+			scripted_blit = fade != 0;
+			scripted_poll = fade == 0;
+			assert(credits_present_closing(credit_shapes, 0) == 0);
+			assert_shortcut_effect(shortcuts[key]);
+		}
+	}
+	static const legacy_s16 dismissals[] = {KEY_ESCAPE, KEY_SPACE, KEY_ENTER, 'x'};
+	for (legacy_u16 key = 0; key < sizeof(dismissals) / sizeof(dismissals[0]); key++) {
+		prepare_input_script(dismissals[key]);
+		elapsed = CREDITS_ANIMATION_INTERVAL;
+		scripted_poll = 1;
+		assert(credits_slide_arrow(&shapes[1], CREDITS_LEFT_COLUMN_X, 0, 0, 0) == dismissals[key]);
+		assert(shortcut_count == 0);
+
+		struct SHAPE2D *credit_shapes[CREDITS_RESOURCE_COUNT];
+		for (legacy_u16 shape = 0; shape < CREDITS_RESOURCE_COUNT; shape++) {
+			credit_shapes[shape] = &shapes[shape];
+		}
+		prepare_input_script(dismissals[key]);
+		elapsed = CREDITS_ANIMATION_INTERVAL;
+		scripted_poll = 1;
+		credits_animate_shapes(credit_shapes, 0, 0);
+		assert(shape_count == 1);
+		assert(shortcut_count == 0);
+
+		for (legacy_u16 fade = 0; fade < 2U; fade++) {
+			prepare_input_script(dismissals[key]);
+			scripted_blit = fade != 0;
+			scripted_poll = fade == 0;
+			assert(credits_present_closing(credit_shapes, 0) == 1);
+			assert(shortcut_count == 0);
+		}
+	}
+	scripted_input = 0;
+}
+
+legacy_int main(void)
 {
 	for (legacy_u32 scenario = 0; scenario < 32; scenario++) {
 		trace(scenario);
@@ -218,7 +427,10 @@ int main(void)
 #ifdef CREDITS_RECORD_BASELINE
 	printf("Credits fingerprint: %08" LEGACY_PRIx32 "\n", trace_hash);
 #else
-	assert(trace_hash == UINT32_C(0x47365795));
+	/* Title/credit waits now poll through the elapsed-preserving intro filter. */
+	assert(trace_hash == UINT32_C(0xb92520b5));
 #endif
+	test_title_shortcuts();
+	test_credits_shortcuts();
 	return 0;
 }

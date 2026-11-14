@@ -539,6 +539,8 @@ F11, Shift+F11, and F12 also work in both car-selection screens and during the
 nighttime driving intro without skipping the animation, including in 16-bit DOS. F12 also
 works in the track preview and opponent-selection menu, with the same two-second
 status display. SDL3 builds additionally support Shift+F12 in these locations.
+F11, F12, and SDL3's Shift+F12 also retain their display actions throughout the
+intro screens and the main menu's idle replay without dismissing playback.
 The main menu, opponent biographies, and static track-selection previews hide
 F11 diagnostics; the F11 setting is retained when returning to a screen that
 displays them. HyperVision previews of extended tracks show the same diagnostics

@@ -24,6 +24,7 @@ static legacy_u32 presented_frames;
 #define TEST_HOTKEY_ARRIVAL_NS 1000000U
 #define TEST_HOTKEY_CATCHUP_FRAMES 4U
 #define TEST_HOTKEY_OPEN_REPLAY 1U
+#define TEST_IDLE_REPLAY_ACTION_SCENARIO 2U
 #define TEST_DASHBOARD_RENDER_MODES 64U
 #define TEST_DASHBOARD_MPH_MODE_SHIFT 5U
 #define TEST_DASHBOARD_DIRTY_MODE_SHIFT 4U
@@ -770,7 +771,11 @@ legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 	}
 #endif
 	if (hotkey_script.active != 0) {
-		if (key != KEY_F11 && key != KEY_F12 && key != KEY_ESCAPE && key != 'd') {
+		if (key != KEY_F11 && key != KEY_F12 && key != KEY_ESCAPE && key != 'd'
+#ifdef RESTUNTS_SDL3
+			&& key != KEY_SHIFT_F12
+#endif
+		) {
 			return 0;
 		}
 		hotkey_script.actions++;
@@ -837,6 +842,62 @@ static void test_driving_hotkey_queue(void)
 		assert(kb_checking() == 0);
 	}
 	memset(&hotkey_script, 0, sizeof(hotkey_script));
+}
+
+static void test_idle_replay_display_hotkeys(void)
+{
+	static const legacy_s16 shortcuts[] = {
+		KEY_F11,
+		KEY_F12,
+#ifdef RESTUNTS_SDL3
+		KEY_SHIFT_F12,
+#endif
+	};
+	static const legacy_s16 dismissals[] = {KEY_ESCAPE, KEY_ENTER, KEY_SPACE,
+											'a',		KEY_F2,	   KEY_CTRL_F9};
+	legacy_u32 saved_scenario = scenario;
+	legacy_u8 saved_idle = idle_expired;
+	legacy_u8 saved_mode = game_replay_mode;
+	legacy_u16 saved_exit = race_exit_request;
+	idle_expired = 1;
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	race_exit_request = 0;
+	scenario = 0;
+	for (legacy_u16 shortcut = 0; shortcut < sizeof(shortcuts) / sizeof(shortcuts[0]); shortcut++) {
+		memset(&hotkey_script, 0, sizeof(hotkey_script));
+		hotkey_script.active = 1;
+		hotkey_script.queue[hotkey_script.count++] = shortcuts[shortcut];
+		hotkey_script.queue[hotkey_script.count++] = shortcuts[shortcut];
+		hotkey_script.queue[hotkey_script.count++] = KEY_ESCAPE;
+		/* Each press performs its action, and the following ordinary key still exits. */
+		assert(race_process_frame_input() == 0);
+		assert(hotkey_script.actions == 1 && hotkey_script.last_action == shortcuts[shortcut]);
+		assert(idle_expired != 0 && game_replay_mode == REPLAY_MODE_PLAYBACK);
+		assert(race_process_frame_input() == 0);
+		assert(hotkey_script.actions == 2 && hotkey_script.last_action == shortcuts[shortcut]);
+		assert(race_process_frame_input() == 1);
+		assert(hotkey_script.actions == 2 && hotkey_script.read == hotkey_script.count);
+		assert(race_process_frame_input() == 0);
+
+		/* A display shortcut must not hide simultaneous action-button input. */
+		hotkey_script.read = 0;
+		scenario = TEST_IDLE_REPLAY_ACTION_SCENARIO;
+		assert(race_process_frame_input() == 1);
+		assert(hotkey_script.actions == 3);
+		scenario = 0;
+	}
+	for (legacy_u16 key = 0; key < sizeof(dismissals) / sizeof(dismissals[0]); key++) {
+		memset(&hotkey_script, 0, sizeof(hotkey_script));
+		hotkey_script.active = 1;
+		hotkey_script.queue[hotkey_script.count++] = dismissals[key];
+		assert(race_process_frame_input() == 1);
+		assert(hotkey_script.actions == 0);
+	}
+	memset(&hotkey_script, 0, sizeof(hotkey_script));
+	idle_expired = saved_idle;
+	game_replay_mode = saved_mode;
+	race_exit_request = saved_exit;
+	scenario = saved_scenario;
 }
 
 static void test_replay_dashboard_rendering(void)
@@ -1611,6 +1672,7 @@ int main(void)
 	assert(trace_hash == UINT32_C(0x72a154e7));
 #endif
 	test_driving_hotkey_queue();
+	test_idle_replay_display_hotkeys();
 	test_rewind_frame_loop();
 	test_replay_dashboard_rendering();
 #ifdef RESTUNTS_SDL3
