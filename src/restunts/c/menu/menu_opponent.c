@@ -43,6 +43,15 @@
 #define OPPONENT_MENU_BUTTON_HEIGHT 18
 #define OPPONENT_DESCRIPTION_X 12
 #define OPPONENT_DESCRIPTION_FIRST_LINE_Y 33
+#define OPPONENT_PORTRAIT_INNER_LEFT 2
+#define OPPONENT_PORTRAIT_INNER_TOP 2
+#define OPPONENT_PORTRAIT_INNER_WIDTH 74
+#define OPPONENT_PORTRAIT_INNER_HEIGHT 79
+#define OPPONENT_GHOST_COLUMNS 18U
+#define OPPONENT_GHOST_ROWS 20U
+#define OPPONENT_GHOST_PIXEL_SIZE 3
+#define OPPONENT_GHOST_BACKGROUND_COLOR 0
+#define OPPONENT_GHOST_BODY_COLOR 15
 
 enum OPPONENT_MENU_BUTTON {
 	OPPONENT_MENU_PREVIOUS_BUTTON = 0,
@@ -99,6 +108,34 @@ static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 	font_set_fontdef();
 }
 
+static void opponent_menu_draw_ghost(const struct SHAPE2D far *portrait)
+{
+	static const legacy_s8 pixels[OPPONENT_GHOST_ROWS][OPPONENT_GHOST_COLUMNS + 1] = {
+		"......######......", "....##########....", "...############...", "..##############..",
+		".################.", "##################", "##################", "####...####...####",
+		"####...####...####", "####...####...####", "##################", "##################",
+		"##################", "##################", "##################", "##################",
+		"##################", "##################", ".####..####..####.", "..##....##....##.."};
+	legacy_s16 left = (legacy_s16)shape2d_get_pos_x(portrait) + OPPONENT_PORTRAIT_INNER_LEFT;
+	legacy_s16 top = (legacy_s16)shape2d_get_pos_y(portrait) + OPPONENT_PORTRAIT_INNER_TOP;
+	sprite_fill_rect_clipped(left, top, OPPONENT_PORTRAIT_INNER_WIDTH,
+							 OPPONENT_PORTRAIT_INNER_HEIGHT, OPPONENT_GHOST_BACKGROUND_COLOR);
+	left +=
+		(OPPONENT_PORTRAIT_INNER_WIDTH - OPPONENT_GHOST_COLUMNS * OPPONENT_GHOST_PIXEL_SIZE) / 2;
+	top += (OPPONENT_PORTRAIT_INNER_HEIGHT - OPPONENT_GHOST_ROWS * OPPONENT_GHOST_PIXEL_SIZE) / 2;
+	for (legacy_u16 row = 0; row < OPPONENT_GHOST_ROWS; row++) {
+		for (legacy_u16 column = 0; column < OPPONENT_GHOST_COLUMNS; column++) {
+			/* Unset cells leave the black backdrop visible through the eyes and hem. */
+			if (pixels[row][column] == '#') {
+				sprite_fill_rect_clipped(left + column * OPPONENT_GHOST_PIXEL_SIZE,
+										 top + row * OPPONENT_GHOST_PIXEL_SIZE,
+										 OPPONENT_GHOST_PIXEL_SIZE, OPPONENT_GHOST_PIXEL_SIZE,
+										 OPPONENT_GHOST_BODY_COLOR);
+			}
+		}
+	}
+}
+
 static void opponent_menu_draw_background(void)
 {
 	static legacy_s8 *button_resource_ids[OPPONENT_MENU_BUTTON_COUNT] = {
@@ -138,6 +175,9 @@ static void opponent_menu_draw_background(void)
 #ifdef RESTUNTS_SDL3
 	opponent_portrait_draw(&drawing_sprite, shape, (legacy_u8)gameconfig.game_opponenttype);
 #endif
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_NONE && ghost_is_selected() != 0) {
+		opponent_menu_draw_ghost(shape);
+	}
 	shape2d_select_ega_palette(opp_res, OPPONENT_MENU_BACKGROUND_EGA_PALETTE);
 	shape = (struct SHAPE2D far *)locate_shape_fatal(opp_res, opponent_portrait_clip_id);
 	sprite_draw_palette_mapped(shape);

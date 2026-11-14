@@ -419,6 +419,26 @@ void locate_many_resources(legacy_s8 *resource, const legacy_s8 *names, legacy_s
 		pointers[i] = (legacy_s8 *)&fixture_shapes[1];
 	}
 }
+legacy_u16 shape2d_get_pos_x(const struct SHAPE2D *shape)
+{
+	return shape->position_x;
+}
+
+legacy_u16 shape2d_get_pos_y(const struct SHAPE2D *shape)
+{
+	return shape->position_y;
+}
+
+void sprite_fill_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+							  legacy_s16 color)
+{
+	(void)x;
+	(void)y;
+	(void)width;
+	(void)height;
+	(void)color;
+}
+
 void sprite_draw_palette_mapped(struct SHAPE2D *shape)
 {
 	trace_word(2008);
