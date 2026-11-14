@@ -91,14 +91,12 @@ legacy_s16 hires_ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live
 			car->car_suspension_deflection[wheel] = blended.car_suspension_deflection[wheel];
 		}
 		*camera = *live_camera;
-		if (lower.camera.trackside_index == upper.camera.trackside_index &&
-			upper.camera.trackside_index == live_camera->trackside_index) {
-			frame_hires_interpolate_vector(&camera->follow_position, &upper.camera.follow_position,
-										   &lower.camera.follow_position, fraction);
-			frame_hires_interpolate_vector(&camera->previous_position,
-										   &upper.camera.previous_position,
-										   &lower.camera.previous_position, fraction);
-		}
+		/* Roadside-camera cuts keep their authoritative index, but do not
+		 * interrupt the independent continuous helicopter-camera motion. */
+		frame_hires_interpolate_vector(&camera->follow_position, &upper.camera.follow_position,
+									   &lower.camera.follow_position, fraction);
+		frame_hires_interpolate_vector(&camera->previous_position, &upper.camera.previous_position,
+									   &lower.camera.previous_position, fraction);
 	}
 	car->car_sound_flags = CAR_SOUND_NONE;
 	/* Cached future poses supply geometry only; visible events keep their

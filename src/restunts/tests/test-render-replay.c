@@ -44,6 +44,7 @@ static const legacy_char RENDER_REPLAY_VIDEO_MODE_PREFIX[] = "--videomode:";
 
 static legacy_u8 visual_clock_frozen;
 static legacy_u32 visual_clock_ticks;
+static legacy_u32 trackside_follow_samples;
 
 legacy_u32 dos_timer_get_realtime_counter(void)
 {
@@ -150,6 +151,22 @@ static void interpolate_and_check(struct GAMESTATE *result, const struct GAMESTA
 	get_kevinrandom_seed(seed_before);
 	capture_physics_scratch(&before);
 	frame_hires_interpolate_state(result, &state, previous, fraction);
+	/* Choosing another stationary trackside camera must not move the independent
+	 * helicopter camera ahead of its interpolated car. Exercise real replay cuts. */
+	struct GAMESTATE same_trackside = state;
+	memcpy(same_trackside.game_trackside_camera_index, previous->game_trackside_camera_index,
+		   sizeof(same_trackside.game_trackside_camera_index));
+	struct GAMESTATE continuous;
+	frame_hires_interpolate_state(&continuous, &same_trackside, previous, fraction);
+	assert(memcmp(result->game_follow_camera_position, continuous.game_follow_camera_position,
+				  sizeof(result->game_follow_camera_position)) == 0);
+	assert(memcmp(result->game_trackside_camera_index, state.game_trackside_camera_index,
+				  sizeof(result->game_trackside_camera_index)) == 0);
+	if (fraction < FRAME_INTERPOLATION_ONE &&
+		memcmp(state.game_trackside_camera_index, previous->game_trackside_camera_index,
+			   sizeof(state.game_trackside_camera_index)) != 0) {
+		trackside_follow_samples++;
+	}
 	get_kevinrandom_seed(seed_after);
 	capture_physics_scratch(&after);
 	assert(memcmp(&saved, &state, sizeof(state)) == 0);
@@ -232,8 +249,7 @@ static void check_state_blend(const struct GAMESTATE *result, const struct GAMES
 			car == PLAYER_CAR_INDEX ? &state.playerstate : &state.opponentstate;
 		const struct CARSTATE *previous_car =
 			car == PLAYER_CAR_INDEX ? &previous->playerstate : &previous->opponentstate;
-		if (state.game_trackside_camera_index[car] != previous->game_trackside_camera_index[car] ||
-			current_car->car_crashBmpFlag != previous_car->car_crashBmpFlag) {
+		if (current_car->car_crashBmpFlag != previous_car->car_crashBmpFlag) {
 			assert(memcmp(value, end, sizeof(*value)) == 0);
 		} else {
 			check_linear_blend(value->x, start->x, end->x, last_value->x);
@@ -532,8 +548,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	if (mode == 1 && settling_end != 0) {
 		assert(settling_interpolations != 0);
 	}
-	printf("mode %d: %" LEGACY_PRIu32 " interpolated extra frames (%u landing, %u loop exit)\n",
-		   mode, extra_frames, landing_interpolations, settling_interpolations);
+	printf("mode %d: %" LEGACY_PRIu32 " interpolated extra frames (%u landing, %u loop exit, "
+		   "%" LEGACY_PRIu32 " trackside-cut samples)\n",
+		   mode, extra_frames, landing_interpolations, settling_interpolations,
+		   trackside_follow_samples);
 	assert(fclose(output) == 0);
 	free(recording);
 	/* Match pixldump shutdown: this fixture never loaded dashboard resources. */

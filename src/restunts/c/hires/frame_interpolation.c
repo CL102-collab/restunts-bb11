@@ -94,9 +94,9 @@ void frame_hires_interpolate_state(struct GAMESTATE *result, const struct GAMEST
 			car == PLAYER_CAR_INDEX ? &current->playerstate : &current->opponentstate;
 		const struct CARSTATE *previous_car =
 			car == PLAYER_CAR_INDEX ? &previous->playerstate : &previous->opponentstate;
-		if (current->game_trackside_camera_index[car] ==
-				previous->game_trackside_camera_index[car] &&
-			current_car->car_crashBmpFlag == previous_car->car_crashBmpFlag) {
+		/* Trackside cuts select a separate fixed camera. The helicopter keeps
+		 * following the car continuously through those background index changes. */
+		if (current_car->car_crashBmpFlag == previous_car->car_crashBmpFlag) {
 			frame_hires_interpolate_vector(&result->game_follow_camera_position[car],
 										   &current->game_follow_camera_position[car],
 										   &previous->game_follow_camera_position[car], fraction);

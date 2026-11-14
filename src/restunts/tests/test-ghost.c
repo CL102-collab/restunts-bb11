@@ -24,6 +24,10 @@
 
 #define TEST_FILE_COUNT 12U
 #define TEST_RECORDING_FRAMES 8U
+#define TEST_RENDER_NORMAL 1U
+#define TEST_RENDER_CRASH 2U
+#define TEST_RENDER_TRACKSIDE_SWITCH 3U
+#define TEST_RENDER_CAMERA_SWITCH_FRAME 4
 
 struct GAMEINFO gameconfig;
 struct GAMESTATE state;
@@ -257,9 +261,14 @@ static void set_recorded_camera(legacy_s16 frame)
 		state.game_player_camera_previous =
 			(struct VECTOR){frame * 100, 100 + frame * 100, 200 + frame * 100};
 		state.game_trackside_camera_index[PLAYER_CAR_INDEX] =
-			render_fixture == 2 && frame >= 4 ? 3 : 2;
-		state.playerstate.car_crashBmpFlag =
-			render_fixture == 2 && frame >= 3 ? CRASH_EVENT_COLLISION : CRASH_EVENT_NONE;
+			(render_fixture == TEST_RENDER_CRASH ||
+			 render_fixture == TEST_RENDER_TRACKSIDE_SWITCH) &&
+					frame >= TEST_RENDER_CAMERA_SWITCH_FRAME
+				? 3
+				: 2;
+		state.playerstate.car_crashBmpFlag = render_fixture == TEST_RENDER_CRASH && frame >= 3
+												 ? CRASH_EVENT_COLLISION
+												 : CRASH_EVENT_NONE;
 	}
 #endif
 }
@@ -736,6 +745,7 @@ static void assert_render_sample(legacy_u32 live_frame, legacy_u16 live_rate, le
 	assert(camera.previous_position.x == position);
 	assert(camera.frame == authoritative_camera.frame);
 	assert(camera.crash_frame == authoritative_camera.crash_frame);
+	assert(camera.trackside_index == authoritative_camera.trackside_index);
 	assert(rendered.car_crashBmpFlag == authoritative.car_crashBmpFlag);
 	assert(rendered.car_sound_flags == CAR_SOUND_NONE);
 	assert(rendered.car_actual_speed == authoritative.car_actual_speed);
@@ -750,7 +760,7 @@ static void assert_render_sample(legacy_u32 live_frame, legacy_u16 live_rate, le
 
 static void test_render_sampling(void)
 {
-	render_fixture = 1;
+	render_fixture = TEST_RENDER_NORMAL;
 	assert(ghost_select_replay(0, (const legacy_s8 *)"source") == 0);
 	assert(ghost_prepare_race() == 0);
 	/* A 10 Hz recorded ghost moves in 60 Hz slots alongside a 20 Hz live car,
@@ -816,9 +826,26 @@ static void test_render_sampling(void)
 	render_fixture = 0;
 }
 
+static void test_render_trackside_camera_switch(void)
+{
+	render_fixture = TEST_RENDER_TRACKSIDE_SWITCH;
+	assert(ghost_select_replay(0, (const legacy_s8 *)"source") == 0);
+	assert(ghost_prepare_race() == 0);
+	/* A roadside-camera cut must not advance the continuous helicopter camera
+	 * ahead of its car. Keep the discrete index at the authoritative instant. */
+	ghost_update(7, GAME_FRAME_RATE_NORMAL);
+	assert(ghost_camera_state()->trackside_index == 2);
+	assert_render_sample(7, GAME_FRAME_RATE_NORMAL, 0, 350);
+	ghost_update(8, GAME_FRAME_RATE_NORMAL);
+	assert(ghost_camera_state()->trackside_index == 3);
+	assert_render_sample(8, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U, 375);
+	ghost_end_race();
+	render_fixture = 0;
+}
+
 static void test_render_discontinuities(void)
 {
-	render_fixture = 2;
+	render_fixture = TEST_RENDER_CRASH;
 	assert(ghost_select_replay(0, (const legacy_s8 *)"source") == 0);
 	assert(ghost_prepare_race() == 0);
 	ghost_update(5, GAME_FRAME_RATE_NORMAL);
@@ -828,21 +855,14 @@ static void test_render_discontinuities(void)
 	ghost_update(6, GAME_FRAME_RATE_NORMAL);
 	assert_render_sample(6, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U, 300);
 
-	struct CARSTATE rendered;
-	struct GHOST_CAMERA_STATE camera;
+	/* Once the collision is confirmed, body and follow camera both interpolate
+	 * even if the cached bracket also contains a roadside-camera cut. */
 	ghost_update(7, GAME_FRAME_RATE_NORMAL);
-	struct GHOST_CAMERA_STATE authoritative_camera = *ghost_camera_state();
-	assert(hires_ghost_sample_render_pose(7, GAME_FRAME_RATE_NORMAL, 0, &rendered, &camera));
-	assert(rendered.car_position.lx == 350);
-	assert(memcmp(&camera, &authoritative_camera, sizeof(camera)) == 0);
+	assert_render_sample(7, GAME_FRAME_RATE_NORMAL, 0, 350);
 	ghost_update(8, GAME_FRAME_RATE_NORMAL);
-	authoritative_camera = *ghost_camera_state();
-	assert(hires_ghost_sample_render_pose(8, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U,
-										  &rendered, &camera));
-	assert(rendered.car_position.lx == 375);
-	assert(memcmp(&camera, &authoritative_camera, sizeof(camera)) == 0);
+	assert_render_sample(8, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U, 375);
 	/* Preparation discards cached poses even when the selection is unchanged. */
-	render_fixture = 1;
+	render_fixture = TEST_RENDER_NORMAL;
 	assert(ghost_prepare_race() == 0);
 	ghost_update(5, GAME_FRAME_RATE_NORMAL);
 	assert_render_sample(5, GAME_FRAME_RATE_NORMAL, 0, 250);
@@ -877,6 +897,7 @@ int main(void)
 	test_playback_timing_and_isolation();
 #ifdef RESTUNTS_SDL3
 	test_render_sampling();
+	test_render_trackside_camera_switch();
 	test_render_discontinuities();
 #endif
 	test_racing_line_speed_colors();

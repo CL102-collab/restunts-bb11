@@ -175,9 +175,68 @@ static void test_crash_and_camera_discontinuities(void)
 	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.playerstate.car_position.lx == 150);
 	assert(result.game_follow_camera_position[0].x == 250);
-	current.game_trackside_camera_index[0] = 1;
-	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
-	assert(result.game_follow_camera_position[0].x == 400);
+}
+
+static void test_follow_camera_ignores_trackside_changes(void)
+{
+	const legacy_s32 position_scale = 64;
+	const struct VECTOR origins[GAMESTATE_CAR_VECTOR_COUNT] = {{1000, 100, 2000},
+															   {2200, 200, 3500}};
+	const struct VECTOR movement = {60, 12, 30};
+	const struct VECTOR follow_offset = {-450, 270, -180};
+	const legacy_u32 fractions[] = {0,
+									FRAME_INTERPOLATION_ONE / 6U,
+									FRAME_INTERPOLATION_ONE / 3U,
+									FRAME_INTERPOLATION_ONE / 2U,
+									FRAME_INTERPOLATION_ONE * 2U / 3U,
+									FRAME_INTERPOLATION_ONE * 5U / 6U,
+									FRAME_INTERPOLATION_ONE};
+	struct GAMESTATE previous = {0};
+	struct GAMESTATE current = {0};
+	struct GAMESTATE result;
+	for (legacy_u16 car = 0; car < GAMESTATE_CAR_VECTOR_COUNT; car++) {
+		struct CARSTATE *previous_car =
+			car == PLAYER_CAR_INDEX ? &previous.playerstate : &previous.opponentstate;
+		struct CARSTATE *current_car =
+			car == PLAYER_CAR_INDEX ? &current.playerstate : &current.opponentstate;
+		previous_car->car_position =
+			(struct VECTORLONG){origins[car].x * position_scale, origins[car].y * position_scale,
+								origins[car].z * position_scale};
+		current_car->car_position =
+			(struct VECTORLONG){(origins[car].x + movement.x) * position_scale,
+								(origins[car].y + movement.y) * position_scale,
+								(origins[car].z + movement.z) * position_scale};
+		previous.game_follow_camera_position[car] =
+			(struct VECTOR){origins[car].x + follow_offset.x, origins[car].y + follow_offset.y,
+							origins[car].z + follow_offset.z};
+		current.game_follow_camera_position[car] =
+			(struct VECTOR){origins[car].x + follow_offset.x + movement.x,
+							origins[car].y + follow_offset.y + movement.y,
+							origins[car].z + follow_offset.z + movement.z};
+	}
+	/* Nearest-trackside changes must not advance either helicopter camera
+	 * ahead of the car. Cover each car separately and both at the same time. */
+	for (legacy_u16 changes = 1; changes < (1U << GAMESTATE_CAR_VECTOR_COUNT); changes++) {
+		for (legacy_u16 car = 0; car < GAMESTATE_CAR_VECTOR_COUNT; car++) {
+			current.game_trackside_camera_index[car] = (changes & (1U << car)) != 0;
+		}
+		for (legacy_u16 slot = 0; slot < sizeof(fractions) / sizeof(fractions[0]); slot++) {
+			frame_hires_interpolate_state(&result, &current, &previous, fractions[slot]);
+			for (legacy_u16 car = 0; car < GAMESTATE_CAR_VECTOR_COUNT; car++) {
+				const struct CARSTATE *rendered_car =
+					car == PLAYER_CAR_INDEX ? &result.playerstate : &result.opponentstate;
+				const struct VECTOR *camera = &result.game_follow_camera_position[car];
+				assert(rendered_car->car_position.lx / position_scale - camera->x ==
+					   -follow_offset.x);
+				assert(rendered_car->car_position.ly / position_scale - camera->y ==
+					   -follow_offset.y);
+				assert(rendered_car->car_position.lz / position_scale - camera->z ==
+					   -follow_offset.z);
+				assert(result.game_trackside_camera_index[car] ==
+					   current.game_trackside_camera_index[car]);
+			}
+		}
+	}
 }
 
 static void test_particles(void)
@@ -249,6 +308,7 @@ legacy_int main(void)
 	test_endpoints_and_bounds();
 	test_wrapped_angles();
 	test_crash_and_camera_discontinuities();
+	test_follow_camera_ignores_trackside_changes();
 	test_particles();
 	return 0;
 }
