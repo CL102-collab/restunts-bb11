@@ -2030,6 +2030,22 @@ dotnet test tools/scripts/dumpsrv/dumpsrv.slnx --configuration Release
 dotnet format tools/scripts/dumpsrv/dumpsrv.slnx --verify-no-changes
 ```
 
+### Workflow dependency lockfile
+
+The generated [.github/workflows/actions.lock](.github/workflows/actions.lock)
+pins direct and transitive action dependencies. The **Verify workflow lockfile**
+CI check verifies that it matches the workflows. Do not edit the lockfile manually.
+
+Install the pinned GitHub CLI extension, then regenerate the lockfile after
+changing action dependencies:
+
+```sh
+gh extension install github/gh-actions-lock --pin v0.4.1
+gh actions-lock
+```
+
+Validate it locally with `gh actions-lock --verify`.
+
 ### Compiler migration validation
 
 For a deterministic comparison of 100 evenly spaced golden replays in both
