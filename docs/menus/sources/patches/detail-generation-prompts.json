@@ -32,6 +32,19 @@
       ],
       "donor_file": "opponent-right-ring-source.png",
       "prompt": "Precise small repair to image 1, a cropped stopwatch attachment. Image 2 is same original-game crop, authoritative for attachment position and overlap.\nKeep all existing objects exactly placed. REMOVE the circular GOLD GROMMET / SOCKET from the BLUE stopwatch frame. There is NO HOLE and no round eyelet drawn in the blue face of the case. Restore plain continuous blue enamel in that spot.\nThe brown string does NOT penetrate the blue case. It lies IN FRONT OF a tiny steel wire attachment loop fixed at the case's OUTER RIGHT SIDE EDGE, around the junction of blue case and yellow pencil. The loop itself is almost entirely HIDDEN BEHIND THE BROWN CORD as in image 2: only one very small gray/silver crescent may show behind the cord at the case's outside edge. Do NOT create any visible circle on the blue area. The cord passes across/in front of this hidden loop and bends naturally rightwards over the yellow pencil. Preserve its existing path, but use a lighter warm medium brown cord matching reference.\nKeep the large legitimate horizontal silver push button at top intact, all blue watch edges/shape, white dial at left, yellow pencil and wood unchanged. This is a tiny occlusion correction. No new metal ornament or button. Crisp photorealistic pixel-art style matching image 1. Same tight crop without margins."
+    },
+    "main_opaque_black_roof": {
+      "target_crop": [
+        510,
+        490,
+        755,
+        592
+      ],
+      "input_enlargement": 4,
+      "input_resampling": "nearest-neighbor",
+      "original_reference": "SDMSEL.PVS:scrn at the same normalized working crop",
+      "donor_file": "main-roof-source.png",
+      "prompt": "Edit ONLY the central BLACK roof surface in this small pixel-art car close-up. IMAGE 1 is detailed pixel-art edit target, IMAGE 2 is the original game's same crop, authoritative for BLACK roof color and trapezoid shape. The roof currently incorrectly shows seat/headrest silhouettes through the black panel. Remove all seats/interior/blue gaps and make it an OPAQUE BLACK SOLID ROOF. Preserve blue body, silver-gray edging, mirrors, road, and rear window with white lettering exactly. VERY IMPORTANT STYLE: traditional hand-placed LOW-RESOLUTION PIXEL ART, like the original Stunts menu and the surrounding car. Do NOT render a photograph. Do NOT paint smooth gradients or airbrushed highlights. The central surface is almost entirely a flat TRUE BLACK color, with only a restrained jagged charcoal highlight patch in the upper LEFT, corresponding to the original gray left roof shading in IMAGE 2. Build that highlight with only three or four discrete hard-edged DARK GRAY levels, in clear deliberate chunky angular PIXEL CLUSTERS. Sharp stair-step boundaries between flat shades. The left highlight should look hand-pixeled and irregular, never a smooth fuzzy reflection, broad gradient, or a long regular stripe. Large uninterrupted near-black area across center and right, no speckle or grain. Logical pixel resolution is just 245 by 102 for the ENTIRE CROP, so individual logical pixels and 2x2/3x3 clusters must remain distinct even if output is enlarged. No subpixel antialiasing, no smooth gradient, no photographic surface, no blur, no random dithering. Keep crisp flat black and charcoal steps. Match surrounding blue car's existing angular pixel clusters. Preserve panel's shape and all existing trim. No grille lines, no slats, no stripes, no text, no seat silhouettes, no visible interior. This is a tiny roof-only edit, never generate a full menu. Same exact crop framing, no new objects, no margins."
     }
   }
 }

@@ -2,7 +2,7 @@
   "generator": "tools/scripts/prepare-menu-backgrounds.py",
   "detail_generation": "built-in imagegen, faithful photorealistic pixel-art restoration",
   "prompts": "docs/menus/generation-prompts.json",
-  "pillow_version": "10.2.0",
+  "pillow_version": "12.3.0",
   "working_scale": 4,
   "final_scale": 2,
   "palette_source": "SDMAIN.PVS:!pal",
@@ -36,13 +36,13 @@
       ],
       "original_png_sha256": "d8895221f808ce197a547d2642370364c9a41f72be3094c36d73678699c5a75b",
       "generated_restoration_sha256": "069ee9df8ffd1aa74a93d25d85a22ee72cdcead4c8c0edb2f3e60e84e83cb6e2",
-      "working_png_sha256": "23c1b3bf1044d6165cb0697352f9689128be723d263802785a5f09d427c08d81",
-      "sha256": "248d484c218ef074360a9722c1dcfdbdcbbcc2f41ad36ab997267082563f10a8",
-      "pixels_sha256": "d1f8960cb462efe3a90686c17f737be35196d6806ba6e6e919dfa065a383b73f",
+      "working_png_sha256": "ea57c76b00c956339f2545b482d5e920cfe0c88e96794a8adf2fa73857a008bf",
+      "sha256": "f4ec04d30a76e5ab4cee0fcd41bd0164b291eecd643034650bd2d51a27502cbe",
+      "pixels_sha256": "56e5f23ba6b71344a49caa01a28089aac69d4e22a57fab42b66145bd3a69b927",
       "patch": {
         "base_working_pixels_sha256": "91f6cca373678ef39eec16b61d1025190f2c7fbef37e077ca6877d7082f51a7f",
         "patch_file": "docs/menus/sources/patches/main-corrections.png",
-        "patch_sha256": "5cb823cf2b71c8cbf1bc8fc519288142ffc7ac4dcf3ae41f3272e5e7873a18bc"
+        "patch_sha256": "1421e1f38d4e01b94904a6d34d74fccab03ff41911753275a696039bfaa72434"
       }
     },
     {
