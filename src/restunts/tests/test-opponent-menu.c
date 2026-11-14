@@ -97,7 +97,9 @@ void opponent_portrait_unload(void)
 #define OPPONENT_TEST_BLACK 0U
 #define OPPONENT_TEST_WHITE 15U
 #define OPPONENT_TEST_EYE_COUNT 2U
-#define OPPONENT_TEST_MIN_ZIGZAG_TURNS 2U
+#define OPPONENT_TEST_GHOST_WIDTH 38U
+#define OPPONENT_TEST_GHOST_HEIGHT 42U
+#define OPPONENT_TEST_ZIGZAG_POINTS 6U
 
 enum OPPONENT_TEST_DRAW_TARGET { OPPONENT_TEST_RENDER_WINDOW, OPPONENT_TEST_BACKBUFFER };
 
@@ -311,6 +313,16 @@ static void assert_ghost_picture(void)
 	assert(right + 1U < OPPONENT_TEST_INTERIOR_X + OPPONENT_TEST_INTERIOR_WIDTH);
 	assert(bottom + 1U < OPPONENT_TEST_INTERIOR_Y + OPPONENT_TEST_INTERIOR_HEIGHT);
 	assert(opponent_picture[top][left] == OPPONENT_TEST_BLACK);
+	/* The smaller silhouette stays centered within one portrait pixel. */
+	assert(right - left + 1U == OPPONENT_TEST_GHOST_WIDTH);
+	assert(bottom - top + 1U == OPPONENT_TEST_GHOST_HEIGHT);
+	legacy_u16 left_margin = left - OPPONENT_TEST_INTERIOR_X;
+	legacy_u16 right_margin = OPPONENT_TEST_INTERIOR_X + OPPONENT_TEST_INTERIOR_WIDTH - 1U - right;
+	legacy_u16 top_margin = top - OPPONENT_TEST_INTERIOR_Y;
+	legacy_u16 bottom_margin =
+		OPPONENT_TEST_INTERIOR_Y + OPPONENT_TEST_INTERIOR_HEIGHT - 1U - bottom;
+	assert(left_margin == right_margin);
+	assert(top_margin <= bottom_margin && (legacy_u16)(bottom_margin - top_margin) <= 1U);
 	/* Two enclosed black gaps in the upper half are the eye cutouts. */
 	legacy_u16 maximum_eye_gaps = 0;
 	for (legacy_u16 y = top; y <= (top + bottom) / 2; y++) {
@@ -334,9 +346,9 @@ static void assert_ghost_picture(void)
 		}
 	}
 	assert(maximum_eye_gaps == OPPONENT_TEST_EYE_COUNT);
-	/* A zigzag hem repeatedly changes direction; a flat or rounded bottom fails. */
+	/* Each downward point changes the lower contour from descending to rising. */
 	legacy_s16 previous_direction = 0;
-	legacy_u16 previous_bottom = 0, turns = 0;
+	legacy_u16 previous_bottom = 0, points = 0;
 	for (legacy_u16 x = left; x <= right; x++) {
 		legacy_u16 column_bottom = bottom;
 		while (column_bottom > top && opponent_picture[column_bottom][x] != OPPONENT_TEST_WHITE) {
@@ -344,14 +356,14 @@ static void assert_ghost_picture(void)
 		}
 		if (x != left && column_bottom != previous_bottom) {
 			legacy_s16 direction = column_bottom > previous_bottom ? 1 : -1;
-			if (previous_direction != 0 && direction != previous_direction) {
-				turns++;
+			if (previous_direction > 0 && direction < 0) {
+				points++;
 			}
 			previous_direction = direction;
 		}
 		previous_bottom = column_bottom;
 	}
-	assert(turns >= OPPONENT_TEST_MIN_ZIGZAG_TURNS);
+	assert(points == OPPONENT_TEST_ZIGZAG_POINTS);
 	ghost_picture_checks++;
 }
 

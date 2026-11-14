@@ -96,7 +96,7 @@ legacy_void RsMenuOpponentOpponentMenuDrawDescription(COpponentMenuState *menu)
   RsFontSetFontdef();
 }
 
-legacy_s8 temple_pixels_3044[20][(18+1)];
+legacy_s8 temple_pixels_3044[42][(38+1)];
 MemSet(&temple_pixels_3044,0,sizeof(temple_pixels_3044));
 legacy_void RsMenuOpponentOpponentMenuDrawGhost(CShape2D *portrait)
 {
@@ -117,28 +117,28 @@ legacy_void RsMenuOpponentOpponentMenuDrawGhost(CShape2D *portrait)
   temple_tmp_3047=&(temple_left_3045);
   ((*temple_tmp_3047)=TempleCastS16((TempleCastU32((*temple_tmp_3047))+
       TempleCastU32(TempleDivideU64(
-          TempleCastU32((TempleCastU32(74)-TempleCastU32((18*TempleCastU32(3))))),
+          TempleCastU32((TempleCastU32(74)-TempleCastU32((38*TempleCastU32(1))))),
           TempleCastU32(2))))));
   temple_tmp_3048=&(temple_top_3046);
   ((*temple_tmp_3048)=TempleCastS16((TempleCastU32((*temple_tmp_3048))+
       TempleCastU32(TempleDivideU64(
-          TempleCastU32((TempleCastU32(79)-TempleCastU32((20*TempleCastU32(3))))),
+          TempleCastU32((TempleCastU32(79)-TempleCastU32((42*TempleCastU32(1))))),
           TempleCastU32(2))))));
   temple_row_3050=TempleCastU16(0);
   while(1) {
-    if(!((temple_row_3050<20))) {
+    if(!((temple_row_3050<42))) {
       break;
     }
     temple_column_3052=TempleCastU16(0);
     while(1) {
-      if(!((temple_column_3052<18))) {
+      if(!((temple_column_3052<38))) {
         break;
       }
       if((temple_pixels_3044[temple_row_3050][temple_column_3052]=='#')) {
         RsSpriteFillRectClipped(TempleCastS16(TempleCastS32(
-                                    (temple_left_3045+TempleCastS32((temple_column_3052*3))))),
-            TempleCastS16(TempleCastS32((temple_top_3046+TempleCastS32((temple_row_3050*3))))),
-            TempleCastS16(3),TempleCastS16(3),TempleCastS16(15));
+                                    (temple_left_3045+TempleCastS32((temple_column_3052*1))))),
+            TempleCastS16(TempleCastS32((temple_top_3046+TempleCastS32((temple_row_3050*1))))),
+            TempleCastS16(1),TempleCastS16(1),TempleCastS16(15));
       }
       temple_tmp_3053=&(temple_column_3052);
       temple_tmp_3054=*temple_tmp_3053;
