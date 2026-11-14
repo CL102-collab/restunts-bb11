@@ -1,0 +1,105 @@
+{
+  "method": "Built-in imagegen edits only a roof close-up; nearest-neighbor normalize donor and paste through a binary roof-interior mask into the existing RGBA correction patch",
+  "material": "Opaque black roof matching original artwork; hard-edged charcoal pixel clusters with stepped shading, no visible seats or interior",
+  "base": "docs/menus/sources/full-resolution/main.png",
+  "base_sha256": "069ee9df8ffd1aa74a93d25d85a22ee72cdcead4c8c0edb2f3e60e84e83cb6e2",
+  "before_working_sha256": "23c1b3bf1044d6165cb0697352f9689128be723d263802785a5f09d427c08d81",
+  "before_correction_patch_sha256": "5cb823cf2b71c8cbf1bc8fc519288142ffc7ac4dcf3ae41f3272e5e7873a18bc",
+  "source": "docs/menus/sources/patches/main-roof-source.png",
+  "source_sha256": "1403012d011cb088b6adc71cd4e569178ef369c5bb041804a511dd4fa4d51c57",
+  "source_size": [
+    1944,
+    809
+  ],
+  "source_crop_in_working": [
+    510,
+    490,
+    755,
+    592
+  ],
+  "source_normalized_size": [
+    245,
+    102
+  ],
+  "source_resampling": "nearest-neighbor",
+  "mask": "docs/menus/sources/patches/main-roof-mask.png",
+  "mask_sha256": "86d2095db7cb386c8c7a7679c994eb3617a9cef43b19a840ec4ab162de8aa61f",
+  "mask_polygons": [
+    [
+      [
+        570,
+        527
+      ],
+      [
+        695,
+        527
+      ],
+      [
+        704,
+        530
+      ],
+      [
+        711,
+        536
+      ],
+      [
+        718,
+        547
+      ],
+      [
+        730,
+        569
+      ],
+      [
+        543,
+        569
+      ],
+      [
+        536,
+        571
+      ],
+      [
+        537,
+        566
+      ],
+      [
+        546,
+        549
+      ],
+      [
+        556,
+        535
+      ],
+      [
+        564,
+        530
+      ]
+    ]
+  ],
+  "mask_pixel_count": 7307,
+  "mask_bounds": [
+    536,
+    527,
+    731,
+    572
+  ],
+  "mask_feather_pixels": 0,
+  "changed_working_pixels": 6168,
+  "outside_working_mask_changed_pixels": 0,
+  "original_reference": "stunts/SDMSEL.PVS:scrn",
+  "prompt": "docs/menus/sources/patches/detail-generation-prompts.json:prompts.main_opaque_black_roof",
+  "preserved": "All pixels outside roof interior, including silver roof edging, blue bodywork, mirrors, rear window and lettering, scenery, signs and earlier repairs",
+  "changed_overlay_pixels": 7307,
+  "outside_overlay_mask_changed_pixels": 0,
+  "final_size": [
+    640,
+    400
+  ],
+  "changed_final_pixels": 586,
+  "outside_reduced_mask_changed_pixels": 0,
+  "final_palette_unchanged": true,
+  "full_resolution_source_unchanged": true,
+  "other_menu_images_byte_identical": true,
+  "working_png_sha256": "ea57c76b00c956339f2545b482d5e920cfe0c88e96794a8adf2fa73857a008bf",
+  "final_png_sha256": "f4ec04d30a76e5ab4cee0fcd41bd0164b291eecd643034650bd2d51a27502cbe"
+}

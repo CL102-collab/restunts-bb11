@@ -3,7 +3,7 @@
     "main.png": {
       "base_working_pixels_sha256": "91f6cca373678ef39eec16b61d1025190f2c7fbef37e077ca6877d7082f51a7f",
       "patch_file": "main-corrections.png",
-      "patch_sha256": "5cb823cf2b71c8cbf1bc8fc519288142ffc7ac4dcf3ae41f3272e5e7873a18bc"
+      "patch_sha256": "1421e1f38d4e01b94904a6d34d74fccab03ff41911753275a696039bfaa72434"
     },
     "showroom.png": {
       "base_working_pixels_sha256": "f47909e2f9f7a18c1854d89b774c4f672522db23c8282ac1c2f0b96b47d75936",
