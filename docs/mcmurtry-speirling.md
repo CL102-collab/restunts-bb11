@@ -34,7 +34,7 @@ light gray.
 
 [2026 specifications in the car menu](cars/mcmurtry-menu.png)
 
-![MCMU cockpit with a centered white speedometer and white RPM and battery bars](cars/mcmurtry-cockpit.png)
+![Edited PURE cockpit with turquoise bodywork, straight black antenna and the darker MCMU wheel](cars/mcmurtry-cockpit.png)
 
 [Left steering](cars/mcmurtry-cockpit-left.png) ·
 [Right steering](cars/mcmurtry-cockpit-right.png)
@@ -344,22 +344,20 @@ model's animated wheel controls.
 
 ## Cockpit
 
-The cockpit is original indexed-colour artwork based on the supplied
-`left.png`, `middle.png` and `right.png` driver views. The roof edge and forward
-view are centered and symmetric, correcting the off-center camera in
-`middle.png`. A shallow curved dark-carbon header runs across the top without
-side pillars obstructing the windscreen.
+The cockpit backdrop comes from the user-supplied `PURE_FINAL_021.zip`
+(`PURE021/STDAPURE.VSH`). Only the cockpit artwork is used. Its gloves, arms
+and original wheel are removed, leaving the dark steering-column recess for
+the existing MCMU wheel and live instruments. The side pillars, air outlets
+and red controls retain the PURE layout.
 
-The upright side control panels have smooth dark-grey metal faces and
-beveled edges, with a slight inward curve beside the recessed central steering
-column. The upper carbon fascia and its air outlets sit flush with the raised
-side panels, forming a continuous surround ahead of the steering-column well.
-Each panel joins the outer corner of its rounded air scoop, which has a deep
-curved mouth and lower lip. The mostly open throat contains four subdued
-internal ribs.
-The left panel carries a red circular control, then a screw, a black
-potentiometer and two lower screws. The right panel uses the same vertical
-sequence with a red release handle at the top.
+The bodywork uses MCMU light turquoise. The central hood antenna is straight,
+black and gently tapered, with a small ball tip and no frame or pedestal.
+The existing black upper windshield edge bends into a shallow symmetric
+center dip, retaining its rounded corners instead of adding another line.
+The edited background is stored in `tools/scripts/cars/MCMU-cockpit.VSH` as
+one 320×200 indexed bitmap with transparent glazing. It is an image-assisted
+edit converted to the native game palette; rebuilding the dashboard needs
+only Python's standard library.
 
 The wheel has substantial textured side grips, each joined to the central
 body by one broad connector. It remains open at the top and bottom.
@@ -374,8 +372,9 @@ steering positions.
 
 Material shading, carbon weave and grip grain provide depth within the game
 palette. The deterministic texture stays attached to the wheel as it turns.
-Brighter wheel trim, grey grip-edge highlights and a darker column recess keep
-its outline distinct. A native steering dot slides along a horizontal strip
+Wheel and instrument-bezel greys are three palette steps darker, matching
+the surrounding cockpit. White lettering and live instrument colours are
+preserved. A native steering dot slides along a horizontal strip
 above the wheel, showing the steering angle between wheel poses.
 
 Optional `imt1` and `imt3` bitmap headers provide inverse Q14 transforms for
@@ -392,15 +391,14 @@ Dashboards without these descriptors retain their existing rendering path.
 Original Stunts ignores the descriptors, keeps the display upright and draws
 a thin vertical white RPM indicator.
 
-The upper carbon cowl curves around the wheel. Native `dast`/`dasm` artwork and
-masks draw its crown, the roof edge and the solid front-fender silhouettes
-while keeping the road live around them. The fender-top openings are hidden
-from this cockpit viewpoint. These bitmap fenders retain their turquoise
-finish in every exterior paint scheme, as with fixed-colour bodywork in stock
-Stunts dashboards. The opaque `roof` strip covers the top 10 rows; the masked
-lower edge curves down to row 21 at the center without adding sidebars. Carbon
-texture and native RLE compression keep the dashboard within the DIA3 memory
-budget. Reference photograph pixels are not redistributed.
+Native `dast`/`dasm` artwork and masks draw the roof edge, side pillars,
+antenna, cowl and turquoise fenders while keeping the road live around them.
+These bitmap fenders retain their turquoise finish in every exterior paint
+scheme, as with fixed-colour bodywork in stock Stunts dashboards. The opaque
+`roof` strip covers the top eight rows; the masked overlay extends to the
+opaque dashboard at row 100. All three wheel poses include the new backdrop
+beneath them so steering restores the cockpit without leftover hands or
+wheel pixels. Native RLE compression keeps memory within the DIA3 budget.
 
 ## Classic exterior rendering
 
@@ -570,16 +568,16 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
-| Extracted STDA + STDB | 146,714 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 50,528 bytes | 66,176 bytes |
+| Extracted STDA + STDB | 139,354 bytes | 148,036 bytes |
+| Prepared STDA + STDB in the arena | 29,968 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
-| Resident arena total including scratch | **54,320 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **33,760 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
 99×38 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
-the common preallocated window table. MCMU therefore uses about 1% less
-extracted resource memory and 32% less resident dashboard arena memory.
+the common preallocated window table. MCMU therefore uses about 6% less
+extracted resource memory and 58% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The retained exterior contact sheet renders the classic encoded showroom and
@@ -609,8 +607,10 @@ silhouette, painted nose and rear curvature, upright side gills, clean canopy,
 two-element wing, swept endplates, round rear lamps and dark crown slots
 reviewable.
 
-Existing cockpit and menu captures document the digital instruments,
-steering positions and nine-row car description. The retained driving
+The updated cockpit captures use the native race renderer with the edited
+PURE backdrop at neutral, left and right steering. They verify transparent
+glazing, the retained MCMU wheel and rotating live instruments with a sample
+speed of 150 MPH. The menu capture documents the nine-row car description. The retained driving
 validation uses a temporary `MCMU` replay, including a two-car setup that
 checks adhesion for both slots. These checks use isolated game data and
 leave saved games intact.

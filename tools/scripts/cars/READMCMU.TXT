@@ -175,19 +175,15 @@ Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Racing cache provenance is tied
 to the car0 body checksum before procedural lamps. Classic meshes retain their
 original byte limits and driving specifications, with smaller wheel controls.
-The cockpit artwork follows the supplied left.png, middle.png and right.png
-views, with a centered, symmetric roof edge and no side pillars. Solid turquoise
-fender crowns frame the live road view; wheel-top openings are not visible
-from the cockpit. Upright side control panels have smooth dark-grey metal
-faces, beveled edges and a slight inward curve beside the recessed central
-steering column. The upper carbon fascia and its air outlets sit flush with
-the raised side panels, forming a continuous surround ahead of the
-steering-column well. Each panel joins the outer corner of its rounded air scoop.
-The scoop has a deep curved mouth and lower lip, with four subdued ribs
-inside its mostly open throat.
-The left panel carries a red circular control, a screw, a black potentiometer
-and two lower screws; the right uses the same vertical sequence with a red
-release handle at the top.
+The cockpit backdrop is edited from the user-supplied PURE_FINAL_021.zip,
+using only its cockpit artwork. The original gloves, arms and wheel are removed.
+The existing MCMU wheel and live instruments are retained, with darker grey
+shading to match the surrounding cockpit. The chassis is light turquoise.
+The hood antenna is straight, black and tapered, with a small ball tip and
+no surrounding frame or pedestal. The existing black windshield edge has a
+shallow symmetric center dip and retains its rounded side pillars.
+The edited 320x200 indexed source is tools/scripts/cars/MCMU-cockpit.VSH;
+ordinary generation requires only the Python standard library.
 The white digital speedometer sits in the middle of the wheel display,
 between a live white vertical RPM bar on the left and a matching battery bar
 fixed at 90% on the right. Substantial textured side grips each join the
@@ -205,8 +201,8 @@ keeps its display upright and shows RPM as a thin vertical white indicator.
 A native steering dot shows the angle between wheel poses. Palette-reduced
 shading and carbon weave follow the wheel as it turns. Native roof artwork
 and dast/dasm masks preserve live scenery around the roof edge, curved cowl
-and fender silhouettes. The original artwork stays within the native DIA3
-dashboard memory limits; reference photograph pixels are not redistributed.
+and fender silhouettes. The edited artwork stays within the native DIA3
+dashboard memory limits.
 
 REBUILD
 python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
@@ -214,9 +210,9 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
-Extracted A+B: 146,714 vs 148,036 bytes.
-Prepared A+B: 50,528 vs 66,176 bytes.
-With scratch: 54,320 vs 80,304 bytes.
+Extracted A+B: 139,354 vs 148,036 bytes.
+Prepared A+B: 29,968 vs 66,176 bytes.
+With scratch: 33,760 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.

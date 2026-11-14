@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""Original indexed-palette cockpit for the MCMU McMurtry Speirling car.
+"""Indexed-palette PURE cockpit with the MCMU wheel and live instruments.
 
-The supplied left, middle and right cockpit views guide the dark carbon
-fascia, open steering grips and five rotary controls. Upright dark-grey metal
-control plates sit ahead of the recessed steering column, with one rounded
-open air scoop per side and a curved row of ten unlit shift-lamp lenses. A centered white digital
-speedometer sits between a live white RPM bar and a fixed 90% battery bar.
-The complete LCD turns with the wheel. Only the shallow symmetric roof edge
-frames the top of the clear forward view; the exterior fender crowns have no
-visible wheel-top openings from this driving position. Photograph pixels and
-record-holder inscriptions are not reproduced.
+The edited PURE backdrop supplies the cockpit, light-turquoise bodywork,
+straight black antenna and gently bowed windscreen edge. The supplied VSH
+contains one transparent full-screen indexed bitmap, without the original
+hands or wheel. The existing MCMU wheel and its live display are composited
+with darker grey shading to match the fixed cockpit.
 
 ``build_dashboards(repo)`` returns two raw VSH containers and SIMD byte patches.
 The patches configure instruments only; the caller supplies vehicle physics.
 Generic indexed-raster/resource helpers are shared with the Tesla authoring
-tool, while every dashboard and steering sprite is drawn here.
+tool; the MCMU wheel geometry and instrument drawing remain procedural here.
 """
 
 import argparse
@@ -31,19 +27,11 @@ from tesla_roadster_dashboard import (
 
 
 WIDTH, HEIGHT = 320, 200
-DASH_TOP = 125
+DASH_TOP = 100
 DASH_OPAQUE_TOP = DASH_TOP
-ROOF_HEIGHT = 10
-ROOF_CENTER_DROP = 11
+ROOF_HEIGHT = 8
 ROOF_RECT = (0, 0, WIDTH, ROOF_HEIGHT)
 TOP_OVERLAY_RECT = (0, ROOF_HEIGHT, WIDTH, DASH_TOP - ROOF_HEIGHT)
-CANOPY_HALF_WIDTH = (WIDTH - 1) / 2
-CANOPY_WINDSCREEN_EDGE = tuple(
-    (x, ROOF_HEIGHT + round(ROOF_CENTER_DROP *
-                            (1 - ((x - CANOPY_HALF_WIDTH) / CANOPY_HALF_WIDTH) ** 2)))
-    for x in range(WIDTH))
-CANOPY_ROOF_OUTLINE = ((0, 0), (WIDTH - 1, 0)) + tuple(reversed(CANOPY_WINDSCREEN_EDGE))
-CANOPY_TEXTURE_SCALE = 3
 INSTRUMENT_RECT = (111, 135, 99, 38)
 WHEEL_RECT = (72, 126, 176, 74)
 WHEEL_TURN_DEGREES = 10
@@ -94,10 +82,11 @@ BRAND_SUPERSCRIPT_INDEX = 1
 BRAND_SUPERSCRIPT_C = ("011", "100", "011")
 FONT_GLYPH_HEIGHT, FONT_GLYPH_ADVANCE = 5, 4
 BLACK, CHARCOAL, CARBON, EDGE = 0, 31, 29, 27
-CANOPY_EDGE_SHADOW = CHARCOAL
-WHITE, SILVER, RED = 15, 22, 39
+WHITE, SILVER = 15, 22
 TRANSPARENT = 255
-FENDER_HIGHLIGHT, FENDER_SIDE = 121, 125
+COCKPIT_SOURCE = Path("tools/scripts/cars/MCMU-cockpit.VSH")
+WHEEL_GREY_FIRST, WHEEL_GREY_LAST = 17, 31
+WHEEL_GREY_DARKEN_STEPS = 3
 MOTOR_CENTER = (RPM_BAR_RECT[0] + RPM_BAR_RECT[2] // 2,
                 RPM_BAR_RECT[1] + RPM_BAR_RECT[3] - 1)
 INSTRUMENT_TRANSFORM_SHIFT = 14
@@ -107,59 +96,6 @@ INSTRUMENT_TRANSFORM_WORD_MASK = 0xFFFF
 INSTRUMENT_TRANSFORM_IDS = (("imt1", -1), ("imt3", 1))
 INSTRUMENT_PIVOT = (WHEEL_CENTER[0] - INSTRUMENT_RECT[0],
                     WHEEL_CENTER[1] - INSTRUMENT_RECT[1])
-COWL_CROWN_TOP, COWL_CROWN_RISE, COWL_BOTTOM = 118, 7, 132
-FASCIA_UPPER_EDGE = ((8, 135), (28, 129), (72, 124), (120, 121), (160, 120),
-                     (200, 121), (248, 124), (292, 130), (312, 138))
-FASCIA_SEAM = 22
-FASCIA_CLOUD_STRENGTH, FASCIA_GRAIN_STRENGTH = .12, .08
-# The photographed outlets are deep open scoops, not a bank of grille slots.
-# Their asymmetric rounded mouths have a thin upper edge and rolled near lip.
-DUCT_SHELL = ((30, 139), (32, 132), (40, 126), (55, 122), (82, 121),
-              (100, 123), (105, 127), (103, 134), (96, 141), (83, 147),
-              (62, 151), (44, 151), (34, 147))
-DUCT_MOUTH = ((36, 139), (38, 133), (45, 129), (58, 126), (84, 125),
-              (98, 126), (100, 130), (96, 136), (87, 142), (72, 146),
-              (52, 148), (41, 145))
-DUCT_THROAT = ((42, 138), (46, 133), (59, 129), (84, 127), (96, 128),
-               (96, 132), (88, 137), (74, 141), (55, 144), (45, 142))
-DUCT_FLOOR = ((41, 143), (55, 144), (74, 141), (88, 137), (96, 132),
-              (96, 136), (87, 142), (72, 146), (52, 148), (41, 145))
-DUCT_UPPER_LIP = ((36, 138), (39, 133), (46, 129), (58, 126), (84, 125), (98, 126))
-DUCT_LOWER_LIP = ((34, 146), (44, 150), (62, 150), (83, 146), (97, 137))
-DUCT_INNER_LIP = ((41, 145), (52, 148), (72, 146), (87, 142), (96, 136))
-DUCT_RIBS = (((50, 133), (51, 140)), ((59, 131), (60, 139)),
-             ((68, 130), (69.6, 138)), ((80, 129), (81, 135)))
-DUCT_RIB_SHADE = 30
-# The front face follows both outlet lips and meets the same corner anchors
-# as the metal side plates. Its depth extends into the well, not the road.
-FASCIA_FRONT_LEFT = DUCT_LOWER_LIP + ((112, 135), (136, 133), ((WIDTH - 1) / 2, 132))
-FASCIA_FRONT_EDGE = FASCIA_FRONT_LEFT + tuple(
-    (WIDTH - 1 - x, y) for x, y in reversed(FASCIA_FRONT_LEFT[:-1]))
-FASCIA_OUTLINE = FASCIA_UPPER_EDGE + tuple(reversed(FASCIA_FRONT_EDGE))
-FASCIA_FACE_DEPTH = 4
-FASCIA_SHADOW_DROP = 2
-FASCIA_FACE_LIGHT = -.12
-FASCIA_TOP_LIGHT = .05
-# Nearly upright metal control plates stay ahead of the steering-column well.
-# A broad flat face and narrow bevels replace the swept carbon consoles.
-SIDE_PANEL_CURVE = (DUCT_LOWER_LIP[0], (31, 161), (32, 184), (39, 204))
-SIDE_PANEL_NECK_HALF_WIDTH = 4
-SIDE_PANEL_NECK_LENGTH = .16
-SIDE_PANEL_STEPS = 20
-SIDE_PANEL_HALF_WIDTH = 11
-SIDE_PANEL_FLARE = 1
-SIDE_PANEL_BANDS = (-1, -.86, -.7, .7, .86, 1)
-SIDE_PANEL_LIGHT = (-.45, -.18, .02, .18, -.2)
-SIDE_PANEL_SHADOW_OFFSET = (4, 2)
-SIDE_CONTROL_STATIONS = (.13, .32, .51, .76)
-SIDE_SCREW_PAIR_SPACING = 8
-SIDE_TUB_OUTLINE = ((0, 132), (24, 134), (16, 150), (15, 173),
-                    (22, 199), (0, 199))
-COLUMN_RECESS = ((76, 154), (87, 142), (111, 132), (139, 128),
-                 (160, 129), (181, 128), (209, 132), (233, 142),
-                 (244, 154), (275, 199), (44, 199))
-COLUMN_RIM = ((80, 150), (94, 139), (116, 131), (141, 128),
-              (160, 129), (179, 128), (204, 131), (226, 139), (240, 150))
 SHIFT_LED_COUNT = 10
 SHIFT_LED_SPACING = 8
 SHIFT_LED_CENTER_X = 160
@@ -170,11 +106,8 @@ SHIFT_LED_HIGHLIGHT = 20
 SHIFT_LED_LENS = (" 000 ", "01210", "02320", "01210", " 000 ")
 DISPLAY_ARCH_HALF_WIDTH = 49
 DISPLAY_ARCH_DROP = 4
-CONTROL_RED_SHADOW, CONTROL_RED_FACE, CONTROL_RED_LIGHT = 37, 39, 41
-SIDE_BUTTON_RADIUS = 5
 POTENTIOMETER_RADIUS = 5
 POTENTIOMETER_BITMAP_HALF_SIZE = POTENTIOMETER_RADIUS + 2
-SCREW_RADIUS = 2
 TEXTURE_SEED = 0x4D434D55
 TEXTURE_HASH_X = 0x1F123BB5
 TEXTURE_HASH_Y = 0x5F356495
@@ -194,31 +127,20 @@ CARBON_WEAVE_ROW = 3
 CARBON_WEAVE_PERIOD = 4
 CARBON_WEAVE_DUTY = 2
 CARBON_WEAVE_STRENGTH = .25
-CARBON_WEAVE_DIRECTIONS = {"carbon": 1, "wheel_carbon": 1, "fascia_carbon": -1,
-                           "duct": 1}
-CONSOLE_CLOUD_STRENGTH, CONSOLE_GRAIN_STRENGTH = .02, .01
-METAL_BRUSH_STRENGTH = .18
 WHEEL_EDGE_HIGHLIGHT = 25
+# Preserve the authored wheel's relative shading before matching its greys
+# to the darker cockpit through _darken_wheel_greys.
 MATERIAL_TONES = {
-    "carbon": (31, 30, 29, 28),
-    "console_metal": (31, 30, 29, 28, 27, 26),
-    "duct": (31, 30, 29, 28, 27, 26),
-    # Foreground wheel surfaces stay lighter than the fixed cockpit texture.
     "wheel_carbon": (30, 28, 27, 26),
-    "suede": (31, 30, 29, 28, 27),
-    "fascia_carbon": (31, 30, 29, 28, 27, 26),
-    "recess": (31, 30),
     "grip": (31, 30, 28, 27),
     "grip_face": (30, 29, 28, 27, 26),
-    "paint": (127, 126, 125, 124, 123, 122),
-    "fender": (126, 125, 124, 123, 122, 121, 120),
-    "metal": (28, 26, 24, 22, 20, 18),
     "wheel_trim": (28, 27, 26, 25, 24),
 }
 DASHBOARD_REFERENCES = [
-    {"file": "middle.png", "view": "Primary driving-view reference, corrected to a centered symmetric projection: shallow bowed roof edge without side pillars, solid visible fender crowns, dark carbon fascia and open steering wheel. The white speedometer is centered between the left RPM bar and the right battery bar, fixed at 90% in the game."},
+    {"file": "PURE_FINAL_021.zip / PURE021/STDAPURE.VSH", "view": "User-supplied cockpit backdrop, edited to remove gloves and original wheel, recolour bodywork turquoise, straighten the black ball-tipped antenna without its frame or base, and gently bow the existing upper windshield edge."},
+    {"file": "middle.png", "view": "Reference for the retained MCMU open steering wheel and white speedometer centered between the live left RPM bar and right battery bar fixed at 90%. The fixed cockpit now uses the edited PURE backdrop."},
     {"file": "left.png", "view": "Left cockpit and open grip detail, white vertical RPM bar, McMurtry branding above five fluted rotary controls. Record-holder and adjacent inscriptions are omitted."},
-    {"file": "right.png", "view": "Right cockpit and open grip detail, white vertical battery bar and curved fender crown. The wheel-top opening is hidden from the driver's viewpoint."},
+    {"file": "right.png", "view": "Reference for the retained right open steering grip and white vertical battery bar."},
     {"url": "https://www.topgear.com/car-reviews/speirling/first-drive",
      "view": "September 2024 first-hand prototype review; single seat, single gear, fan and motor-power controls."},
     {"url": "https://www.topgear.com/sites/default/files/2024/09/DSC00356_3.jpg",
@@ -260,30 +182,18 @@ def _surface(canvas, points, material, coordinates=None, light=0):
                 continue
             sx, sy = coordinates(x, y) if coordinates else (x, y)
             u, v = (sx - left) / width, (sy - top) / height
-            cloud_strength, grain_strength = TEXTURE_CLOUD_STRENGTH, TEXTURE_GRAIN_STRENGTH
-            if material == "fascia_carbon":
-                cloud_strength, grain_strength = FASCIA_CLOUD_STRENGTH, FASCIA_GRAIN_STRENGTH
-            elif material == "console_metal":
-                cloud_strength, grain_strength = CONSOLE_CLOUD_STRENGTH, CONSOLE_GRAIN_STRENGTH
             level = (light + TEXTURE_BASE_LIGHT + TEXTURE_VERTICAL_LIGHT * (1 - v) +
                      TEXTURE_SIDE_LIGHT * (1 - abs(2 * u - 1)) +
-                     cloud_strength * _cloud(sx, sy) +
-                     grain_strength * _noise(sx, sy))
-            if material in CARBON_WEAVE_DIRECTIONS:
-                weave_x = sx * CARBON_WEAVE_DIRECTIONS[material]
-                weave = ((math.floor(weave_x + sy) // CARBON_WEAVE_WIDTH +
+                     TEXTURE_CLOUD_STRENGTH * _cloud(sx, sy) +
+                     TEXTURE_GRAIN_STRENGTH * _noise(sx, sy))
+            if material == "wheel_carbon":
+                weave = ((math.floor(sx + sy) // CARBON_WEAVE_WIDTH +
                           math.floor(sy) // CARBON_WEAVE_ROW) % CARBON_WEAVE_PERIOD <
                          CARBON_WEAVE_DUTY)
                 level += CARBON_WEAVE_STRENGTH * (weave - .5)
-            elif material == "metal":
-                level += METAL_BRUSH_STRENGTH * _noise(0, sy)
             index = max(0, min(len(tones) - 1, round(level * (len(tones) - 1))))
             color = tones[index]
             canvas.pixels[offset] = color
-
-
-def _carbon(canvas, points):
-    _surface(canvas, points, "carbon")
 
 
 def _bolt(canvas, x, y):
@@ -328,13 +238,10 @@ def _lcd(canvas):
     _bolt(canvas, 204, 170)
 
 
-def _ellipse(canvas, x, y, rx, ry, color, material=None):
+def _ellipse(canvas, x, y, rx, ry, color):
     points = [(x + rx * math.cos(step * math.pi / 8),
                y + ry * math.sin(step * math.pi / 8)) for step in range(16)]
-    if material:
-        _surface(canvas, points, material)
-    else:
-        canvas.polygon(points, color)
+    canvas.polygon(points, color)
 
 
 def _fill_bar(canvas, rectangle, value, maximum):
@@ -344,84 +251,6 @@ def _fill_bar(canvas, rectangle, value, maximum):
     fill = height * min(max(value, 0), maximum) // maximum
     if fill:
         canvas.rect(x, y + height - fill, x + width - 1, y + height - 1, WHITE)
-
-
-def _mirror_points(points, reflected):
-    return [(WIDTH - 1 - x if reflected else x, y) for x, y in points]
-
-
-def _seam(canvas, points, color):
-    for first, last in zip(points, points[1:]):
-        canvas.line(first, last, color)
-
-
-def _air_outlet(canvas, reflected):
-    """Rounded open mouth, recessed curved walls and a thick near-side lip."""
-    def mirror(points):
-        return _mirror_points(points, reflected)
-
-    def texture(x, y):
-        return (WIDTH - 1 - x if reflected else x), y
-
-    _surface(canvas, mirror(DUCT_SHELL), "duct", texture)
-    canvas.polygon(mirror(DUCT_MOUTH), CHARCOAL)
-    canvas.polygon(mirror(DUCT_THROAT), BLACK)
-    _surface(canvas, mirror(DUCT_FLOOR), "recess", texture)
-    # Partial ribs recede into the throat instead of dividing it into slots.
-    for first, last in DUCT_RIBS:
-        canvas.line(*mirror([first, last]), DUCT_RIB_SHADE)
-    _seam(canvas, mirror(DUCT_UPPER_LIP), CHARCOAL)
-    _seam(canvas, mirror(DUCT_LOWER_LIP), EDGE)
-    _seam(canvas, mirror(DUCT_INNER_LIP), CARBON)
-
-
-def _fascia(canvas):
-    """Raised upper surround flush with the side plates, ahead of the well."""
-    # Recessed column geometry is behind the entire foreground surround.
-    _surface(canvas, COLUMN_RECESS, "recess")
-    _seam(canvas, COLUMN_RIM, BLACK)
-    _seam(canvas, [(x, y + 1) for x, y in COLUMN_RIM], CARBON)
-    _ellipse(canvas, 160, 143, 14, 13, BLACK)
-    _ellipse(canvas, 160, 142, 11, 10, EDGE)
-    _ellipse(canvas, 160, 144, 9, 10, BLACK)
-
-    lower_edge = [(x, y + FASCIA_FACE_DEPTH) for x, y in FASCIA_FRONT_EDGE]
-    shadow_edge = [(x, y + FASCIA_SHADOW_DROP) for x, y in lower_edge]
-    canvas.polygon(list(FASCIA_FRONT_EDGE) + list(reversed(shadow_edge)), BLACK)
-    _surface(canvas, list(FASCIA_FRONT_EDGE) + list(reversed(lower_edge)),
-             "fascia_carbon", light=FASCIA_FACE_LIGHT)
-    _surface(canvas, FASCIA_OUTLINE, "fascia_carbon", light=FASCIA_TOP_LIGHT)
-    _seam(canvas, FASCIA_UPPER_EDGE, FASCIA_SEAM)
-    _seam(canvas, FASCIA_FRONT_EDGE, EDGE)
-    _seam(canvas, lower_edge, CHARCOAL)
-    for reflected in (False, True):
-        _air_outlet(canvas, reflected)
-
-
-def _side_panel_point(t, across=0):
-    """Projected upright control plate with narrow beveled side edges."""
-    a, b, c, d = SIDE_PANEL_CURVE
-    u = 1 - t
-    x, y = (u ** 3 * a[axis] + 3 * u * u * t * b[axis] +
-            3 * u * t * t * c[axis] + t ** 3 * d[axis] for axis in (0, 1))
-    dx, dy = (3 * u * u * (b[axis] - a[axis]) +
-              6 * u * t * (c[axis] - b[axis]) +
-              3 * t * t * (d[axis] - c[axis]) for axis in (0, 1))
-    # A narrow neck meets the outlet corner before broadening around the
-    # controls; the metal stays clear of the opening and its lower lip.
-    neck = min(t / SIDE_PANEL_NECK_LENGTH, 1)
-    half_width = (SIDE_PANEL_NECK_HALF_WIDTH +
-                  (SIDE_PANEL_HALF_WIDTH - SIDE_PANEL_NECK_HALF_WIDTH) * neck +
-                  SIDE_PANEL_FLARE * t)
-    radius = half_width * across / math.hypot(dx, dy)
-    return x - dy * radius, y + dx * radius
-
-
-def _panel_screw(canvas, x, y):
-    _ellipse(canvas, x, y + 1, SCREW_RADIUS, SCREW_RADIUS, BLACK)
-    _ellipse(canvas, x, y, SCREW_RADIUS, SCREW_RADIUS, EDGE)
-    canvas.point(x, y - 1, SILVER)
-    canvas.line((x - 1, y), (x + 1, y), BLACK)
 
 
 def _potentiometer(canvas, x, y):
@@ -435,117 +264,35 @@ def _potentiometer(canvas, x, y):
     canvas.line((x + 1, y - 2), (x + 2, y), SILVER)
 
 
-def _side_panels(canvas):
-    """Upright dark-grey metal control plates ahead of the column well."""
-    samples = [step / SIDE_PANEL_STEPS for step in range(SIDE_PANEL_STEPS + 1)]
-    for reflected in (False, True):
-        def mirror(points):
-            return _mirror_points(points, reflected)
-
-        def texture(x, y):
-            x = WIDTH - 1 - x if reflected else x
-            return x - (y - SIDE_PANEL_CURVE[0][1]) ** 2 / HEIGHT, y
-
-        _surface(canvas, mirror(SIDE_TUB_OUTLINE), "carbon", texture)
-        outline = ([_side_panel_point(t, -1) for t in samples] +
-                   [_side_panel_point(t, 1) for t in reversed(samples)])
-        shadow = [(x + SIDE_PANEL_SHADOW_OFFSET[0], y + SIDE_PANEL_SHADOW_OFFSET[1])
-                  for x, y in outline]
-        canvas.polygon(mirror(shadow), BLACK)
-        for near, far, light in zip(SIDE_PANEL_BANDS, SIDE_PANEL_BANDS[1:], SIDE_PANEL_LIGHT):
-            strip = ([_side_panel_point(t, near) for t in samples] +
-                     [_side_panel_point(t, far) for t in reversed(samples)])
-            _surface(canvas, mirror(strip), "console_metal", texture, light=light)
-        _seam(canvas, mirror([_side_panel_point(t, 1) for t in samples]), EDGE)
-        _seam(canvas, mirror([_side_panel_point(t, -1) for t in samples]), CHARCOAL)
-        controls = mirror([_side_panel_point(t) for t in SIDE_CONTROL_STATIONS])
-        (red_x, red_y), (screw_x, screw_y), (knob_x, knob_y), (pair_x, pair_y) = [
-            (round(x), round(y)) for x, y in controls]
-        if not reflected:
-            _ellipse(canvas, red_x, red_y + 1, SIDE_BUTTON_RADIUS + 1, SIDE_BUTTON_RADIUS + 1, BLACK)
-            _ellipse(canvas, red_x, red_y, SIDE_BUTTON_RADIUS, SIDE_BUTTON_RADIUS, CONTROL_RED_LIGHT)
-            _ellipse(canvas, red_x, red_y, SIDE_BUTTON_RADIUS - 1, SIDE_BUTTON_RADIUS - 1, CONTROL_RED_SHADOW)
-            _ellipse(canvas, red_x, red_y - 1, SIDE_BUTTON_RADIUS - 2, SIDE_BUTTON_RADIUS - 2, CONTROL_RED_FACE)
-            canvas.point(red_x - 2, red_y - 3, CONTROL_RED_LIGHT)
-        else:
-            # The right reference has a projecting red release paddle.
-            canvas.polygon([(red_x - 5, red_y - 6), (red_x + 3, red_y - 5),
-                            (red_x + 5, red_y + 6), (red_x - 3, red_y + 7)], BLACK)
-            canvas.polygon([(red_x - 4, red_y - 5), (red_x + 2, red_y - 4),
-                            (red_x + 3, red_y + 3), (red_x - 2, red_y + 4)], CONTROL_RED_FACE)
-            canvas.line((red_x - 3, red_y - 4), (red_x + 1, red_y - 3), CONTROL_RED_LIGHT)
-            canvas.line((red_x - 1, red_y + 4), (red_x, red_y + 6), CONTROL_RED_SHADOW, 2)
-        _panel_screw(canvas, screw_x, screw_y)
-        _potentiometer(canvas, knob_x, knob_y)
-        for offset in (-SIDE_SCREW_PAIR_SPACING // 2, SIDE_SCREW_PAIR_SPACING // 2):
-            _panel_screw(canvas, pair_x + offset, pair_y)
-
-
-def _fenders(canvas):
-    """Static exterior body visible through the bottom of the windscreen.
-
-    Only the smooth crowns are visible from the driver's eye line.
-    The exterior mesh retains its openings, hidden here behind the bodywork.
-    Their turquoise finish follows the requested exterior colour; native bitmap
-    dashboards have no per-paint recolouring, so these stay turquoise for all paints.
-    """
-    for side in (-1, 1):
-        def mirror(points):
-            return [(x if side < 0 else WIDTH - 1 - x, y) for x, y in points]
-
-        _surface(canvas, mirror([(0, 104), (17, 104), (35, 107), (52, 112),
-                                 (65, 118), (80, 124), (96, 126), (0, 126)]), "paint")
-        _surface(canvas, mirror([(0, 108), (16, 108), (34, 111), (49, 115),
-                                 (61, 120), (74, 125), (0, 126)]), "fender")
-        for first, last in (((0, 107), (17, 107)), ((17, 107), (35, 110)),
-                            ((35, 110), (51, 115))):
-            canvas.line(*mirror([first, last]), FENDER_HIGHLIGHT)
-        canvas.line(*mirror([(62, 121), (75, 125)]), FENDER_SIDE)
-
-
-def _cowl(canvas):
-    """Gently bowed dashboard crown and lower windscreen rail.
-
-    The photographs' wraparound cowl rises towards the central instruments.
-    Draw a shallow seven-pixel crown instead of a straight full-width strip;
-    the optional top/mask pair preserves the road above each curved sample.
-    """
-    half_width = (WIDTH - 1) / 2
-    crown = [(x, COWL_CROWN_TOP + round(COWL_CROWN_RISE *
-                                       ((x - half_width) / half_width) ** 2))
-             for x in range(WIDTH)]
-    _surface(canvas, crown + [(WIDTH - 1, COWL_BOTTOM), (0, COWL_BOTTOM)], "suede")
-    for x, y in crown:
-        canvas.point(x, y, BLACK)
-        canvas.point(x, y + 1, CARBON)
-        canvas.point(x, y + 2, CHARCOAL)
-        # A faint seam follows the same curve, avoiding a horizontal band.
-        canvas.point(x, y + 5, CARBON)
-
-
-def _canopy(canvas):
-    """Symmetric lower roof edge; the forward view has no side pillars."""
-    def texture_coordinates(x, y):
-        # Coarser horizontal weave keeps native RLE within the DOS RAM budget.
-        return min(x, WIDTH - 1 - x) // CANOPY_TEXTURE_SCALE, y
-
-    _surface(canvas, CANOPY_ROOF_OUTLINE, "carbon", texture_coordinates)
-    for x, y in CANOPY_WINDSCREEN_EDGE:
-        # Put the glazing seal inside the opaque roof, never in the road view.
-        canvas.point(x, y - 1, CANOPY_EDGE_SHADOW)
-
-
-def _panel():
+def _panel(repo=None):
+    """Load the edited PURE backdrop and add the native steering indicator."""
+    repo = Path(repo) if repo is not None else Path(__file__).resolve().parents[2]
+    resources = _resource_dict((repo / COCKPIT_SOURCE).read_bytes())
+    if set(resources) != {"dash"}:
+        raise ValueError("Cockpit source must contain one full-screen dash bitmap")
+    source = resources["dash"]
+    if len(source) != SHAPE_HEADER_SIZE + WIDTH * HEIGHT:
+        raise ValueError("Cockpit source has an invalid indexed pixel count")
+    width, height, _, _, x, y = struct.unpack_from("<HHhhHH", source)
+    if (width, height, x, y) != (WIDTH, HEIGHT, 0, 0):
+        raise ValueError("Cockpit source must be a 320x200 bitmap at the origin")
     canvas = Canvas(color=TRANSPARENT)
-    _surface(canvas, [(0, DASH_OPAQUE_TOP), (WIDTH - 1, DASH_OPAQUE_TOP),
-                       (WIDTH - 1, HEIGHT), (0, HEIGHT)], "recess")
-    _fenders(canvas)
-    _cowl(canvas)
-    _canopy(canvas)
-    _fascia(canvas)
-    _side_panels(canvas)
+    canvas.pixels[:] = source[SHAPE_HEADER_SIZE:]
+    if TRANSPARENT in canvas.crop(ROOF_RECT):
+        raise ValueError("Cockpit source roof strip must be opaque")
+    if TRANSPARENT in canvas.crop((0, DASH_TOP, WIDTH, HEIGHT - DASH_TOP)):
+        raise ValueError("Cockpit source below the windshield must be opaque")
+    if TRANSPARENT not in canvas.crop(TOP_OVERLAY_RECT):
+        raise ValueError("Cockpit source must preserve a transparent windshield")
     _steering_track(canvas, STEERING_INDICATOR_CENTER)
     return canvas
+
+
+def _darken_wheel_greys(canvas):
+    """Match wheel greys to the cockpit while retaining white LCD lettering."""
+    for offset, color in enumerate(canvas.pixels):
+        if WHEEL_GREY_FIRST <= color <= WHEEL_GREY_LAST:
+            canvas.pixels[offset] = min(color + WHEEL_GREY_DARKEN_STEPS, WHEEL_GREY_LAST)
 
 
 def transform_wheel_points(vertices, direction):
@@ -558,6 +305,16 @@ def transform_wheel_points(vertices, direction):
 
 
 def _wheel(canvas, direction):
+    """Composite the existing wheel geometry with cockpit-matched grey tones."""
+    wheel = Canvas(color=TRANSPARENT)
+    _draw_wheel(wheel, direction)
+    _darken_wheel_greys(wheel)
+    for offset, color in enumerate(wheel.pixels):
+        if color != TRANSPARENT:
+            canvas.pixels[offset] = color
+
+
+def _draw_wheel(canvas, direction):
     """Draw full open grips, one solid connector per side and five knobs."""
     angle = math.radians(direction * WHEEL_TURN_DEGREES)
     cosine, sine = math.cos(angle), math.sin(angle)
@@ -667,6 +424,7 @@ def _instrument_panel():
     # fixed instrument copy ignores the optional transform descriptors.
     canvas = Canvas(color=BLACK)
     _lcd(canvas)
+    _darken_wheel_greys(canvas)
     return canvas
 
 
@@ -712,7 +470,7 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     donor_maps = _resource_dict(donor_b)
     # Preserve the game colour maps, not the donor's dashboard artwork.
     maps = {name: donor_maps[name] for name in ("!cg0", "!eg0")}
-    canvas = _panel()
+    canvas = _panel(repo)
     primary = dict(maps)
     primary["dash"] = _shape(WIDTH, HEIGHT - DASH_TOP,
                               canvas.crop((0, DASH_TOP, WIDTH, HEIGHT - DASH_TOP)),
@@ -730,7 +488,7 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     primary["dasm"] = _shape(width, height,
                               bytes(255 if color == TRANSPARENT else 0 for color in upper), x, y)
     for index, direction in enumerate((-1, 0, 1), 1):
-        steered = _panel()
+        steered = _panel(repo)
         _wheel(steered, direction)
         x, y, width, height = WHEEL_RECT
         if any(pixel != canvas.pixels[offset] and not
@@ -808,7 +566,7 @@ def write_preview(repo: Path, path: Path, speed=150):
     canvas.polygon([(151, 90), (168, 90), (220, 124), (96, 124)], EDGE)
     canvas.line((159, 93), (159, 101), WHITE)
     canvas.line((159, 108), (159, 122), WHITE)
-    overlay = _panel()
+    overlay = _panel(repo)
     _wheel(overlay, 0)
     _preview_instruments(overlay, 0, speed)
     _preview_steering_dot(overlay, STEERING_INDICATOR_CENTER)
