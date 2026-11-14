@@ -126,6 +126,11 @@
                 <label><input id="show-mph" type="checkbox" disabled> Show MPH (Ctrl+F9)</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
+                <label for="video-mode">Video mode <select id="video-mode" disabled>
+                    <option value="vga" selected>VGA</option>
+                    <option value="ega">EGA</option>
+                    <option value="cga">CGA</option>
+                </select></label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
                     <option value="off">Off</option>
                     <option value="auto" selected>Auto</option>
@@ -302,7 +307,7 @@
         const FOLDER_STORE = 'folders';
         const ROM_FOLDER_STORE = 'mt32-rom-folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'hypervision', 'new-midi', 'start-fullscreen',
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen',
             'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
@@ -364,6 +369,7 @@
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
         const hyperVision = document.getElementById('hypervision');
+        const videoMode = document.getElementById('video-mode');
         const soundMode = document.getElementById('sound-mode');
         const mt32Settings = document.getElementById('mt32-settings');
         const romFolder = document.getElementById('mt32-rom-folder');
@@ -614,6 +620,7 @@
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(document.getElementById('show-mph').checked ? '--showmph:on' : '--showmph:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
+            args.push('--videomode:' + videoMode.value);
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
@@ -1157,6 +1164,8 @@
                         const mode = typeof value === 'string' ? value :
                             (stored['sound-enabled'] === false ? 'none' : 'adlib');
                         if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
+                    } else if (option === videoMode) {
+                        if (Array.from(option.options).some(mode => mode.value === value)) option.value = value;
                     } else if (option === hyperVision) {
                         // Older pages stored HyperVision as an on/off checkbox.
                         const mode = typeof value === 'boolean' ? (value ? 'auto' : 'off') : value;
@@ -1172,7 +1181,7 @@
 
         async function rememberLaunchOptions() {
             const values = Object.fromEntries(launchOptions.map(option =>
-                [option.id, option === hyperVision || option === soundMode ? option.value : option.checked]));
+                [option.id, option === hyperVision || option === soundMode || option === videoMode ? option.value : option.checked]));
             values['mt32-model'] = rememberedRomModel;
             try {
                 await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);

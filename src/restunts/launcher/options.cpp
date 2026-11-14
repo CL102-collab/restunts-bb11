@@ -11,6 +11,7 @@
 static const legacy_char SETTINGS_FILENAME[] = "launcher.ini";
 static const legacy_char SETTINGS_FOLDER_KEY[] = "folder";
 static const legacy_char SETTINGS_HYPERVISION_KEY[] = "hypervision";
+static const legacy_char SETTINGS_VIDEO_MODE_KEY[] = "video_mode";
 static const legacy_char SETTINGS_SOUND_MODE_KEY[] = "sound_mode";
 static const legacy_char SETTINGS_MT32_FOLDER_KEY[] = "mt32_rom_folder";
 static const legacy_char SETTINGS_MT32_MODEL_KEY[] = "mt32_model";
@@ -57,7 +58,14 @@ const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT] = 
 	{"medium", "Medium", "--hv:medium"},
 	{"low", "Low", "--hv:low"}};
 
-LauncherOptions::LauncherOptions() : sound_mode(LAUNCHER_SOUND_ADLIB), hypervision(LAUNCHER_HV_AUTO)
+const LauncherVideoDefinition launcher_video_definitions[LAUNCHER_VIDEO_MODE_COUNT] = {
+	{"vga", "VGA", "--videomode:vga"},
+	{"ega", "EGA", "--videomode:ega"},
+	{"cga", "CGA", "--videomode:cga"}};
+
+LauncherOptions::LauncherOptions()
+	: sound_mode(LAUNCHER_SOUND_ADLIB), hypervision(LAUNCHER_HV_AUTO),
+	  video_mode(LAUNCHER_VIDEO_VGA)
 {
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		enabled[index] = launcher_option_definitions[index].initial;
@@ -385,6 +393,14 @@ void launcher_read_options(const wxString &path, LauncherOptions &options)
 		options.enabled[index] = config.ReadBool(launcher_option_definitions[index].key,
 												 launcher_option_definitions[index].initial);
 	}
+	wxString video_mode;
+	config.Read(SETTINGS_VIDEO_MODE_KEY, &video_mode);
+	for (legacy_int index = 0; index < LAUNCHER_VIDEO_MODE_COUNT; ++index) {
+		if (video_mode == launcher_video_definitions[index].value) {
+			options.video_mode = index;
+			break;
+		}
+	}
 	wxString hypervision;
 	config.Read(SETTINGS_HYPERVISION_KEY, &hypervision);
 	for (legacy_int index = 0; index < LAUNCHER_HV_COUNT; ++index) {
@@ -421,6 +437,12 @@ wxString launcher_save_options(const wxString &path, const LauncherOptions &opti
 		written =
 			config.Write(launcher_option_definitions[index].key, options.enabled[index]) && written;
 	}
+	const legacy_int video_mode =
+		options.video_mode >= LAUNCHER_VIDEO_VGA && options.video_mode < LAUNCHER_VIDEO_MODE_COUNT
+			? options.video_mode
+			: LAUNCHER_VIDEO_VGA;
+	written = config.Write(SETTINGS_VIDEO_MODE_KEY, launcher_video_definitions[video_mode].value) &&
+			  written;
 	const legacy_int hypervision =
 		options.hypervision >= LAUNCHER_HV_OFF && options.hypervision < LAUNCHER_HV_COUNT
 			? options.hypervision
@@ -458,6 +480,11 @@ std::vector<wxString> launcher_game_arguments(const wxString &game, const Launch
 			arguments.push_back(argument);
 		}
 	}
+	const legacy_int video_mode =
+		options.video_mode >= LAUNCHER_VIDEO_VGA && options.video_mode < LAUNCHER_VIDEO_MODE_COUNT
+			? options.video_mode
+			: LAUNCHER_VIDEO_VGA;
+	arguments.push_back(launcher_video_definitions[video_mode].argument);
 	if (options.hypervision > LAUNCHER_HV_OFF && options.hypervision < LAUNCHER_HV_COUNT) {
 		arguments.push_back(launcher_hypervision_definitions[options.hypervision].argument);
 	}

@@ -118,6 +118,10 @@ build supports `file://` without a local web server. The HTML's location does no
    (`--multi-core:on/off`, initially on when supported), and the **HyperVision**
    selector. Multi-core rendering requires the threaded build and an isolated
    page; a saved choice overrides its default. Offline builds keep it disabled.
+   **Video mode** selects **VGA** (the default), **EGA**, or **CGA** for the
+   classic renderer and passes the corresponding `--videomode:` option. EGA and
+   CGA use the original DOS graphics and dithering; HyperVision always uses VGA.
+   The selected classic mode is remembered independently of HyperVision.
    HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while

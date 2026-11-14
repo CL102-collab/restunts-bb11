@@ -10,6 +10,14 @@
 #include "shape2d_internal.h"
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../../platform/sdl3/video_mode.h"
+#define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y) sdl3_video_mode_source_begin_at(shape, x, y)
+#define SHAPE2D_VIDEO_SOURCE_END() sdl3_video_mode_source_end()
+#else
+#define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y)
+#define SHAPE2D_VIDEO_SOURCE_END()
+#endif
 
 #define SHAPE2D_FIXED_FRACTION_BITS LEGACY_BYTE_BITS
 #define SHAPE2D_FIXED_ONE 65536UL
@@ -63,6 +71,7 @@ void sprite_draw_dissolve_phase(struct SHAPE2D far *shape, legacy_u16 phase)
 		LEGACY_U16_WRAP_ADD(dos_memory_pointer_offset(shape), SHAPE2D_HEADER_SIZE);
 	legacy_u16 source_row_step = (legacy_u16)((legacy_u32)width * 12UL);
 	static const legacy_u8 row_order[12] = {11, 5, 8, 2, 10, 4, 7, 1, 9, 3, 6, 0};
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, pos_x, pos_y);
 	for (legacy_s16 order_index = 11; order_index >= 0; order_index--) {
 		legacy_u16 selector = row_order[order_index];
 		legacy_u16 line_entry = LEGACY_U16_WRAP_ADD(line_table_start, (legacy_u16)(selector << 1));
@@ -80,6 +89,7 @@ void sprite_draw_dissolve_phase(struct SHAPE2D far *shape, legacy_u16 phase)
 		}
 		phase++;
 	}
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 void sprite_draw_palette_mapped(struct SHAPE2D far *shape)
@@ -97,6 +107,7 @@ void sprite_draw_palette_mapped(struct SHAPE2D far *shape)
 	legacy_u16 source = LEGACY_U16_WRAP_ADD(dos_memory_pointer_offset(shape), SHAPE2D_HEADER_SIZE);
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u16 old_row_count;
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, shape2d_get_pos_x(shape), shape2d_get_pos_y(shape));
 	do {
 		legacy_u16 column_count = width;
 		if (planar != 0 && width != 0) {
@@ -124,6 +135,7 @@ void sprite_draw_palette_mapped(struct SHAPE2D far *shape)
 		old_row_count = row_count;
 		row_count = LEGACY_U16_WRAP_SUB(row_count, 1U);
 	} while (old_row_count != LEGACY_U16_SIGN_BIT && LEGACY_S16_FROM_BITS(row_count) > 0);
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 static void sprite_clear_shape_impl(struct SHAPE2D far *shape, legacy_u16 x, legacy_u16 y)
@@ -247,6 +259,8 @@ void sprite_copy_image_transformed(struct SPRITE far *source,
 					   SHAPE2D_TRANSFORM_HALF;
 	legacy_s32 source_right = (legacy_s32)transform->source_width * SHAPE2D_TRANSFORM_ONE;
 	legacy_s32 source_bottom = (legacy_s32)transform->source_height * SHAPE2D_TRANSFORM_ONE;
+	SHAPE2D_VIDEO_SOURCE_BEGIN(source->sprite_bitmapptr, (legacy_u16)transform->left,
+							   (legacy_u16)transform->top);
 	for (legacy_s16 y = top; y < bottom; y++) {
 		legacy_u16 destination = LEGACY_U16_WRAP_ADD(
 			shape2d_get_line_offset(dos_memory_pointer_segment(&drawing_sprite), (legacy_u16)y),
@@ -263,7 +277,16 @@ void sprite_copy_image_transformed(struct SPRITE far *source,
 								 source_x);
 				legacy_u8 color = source_pixels[source_offset];
 				if (color != SHAPE2D_TRANSPARENT_COLOR) {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+					if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
+						sdl3_video_mode_source_sample(source_x, source_y);
+					}
+#endif
 					video_pages_write_pixel(target_pixels, destination, color);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+					sdl3_video_mode_copy_sample(target_pixels, destination, source_pixels,
+												source_offset);
+#endif
 				}
 			}
 			sample_x += transform->inverse_xx;
@@ -273,11 +296,15 @@ void sprite_copy_image_transformed(struct SPRITE far *source,
 		row_x += transform->inverse_xy;
 		row_y += transform->inverse_yy;
 	}
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 struct SHAPE2D_SCALED_DRAW {
 	legacy_u16 shape_segment;
 	legacy_u16 source;
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	legacy_u16 source_start;
+#endif
 	legacy_u16 source_width;
 	legacy_u16 scaled_width;
 	legacy_u16 scaled_height;
@@ -363,6 +390,13 @@ static void shape2d_render_scaled(struct SHAPE2D_SCALED_DRAW *draw)
 				(legacy_u8 far *)dos_memory_make_pointer(draw->shape_segment, draw->source);
 			legacy_u8 color = *source_ptr;
 			if (color != SHAPE2D_TRANSPARENT_COLOR) {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+				if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
+					legacy_u16 index = LEGACY_U16_WRAP_SUB(draw->source, draw->source_start);
+					sdl3_video_mode_source_sample(index % draw->source_width,
+												  index / draw->source_width);
+				}
+#endif
 				video_pages_write_pixel(bitmap, destination, color);
 			}
 			destination++;
@@ -412,6 +446,9 @@ static void shape2d_scale_transparent_impl(struct SHAPE2D far *shape, legacy_u16
 		return;
 	}
 	draw.source = LEGACY_U16_WRAP_ADD(dos_memory_pointer_offset(shape), SHAPE2D_HEADER_SIZE);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	draw.source_start = draw.source;
+#endif
 	draw.step = (legacy_u16)LEGACY_U32_DIV_OR_ZERO(SHAPE2D_FIXED_ONE, scale);
 	draw.horizontal_start = 0;
 	draw.vertical_fraction = 0;
@@ -419,13 +456,16 @@ static void shape2d_scale_transparent_impl(struct SHAPE2D far *shape, legacy_u16
 	draw.source = LEGACY_U16_WRAP_ADD(
 		draw.source, (legacy_u16)((legacy_u32)center_skip * ((legacy_u32)draw.source_width + 1UL)));
 
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, draw.x, draw.y);
 	if (clipped != 0) {
 		if (!shape2d_clip_scaled_columns(&draw) || !shape2d_clip_scaled_rows(&draw)) {
+			SHAPE2D_VIDEO_SOURCE_END();
 			return;
 		}
 	}
 
 	shape2d_render_scaled(&draw);
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 void shape2d_draw_scaled_transparent_clipped(legacy_s16 scale, struct SHAPE2D far *shape,
@@ -453,6 +493,7 @@ static void sprite_shape_to_1_impl(struct SHAPE2D far *shape, legacy_u16 x, lega
 	legacy_u16 row_count = shape2d_get_height(shape);
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u16 old_row_count;
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y);
 	do {
 		legacy_u32 pixel_count;
 		if (width == 0 && operation != SHAPE2D_RASTER_COPY) {
@@ -493,6 +534,7 @@ static void sprite_shape_to_1_impl(struct SHAPE2D far *shape, legacy_u16 x, lega
 		old_row_count = row_count;
 		row_count = LEGACY_U16_WRAP_SUB(row_count, 1U);
 	} while (old_row_count != LEGACY_U16_SIGN_BIT && LEGACY_S16_FROM_BITS(row_count) > 0);
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 void sprite_shape_to_1(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
@@ -563,6 +605,11 @@ void sprite_xor_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legac
 	do {
 		legacy_u16 column_count = (legacy_u16)clipped_width;
 		do {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+			if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
+				sdl3_video_mode_xor_begin(bitmap, destination, color_bits);
+			}
+#endif
 			video_pages_write_pixel(bitmap, destination,
 									video_pages_read_pixel(bitmap, destination) ^ color_bits);
 			destination++;

@@ -10,6 +10,9 @@
 #include <float.h>
 
 #include "hires_internal.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../../platform/sdl3/video_mode.h"
+#endif
 
 struct HIRES_STATE hires_state = {
 	.render_scale = HIRES_SCALE,
@@ -466,6 +469,9 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 
 void hires_forget(const void *base)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	sdl3_video_mode_forget(base, 0);
+#endif
 	struct HIRES_SURFACE **link = &hires_state.surfaces;
 	while (*link != NULL) {
 		struct HIRES_SURFACE *surface = *link;
@@ -486,6 +492,9 @@ void hires_forget(const void *base)
 
 void hires_forget_range(const void *base, legacy_u32 size)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	sdl3_video_mode_forget(base, size);
+#endif
 	if (!hires_state.enabled || size == 0) {
 		return;
 	}

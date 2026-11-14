@@ -14,6 +14,10 @@
 #include "shape2d_internal.h"
 #include "../game_input.h"
 #include "../video/video_pages.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+#include "../../platform/sdl3/video_mode.h"
+#endif
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 static struct SPRITE native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY]
 											   [SPRITE_STATE_COUNT];
@@ -98,6 +102,10 @@ struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u
 		lineofs += width;
 	}
 
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	sdl3_video_mode_target(farwnd);
+#endif
 	return farwnd;
 }
 
@@ -130,6 +138,10 @@ void sprite_free_wnd(struct SPRITE far *render_window_sprite)
 void sprite_select_target(struct SPRITE far *target_sprite)
 {
 	fmemcpy(&drawing_sprite, target_sprite, sizeof(struct SPRITE));
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	sdl3_video_mode_target(&drawing_sprite);
+#endif
 }
 
 void sprite_select_screen(void)
@@ -182,6 +194,10 @@ void sprite_restore_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
 	screen_sprite = saved_context[1];
 #else
 	fmemcpy(&drawing_sprite, saved_context, sizeof(struct SPRITE) * SPRITE_STATE_COUNT);
+#endif
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	sdl3_video_mode_target(&drawing_sprite);
 #endif
 }
 

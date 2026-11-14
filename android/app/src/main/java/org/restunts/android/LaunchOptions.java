@@ -18,6 +18,7 @@ public final class LaunchOptions {
     public static final String MULTI_CORE_KEY = "multi_core";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
+    public static final String VIDEO_MODE_KEY = "video_mode";
     public static final String POWER_GEAR_KEY = "power_gear";
     public static final String LEGACY_COLLISION_KEY = "legacy_collision";
     public static final String LEFT_CORNER_BIAS_KEY = "left_corner_bias";
@@ -74,6 +75,30 @@ public final class LaunchOptions {
         }
     }
 
+    public enum VideoMode {
+        VGA("--videomode:vga"),
+        EGA("--videomode:ega"),
+        CGA("--videomode:cga");
+
+        private final String argument;
+
+        VideoMode(String argument) {
+            this.argument = argument;
+        }
+
+        /** Missing and unrecognized preferences use the original VGA output. */
+        public static VideoMode fromStored(String value) {
+            if (value != null) {
+                for (VideoMode option : values()) {
+                    if (option.name().equals(value)) {
+                        return option;
+                    }
+                }
+            }
+            return VGA;
+        }
+    }
+
     public enum HyperVision {
         OFF("Off", null),
         AUTO("Auto", "auto"),
@@ -118,6 +143,7 @@ public final class LaunchOptions {
     public final boolean multiCore;
     public final boolean showControlLayout;
     public final HyperVision hyperVision;
+    public final VideoMode videoMode;
     public final boolean powerGear;
     public final boolean legacyCollision;
     public final boolean leftCornerBias;
@@ -169,14 +195,15 @@ public final class LaunchOptions {
             boolean sound, boolean skipIntro, boolean multiCore, boolean showMph) {
         this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
             leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
-            sound ? SoundMode.ADLIB : SoundMode.NONE, skipIntro, multiCore, showMph, "", "");
+            sound ? SoundMode.ADLIB : SoundMode.NONE, skipIntro, multiCore, showMph, "", "", VideoMode.VGA);
     }
 
     private LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
             HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
             boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
             boolean owoot, boolean amigaGrass, SoundMode soundMode, boolean skipIntro,
-            boolean multiCore, boolean showMph, String mt32RomDirectory, String mt32Model) {
+            boolean multiCore, boolean showMph, String mt32RomDirectory, String mt32Model,
+            VideoMode videoMode) {
         this.newMidi = newMidi;
         this.soundMode = soundMode == null ? SoundMode.ADLIB : soundMode;
         this.sound = this.soundMode != SoundMode.NONE;
@@ -188,6 +215,7 @@ public final class LaunchOptions {
         this.multiCore = multiCore;
         this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
+        this.videoMode = videoMode == null ? VideoMode.VGA : videoMode;
         this.powerGear = powerGear;
         this.legacyCollision = legacyCollision;
         this.leftCornerBias = leftCornerBias;
@@ -200,7 +228,13 @@ public final class LaunchOptions {
     public LaunchOptions withSoundMode(SoundMode mode, String directory, String model) {
         return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
             legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
-            amigaGrass, mode, skipIntro, multiCore, showMph, directory, model);
+            amigaGrass, mode, skipIntro, multiCore, showMph, directory, model, videoMode);
+    }
+
+    public LaunchOptions withVideoMode(VideoMode mode) {
+        return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
+            legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
+            amigaGrass, soundMode, skipIntro, multiCore, showMph, mt32RomDirectory, mt32Model, mode);
     }
 
     public String[] arguments(String dataDirectory) {
@@ -211,6 +245,7 @@ public final class LaunchOptions {
         arguments.add(showFps ? "--fps:on" : "--fps:off");
         arguments.add(showMph ? "--showmph:on" : "--showmph:off");
         arguments.add(multiCore ? "--multi-core:on" : "--multi-core:off");
+        arguments.add(videoMode.argument);
         if (hyperVision != HyperVision.OFF) {
             arguments.add("--hv:" + hyperVision.argument);
         }

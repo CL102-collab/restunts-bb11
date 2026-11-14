@@ -13,10 +13,11 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
+const VIDEO_MODES = ['vga', 'ega', 'cga'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
 const RUNTIME = `<script>
@@ -124,7 +125,7 @@ async function assertSettingsLayout(page, narrow) {
     assert.ok(layout.soundTop >= layout.startupBottom, 'Sound settings must follow startup options');
     assert.ok(layout.graphicsTop >= layout.soundBottom, 'Sound settings must precede graphics settings');
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'hypervision'],
+    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'video-mode', 'hypervision'],
         'Fullscreen must precede the shared graphics controls, with HyperVision last');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
@@ -1446,6 +1447,10 @@ async function main() {
         assert.deepEqual(await page.locator('#hypervision option').evaluateAll(options =>
             options.map(option => ({ value: option.value, label: option.label }))),
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
+        assert.deepEqual(await page.locator('#video-mode option').evaluateAll(options =>
+            options.map(option => ({ value: option.value, label: option.label }))),
+        VIDEO_MODES.map(value => ({ value, label: value.toUpperCase() })));
+        assert.equal(await page.locator('#video-mode').inputValue(), 'vga', 'Classic video mode must default to VGA');
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
         assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
             'Sound must retain its existing Ad Lib default');
@@ -1480,7 +1485,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--fps:off', '--showmph:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--fps:off', '--showmph:off', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1489,6 +1494,8 @@ async function main() {
             await page.reload();
             await ready(page);
             await page.locator('#hypervision').selectOption(preset);
+            const videoMode = VIDEO_MODES[index % VIDEO_MODES.length];
+            await page.locator('#video-mode').selectOption(videoMode);
             const fps = index % 2 === 1;
             await page.locator('#show-fps').setChecked(fps);
             const mph = !fps;
@@ -1496,12 +1503,14 @@ async function main() {
             await page.locator('#multi-core').setChecked(fps);
             const stored = await storedOptions(page);
             assert.equal(stored.hypervision, preset, 'Preset must be stored as its string value');
+            assert.equal(stored['video-mode'], videoMode, 'Video mode must be stored as its string value');
             assert.equal(stored['show-fps'], fps, 'FPS must be stored as a boolean');
             assert.equal(stored['show-mph'], mph, 'MPH must be stored as a boolean');
             assert.equal(stored['multi-core'], fps, 'Multi-core rendering must be stored as a boolean');
             await page.reload();
             await ready(page);
             assert.equal(await page.locator('#hypervision').inputValue(), preset, 'Preset must persist');
+            assert.equal(await page.locator('#video-mode').inputValue(), videoMode, 'Video mode must persist independently of HyperVision');
             assert.equal(await page.locator('#show-fps').isChecked(), fps, 'FPS must persist');
             assert.equal(await page.locator('#show-mph').isChecked(), mph, 'MPH must persist independently from FPS');
             assert.equal(await page.locator('#multi-core').isChecked(), fps, 'Multi-core rendering must persist');
@@ -1510,6 +1519,7 @@ async function main() {
             const args = await page.evaluate(() => window.launchedArguments);
             assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
                 preset === 'off' ? [] : ['--hv:' + preset], 'Only the chosen preset may be passed');
+            assert.deepEqual(args.filter(arg => arg.startsWith('--videomode:')), ['--videomode:' + videoMode]);
             assert.deepEqual(args.filter(arg => arg.startsWith('--fps:')), [fps ? '--fps:on' : '--fps:off']);
             assert.deepEqual(args.filter(arg => arg.startsWith('--showmph:')), [mph ? '--showmph:on' : '--showmph:off']);
             const savedBeforeHotkey = await storedOptions(page);
@@ -1528,8 +1538,9 @@ async function main() {
         for (const id of ['new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
         await page.locator('#sound-mode').selectOption('none');
         await page.locator('#hypervision').selectOption('high');
+        await page.locator('#video-mode').selectOption('cga');
         const stored = await storedOptions(page);
-        for (const id of OPTIONS.filter(id => !['hypervision', 'sound-mode'].includes(id))) assert.equal(typeof stored[id], 'boolean');
+        for (const id of OPTIONS.filter(id => !['hypervision', 'sound-mode', 'video-mode'].includes(id))) assert.equal(typeof stored[id], 'boolean');
         await page.reload();
         await ready(page);
         for (const id of ['skip-intro', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
@@ -1539,10 +1550,11 @@ async function main() {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
+        assert.equal(await page.locator('#video-mode').inputValue(), 'cga');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--fps:on', '--showmph:on', '--multi-core:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--fps:on', '--showmph:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1571,6 +1583,8 @@ async function main() {
             assert.equal(await page.locator('#multi-core').isChecked(), true,
                 'Preferences without a multi-core setting must use the enabled default');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
+            assert.equal(await page.locator('#video-mode').inputValue(), 'vga',
+                'Preferences without a video mode must retain the VGA default');
             assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
                 'Preferences from earlier versions must leave sound enabled');
             assert.equal(await page.locator('#dual-way-switching').isChecked(), true,
@@ -1581,6 +1595,7 @@ async function main() {
             const migrated = await storedOptions(page);
             assert.equal(migrated['chicane-fast-grass'], true,
                 'Saving older preferences must persist the default for Chicane Fast-Grass');
+            assert.equal(migrated['video-mode'], 'vga', 'Migrated preferences must store the default video mode');
             assert.equal(migrated.hypervision, expected,
                 'Saving settings must replace the legacy boolean with the migrated preset');
             assert.equal(Object.hasOwn(migrated, 'unknown-preference'), false,
@@ -1592,6 +1607,21 @@ async function main() {
                 expected === 'off' ? [] : ['--hv:' + expected]);
             assert.equal(args.includes('--nosound'), false);
             assert.deepEqual(args.filter(arg => arg.startsWith('--cfg:')), ['--cfg:on']);
+        }
+        for (const invalidMode of ['future-mode', true, null]) {
+            await page.evaluate(mode => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite',
+                { 'video-mode': mode, hypervision: 'full' }), invalidMode);
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#video-mode').inputValue(), 'vga',
+                'Unknown or malformed video modes must use VGA');
+            assert.equal(await page.locator('#hypervision').inputValue(), 'full',
+                'Invalid video modes must not change the HyperVision preset');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            const args = await page.evaluate(() => window.launchedArguments);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--videomode:')), ['--videomode:vga']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')), ['--hv:full']);
         }
         await page.setViewportSize({ width: 1000, height: 500 });
         await assertSettingsLayout(page, false);
@@ -1621,7 +1651,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker and MT-32 ROM selection, six HyperVision presets, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

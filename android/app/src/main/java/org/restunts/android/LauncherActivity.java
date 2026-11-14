@@ -106,6 +106,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox owoot;
     private CheckBox amigaGrass;
     private Spinner hyperVision;
+    private Spinner videoMode;
     private SharedPreferences preferences;
     private boolean television;
 
@@ -293,6 +294,23 @@ public final class LauncherActivity extends Activity {
         hyperVisionOption.addView(hyperVision);
         graphics.addView(hyperVisionOption);
 
+        WrappingLayout videoModeOption = new WrappingLayout(this, 0, 0);
+        TextView videoModeLabel = new TextView(this);
+        videoModeLabel.setText("Video mode");
+        videoModeLabel.setTextSize(textSize);
+        videoModeOption.addView(videoModeLabel);
+        videoMode = new Spinner(this);
+        videoMode.setId(View.generateViewId());
+        videoModeLabel.setLabelFor(videoMode.getId());
+        ArrayAdapter<LaunchOptions.VideoMode> videoModeAdapter = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, LaunchOptions.VideoMode.values());
+        videoModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        videoMode.setAdapter(videoModeAdapter);
+        videoMode.setSelection(LaunchOptions.VideoMode.fromStored(
+            preferences.getString(LaunchOptions.VIDEO_MODE_KEY, null)).ordinal());
+        videoModeOption.addView(videoMode);
+        graphics.addView(videoModeOption);
+
         WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
         tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
             LaunchOptions.DEFAULT_TILT_STEERING, textSize);
@@ -342,6 +360,17 @@ public final class LauncherActivity extends Activity {
         if (romInventory != null) {
             applyRomInventory(romInventory);
         }
+        videoMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                saveOptions();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // A populated Spinner keeps its current choice.
+            }
+        });
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -634,7 +663,8 @@ public final class LauncherActivity extends Activity {
             chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
             selectedSoundMode() != LaunchOptions.SoundMode.NONE, skipIntro.isChecked(),
             multiCore.isChecked(), showMph.isChecked()).withSoundMode(selectedSoundMode(),
-                Mt32RomStorage.directory(this).getAbsolutePath(), selectedRomModel());
+                Mt32RomStorage.directory(this).getAbsolutePath(), selectedRomModel())
+            .withVideoMode((LaunchOptions.VideoMode) videoMode.getSelectedItem());
     }
 
     private void saveOptions() {
@@ -654,6 +684,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.MULTI_CORE_KEY, options.multiCore)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
+            .putString(LaunchOptions.VIDEO_MODE_KEY, options.videoMode.name())
             .putBoolean(LaunchOptions.POWER_GEAR_KEY, options.powerGear)
             .putBoolean(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision)
             .putBoolean(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias)
@@ -741,6 +772,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
+                        intent.putExtra(LaunchOptions.VIDEO_MODE_KEY, options.videoMode.name());
                         intent.putExtra(LaunchOptions.POWER_GEAR_KEY, options.powerGear);
                         intent.putExtra(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision);
                         intent.putExtra(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias);

@@ -54,6 +54,7 @@ legacy_int main()
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
+	check(options.video_mode == LAUNCHER_VIDEO_VGA, "Video mode must default to VGA.");
 	check(wxString(launcher_option_definitions[LAUNCHER_NEW_MIDI].label) ==
 			  "OGG music replacement (Shift+F10)",
 		  "The replacement music control must use its descriptive public label.");
@@ -63,19 +64,11 @@ legacy_int main()
 	check(arguments[GAME_ARGUMENT_INDEX] == game && arguments[DATA_OPTION_INDEX] == "--data-dir" &&
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
-	const legacy_char *defaults[] = {"--soundmode:adlib",
-									 "--ogg:off",
-									 "--hv:auto",
-									 "--fullscreen:off",
-									 "--fps:off",
-									 "--showmph:off",
-									 "--controller-vibration:on",
-									 "--multi-core:on",
-									 "--pg:on",
-									 "--lc:on",
-									 "--lcb:on",
-									 "--dws:on",
-									 "--cfg:on"};
+	const legacy_char *defaults[] = {
+		"--soundmode:adlib", "--videomode:vga", "--ogg:off",	 "--hv:auto",
+		"--fullscreen:off",	 "--fps:off",		"--showmph:off", "--controller-vibration:on",
+		"--multi-core:on",	 "--pg:on",			"--lc:on",		 "--lcb:on",
+		"--dws:on",			 "--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -107,6 +100,34 @@ legacy_int main()
 		check(contains(launcher_game_arguments(game, options), presets[index - LAUNCHER_HV_AUTO]),
 			  "HyperVision selection must reach the game unchanged.");
 	}
+
+	const legacy_char *video_modes[] = {"--videomode:vga", "--videomode:ega", "--videomode:cga"};
+	for (legacy_int video_mode = LAUNCHER_VIDEO_VGA; video_mode < LAUNCHER_VIDEO_MODE_COUNT;
+		 video_mode++) {
+		options.video_mode = video_mode;
+		for (legacy_int hypervision = LAUNCHER_HV_OFF; hypervision < LAUNCHER_HV_COUNT;
+			 hypervision++) {
+			options.hypervision = hypervision;
+			arguments = launcher_game_arguments(game, options);
+			legacy_int video_arguments = 0;
+			for (const wxString &argument : arguments) {
+				video_arguments += argument.StartsWith("--videomode:");
+			}
+			check(video_arguments == 1 && contains(arguments, video_modes[video_mode]),
+				  "Each video mode must reach the game independently of HyperVision.");
+			if (hypervision > LAUNCHER_HV_OFF) {
+				check(contains(arguments, presets[hypervision - LAUNCHER_HV_AUTO]),
+					  "Selecting EGA or CGA must preserve the HyperVision preset.");
+			}
+		}
+	}
+	const legacy_int invalid_video_modes[] = {-1, LAUNCHER_VIDEO_MODE_COUNT};
+	for (legacy_int invalid : invalid_video_modes) {
+		options.video_mode = invalid;
+		check(contains(launcher_game_arguments(game, options), "--videomode:vga"),
+			  "An invalid video mode must safely produce the VGA argument.");
+	}
+	options.video_mode = LAUNCHER_VIDEO_EGA;
 
 	options.sound_mode = LAUNCHER_SOUND_MT32;
 	options.mt32_rom_folder = wxString::FromUTF8("/ROM folders/árvíz & test/");
@@ -185,8 +206,25 @@ legacy_int main()
 	check(launcher_save_options(settings, options).empty(), "Could not save per-user options.");
 	LauncherOptions restored;
 	launcher_read_options(settings, restored);
-	check(restored.folder == options.folder && restored.hypervision == options.hypervision,
-		  "Folder and HyperVision must round-trip through configuration.");
+	check(restored.folder == options.folder && restored.hypervision == options.hypervision &&
+			  restored.video_mode == options.video_mode,
+		  "Folder, HyperVision and video mode must round-trip through configuration.");
+	for (legacy_int mode = LAUNCHER_VIDEO_VGA; mode < LAUNCHER_VIDEO_MODE_COUNT; mode++) {
+		LauncherOptions video_options = options;
+		video_options.video_mode = mode;
+		check(launcher_save_options(settings, video_options).empty(),
+			  "Could not save video mode options.");
+		launcher_read_options(settings, restored);
+		check(restored.video_mode == mode && restored.hypervision == options.hypervision,
+			  "All video modes must round-trip independently of HyperVision.");
+	}
+	LauncherOptions invalid_video_options = options;
+	invalid_video_options.video_mode = LAUNCHER_VIDEO_MODE_COUNT;
+	check(launcher_save_options(settings, invalid_video_options).empty(),
+		  "Could not save options with an invalid video mode.");
+	launcher_read_options(settings, restored);
+	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
+		  "Invalid video mode indices must be saved as the VGA default.");
 	check(restored.sound_mode == LAUNCHER_SOUND_MT32 &&
 			  restored.mt32_rom_folder == options.mt32_rom_folder &&
 			  restored.mt32_model == options.mt32_model,
@@ -223,6 +261,7 @@ legacy_int main()
 		config.Read("sound_mode", &saved_mode);
 		check(saved_mode == "pc-speaker", "PC Speaker must persist as the stable pc-speaker ID.");
 		config.Write("hypervision", "unknown-future-preset");
+		config.Write("video_mode", "unknown-future-mode");
 		config.DeleteEntry("sound_mode");
 		config.Write("sound", false);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
@@ -240,6 +279,8 @@ legacy_int main()
 		  "Configurations without a saved multi-core setting must use the enabled default.");
 	check(!restored.enabled[LAUNCHER_SHOW_MPH],
 		  "Configurations without a saved Show MPH setting must use the disabled default.");
+	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
+		  "An unknown stored video mode must use the VGA default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	check(restored.sound_mode == LAUNCHER_SOUND_NONE &&
@@ -271,9 +312,12 @@ legacy_int main()
 		config.DisableAutoSave();
 		config.DeleteEntry("sound_mode");
 		config.Write("sound", true);
+		config.DeleteEntry("video_mode");
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
+	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
+		  "Configurations without a video mode must use the VGA default.");
 	check(restored.sound_mode == LAUNCHER_SOUND_ADLIB,
 		  "The legacy enabled sound checkbox must retain the Ad Lib default.");
 	wxRemoveFile(settings);
@@ -283,7 +327,7 @@ legacy_int main()
 			  !restored.enabled[LAUNCHER_NEW_MIDI] && !restored.enabled[LAUNCHER_FULLSCREEN] &&
 			  !restored.enabled[LAUNCHER_SHOW_MPH] && restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
-			  restored.hypervision == LAUNCHER_HV_AUTO,
+			  restored.hypervision == LAUNCHER_HV_AUTO && restored.video_mode == LAUNCHER_VIDEO_VGA,
 		  "A missing configuration must restore current defaults, not previous user state.");
 	check(!wxFileExists(settings), "Reading a missing configuration must not create a file.");
 	return failures == 0 ? TEST_SUCCESS : TEST_FAILURE;

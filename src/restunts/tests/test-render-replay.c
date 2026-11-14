@@ -25,8 +25,13 @@
 #include "../c/hires/hires.h"
 #include "../c/crash_state.h"
 #include "../c/hires/frame_adaptive.h"
+#include "../platform/sdl3/video_mode.h"
 
 #define RENDER_REPLAY_ADAPTIVE_MODE 3
+#define RENDER_REPLAY_SHORT_ARGUMENT_COUNT 7
+#define RENDER_REPLAY_LONG_ARGUMENT_COUNT 9
+
+static const legacy_char RENDER_REPLAY_VIDEO_MODE_PREFIX[] = "--videomode:";
 
 #undef memcpy
 #undef printf
@@ -386,15 +391,40 @@ static void initialize_replay(const legacy_s8 *name)
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
-	assert(argc == 7 || argc == 9);
+	legacy_s16 positional_argc = argc;
+	legacy_u8 expected_video_mode = SDL3_VIDEO_MODE_VGA;
+	if (argc == RENDER_REPLAY_SHORT_ARGUMENT_COUNT + 1 ||
+		argc == RENDER_REPLAY_LONG_ARGUMENT_COUNT + 1) {
+		const legacy_char *option = (const legacy_char *)argv[argc - 1];
+		assert(strncmp(option, RENDER_REPLAY_VIDEO_MODE_PREFIX,
+					   sizeof(RENDER_REPLAY_VIDEO_MODE_PREFIX) - 1U) == 0);
+		const legacy_char *value = option + sizeof(RENDER_REPLAY_VIDEO_MODE_PREFIX) - 1U;
+		if (strcmp(value, "ega") == 0) {
+			expected_video_mode = SDL3_VIDEO_MODE_EGA;
+		} else if (strcmp(value, "cga") == 0) {
+			expected_video_mode = SDL3_VIDEO_MODE_CGA;
+		} else {
+			assert(strcmp(value, "vga") == 0);
+		}
+		positional_argc--;
+	}
+	assert(positional_argc == RENDER_REPLAY_SHORT_ARGUMENT_COUNT ||
+		   positional_argc == RENDER_REPLAY_LONG_ARGUMENT_COUNT);
 	legacy_s16 mode = (legacy_s16)atoi((const legacy_char *)argv[3]);
 	legacy_u16 limit = (legacy_u16)atoi((const legacy_char *)argv[4]);
 	assert(mode >= 0 && mode <= RENDER_REPLAY_ADAPTIVE_MODE);
 	legacy_u16 landing_start = (legacy_u16)atoi((const legacy_char *)argv[5]);
 	legacy_u16 landing_end = (legacy_u16)atoi((const legacy_char *)argv[6]);
-	legacy_u16 settling_start = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[7]) : 0;
-	legacy_u16 settling_end = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[8]) : 0;
+	legacy_u16 settling_start = positional_argc == RENDER_REPLAY_LONG_ARGUMENT_COUNT
+									? (legacy_u16)atoi((const legacy_char *)argv[7])
+									: 0;
+	legacy_u16 settling_end = positional_argc == RENDER_REPLAY_LONG_ARGUMENT_COUNT
+								  ? (legacy_u16)atoi((const legacy_char *)argv[8])
+								  : 0;
+	/* Preserve the optional real startup flag so parsing and renderer setup
+	 * are exercised before comparing the authoritative replay output. */
 	init_main(argc, argv);
+	assert(sdl3_video_mode_selected == expected_video_mode);
 	init_div0();
 	init_row_tables();
 	mainresptr = file_load_resfile("main");

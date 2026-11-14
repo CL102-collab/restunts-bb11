@@ -54,6 +54,18 @@ static legacy_u8 startup_configured_sound_mode;
 static legacy_u8 startup_configured_sound_disabled;
 static const legacy_char *startup_configured_rom_directory;
 static const legacy_char *startup_configured_mt32_model;
+static legacy_u8 startup_video_mode = SDL3_VIDEO_MODE_VGA;
+static legacy_u32 startup_video_mode_set_calls;
+static legacy_u32 startup_video_mode_before_video_calls;
+
+void sdl3_video_set_startup_mode(legacy_u8 mode)
+{
+	assert(mode == SDL3_VIDEO_MODE_VGA || mode == SDL3_VIDEO_MODE_EGA ||
+		   mode == SDL3_VIDEO_MODE_CGA);
+	startup_video_mode = mode;
+	startup_video_mode_before_video_calls = startup_video_calls;
+	++startup_video_mode_set_calls;
+}
 
 void sdl3_audio_configure(legacy_u8 mode, const legacy_char *directory, const legacy_char *model,
 						  legacy_u8 disabled)
@@ -235,6 +247,9 @@ void audio_allocate_car_state_records(void)
 }
 void dos_video_set_mode_13h(void)
 {
+#ifdef RESTUNTS_SDL3
+	assert(startup_video_mode_before_video_calls == startup_video_calls);
+#endif
 #ifdef STARTUP_FULLSCREEN_PREFIX
 	assert(startup_fullscreen_before_video_calls == startup_video_calls);
 #endif
@@ -813,6 +828,10 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#ifdef RESTUNTS_SDL3
+	legacy_u32 before_video_mode_calls = startup_video_mode_set_calls;
+	legacy_u8 before_video_mode = startup_video_mode;
+#endif
 #ifdef STARTUP_MULTI_CORE_PREFIX
 	legacy_u32 before_multi_core_calls = startup_multi_core_set_calls;
 	legacy_u8 before_multi_core_enabled = startup_multi_core_enabled;
@@ -839,6 +858,8 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 #ifdef RESTUNTS_SDL3
 	assert(startup_render_enabled == 0 && renderer_active == 0);
 	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
+	assert(startup_video_mode_set_calls == before_video_mode_calls);
+	assert(startup_video_mode == before_video_mode);
 #endif
 	assert(timer_calls == 0);
 #ifdef STARTUP_MULTI_CORE_PREFIX
@@ -1160,6 +1181,78 @@ static void test_startup_multi_core_options(void)
 	/* Unsupported platforms ignore multi-core options. */
 	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--multi-core:on",
 							  (legacy_s8 *)"--multi-core:off", (legacy_s8 *)"--multi-core:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
+
+static void test_startup_video_mode_options(void)
+{
+#ifdef RESTUNTS_SDL3
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 mode;
+	} cases[] = {
+		{"--videomode:vga", SDL3_VIDEO_MODE_VGA}, {"--videomode:ega", SDL3_VIDEO_MODE_EGA},
+		{"--videomode:cga", SDL3_VIDEO_MODE_CGA}, {"--VIDEOMODE:VgA", SDL3_VIDEO_MODE_VGA},
+		{"--vIdEoMoDe:EgA", SDL3_VIDEO_MODE_EGA}, {"--VideoMode:CgA", SDL3_VIDEO_MODE_CGA}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		legacy_u32 before = startup_video_mode_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_video_mode_set_calls == before + 1U);
+		assert(startup_video_mode == cases[index].mode);
+		assert(startup_options.video_mode == cases[index].mode);
+		assert(startup_options.video_mode_specified != 0);
+		assert(startup_render_enabled == 0 && renderer_active == 0);
+	}
+	/* The classic choice survives a HyperVision startup, independently of its
+	 * quality preset, so disabling HyperVision can restore that choice. */
+	legacy_s8 *hypervision[] = {(legacy_s8 *)"game", (legacy_s8 *)"--videomode:cga",
+								(legacy_s8 *)"--hv:low"};
+	reset_startup_hypervision();
+	expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_LOW;
+	expected_hypervision_enabled = 1;
+	init_main(sizeof(hypervision) / sizeof(hypervision[0]), hypervision);
+	assert(startup_video_mode == SDL3_VIDEO_MODE_CGA);
+	assert(startup_options.video_mode == SDL3_VIDEO_MODE_CGA);
+	assert(startup_options.hires_preset == FRAME_HIRES_ADAPTIVE_PRESET_LOW);
+	check_startup_hypervision();
+
+	/* A new launch without a video option always returns to VGA. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_video_mode = SDL3_VIDEO_MODE_CGA;
+	legacy_u32 before = startup_video_mode_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_video_mode_set_calls == before + 1U);
+	assert(startup_video_mode == SDL3_VIDEO_MODE_VGA);
+	assert(startup_options.video_mode == SDL3_VIDEO_MODE_VGA);
+	assert(startup_options.video_mode_specified == 0);
+
+	static const legacy_s8 *invalid[] = {"--videomode:",		"--videomode:auto",
+										 "--videomode:1",		"--videomode:vgax",
+										 "--videomode:cga:ega", "--VIDEOMODE:unknown"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); first++) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); second++) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)"--nointro",
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--videomode:ega",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+#else
+	/* Original DOS16 and Amiga builds do not interpret SDL3 video modes. */
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--videomode:ega",
+							  (legacy_s8 *)"--videomode:cga", (legacy_s8 *)"--videomode:invalid"};
 	reset_startup_hypervision();
 	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
 #endif
@@ -1565,6 +1658,7 @@ int main(void)
 	test_startup_fps_display_options();
 	test_startup_mph_display_options();
 	test_startup_multi_core_options();
+	test_startup_video_mode_options();
 	test_startup_fullscreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");

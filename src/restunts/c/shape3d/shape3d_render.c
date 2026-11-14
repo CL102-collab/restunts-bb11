@@ -21,6 +21,10 @@
 #include "../fatal.h"
 #include "../hires/hires.h"
 #include "../hires/shape3d_hires.h"
+#ifdef RESTUNTS_FULL
+#include "../../platform/sdl3/video_mode.h"
+#include "../../platform/sdl3/video_mode_primitives.h"
+#endif
 #endif
 
 #include "shape3d_pipeline_internal.h"
@@ -458,6 +462,10 @@ void shape3d_render_queued_primitives(void)
 		return;
 	}
 #endif
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	legacy_u8 native_video = sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA && !hires_enabled();
+#endif
 	polyinfo_index record_index = polyinfo_primitive_capacity;
 	polyinfo_index rendered_ghost_primitives = 0;
 	struct POINT2D points[POLYINFO_MAX_RENDER_POINTS];
@@ -465,8 +473,21 @@ void shape3d_render_queued_primitives(void)
 		 primitive_index++) {
 		record_index = (polyinfo_index)polygon_next_index[record_index];
 		legacy_u8 far *record = polyinfoptr + polygon_record_offsets[record_index];
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+		if (native_video) {
+			sdl3_video_mode_primitive_begin();
+		}
+#endif
 		if ((record[POLYINFO_TYPE_OFFSET] & RENDER_PRIMITIVE_GHOST_FLAG) != 0U) {
 			shape3d_render_ghost(record, points);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+			if (native_video) {
+				sdl3_video_mode_render_primitive(record, points);
+				sdl3_video_mode_primitive_end();
+			}
+#endif
 			rendered_ghost_primitives++;
 			continue;
 		}
@@ -548,6 +569,13 @@ void shape3d_render_queued_primitives(void)
 				material_color);
 #endif
 		}
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+		if (native_video) {
+			sdl3_video_mode_render_primitive(record, points);
+			sdl3_video_mode_primitive_end();
+		}
+#endif
 	}
 #if defined(RESTUNTS_TEMPLEOS)
 	TempleRasterNative(0);

@@ -14,6 +14,14 @@
 #include "shape2d_internal.h"
 #include "../game_input.h"
 #include "../video/video_pages.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../../platform/sdl3/video_mode.h"
+#define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y) sdl3_video_mode_source_begin_at(shape, x, y)
+#define SHAPE2D_VIDEO_SOURCE_END() sdl3_video_mode_source_end()
+#else
+#define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y)
+#define SHAPE2D_VIDEO_SOURCE_END()
+#endif
 #define PALETTE_MAP_TRANSPARENT 255U
 
 struct SHAPE2D_CLIP {
@@ -40,6 +48,12 @@ static void shape2d_write_raster(legacy_u8 far *bitmap, legacy_u16 destination, 
 								 legacy_s16 operation, legacy_u8 planar)
 {
 #ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA &&
+		sdl3_video_mode_raster(bitmap, destination, &value, 0, 1, operation, NULL)) {
+		return;
+	}
+#endif
 	hires_raster(bitmap, destination, &value, 0, 1, operation, NULL);
 	planar = 0;
 #endif
@@ -103,6 +117,7 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 	legacy_u16 remaining = width;
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u8 value = 0;
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y);
 	for (;;) {
 #ifdef RESTUNTS_AMIGA
 		legacy_u8 control_bits = source_base[source];
@@ -113,6 +128,7 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 		source++;
 		legacy_s8 control = LEGACY_S8_FROM_BITS(control_bits);
 		if (control == 0) {
+			SHAPE2D_VIDEO_SOURCE_END();
 			return;
 		}
 		legacy_s16 literal = control < 0;
@@ -397,9 +413,11 @@ static void shape2d_render_rle_clipped(struct SHAPE2D far *shape, legacy_u16 x, 
 	legacy_u16 rows = clip.rows;
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u8 value;
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y);
 	do {
 		if (planar != 0) {
 			if (!shape2d_rle_raster_span(&cursor, bitmap, destination, clip.width, operation)) {
+				SHAPE2D_VIDEO_SOURCE_END();
 				return;
 			}
 			destination = LEGACY_U16_WRAP_ADD(destination, clip.width);
@@ -407,6 +425,7 @@ static void shape2d_render_rle_clipped(struct SHAPE2D far *shape, legacy_u16 x, 
 			legacy_u16 count = clip.width;
 			do {
 				if (!shape2d_rle_next(&cursor, &value)) {
+					SHAPE2D_VIDEO_SOURCE_END();
 					return;
 				}
 				shape2d_write_raster(bitmap, destination, value, operation, 0);
@@ -416,10 +435,12 @@ static void shape2d_render_rle_clipped(struct SHAPE2D far *shape, legacy_u16 x, 
 		}
 		rows--;
 		if (rows == 0) {
+			SHAPE2D_VIDEO_SOURCE_END();
 			return;
 		}
 		skip = clip.source_advance;
 		if (!shape2d_rle_skip(&cursor, skip)) {
+			SHAPE2D_VIDEO_SOURCE_END();
 			return;
 		}
 		destination = LEGACY_U16_WRAP_ADD(destination, clip.destination_advance);
@@ -463,6 +484,7 @@ static void sprite_putimage_at(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 	legacy_u16 old_row_count;
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u8 far *source_bitmap = (legacy_u8 far *)dos_memory_make_pointer(shape_segment, 0);
+	SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y);
 	do {
 		if (planar != 0) {
 			video_pages_raster_span(bitmap, clip.destination, source_bitmap, clip.source,
@@ -496,6 +518,7 @@ static void sprite_putimage_at(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 		old_row_count = row_count;
 		row_count = LEGACY_U16_WRAP_SUB(row_count, 1U);
 	} while (old_row_count != LEGACY_U16_SIGN_BIT && LEGACY_S16_FROM_BITS(row_count) > 0);
+	SHAPE2D_VIDEO_SOURCE_END();
 }
 
 static void sprite_putimage_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y,

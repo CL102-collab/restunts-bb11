@@ -10,6 +10,19 @@
 #include "../resource.h"
 #include "shape2d.h"
 #include "shape2d_internal.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../../platform/sdl3/video_mode_bitmaps.h"
+
+static void *shape2d_video_resource(void *resource, legacy_u8 parsed)
+{
+	if (resource) {
+		sdl3_video_bitmap_register(resource, mmgr_get_chunk_size_bytes(resource), parsed);
+	}
+	return resource;
+}
+#else
+#define shape2d_video_resource(resource, parsed) (resource)
+#endif
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
 #define AMIGA_SHAPE2D_TRACE(stage)                                                                 \
@@ -796,7 +809,7 @@ void far *file_load_shape2d(const legacy_s8 *shapename, legacy_s16 fatal)
 	legacy_s8 str[SHAPE2D_PATH_BUFFER_SIZE];
 	void far *memchunk = shape2d_find_cached(shapename, str, &strptr);
 	if (memchunk) {
-		return memchunk;
+		return shape2d_video_resource(memchunk, 0);
 	}
 
 	void far *mempages;
@@ -813,7 +826,7 @@ void far *file_load_shape2d(const legacy_s8 *shapename, legacy_s16 fatal)
 		legacy_u16 unflipsize = shape2d_unflip_workspace_pages(memchunk);
 		AMIGA_SHAPE2D_TRACE("workspace sizing complete");
 		if (unflipsize == 0) {
-			return memchunk;
+			return shape2d_video_resource(memchunk, 0);
 		}
 #else
 		legacy_s16 unflipsize = file_get_unflip_size(memchunk);
@@ -825,9 +838,9 @@ void far *file_load_shape2d(const legacy_s8 *shapename, legacy_s16 fatal)
 		mmgr_release(mempages);
 		AMIGA_SHAPE2D_TRACE("workspace released");
 
-		return memchunk;
+		return shape2d_video_resource(memchunk, 0);
 	} else if (stricmp(strptr, ".XVS") == 0) {
-		return file_decomp(str, fatal);
+		return shape2d_video_resource(file_decomp(str, fatal), 0);
 	} else if (stricmp(strptr, ".PES") == 0) {
 		memchunk = file_decomp(str, fatal);
 		if (!memchunk) {
@@ -838,16 +851,16 @@ void far *file_load_shape2d(const legacy_s8 *shapename, legacy_s16 fatal)
 		file_unflip_shape2d_pes(memchunk, mempages);
 		mmgr_release(mempages);
 
-		return file_load_shape2d_esh(memchunk, str);
+		return shape2d_video_resource(file_load_shape2d_esh(memchunk, str), 0);
 	} else if (stricmp(strptr, ".ESH") == 0) {
 		memchunk = file_load_binary(str, fatal);
 		if (!memchunk) {
 			return dos_memory_make_pointer(0, 0);
 		}
 
-		return file_load_shape2d_esh(memchunk, str);
+		return shape2d_video_resource(file_load_shape2d_esh(memchunk, str), 0);
 	} else { // .VSH or an explicit unknown extension
-		return file_load_binary(str, fatal);
+		return shape2d_video_resource(file_load_binary(str, fatal), 0);
 	}
 }
 
@@ -863,7 +876,15 @@ void far *file_load_shape2d_nofatal(const legacy_s8 *shapename)
 
 void far *file_load_shape2d_nofatal2(const legacy_s8 *shapename)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	/* The alternate DOS loader leaves VGA pixels unconverted so the menu
+	 * can choose a numbered !egN/!cgN table when drawing each bitmap. */
+	void *resource = file_load_shape2d_nofatal(shapename);
+	sdl3_video_bitmap_set_raw(resource);
+	return resource;
+#else
 	return file_load_shape2d_nofatal(shapename);
+#endif
 }
 
 void far *file_load_shape2d_res(const legacy_s8 *resname, legacy_s16 fatal)
@@ -872,7 +893,7 @@ void far *file_load_shape2d_res(const legacy_s8 *resname, legacy_s16 fatal)
 	void far *memchunk = mmgr_get_chunk_by_name(shapename);
 
 	if (memchunk) {
-		return memchunk;
+		return shape2d_video_resource(memchunk, 1);
 	}
 
 	memchunk = file_load_shape2d(shapename, fatal);
@@ -911,7 +932,7 @@ void far *file_load_shape2d_res(const legacy_s8 *resname, legacy_s16 fatal)
 						  dos_memory_make_pointer(rawseg, 0));
 			/* parse_shape2d has already trimmed the chunk to the parsed size. */
 			mmgr_rename_chunk(dos_memory_make_pointer(rawseg, 0), resname);
-			return dos_memory_make_pointer(rawseg, 0);
+			return shape2d_video_resource(dos_memory_make_pointer(rawseg, 0), 1);
 		}
 	}
 
@@ -920,7 +941,7 @@ void far *file_load_shape2d_res(const legacy_s8 *resname, legacy_s16 fatal)
 	parse_shape2d(memchunk, mempages);
 
 	mmgr_release(memchunk);
-	return mmgr_compact_live_chunk(mempages);
+	return shape2d_video_resource(mmgr_compact_live_chunk(mempages), 1);
 }
 
 void far *file_load_shape2d_res_fatal(const legacy_s8 *resname)

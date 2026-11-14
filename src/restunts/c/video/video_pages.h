@@ -7,6 +7,9 @@
 #define VGA_PAGE_PLANE_BYTES 16384U
 #ifdef RESTUNTS_SDL3
 #include "../hires/hires.h"
+#if defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../../platform/sdl3/video_mode.h"
+#endif
 #endif
 
 /* Page sprites retain chunky 320-byte rows. Only the raster helpers translate
@@ -66,6 +69,12 @@ static inline legacy_u8 video_pages_read_pixel(const legacy_u8 far *bitmap, lega
 static inline void video_pages_write_pixel(legacy_u8 far *bitmap, legacy_u16 offset,
 										   legacy_u8 color)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA &&
+		sdl3_video_mode_write(bitmap, offset, color)) {
+		return;
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	hires_write(bitmap, offset, color);
 #endif
@@ -84,6 +93,13 @@ static inline void video_pages_raster_span(legacy_u8 far *destination,
 										   legacy_u16 count, legacy_s16 operation,
 										   const legacy_u8 far *palette)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA &&
+		sdl3_video_mode_raster(destination, destination_offset, source, source_offset, count,
+							   operation, palette)) {
+		return;
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	hires_raster(destination, destination_offset, source, source_offset, count, operation, palette);
 #endif

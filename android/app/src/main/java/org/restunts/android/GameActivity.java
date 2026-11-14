@@ -294,6 +294,8 @@ public final class GameActivity extends SDLActivity {
             intent.getStringExtra(LaunchOptions.SOUND_MODE_KEY), options.sound),
             intent.getStringExtra(LaunchOptions.MT32_ROM_DIRECTORY_KEY),
             intent.getStringExtra(LaunchOptions.MT32_MODEL_KEY));
+        options = options.withVideoMode(LaunchOptions.VideoMode.fromStored(
+            intent.getStringExtra(LaunchOptions.VIDEO_MODE_KEY)));
         return options.arguments(new File(getFilesDir(), "game").getAbsolutePath());
     }
 }

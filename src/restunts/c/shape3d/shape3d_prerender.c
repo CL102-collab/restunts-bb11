@@ -4,6 +4,10 @@
 #include "../shape2d/shape2d_internal.h"
 #include "shape3d.h"
 #include "shape3d_internal.h"
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+#include "../../platform/sdl3/video_mode.h"
+#endif
 #include "shape3d_prerender_internal.h"
 
 #define PRERENDER_POINT_WORD_COUNT 2U
@@ -117,13 +121,32 @@ static void prerender_grille_line(legacy_u16 start_x, legacy_u16 start_y, legacy
 void preRender_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end_x, legacy_u16 end_y,
 					legacy_u16 color)
 {
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	legacy_u8 native_line = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA;
+	if (native_line) {
+		sdl3_video_mode_line_begin();
+	}
+#endif
 	if (color == PRERENDER_GHOST_COLOR) {
 		prerender_grille_line(start_x, start_y, end_x, end_y, 0);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+		if (native_line) {
+			sdl3_video_mode_line_end();
+		}
+#endif
 		return;
 	}
 	legacy_u16 line[DRAW_LINE_WORD_COUNT];
 
 	prerender_line(start_x, start_y, end_x, end_y, color, line);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS) &&             \
+	!defined(RESTUNTS_TEMPLEOS)
+	if (native_line) {
+		sdl3_video_mode_line_end();
+	}
+#endif
 }
 
 void preRender_crack_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end_x,

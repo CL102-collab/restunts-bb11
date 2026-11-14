@@ -41,6 +41,12 @@ model when several complete sets are detected. The ROM path and model are saved
 separately from the game folder. Invalid or incomplete selections are reported
 before starting; they do not silently select AdLib. See [MT-32 setup](mt32.md).
 
+**Video mode** in **Graphics settings** selects **VGA**, **EGA**, or **CGA**
+for the classic renderer, with VGA as the default. EGA and CGA use the original
+DOS graphics and dithering. HyperVision always uses VGA graphics; turning it
+off restores the selected classic mode. This selection is saved per user and
+passes `--videomode:vga`, `--videomode:ega`, or `--videomode:cga` to the game.
+
 **HyperVision** starts at **Auto**. **Fullscreen**
 controls the game's initial window state. Selections, including the game folder,
 are saved per user on Start. Cancel leaves saved preferences unchanged. The game

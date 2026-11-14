@@ -18,6 +18,8 @@
 #include "../c/hires/frame_adaptive.h"
 #include "../c/video/video_frame.h"
 #include "../c/hires/presentation.h"
+#include "../c/shape2d/shape2d.h"
+#include "../platform/sdl3/video_mode.h"
 
 legacy_s32 sdl3_batch_mode;
 static legacy_u8 framebuffer[65536];
@@ -1133,6 +1135,106 @@ static void test_video_page_lifetime(void)
 	assert(frame_hires_adaptive.samples == completed_samples);
 	assert(render_timing_samples == 0);
 	frame_hires_adaptive_reset(&frame_hires_adaptive);
+}
+
+enum {
+	VIDEO_MODE_TEST_VGA_INDEX = 42,
+	VIDEO_MODE_TEST_EGA_RED = 12,
+	VIDEO_MODE_TEST_CGA_CYAN = 0x5555,
+	VIDEO_MODE_DAC_LOW = 21,
+	VIDEO_MODE_DAC_HIGH = 42,
+	VIDEO_MODE_DAC_FULL = 63
+};
+#define VIDEO_MODE_TEST_EGA_LIGHT_RED 0xFFFF5555U
+#define VIDEO_MODE_TEST_CGA_LOW_CYAN 0xFF00AAAAU
+
+static void capture_video_mode_color(legacy_u16 color)
+{
+	static legacy_u8 line_offsets[SDL3_SCREEN_HEIGHT * LEGACY_WORD_BYTES];
+	for (legacy_u16 y = 0; y < SDL3_SCREEN_HEIGHT; y++) {
+		LEGACY_WRITE_U16_LE(line_offsets + y * LEGACY_WORD_BYTES, y * SDL3_SCREEN_WIDTH);
+	}
+	struct SPRITE sprite = {0};
+	sprite.sprite_bitmapptr = (struct SHAPE2D *)framebuffer;
+	sprite.sprite_lineofs = line_offsets;
+	sprite.sprite_pitch = SDL3_SCREEN_WIDTH;
+	sprite.sprite_bottom = SDL3_SCREEN_HEIGHT;
+	sdl3_video_mode_target(&sprite);
+	legacy_u16 colors[] = {color, 0, 0};
+	sdl3_video_mode_primitive_begin();
+	sdl3_video_mode_primitive_capture(colors);
+	for (legacy_u16 offset = 0; offset < PAGE_VIDEO_PIXELS; offset++) {
+		assert(sdl3_video_mode_write(framebuffer, offset, SDL3_VIDEO_NATIVE_PRIMARY));
+	}
+	sdl3_video_mode_primitive_end();
+}
+
+static void test_classic_video_modes_and_hypervision(void)
+{
+	/* Original EGA RGB levels and CGA palette 1, low intensity. The selected
+	 * native material deliberately differs from the green VGA source index. */
+	static legacy_u8 colors[][3] = {
+		{0, 0, 0},
+		{0, 0, VIDEO_MODE_DAC_HIGH},
+		{0, VIDEO_MODE_DAC_HIGH, 0},
+		{0, VIDEO_MODE_DAC_HIGH, VIDEO_MODE_DAC_HIGH},
+		{VIDEO_MODE_DAC_HIGH, 0, 0},
+		{VIDEO_MODE_DAC_HIGH, 0, VIDEO_MODE_DAC_HIGH},
+		{VIDEO_MODE_DAC_HIGH, VIDEO_MODE_DAC_LOW, 0},
+		{VIDEO_MODE_DAC_HIGH, VIDEO_MODE_DAC_HIGH, VIDEO_MODE_DAC_HIGH},
+		{VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_LOW},
+		{VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_FULL},
+		{VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_LOW},
+		{VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_FULL},
+		{VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_LOW},
+		{VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_LOW, VIDEO_MODE_DAC_FULL},
+		{VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_LOW},
+		{VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_FULL, VIDEO_MODE_DAC_FULL}};
+	hires_shutdown();
+	assert(
+		SDL_SetWindowSize(sdl3_video_window(), PAGE_VIDEO_WINDOW_WIDTH, PAGE_VIDEO_WINDOW_HEIGHT));
+	assert(SDL_SyncWindow(sdl3_video_window()));
+	dos_video_set_palette(0, SDL_arraysize(colors), colors[0]);
+	legacy_u8 green[] = {0, VIDEO_MODE_DAC_FULL, 0};
+	dos_video_set_palette(VIDEO_MODE_TEST_VGA_INDEX, 1, green);
+	memset(framebuffer, VIDEO_MODE_TEST_VGA_INDEX, PAGE_VIDEO_PIXELS);
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_EGA);
+	capture_video_mode_color(VIDEO_MODE_TEST_EGA_RED);
+	sdl3_video_present();
+	assert_presented_page(VIDEO_MODE_TEST_EGA_LIGHT_RED, VIDEO_MODE_TEST_EGA_LIGHT_RED);
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_CGA);
+	capture_video_mode_color(VIDEO_MODE_TEST_CGA_CYAN);
+	sdl3_video_present();
+	assert_presented_page(VIDEO_MODE_TEST_CGA_LOW_CYAN, VIDEO_MODE_TEST_CGA_LOW_CYAN);
+	for (legacy_u32 offset = 0; offset < PAGE_VIDEO_PIXELS; offset++) {
+		assert(framebuffer[offset] == VIDEO_MODE_TEST_VGA_INDEX);
+	}
+
+	/* Both indexed and full-color HyperVision presentations keep VGA colors
+	 * while the configured classic renderer remains CGA. */
+	high_resolution_active = true;
+	hires_set_render_scale(FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE);
+	memset(high_resolution_framebuffer, VIDEO_MODE_TEST_VGA_INDEX,
+		   sizeof(high_resolution_framebuffer));
+	argb_active = false;
+	frame_generation++;
+	sdl3_video_present();
+	assert_presented_page(PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
+	for (size_t offset = 0; offset < SDL_arraysize(argb_framebuffer); offset++) {
+		argb_framebuffer[offset] = PAGE_VIDEO_RED;
+	}
+	argb_active = true;
+	frame_generation++;
+	sdl3_video_present();
+	assert_presented_page(PAGE_VIDEO_RED, PAGE_VIDEO_RED);
+	assert(sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA);
+
+	hires_shutdown();
+	sdl3_video_present();
+	assert_presented_page(VIDEO_MODE_TEST_CGA_LOW_CYAN, VIDEO_MODE_TEST_CGA_LOW_CYAN);
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_VGA);
+	sdl3_video_present();
+	assert_presented_page(PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
 }
 
 #define SCREENSHOT_TEST_FILENAME "SHOT0000.PNG"
@@ -2876,6 +2978,7 @@ legacy_int main(void)
 	test_dynamic_resolution_video();
 	test_completed_video_pages();
 	test_video_page_lifetime();
+	test_classic_video_modes_and_hypervision();
 	test_screenshots();
 	test_adaptive_frame_timing();
 	test_fullscreen_shortcut();
