@@ -11,6 +11,7 @@
 #include "timing.h"
 #include "ui/ui_text.h"
 #include "game_input.h"
+#include "keyboard.h"
 #include "ui/ui_input.h"
 #include "audio/audio_control.h"
 #include "externs.h"
@@ -70,6 +71,48 @@ enum CREDITS_LINE_TYPE { CREDITS_LINE_SHAPE = 0, CREDITS_LINE_TEXT = 1 };
 
 static void far *ui_temp_resource;
 
+/* Display settings do not dismiss any phase of the intro, including title
+ * dissolves and credits. Other keyboard, mouse and joystick input still does. */
+static legacy_s16 intro_filter_input(legacy_s16 key)
+{
+	if (key == KEY_F11 || key == KEY_F12
+#ifdef RESTUNTS_SDL3
+		|| key == KEY_SHIFT_F12
+#endif
+	) {
+		handle_ingame_kb_shortcuts(key);
+		return 0;
+	}
+	return key;
+}
+
+static legacy_s16 intro_checking(legacy_s16 delta)
+{
+	return intro_filter_input(input_do_checking(delta));
+}
+
+static legacy_s16 intro_repeat_check(legacy_s16 duration)
+{
+	(void)timer_get_delta_alt();
+	legacy_u16 elapsed = 0;
+	while (duration > LEGACY_S16_FROM_BITS(elapsed)) {
+		legacy_u16 delta = (legacy_u16)timer_get_delta_alt();
+		elapsed = LEGACY_U16_WRAP_ADD(elapsed, delta);
+		legacy_s16 key = intro_checking(LEGACY_S16_FROM_BITS(delta));
+		if (key != 0) {
+			return key;
+		}
+	}
+	return 0;
+}
+
+static legacy_s16 intro_blit_to_video(struct SPRITE far *sprite, legacy_s16 mode)
+{
+	/* A key during a dissolve already completes the image. Consume display
+	 * shortcuts and continue the page's wait instead of ending the intro. */
+	return intro_filter_input(sprite_blit_to_video(sprite, mode));
+}
+
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
 #define INTRO_AUDIO_NOTICE_LINE_CAPACITY 32
 #define INTRO_AUDIO_NOTICE_TOP 132
@@ -126,12 +169,12 @@ static legacy_s16 run_intro(void far *audio_resource)
 
 	shape = (struct SHAPE2D far *)locate_shape_fatal((legacy_s8 far *)ui_temp_resource, "prod");
 	sprite_shape_to_1_alt(shape);
-	legacy_s16 result = sprite_blit_to_video(render_window_sprite, -1);
+	legacy_s16 result = intro_blit_to_video(render_window_sprite, -1);
 	/* Finish title loading and drawing before music starts: DOS sends timer-driven
 	 * notes directly to OPL, so a delayed first timer pump shortens the opening. */
 	load_audio_finalize(audio_resource);
 	if (result == 0) {
-		result = input_repeat_check(INTRO_PAGE_INPUT_DELAY);
+		result = intro_repeat_check(INTRO_PAGE_INPUT_DELAY);
 	}
 
 	if (result == 0) {
@@ -145,9 +188,9 @@ static legacy_s16 run_intro(void far *audio_resource)
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
 		intro_draw_native_audio_notice();
 #endif
-		result = sprite_blit_to_video(render_window_sprite, -1);
+		result = intro_blit_to_video(render_window_sprite, -1);
 		if (result == 0) {
-			result = input_repeat_check(INTRO_PAGE_INPUT_DELAY);
+			result = intro_repeat_check(INTRO_PAGE_INPUT_DELAY);
 		}
 	}
 
@@ -177,7 +220,7 @@ legacy_s16 run_intro_looped(void)
 			render_window_sprite =
 				sprite_make_wnd(INTRO_SCREEN_WIDTH, INTRO_SCREEN_HEIGHT, INTRO_SCREEN_COLOR);
 			sprite_select_render_window_and_clear();
-			sprite_blit_to_video(render_window_sprite, 0);
+			intro_blit_to_video(render_window_sprite, 0);
 			result = load_intro_resources();
 			sprite_free_wnd(render_window_sprite);
 			mmgr_free((legacy_s8 far *)ui_temp_resource);
@@ -335,7 +378,7 @@ static legacy_s16 credits_slide_arrow(struct SHAPE2D far *arrow_shape, legacy_s1
 		sprite_fill_rect_clipped(LEGACY_S16_WRAP_ADD(arrow_width, arrow_x), arrow_y,
 								 CREDITS_ARROW_ERASE_WIDTH, arrow_height, 0);
 		mouse_draw_transparent_check();
-		input = (legacy_s16)input_do_checking(frame_elapsed);
+		input = (legacy_s16)intro_checking(frame_elapsed);
 		if (input != 0) {
 			break;
 		}
@@ -363,7 +406,7 @@ static void credits_animate_shapes(struct SHAPE2D far **credit_shapes, legacy_s1
 		animation_target = LEGACY_S16_WRAP_ADD(animation_target, CREDITS_ANIMATION_INTERVAL);
 		while (animation_target > animation_elapsed) {
 			legacy_s16 frame_elapsed = (legacy_s16)timer_get_delta_alt();
-			input = (legacy_s16)input_do_checking(frame_elapsed);
+			input = (legacy_s16)intro_checking(frame_elapsed);
 			animation_elapsed = LEGACY_S16_WRAP_ADD(animation_elapsed, frame_elapsed);
 		}
 	}
@@ -379,10 +422,10 @@ static legacy_s8 credits_present_closing(struct SHAPE2D far **credit_shapes, leg
 	sprite_clear_target(0);
 	sprite_shape_to_1_alt(credit_shapes[CREDITS_BACKGROUND_INDEX]);
 	sprite_shape_to_1_alt(credit_shapes[CREDITS_CLOSING_INDEX]);
-	if (sprite_blit_to_video(render_window_sprite, 0) != 0) {
+	if (intro_blit_to_video(render_window_sprite, 0) != 0) {
 		return 1;
 	}
-	return input_repeat_check(CREDITS_END_INPUT_DELAY) != 0;
+	return intro_repeat_check(CREDITS_END_INPUT_DELAY) != 0;
 }
 
 legacy_s8 load_intro_resources(void)
@@ -407,7 +450,7 @@ legacy_s8 load_intro_resources(void)
 	credits_draw_artists(credit_resource);
 	unload_resource(credit_resource);
 
-	(void)sprite_blit_to_video(render_window_sprite, -1);
+	(void)intro_blit_to_video(render_window_sprite, -1);
 	sprite_select_screen_compat();
 	(void)timer_get_delta_alt();
 	legacy_s16 input =

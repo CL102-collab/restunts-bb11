@@ -426,6 +426,10 @@ run_host_test test-startup math/math.c -DRESTUNTS_SDL3 -D__DJGPP__ "$test_source
 run_host_test test-credits legacy.c \
     "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
+run_host_test test-credits legacy.c \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
+    "$test_source_dir/headless/headless_data.c" -DRESTUNTS_SDL3 \
+    -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-modal-dialogs menu/menu_options.c \
     "$test_source_dir/ui/ui_dialog.c" "$test_source_dir/legacy.c" \
     -DRESTUNTS_GIT_HASH='"0123456"' -Wno-pointer-sign

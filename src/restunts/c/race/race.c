@@ -340,7 +340,16 @@ static legacy_s16 race_process_frame_input(void)
 		race_handle_driving_input();
 
 	} else {
-		if (dos_kb_get_char() != 0 || race_exit_request != 0 || get_kb_or_joy_flags() != 0) {
+		legacy_s16 key = dos_kb_get_char();
+		if (key == KEY_F11 || key == KEY_F12
+#ifdef RESTUNTS_SDL3
+			|| key == KEY_SHIFT_F12
+#endif
+		) {
+			handle_ingame_kb_shortcuts(key);
+			key = 0;
+		}
+		if (key != 0 || race_exit_request != 0 || get_kb_or_joy_flags() != 0) {
 			return 1;
 		}
 	}
