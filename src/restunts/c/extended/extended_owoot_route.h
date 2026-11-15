@@ -12,4 +12,8 @@ legacy_s16 extended_owoot_jump_is_valid(struct CARSTATE *carstate);
 /* Read the serialized airborne milestone before a road landing clears it. */
 legacy_s16 extended_owoot_barrel_roll_complete(const struct CARSTATE *carstate);
 
+/* Read-only search feedback: zero before airborne progress or for another source,
+ * otherwise native angle units, saturated at one full turn after completion. */
+legacy_u16 extended_owoot_barrel_progress(const struct CARSTATE *carstate, legacy_s16 source);
+
 #endif

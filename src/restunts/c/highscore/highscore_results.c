@@ -2,6 +2,8 @@
 #include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../opponent/opponent_animation.h"
+#include "../opponent/opponent.h"
+#include "../opponent/unit_opponent_assets.h"
 #endif
 
 static legacy_u32 end_player_finish_time(void)
@@ -37,6 +39,14 @@ static void end_hiscore_draw_animation_frame(legacy_s8 far *animation_resource,
 											 struct SPRITE far *animation_sprite,
 											 legacy_u8 draw_direct_copy)
 {
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		mouse_draw_opaque_check();
+		sprite_copy_image_at((struct SHAPE2D *)animation_resource, animation_x, animation_y);
+		mouse_draw_transparent_check();
+		return;
+	}
+#endif
 	opponent_animation_frame_id[3] = (legacy_s8)(frame_sequence[frame_index] + '0');
 	struct SHAPE2D far *frame_shape =
 		(struct SHAPE2D far *)locate_shape_fatal(animation_resource, opponent_animation_frame_id);
@@ -94,7 +104,11 @@ static void end_hiscore_initialize(struct END_SCREEN_STATE *screen)
 	ensure_file_exists(END_SCREEN_TRACK_RESOURCE_INDEX);
 	screen->misc_resource = (legacy_s8 far *)file_load_resfile(results_misc_resource_name);
 	screen->opponent_resource = 0;
-	if (gameconfig.game_opponenttype != 0) {
+	if (gameconfig.game_opponenttype != 0
+#ifdef RESTUNTS_SDL3
+		&& (legacy_u8)gameconfig.game_opponenttype <= OPPONENT_LEGACY_LAST
+#endif
+	) {
 		opponent_resource_name[3] = (legacy_s8)((legacy_u8)gameconfig.game_opponenttype + '0');
 		screen->opponent_resource = (legacy_s8 far *)file_load_resfile(opponent_resource_name);
 	}
@@ -264,6 +278,12 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 	screen->text_prefix = 0;
 #ifdef RESTUNTS_SDL3
 	hires_highscore_reset_animation(screen);
+	if (screen->opponent_active == OPPONENT_UNIT) {
+		static legacy_u8 single_frame[] = {1, 0};
+		screen->animation_resource = (legacy_s8 *)unit_opponent_result_portrait();
+		screen->animation_sequence = single_frame;
+		return;
+	}
 #endif
 	if (screen->opponent_active != 0) {
 		if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_RESTARTABLE_FLAG) == 0) {
@@ -382,8 +402,16 @@ static void end_hiscore_enter_score(struct END_SCREEN_STATE *screen, void far *p
 static void end_hiscore_show_opponent(struct END_SCREEN_STATE *screen)
 {
 	opponent_animation_frame_id[3] = '1';
-	struct SHAPE2D far *frame_shape = (struct SHAPE2D far *)locate_shape_fatal(
-		screen->animation_resource, opponent_animation_frame_id);
+	struct SHAPE2D far *frame_shape;
+#ifdef RESTUNTS_SDL3
+	if (screen->opponent_active == OPPONENT_UNIT) {
+		frame_shape = (struct SHAPE2D *)screen->animation_resource;
+	} else
+#endif
+	{
+		frame_shape = (struct SHAPE2D far *)locate_shape_fatal(screen->animation_resource,
+															   opponent_animation_frame_id);
+	}
 	legacy_s16 animation_width =
 		LEGACY_S16_WRAP_MUL(shape2d_get_width(frame_shape), video_shape_width_scale);
 	screen->animation_x = LEGACY_S16_WRAP_SUB(END_SCREEN_ANIMATION_RIGHT, animation_width);
@@ -399,9 +427,16 @@ static void end_hiscore_show_opponent(struct END_SCREEN_STATE *screen)
 		VIDEO_UI_COLOR(dialog_fnt_colour), 0, VIDEO_UI_COLOR(end_animation_border_shadow_color));
 	opponent_animation_frame_id[3] =
 		(legacy_s8)(screen->animation_sequence[screen->animation_frame] + '0');
-	shape2d_rle_copy((struct SHAPE2D far *)locate_shape_fatal(screen->animation_resource,
-															  opponent_animation_frame_id),
-					 screen->animation_x, screen->animation_y);
+#ifdef RESTUNTS_SDL3
+	if (screen->opponent_active == OPPONENT_UNIT) {
+		sprite_copy_image_at(frame_shape, screen->animation_x, screen->animation_y);
+	} else
+#endif
+	{
+		shape2d_rle_copy((struct SHAPE2D far *)locate_shape_fatal(screen->animation_resource,
+																  opponent_animation_frame_id),
+						 screen->animation_x, screen->animation_y);
+	}
 	screen->previous_animation_frame = screen->animation_frame;
 #ifdef RESTUNTS_SDL3
 	hires_highscore_show_animation(screen, animation_width, animation_height);
@@ -672,14 +707,19 @@ static legacy_u16 end_hiscore_release(struct END_SCREEN_STATE *screen)
 	opponent_animation_unload();
 #endif
 	audio_unload();
-	if (screen->opponent_active != 0) {
+#ifdef RESTUNTS_SDL3
+	if (screen->opponent_active == OPPONENT_UNIT) {
+		unit_opponent_portrait_release();
+	} else
+#endif
+		if (screen->opponent_active != 0) {
 		mmgr_release(screen->animation_resource);
 	}
 	if (video_uses_page_flipping != 0) {
 		sprite_free_wnd(screen->animation_sprite);
 	}
 	sprite_free_wnd(render_window_sprite);
-	if (gameconfig.game_opponenttype != 0) {
+	if (screen->opponent_resource != 0) {
 		unload_resource(screen->opponent_resource);
 	}
 	unload_resource(screen->misc_resource);

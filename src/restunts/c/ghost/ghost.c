@@ -199,7 +199,8 @@ legacy_s16 ghost_valid_config(const struct GAMEINFO *config)
 		return 0;
 	}
 	if (config->game_recordedframes > TRACKDATA_REPLAY_INPUT_BUFFER_SIZE ||
-		config->game_opponenttype < 0 || config->game_opponenttype > (legacy_s16)OPPONENT_LAST ||
+		config->game_opponenttype < 0 ||
+		config->game_opponenttype > (legacy_s16)OPPONENT_LEGACY_LAST ||
 		config->game_playertransmission < TRANSMISSION_MANUAL ||
 		config->game_playertransmission > TRANSMISSION_AUTOMATIC ||
 		!ghost_valid_car_id(config->game_playercarid)) {

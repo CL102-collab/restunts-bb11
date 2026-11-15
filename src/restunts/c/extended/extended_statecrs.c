@@ -4,6 +4,7 @@
 
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended_replay_runtime.h"
+#include "../externs.h"
 #ifndef RESTUNTS_HEADLESS
 #include "extended_race_stats.h"
 #endif
@@ -26,8 +27,21 @@ void extended_crash_record_finish(legacy_s16 car_index)
 		extended_replay_clocks.player_finish =
 			frame > LEGACY_U32_MAX - penalty ? LEGACY_U32_MAX : frame + penalty;
 	} else {
-		extended_replay_clocks.opponent_finish = extended_replay_frame();
+		legacy_u32 frame = extended_replay_frame();
+		legacy_u32 penalty = (legacy_u8)gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE
+								 ? extended_replay_clocks.unit_penalty.frames
+								 : 0;
+		extended_replay_clocks.opponent_finish =
+			frame > LEGACY_U32_MAX - penalty ? LEGACY_U32_MAX : frame + penalty;
 	}
+}
+
+legacy_s16 extended_crash_opponent_finish_time(legacy_s16 finish)
+{
+	return extended_replay_is_active() &&
+				   (legacy_u8)gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE
+			   ? LEGACY_S16_WRAP_ADD(finish, (legacy_u16)extended_replay_clocks.unit_penalty.frames)
+			   : finish;
 }
 
 #ifndef RESTUNTS_HEADLESS

@@ -52,12 +52,15 @@ legacy_s16 button_fill_color;
 #define TEST_NEW_SCORE_FRAMES 123U
 #define TEST_FIRST_SCORE_TICKS 300U
 #define TEST_SECOND_SCORE_TICKS 500U
+#define TEST_CLASSIC_MAX_TICKS (HIGHSCORE_EMPTY_TIME - 1U)
+#define TEST_CLASSIC_WRAP_FRAMES ((legacy_u32)LEGACY_U16_MAX + 1U)
 #define TEST_PLACEHOLDER_FIELD_COUNT (HIGHSCORE_TEXT_FIELD_COUNT - 1U)
 
 static struct CSTRK_TRACK fixture_model;
 static struct CSHIG_ENTRY fixture_scores[CSHIG_ENTRY_COUNT];
 static struct HIGHSCORE_ENTRY legacy_scores[HIGHSCORE_ENTRY_COUNT];
 static legacy_u8 legacy_track[END_SCREEN_TRACK_VALIDATION_BYTES];
+static legacy_int fixture_replay;
 static int fixture_extended, validate_error, load_error, record_error, qualifies_result;
 static unsigned validate_calls, load_calls, qualify_calls, record_calls;
 static unsigned prompt_calls, input_calls, acknowledgement_calls, preview_labels, preview_fields;
@@ -105,7 +108,7 @@ const struct CSTRK_TRACK *extended_track_model(void)
 
 int extended_replay_is_active(void)
 {
-	return fixture_extended;
+	return fixture_replay;
 }
 
 int extended_highscore_load_or_create(const legacy_s8 *directory, const legacy_s8 *name,
@@ -418,7 +421,7 @@ static void reset_fixture(legacy_u32 finish, legacy_u16 rate)
 		fixture_scores[i].ticks = CSHIG_EMPTY_TICKS;
 		highscore_entry_set_time(&legacy_scores[i], HIGHSCORE_EMPTY_TIME);
 	}
-	fixture_extended = 1;
+	fixture_extended = fixture_replay = 1;
 	fixture_record_rank = 2;
 	validate_error = load_error = record_error = 0;
 	qualifies_result = 1;
@@ -574,7 +577,7 @@ static void check_empty_placeholders(void)
 	reset_fixture(TEST_NEW_SCORE_FRAMES, GAME_FRAME_RATE_NORMAL);
 	legacy_s8 expected[TEST_PLACEHOLDER_FIELD_COUNT][RESID_BUFFER_SIZE];
 	legacy_u8 offsets[HIGHSCORE_TEXT_FIELD_COUNT];
-	fixture_extended = 0;
+	fixture_extended = fixture_replay = 0;
 	assert(highscore_load_or_create(1) == 0);
 	print_highscore_entry(0, offsets);
 	for (legacy_u16 field = 0; field < TEST_PLACEHOLDER_FIELD_COUNT; field++) {
@@ -584,7 +587,7 @@ static void check_empty_placeholders(void)
 	 * fields. Extended columns retain those dots within their own field sizes. */
 	assert(strlen((const char *)expected[0]) == HIGHSCORE_COMBINED_NAME_TEXT_BYTES);
 	strcpy((char *)expected[0], "................");
-	fixture_extended = 1;
+	fixture_extended = fixture_replay = 1;
 	for (legacy_u16 entry = 0; entry < HIGHSCORE_ENTRY_COUNT; entry++) {
 		print_highscore_entry(entry, offsets);
 		for (legacy_u16 field = 0; field < TEST_PLACEHOLDER_FIELD_COUNT; field++) {
@@ -692,7 +695,7 @@ static void check_long_time_alignment(void)
 static void check_legacy_eligibility(void)
 {
 	reset_fixture(650U, GAME_FRAME_RATE_NORMAL);
-	fixture_extended = 0;
+	fixture_extended = fixture_replay = 0;
 	struct END_SCREEN_STATE screen = {0};
 	end_hiscore_check_score(&screen);
 	assert(screen.score_status == 1 && screen.finish_time == 650);
@@ -702,6 +705,86 @@ static void check_legacy_eligibility(void)
 	assert(table_time_x == HIGHSCORE_TIME_COLUMN_X && strcmp(table_time, "650") == 0);
 	track_menu_draw_highscore(NULL);
 	assert(preview_time_x == TRACK_MENU_HIGHSCORE_TIME_X && strcmp(preview_time, "650") == 0);
+}
+
+static void check_classic_replay_finish(legacy_u32 finish, legacy_u16 rate, legacy_int accepted)
+{
+	reset_fixture(finish, rate);
+	fixture_extended = 0;
+	strcpy((char *)gnam_string, "Car");
+	struct END_SCREEN_STATE screen = {0};
+	end_hiscore_check_score(&screen);
+	assert(screen.score_status == accepted && legacy_reads == 1);
+	assert(validate_calls == 0 && load_calls == 0 && qualify_calls == 0);
+	if (accepted) {
+		assert((legacy_u16)screen.finish_time == finish);
+		end_hiscore_enter_score(&screen, (void *)"Name", 0);
+		assert(prompt_calls == 1 && input_calls == 1 && legacy_writes == 1);
+		assert(highscore_entry_time(&legacy_scores[HIGHSCORE_LAST_ENTRY_INDEX]) ==
+			   finish * (GAME_FRAME_RATE_NORMAL / rate));
+	} else {
+		assert(screen.finish_time == 0);
+		/* Exercise the save boundary even with a stale, narrowed qualification. */
+		screen.finish_time = (legacy_u16)finish;
+		end_hiscore_enter_score(&screen, (void *)"Name", 0);
+		assert(prompt_calls == 0 && input_calls == 0 && legacy_writes == 0);
+		assert(ranking_highlight == HIGHSCORE_NO_HIGHLIGHT);
+		for (legacy_u16 entry = 0; entry < HIGHSCORE_ENTRY_COUNT; entry++) {
+			assert(highscore_entry_time(&legacy_scores[entry]) == HIGHSCORE_EMPTY_TIME);
+		}
+	}
+	assert(record_calls == 0);
+}
+
+static void check_classic_replay_boundaries(void)
+{
+	const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	for (legacy_uint rate_index = 0; rate_index < sizeof(rates) / sizeof(rates[0]); rate_index++) {
+		legacy_u16 rate = rates[rate_index];
+		legacy_u32 maximum = TEST_CLASSIC_MAX_TICKS / (GAME_FRAME_RATE_NORMAL / rate);
+		check_classic_replay_finish(maximum, rate, 1);
+		/* reset_fixture includes penalties in the total: the last legal driving
+		 * time can still be unrepresentable after penalties are added. */
+		check_classic_replay_finish(maximum + 1U, rate, 0);
+		check_classic_replay_finish(TEST_CLASSIC_WRAP_FRAMES, rate, 0);
+		check_classic_replay_finish(TEST_CLASSIC_WRAP_FRAMES + 1U, rate, 0);
+		check_classic_replay_finish(LEGACY_U32_MAX, rate, 0);
+		reset_fixture(0, rate);
+		fixture_extended = 0;
+		gState_total_finish_time = TEST_NEW_SCORE_FRAMES;
+		struct END_SCREEN_STATE screen = {0};
+		end_hiscore_check_score(&screen);
+		assert(screen.score_status == 0 && screen.finish_time == 0);
+		screen.finish_time = TEST_NEW_SCORE_FRAMES;
+		end_hiscore_enter_score(&screen, (void *)"Name", 0);
+		assert(prompt_calls == 0 && legacy_writes == 0 && record_calls == 0);
+
+		reset_fixture(TEST_NEW_SCORE_FRAMES, rate);
+		fixture_extended = 0;
+		end_hiscore_check_score(&screen);
+		assert(screen.score_status == 1);
+		/* Re-read authoritative wide stats at save time, not the cached score. */
+		extended_race_stats.player_finish = maximum + 1U;
+		end_hiscore_enter_score(&screen, (void *)"Name", 0);
+		assert(prompt_calls == 0 && legacy_writes == 0 && record_calls == 0);
+	}
+	/* Signed legacy frame arguments still preserve these representable ticks. */
+	check_classic_replay_finish((legacy_u32)LEGACY_S16_MAX + 1U, GAME_FRAME_RATE_NORMAL, 1);
+}
+
+static void check_track_without_extended_replay(void)
+{
+	reset_fixture(TEST_CLASSIC_WRAP_FRAMES, GAME_FRAME_RATE_LOW);
+	fixture_replay = 0;
+	gState_total_finish_time = TEST_NEW_SCORE_FRAMES;
+	struct END_SCREEN_STATE screen = {0};
+	end_hiscore_check_score(&screen);
+	assert(screen.score_status == 1 && screen.finish_time == TEST_NEW_SCORE_FRAMES);
+	assert(qualified_frames == TEST_NEW_SCORE_FRAMES);
+	assert(validate_calls == 1 && load_calls == 1 && legacy_reads == 0);
+	end_hiscore_enter_score(&screen, (void *)"Name", 0);
+	assert(record_calls == 1 && legacy_writes == 0);
+	assert(captured_entry.ticks == TEST_NEW_SCORE_FRAMES * HIGHSCORE_LOW_FRAME_RATE_TIME_SCALE);
 }
 
 static void check_full_track_name(void)
@@ -733,6 +816,8 @@ int main(void)
 	check_score_insertion_redraw();
 	check_long_time_alignment();
 	check_legacy_eligibility();
+	check_classic_replay_boundaries();
+	check_track_without_extended_replay();
 	check_full_track_name();
 	puts("Extended highscore UI checks passed");
 	return 0;

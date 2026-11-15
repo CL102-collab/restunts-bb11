@@ -17,7 +17,7 @@ from regression_timeouts import scaled_timeout
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
 CSTRK_VERSION = 15
-CSRPL_VERSION = 20
+CSRPL_VERSION = 21
 CSRPL_MIN_VERSION = 11
 CSRPL_PRE_CUSTOM_HORIZON_VERSION = 19
 CSRPL_FUTURE_VERSION = 101
@@ -34,6 +34,13 @@ CSRPL_LONG_TRACK_NAME_VERSION = 17
 CSRPL_TRACK_NAME_OFFSET = 41
 CSRPL_LEGACY_TRACK_NAME_SIZE = 9
 CSRPL_TRACK_NAME_SIZE = 13
+CSRPL_OPPONENT_COMMAND_VERSION = 21
+CSRPL_OPPONENT_ID_OFFSET = 54
+CSRPL_CLASSIC_TRACK = 1
+CSRPL_OPPONENT_COMMANDS = 2
+CSRPL_COMMAND_SIZE = 8
+CLASSIC_TRACK_SIZE = 1802
+UNIT_TEST_FRAMES = 32
 MAP_SIZE = 90
 LONG_FRAMES = 70001
 MAX_FRAMES = 120000
@@ -257,21 +264,57 @@ def decode_replay(recording):
     assert version >= CSRPL_MIN_VERSION and header == CSRPL_HEADER_SIZE
     name_size = (CSRPL_LEGACY_TRACK_NAME_SIZE if version < CSRPL_LONG_TRACK_NAME_VERSION
                  else CSRPL_TRACK_NAME_SIZE)
-    reserved_start = CSRPL_TRACK_NAME_OFFSET + name_size
-    assert recording[12:16] == bytes(4)
+    name_end = CSRPL_TRACK_NAME_OFFSET + name_size
+    flags = struct.unpack_from("<I", recording, 12)[0]
+    assert not flags & ~(CSRPL_CLASSIC_TRACK | CSRPL_OPPONENT_COMMANDS)
+    assert version >= CSRPL_OPPONENT_COMMAND_VERSION or flags == 0
+    opponent = recording[34]
+    opponent_id = (recording[CSRPL_OPPONENT_ID_OFFSET:CSRPL_OPPONENT_ID_OFFSET + 4]
+                   if version >= CSRPL_OPPONENT_COMMAND_VERSION else bytes(4))
+    reserved_start = CSRPL_OPPONENT_ID_OFFSET + 4 if version >= CSRPL_OPPONENT_COMMAND_VERSION else name_end
     assert recording[reserved_start:CSRPL_HEADER_SIZE] == bytes(CSRPL_HEADER_SIZE - reserved_start)
+    assert bool(flags & CSRPL_OPPONENT_COMMANDS) == (opponent > 6)
+    assert opponent_id == b"UNIT" if opponent == 7 else opponent_id == bytes(4)
     track_size, frames, rate, rules = struct.unpack_from("<IIHH", recording, 16)
     assert rate in (10, 20) and not rules & ~0x7F
-    assert len(recording) == CSRPL_HEADER_SIZE + track_size + frames
+    command_size = frames * CSRPL_COMMAND_SIZE if flags & CSRPL_OPPONENT_COMMANDS else 0
+    assert len(recording) == CSRPL_HEADER_SIZE + track_size + frames + command_size
     track = recording[CSRPL_HEADER_SIZE:CSRPL_HEADER_SIZE + track_size]
-    inputs = recording[CSRPL_HEADER_SIZE + track_size:]
-    assert track[:8] == CSTRK_MAGIC and all(value <= 63 for value in inputs)
-    horizon, custom_horizon = decode_track_horizon(track)
+    input_start = CSRPL_HEADER_SIZE + track_size
+    inputs = recording[input_start:input_start + frames]
+    commands = recording[input_start + frames:]
+    assert all(value <= 63 for value in inputs)
+    if flags & CSRPL_CLASSIC_TRACK:
+        assert len(track) == CLASSIC_TRACK_SIZE
+        horizon, custom_horizon = None, ""
+    else:
+        assert track[:8] == CSTRK_MAGIC
+        horizon, custom_horizon = decode_track_horizon(track)
+    for control, reserved, steering, route, point in struct.iter_unpack("<BBhhH", commands):
+        assert control <= 63 and reserved == 0 and -240 <= steering <= 240
+        assert route >= 0 and point <= 255
     return dict(version=version, frames=frames, rate=rate, rules=rules, track=track,
-                horizon=horizon, custom_horizon=custom_horizon,
-                inputs=inputs, car=recording[28:32], material=recording[32],
-                transmission=recording[33], opponent=recording[34],
-                track_name=recording[CSRPL_TRACK_NAME_OFFSET:reserved_start].split(b"\0", 1)[0])
+                horizon=horizon, custom_horizon=custom_horizon, flags=flags,
+                inputs=inputs, commands=commands, opponent_id=opponent_id,
+                car=recording[28:32], material=recording[32],
+                transmission=recording[33], opponent=opponent,
+                track_name=recording[CSRPL_TRACK_NAME_OFFSET:name_end].split(b"\0", 1)[0])
+
+
+def unit_replay_template(track, *, classic=False, opponent_input=1, frames=UNIT_TEST_FRAMES, player_input=BRAKE_INPUT):
+    # The native fixture writer fills physical route provenance before playback.
+    header = bytearray(CSRPL_HEADER_SIZE)
+    header[:8] = CSRPL_MAGIC
+    flags = CSRPL_OPPONENT_COMMANDS | (CSRPL_CLASSIC_TRACK if classic else 0)
+    struct.pack_into("<HHIIIHH", header, 8, CSRPL_VERSION, CSRPL_HEADER_SIZE,
+                     flags, len(track), frames, 20, 0x1F)
+    header[28:32] = header[35:39] = b"PMIN"
+    header[33] = header[40] = 1
+    header[34] = 7
+    header[CSRPL_OPPONENT_ID_OFFSET:CSRPL_OPPONENT_ID_OFFSET + 4] = b"UNIT"
+    header[41:45] = b"UNIT"
+    command = struct.pack("<BBhhH", opponent_input, 0, 0, 0, 0)
+    return header + track + bytes([player_input]) * frames + command * frames
 
 
 def main():
@@ -280,6 +323,7 @@ def main():
     parser.add_argument("harness", type=Path)
     parser.add_argument("data", type=Path)
     parser.add_argument("output", nargs="?", type=Path)
+    parser.add_argument("--unit-only", action="store_true", help="Run UNIT replay compatibility checks only")
     parser.add_argument("--part", type=int, choices=TEST_PARTS,
                         help="Run one balanced part; omit to run the complete suite")
     parser.add_argument("--shard", type=int,
@@ -343,6 +387,74 @@ def main():
             assert verified["frames_per_second"] == replayed["frames_per_second"] == view["rate"]
             assert report["total_seconds"] == report["total_frames"] / view["rate"]
             return destination, view, report, replayed
+
+        def record_unit(path, track, **kwargs):
+            # Pedals/steering are fixed test choices; native simulation supplies
+            # the physically reached route cursor for every recorded command.
+            template = path.with_suffix(".template.csrpl")
+            template.write_bytes(unit_replay_template(track, **kwargs))
+            run(harness, ["--unit-record", template, path])
+            template.unlink()
+
+        if args.unit_only or selected(REPLAY_PART, 1):
+            classic_path = next((path for path in data.iterdir() if path.name.upper() == "DEFAULT.TRK"), None)
+            tracks = [(False, track_bytes())]
+            if classic_path is not None:
+                tracks.append((True, classic_path.read_bytes()))
+            for classic, track in tracks:
+                results = []
+                for opponent_input in (1, BRAKE_INPUT):
+                    name = f"unit-{'classic' if classic else 'extended'}-{opponent_input}"
+                    fixture = output / f"{name}.csrpl"
+                    record_unit(fixture, track, classic=classic, opponent_input=opponent_input)
+                    decoded = decode_replay(fixture.read_bytes())
+                    assert decoded["opponent_id"] == b"UNIT" and decoded["opponent"] == 7
+                    verified, replayed = verify(fixture, expected=2), playback(fixture)
+                    assert verified["frames"] == replayed["frames"] == UNIT_TEST_FRAMES
+                    assert replayed["classic_track"] == classic
+                    assert replayed == playback(fixture)
+                    results.append((replayed["opponent_x"], replayed["opponent_z"]))
+                    if opponent_input == 1:
+                        # Valid wire values still cannot forge physical route progress.
+                        corrupted = bytearray(fixture.read_bytes())
+                        command_start = CSRPL_HEADER_SIZE + len(decoded["track"]) + decoded["frames"]
+                        final_point = command_start + (decoded["frames"] - 1) * CSRPL_COMMAND_SIZE + 6
+                        corrupted[final_point] ^= 1
+                        forged = output / f"{name}-forged-route.csrpl"
+                        forged.write_bytes(corrupted)
+                        rejected = run(genghost, [forged, "--verify"], expected=1)
+                        assert "invalid opponent route in replay" in rejected.stdout + rejected.stderr
+                    rejected = run(genghost, [fixture, "--fine-tune", "--evaluations", 1,
+                                              "--output", output / f"{name}-refined.csrpl"], expected=1)
+                    assert "solo replay" in rejected.stderr
+                assert results[0] != results[1], "Recorded UNIT controls did not change opponent movement"
+            # A classic CSRPL retains the extended timeline even though its physics remains classic.
+            if classic_path is not None:
+                long_unit = output / "unit-classic-long.csrpl"
+                record_unit(long_unit, classic_path.read_bytes(), classic=True,
+                            frames=LONG_FRAMES, player_input=0)
+                assert verify(long_unit, expected=2)["frames"] == LONG_FRAMES
+                assert playback(long_unit)["frames"] == LONG_FRAMES
+                _, classic_solo, _, _ = generate(output / "unit-classic-1.csrpl", "COUN",
+                                                "unit-classic-solo.csrpl")
+                assert classic_solo["track"] == classic_path.read_bytes()
+                assert classic_solo["flags"] == CSRPL_CLASSIC_TRACK
+                assert classic_solo["opponent"] == 0 and classic_solo["opponent_id"] == bytes(4)
+                assert classic_solo["commands"] == b""
+            unknown = bytearray(unit_replay_template(track_bytes()))
+            unknown[CSRPL_OPPONENT_ID_OFFSET:CSRPL_OPPONENT_ID_OFFSET + 4] = b"UNKN"
+            unknown_source = output / "unknown-opponent.csrpl"
+            unknown_source.write_bytes(unknown)
+            rejected = run(genghost, [unknown_source, "--verify"], expected=1)
+            assert "Unsupported CSRPL opponent identifier" in rejected.stderr
+            fresh_source = output / "unit-source.csrpl"
+            record_unit(fresh_source, track_bytes())
+            _, fresh, _, _ = generate(fresh_source, "COUN", "unit-source-solo.csrpl")
+            assert fresh["opponent"] == 0 and fresh["opponent_id"] == bytes(4)
+            assert fresh["commands"] == b"" and fresh["flags"] == 0
+            print("UNIT command playback, snapshot restore, classic timelines and solo generation passed", flush=True)
+            if args.unit_only:
+                return 0
 
         wide_path = output / "wide.cstrk"
         wide_path.write_bytes(track_bytes())

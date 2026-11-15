@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../c/extended/extended_replay_runtime.h"
@@ -25,6 +26,12 @@ legacy_u16 driving_rules_current(void)
 #define TEST_TIME_BUFFER_CAPACITY 32U
 #define TEST_TIME_LOW_FRAME_RATE 10U
 #define TEST_TIME_HIGH_FRAME_RATE 20U
+#define TEST_UNIT_FRAME_COUNT 65539U
+#define TEST_UNIT_LONG_LOAD_FRAMES 9001U
+#define TEST_UNIT_BRANCH_FRAME 65001U
+#define TEST_UNIT_STEERING_LIMIT 240
+#define TEST_UNIT_ROUTE_POINT_COUNT 256U
+#define TEST_UNIT_ROUTE_COUNT 512U
 #define TEST_CHECKPOINT_EVENT_FRAME 66000U
 #define TEST_CHECKPOINT_OBJECT_INDEX 37U
 #define TEST_CHECKPOINT_VISITED_BYTE (TEST_CHECKPOINT_OBJECT_INDEX / 8U)
@@ -132,6 +139,12 @@ void update_gamestate(void)
 	random_seed = random_seed * 1664525U + 1013904223U;
 	state.playerstate.car_position.lx =
 		(legacy_s32)((uint32_t)state.playerstate.car_position.lx + input + (random_seed & 31U));
+	struct CSRPL_OPPONENT_COMMAND command;
+	if (extended_replay_opponent_command_at(extended_replay_frame(), &command)) {
+		state.opponentstate.car_position.lx = LEGACY_S32_WRAP_ADD(
+			state.opponentstate.car_position.lx,
+			command.input + command.steering + command.route_index + command.route_point);
+	}
 	extended_replay_after_step();
 	if (extended_replay_frame() == TEST_CHECKPOINT_EVENT_FRAME) {
 		extended_replay_clocks.checkpoints.initialized = 1;
@@ -141,6 +154,12 @@ void update_gamestate(void)
 		extended_replay_clocks.checkpoints.previous[PLAYER_CAR_INDEX] =
 			state.playerstate.car_position;
 		extended_replay_clocks.penalty = 80000U;
+		extended_replay_clocks.unit_penalty.initialized = 1;
+		extended_replay_clocks.unit_penalty.frames = 70000U;
+		extended_replay_clocks.unit_penalty.route.confirmed_route = 37;
+		extended_replay_clocks.unit_penalty.route.previous_route = 41;
+		extended_replay_clocks.unit_penalty.route.last_skipped = 4;
+		extended_replay_clocks.unit_penalty.route.confirmations = 2;
 		extended_replay_clocks.player_finish = 146000U;
 	}
 }
@@ -220,10 +239,157 @@ static void test_recording_versions(void)
 	}
 }
 
+static struct CSRPL_OPPONENT_COMMAND test_unit_command(legacy_u32 frame)
+{
+	struct CSRPL_OPPONENT_COMMAND command = {0};
+	command.input = frame & CSRPL_INPUT_MASK;
+	command.steering =
+		(legacy_s16)(frame % (TEST_UNIT_STEERING_LIMIT * 2U + 1U)) - TEST_UNIT_STEERING_LIMIT;
+	command.route_index = (legacy_s16)(frame % TEST_UNIT_ROUTE_COUNT);
+	command.route_point = (legacy_u16)(frame % TEST_UNIT_ROUTE_POINT_COUNT);
+	return command;
+}
+
+static void test_unit_recording(void)
+{
+	gameconfig.game_opponenttype = CSRPL_UNIT_OPPONENT_TYPE;
+	extended_replay_runtime_begin();
+	extended_replay_set_classic_track(1);
+	assert(extended_replay_flags() == (CSRPL_FLAG_OPPONENT_COMMANDS | CSRPL_FLAG_CLASSIC_TRACK));
+	assert(memcmp(extended_replay_opponent_id(), "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
+	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
+	for (legacy_u32 frame = 0; frame < TEST_UNIT_FRAME_COUNT; frame++) {
+		struct CSRPL_OPPONENT_COMMAND command = test_unit_command(frame);
+		assert(extended_replay_record_input(command.input));
+		assert(extended_replay_record_opponent_command(frame, &command));
+		update_gamestate();
+	}
+	assert(extended_replay_recorded_frames() == TEST_UNIT_FRAME_COUNT);
+	struct CSRPL_OPPONENT_COMMAND final_command = test_unit_command(TEST_UNIT_FRAME_COUNT - 1U);
+	struct CSRPL_OPPONENT_COMMAND command;
+	assert(extended_replay_opponent_command_at(TEST_UNIT_FRAME_COUNT - 1U, &command));
+	assert(command.input == final_command.input && command.steering == final_command.steering);
+	assert(command.route_index == final_command.route_index &&
+		   command.route_point == final_command.route_point);
+	assert(!extended_replay_opponent_command_at(TEST_UNIT_FRAME_COUNT, &command));
+	legacy_s32 final_player = state.playerstate.car_position.lx;
+	legacy_s32 final_opponent = state.opponentstate.car_position.lx;
+	legacy_u32 final_seed = random_seed;
+	assert(extended_replay_seek(0U));
+	assert(state.opponentstate.car_position.lx == 0);
+	assert(extended_replay_seek(TEST_UNIT_FRAME_COUNT));
+	assert(state.playerstate.car_position.lx == final_player);
+	assert(state.opponentstate.car_position.lx == final_opponent);
+	assert(random_seed == final_seed);
+	/* A rejected replacement must not alter controls already recorded. */
+	command = final_command;
+	command.flags = 1U;
+	assert(!extended_replay_record_opponent_command(TEST_UNIT_FRAME_COUNT - 1U, &command));
+	assert(extended_replay_opponent_command_at(TEST_UNIT_FRAME_COUNT - 1U, &command));
+	assert(command.flags == 0U && command.steering == final_command.steering);
+	assert(extended_replay_seek(TEST_UNIT_BRANCH_FRAME));
+	assert(extended_replay_branch(TEST_UNIT_BRANCH_FRAME));
+	assert(!extended_replay_opponent_command_at(TEST_UNIT_BRANCH_FRAME, &command));
+	assert(!extended_replay_opponent_command_at(TEST_UNIT_FRAME_COUNT - 1U, &command));
+	command = test_unit_command(TEST_UNIT_BRANCH_FRAME);
+	command.steering = -command.steering;
+	assert(extended_replay_record_input(command.input));
+	assert(extended_replay_record_opponent_command(TEST_UNIT_BRANCH_FRAME, &command));
+	update_gamestate();
+	legacy_s32 branched_opponent = state.opponentstate.car_position.lx;
+	const legacy_u8 *commands = extended_replay_opponent_commands();
+	assert(commands != NULL);
+	struct GAMESTATE saved_state = state;
+	struct EXTENDED_REPLAY_SUSPENDED saved;
+	extended_replay_runtime_suspend(&saved);
+	assert(!extended_replay_is_active());
+	assert(extended_replay_flags() == 0U);
+	assert(extended_replay_opponent_commands() == NULL);
+	assert(!extended_replay_opponent_command_at(TEST_UNIT_BRANCH_FRAME, &command));
+	legacy_u8 ghost_inputs[] = {1U, 2U};
+	struct CSRPL_VIEW ghost = {0};
+	ghost.metadata.version = CSRPL_VERSION;
+	ghost.metadata.frame_count = sizeof(ghost_inputs);
+	ghost.inputs = ghost_inputs;
+	assert(extended_replay_runtime_load(&ghost));
+	assert(extended_replay_flags() == 0U);
+	assert(!extended_replay_opponent_command_at(0U, &command));
+	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
+	assert(extended_replay_seek(sizeof(ghost_inputs)));
+	state = saved_state;
+	extended_replay_runtime_resume(&saved);
+	assert(extended_replay_flags() == (CSRPL_FLAG_OPPONENT_COMMANDS | CSRPL_FLAG_CLASSIC_TRACK));
+	assert(memcmp(extended_replay_opponent_id(), "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
+	assert(extended_replay_opponent_commands() == commands);
+	assert(extended_replay_seek(0U));
+	assert(extended_replay_seek(TEST_UNIT_BRANCH_FRAME + 1U));
+	assert(state.opponentstate.car_position.lx == branched_opponent);
+	/* Loading copies command storage; the borrowed wire buffer may disappear. */
+	legacy_u8 loaded_commands[2U * CSRPL_OPPONENT_COMMAND_SIZE];
+	for (legacy_u16 frame = 0; frame < 2U; frame++) {
+		command = test_unit_command(frame);
+		csrpl_opponent_command_write(loaded_commands + frame * CSRPL_OPPONENT_COMMAND_SIZE,
+									 &command);
+	}
+	ghost.metadata.flags = CSRPL_FLAG_OPPONENT_COMMANDS;
+	ghost.metadata.opponent_type = CSRPL_UNIT_OPPONENT_TYPE;
+	memcpy(ghost.metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE);
+	ghost.opponent_commands = loaded_commands;
+	assert(extended_replay_runtime_load(&ghost));
+	memset(loaded_commands, 0, sizeof(loaded_commands));
+	assert(extended_replay_opponent_command_at(1U, &command));
+	assert(command.input == 1U && command.route_index == 1 && command.route_point == 1U);
+	commands = extended_replay_opponent_commands();
+	ghost.opponent_commands = NULL;
+	assert(!extended_replay_runtime_load(&ghost));
+	assert(extended_replay_opponent_commands() == commands);
+	assert(extended_replay_opponent_command_at(1U, &command));
+	assert(command.input == 1U);
+	extended_replay_runtime_begin();
+	assert(extended_replay_recorded_frames() == 0U);
+	assert(!extended_replay_opponent_command_at(0U, &command));
+	extended_replay_runtime_clear();
+	assert(extended_replay_flags() == 0U && extended_replay_opponent_commands() == NULL);
+	gameconfig.game_opponenttype = 0;
+}
+
+static void test_unit_large_command_load(void)
+{
+	/* This stream crosses the legacy 16-bit memcpy length boundary. */
+	legacy_u8 *inputs = calloc(TEST_UNIT_LONG_LOAD_FRAMES, 1U);
+	legacy_u8 *commands = malloc(TEST_UNIT_LONG_LOAD_FRAMES * CSRPL_OPPONENT_COMMAND_SIZE);
+	assert(inputs && commands);
+	for (legacy_u32 frame = 0; frame < TEST_UNIT_LONG_LOAD_FRAMES; frame++) {
+		struct CSRPL_OPPONENT_COMMAND command = test_unit_command(frame);
+		csrpl_opponent_command_write(commands + frame * CSRPL_OPPONENT_COMMAND_SIZE, &command);
+	}
+	struct CSRPL_VIEW replay = {0};
+	replay.metadata.version = CSRPL_VERSION;
+	replay.metadata.flags = CSRPL_FLAG_OPPONENT_COMMANDS;
+	replay.metadata.opponent_type = CSRPL_UNIT_OPPONENT_TYPE;
+	memcpy(replay.metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE);
+	replay.metadata.frame_count = TEST_UNIT_LONG_LOAD_FRAMES;
+	replay.inputs = inputs;
+	replay.opponent_commands = commands;
+	assert(extended_replay_runtime_load(&replay));
+	memset(commands, 0, TEST_UNIT_LONG_LOAD_FRAMES * CSRPL_OPPONENT_COMMAND_SIZE);
+	free(inputs);
+	free(commands);
+	struct CSRPL_OPPONENT_COMMAND command;
+	struct CSRPL_OPPONENT_COMMAND expected = test_unit_command(TEST_UNIT_LONG_LOAD_FRAMES - 1U);
+	assert(extended_replay_opponent_command_at(TEST_UNIT_LONG_LOAD_FRAMES - 1U, &command));
+	assert(command.input == expected.input && command.steering == expected.steering);
+	assert(command.route_index == expected.route_index &&
+		   command.route_point == expected.route_point);
+	extended_replay_runtime_clear();
+}
+
 int main(void)
 {
 	test_replay_time_formatting();
 	test_recording_versions();
+	test_unit_recording();
+	test_unit_large_command_load();
 	configured_driving_rules = DRIVING_RULE_KNOWN_MASK;
 	extended_replay_runtime_begin();
 	assert(extended_replay_version() == CSRPL_VERSION);
@@ -252,12 +418,20 @@ int main(void)
 	assert(extended_replay_clocks.checkpoints
 			   .visited[PLAYER_CAR_INDEX][TEST_CHECKPOINT_VISITED_BYTE] == 0U);
 	assert(extended_replay_clocks.penalty == 0U);
+	assert(!extended_replay_clocks.unit_penalty.initialized);
+	assert(extended_replay_clocks.unit_penalty.frames == 0U);
 	assert(extended_replay_seek(100003U));
 	assert(random_seed == final_seed && state.playerstate.car_position.lx == final_position);
 	assert(memcmp(&extended_replay_clocks.checkpoints, &final_checkpoints,
 				  sizeof(final_checkpoints)) == 0);
 	assert(extended_replay_clocks.player_finish == 146000U);
 	assert(extended_replay_clocks.penalty == 80000U);
+	assert(extended_replay_clocks.unit_penalty.initialized);
+	assert(extended_replay_clocks.unit_penalty.frames == 70000U);
+	assert(extended_replay_clocks.unit_penalty.route.confirmed_route == 37);
+	assert(extended_replay_clocks.unit_penalty.route.previous_route == 41);
+	assert(extended_replay_clocks.unit_penalty.route.last_skipped == 4);
+	assert(extended_replay_clocks.unit_penalty.route.confirmations == 2);
 	assert(!extended_replay_seek(100004U));
 	assert(extended_replay_seek(70000U));
 	assert(extended_replay_branch(70000U));
@@ -274,6 +448,9 @@ int main(void)
 	extended_replay_runtime_suspend(&saved);
 	assert(!extended_replay_is_active());
 	assert(!extended_replay_clocks.checkpoints.initialized);
+	assert(!extended_replay_clocks.unit_penalty.initialized);
+	assert(saved.clocks.unit_penalty.frames == 70000U);
+	assert(saved.clocks.unit_penalty.route.confirmed_route == 37);
 	assert(memcmp(&saved.clocks.checkpoints, &suspended_checkpoints,
 				  sizeof(suspended_checkpoints)) == 0);
 	uint8_t ghost_inputs[3] = {1U, 2U, 3U};
@@ -294,6 +471,8 @@ int main(void)
 	extended_replay_runtime_resume(&saved);
 	assert(extended_replay_is_active());
 	assert(extended_replay_frame() == 70001U);
+	assert(extended_replay_clocks.unit_penalty.frames == 70000U);
+	assert(extended_replay_clocks.unit_penalty.route.confirmations == 2);
 	assert(memcmp(&extended_replay_clocks.checkpoints, &suspended_checkpoints,
 				  sizeof(suspended_checkpoints)) == 0);
 	assert(extended_replay_version() == CSRPL_VERSION);

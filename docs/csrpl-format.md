@@ -2,22 +2,25 @@
 
 `.csrpl` is an SDL3 format. Existing `.rpl` files retain their original layout and
 recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
-embedded so subsequent track edits do not change replay playback.
+embedded so subsequent track edits do not change replay playback. Races against
+UNIT also record `.csrpl` on classic `.trk` tracks. Those recordings embed the
+original 1,802-byte classic track and retain classic track physics.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v20**. The revision identifies the track format,
+recordings currently use **v21**. The revision identifies the track format,
 physics behavior, and filename metadata layout of the game that recorded the
 inputs; it is separate from the revision stored in the embedded track.
 
 The current replay revision is
-`CSTRK_VERSION + CSRPL_PHYSICS_REVISION + CSRPL_FILENAME_REVISION`.
+`CSTRK_VERSION + CSRPL_PHYSICS_REVISION + CSRPL_FILENAME_REVISION + CSRPL_OPPONENT_REVISION`.
 Increasing the track revision automatically advances the replay revision.
 Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
-Filename metadata has its own revision offset and does not change physics.
+Filename metadata and opponent recording have independent revision offsets.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v15, physics revision is 4, and filename revision is 1. Physics revision 1 corrected wheel
-contact at consecutive hill slopes in replay v5; replay v6 also supports the
+revision is v15, physics revision is 4, filename revision is 1, and opponent
+revision is 1. Physics revision 1 corrected wheel contact at consecutive hill
+slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
 corrects opposite-direction hill-road classification and body contacts on graded
@@ -50,6 +53,9 @@ counts in both color sets, and its progress follows the same replay rules.
 Replay v20 adds track v15's optional custom horizon filename. The PNG remains
 an external file in `horizons/`; missing or invalid artwork uses the embedded
 track's built-in fallback without changing playback or discarding the filename.
+Replay v21 adds four-byte opponent identifiers, recorded opponent commands,
+and the option to embed a classic track. The original six opponents retain their
+existing input-only replay behavior.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -68,36 +74,42 @@ best-effort basis using the known layout. Matching revisions do not show a
 warning. The embedded track is validated separately under the track format's
 revision rules.
 
-All integers are unsigned little endian. The file is exactly a 64-byte header,
-one complete `.cstrk` file, and one input byte per frame. There is no padding or
-trailing data. The frame count is 32 bits, twice the original field's width.
+Integers are little endian. Header fields are unsigned; opponent commands have
+the signed fields documented below. The file is exactly a 64-byte header, one
+embedded track, one player input byte per frame, and, when enabled, one eight-byte
+opponent command per frame. There is no padding or trailing data. The frame count
+is 32 bits, twice the original field's width.
 
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `20`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `21`, minimum `11` |
 | 10 | 2 | Header size, 64 |
-| 12 | 4 | Flags, zero |
-| 16 | 4 | Embedded `.cstrk` size in bytes |
+| 12 | 4 | Format flags, described below (zero before v21) |
+| 16 | 4 | Embedded track size in bytes |
 | 20 | 4 | Recorded frame count |
 | 24 | 2 | Simulation rate, 10 or 20 frames/second |
 | 26 | 2 | Recorded driving-rule bitmask, described below |
 | 28 | 4 | Player car resource ID |
 | 32 | 1 | Player paint material |
 | 33 | 1 | Player transmission, automatic 0 or manual 1 |
-| 34 | 1 | Opponent type, 0 through 6 |
+| 34 | 1 | Opponent number; 0 means none, 1–6 are original opponents, 7 is UNIT |
 | 35 | 4 | Opponent car resource ID |
 | 39 | 1 | Opponent paint material |
 | 40 | 1 | Opponent transmission |
 | 41 | 13 | Display track name, byte array (v17+) |
-| 54 | 10 | Reserved, all zero (v17+) |
-| 64 | Track size | Complete validated `.cstrk` |
-| 64 + track size | Frame count | Input samples |
+| 54 | 4 | Four-character opponent identifier when opponent number >6 (v21+); otherwise zero |
+| 58 | 6 | Reserved, all zero (v21+) |
+| 64 | Track size | Complete validated `.cstrk`, or a 1,802-byte classic track |
+| 64 + track size | Frame count | Player input samples |
+| 64 + track size + frame count | 8 × frame count | Opponent commands, only when the opponent-command flag is set |
 
 Revisions v11 through v16 retain their original nine-byte track-name field at
-bytes 41–49 and fourteen reserved zero bytes at 50–63. Revision v17 and later
-use bytes 41–53 for the name and reserve bytes 54–63. The header remains exactly
-64 bytes, so the embedded track and input offsets do not move. The reader selects
+bytes 41–49 and fourteen reserved zero bytes at 50–63. Revisions v17–v20
+use bytes 41–53 for the name and reserve bytes 54–63. Revision v21 retains
+the name layout and uses bytes 54–57 for the optional opponent identifier.
+The header remains exactly 64 bytes, so the embedded track and input offsets do
+not move. The reader selects
 and validates the reserved range using the recorded replay revision.
 
 In memory, older names are zero-extended to thirteen bytes. Encoding an older
@@ -106,6 +118,43 @@ it never silently truncates the name. Existing nine-byte names without a NUL
 remain valid byte arrays and round-trip unchanged. Normal new filenames use up
 to twelve characters followed by a NUL. This metadata expansion does not change
 the original packed `GAMEINFO` name field or the legacy `.rpl` format.
+
+The format flags at byte 12 are independent of the driving-rule bitmask:
+
+| Bit | Mask | Meaning |
+| --- | --- | --- |
+| 0 | `0x00000001` | Embedded track is the original 1,802-byte classic track layout |
+| 1 | `0x00000002` | An eight-byte opponent command follows for each recorded frame |
+| 2–31 | `0xfffffffc` | Reserved; must be zero |
+
+Both flags require revision v21 or later. Without the classic-track flag, the
+embedded payload must be a complete validated `.cstrk`. Classic payloads retain
+their original bytes; the loader does not convert them into extended tracks.
+
+An opponent number greater than six requires a four-character identifier and
+an opponent command stream. UNIT uses number 7 and identifier `UNIT`. The
+identifier is a fixed four-byte array of uppercase ASCII letters or digits,
+like a car ID, without a NUL terminator. Original opponents and races without
+an opponent keep these bytes zero and do not have an opponent command stream.
+
+Each opponent command records the decisions actually applied in that simulation
+frame, after planning and collision avoidance. Commands are serialized field by
+field, independent of C structure padding:
+
+| Offset within command | Bytes | Meaning |
+| --- | --- | --- |
+| 0 | 1 | Input bits 0–5, with the same meanings as player inputs |
+| 1 | 1 | Reserved flags, zero |
+| 2 | 2 | Signed absolute steering angle, −240 through 240 |
+| 4 | 2 | Signed route index, zero or greater |
+| 6 | 2 | Route point index, zero through 255 |
+
+The command count equals the player frame count. Playback, seeking, and ghost
+extraction consume these recorded decisions without rerunning the planner.
+Consequently, changing the available CPU count or the planner's timing cannot
+change the replay's opponent decisions. Branching truncates both streams at the
+same frame; suspending for a ghost and resuming retain both streams and the
+opponent identifier.
 
 The driving-rule bitmask records the startup configuration used when the
 recording began. A set bit means **On** and a clear bit means **Off**. Zero means
@@ -138,14 +187,15 @@ Loading, seeking, branching, suspending for a ghost, and resaving retain the
 recorded rule set, even if the running game has different rules. Starting a
 fresh recording captures the current startup configuration.
 
-Car IDs and the display name are fixed byte arrays, not C strings. Each sample
-uses bits 0–5 for accelerate, brake, steer right, steer left, gear up, and gear
+Car IDs, opponent identifiers, and the display name are fixed byte arrays, not C
+strings. Each player input sample uses bits 0–5 for accelerate, brake, steer
+right, steer left, gear up, and gear
 down. Bits 6–7 must be zero. Older replay revisions are rejected. Decoders
 retain the recorded revision and driving rules and reject unsupported flags,
 unknown rule bits, nonzero reserved bytes, rates, metadata, malformed tracks,
-mismatched lengths, and unsupported input bits before returning a usable replay
-view. Encoding a decoded replay preserves its recorded revision and rules
-without relabeling its inputs as a new recording.
+mismatched lengths, invalid opponent commands, and unsupported input bits before
+returning a usable replay view. Encoding a decoded replay preserves its recorded
+revision and rules without relabeling its inputs as a new recording.
 
 The C codec and runtime sources live in `src/restunts/c/extended/`.
 `extended_csrpl.c` implements serialization without relying on packed C structures.

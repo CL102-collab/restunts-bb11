@@ -89,16 +89,23 @@ void extended_race_route_add_penalty(legacy_s16 skipped, legacy_u16 rate, legacy
 #endif
 }
 
-legacy_s16 extended_race_route_player_row(legacy_s16 fallback)
+legacy_s16 extended_race_route_position_row(legacy_s16 fallback, const struct VECTORLONG *position)
 {
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		return LEGACY_S8_FROM_BITS(LEGACY_U8_WRAP_SUB(
-			(legacy_u8)(extended_track_height() - 1),
-			(legacy_u8)((legacy_u32)state.playerstate.car_position.lz >> TRACK_WORLD_TILE_SHIFT)));
+		return LEGACY_S8_FROM_BITS(
+			LEGACY_U8_WRAP_SUB((legacy_u8)(extended_track_height() - 1),
+							   (legacy_u8)((legacy_u32)position->lz >> TRACK_WORLD_TILE_SHIFT)));
 	}
+#else
+	(void)position;
 #endif
 	return fallback;
+}
+
+legacy_s16 extended_race_route_player_row(legacy_s16 fallback)
+{
+	return extended_race_route_position_row(fallback, &state.playerstate.car_position);
 }
 
 legacy_s16 extended_race_route_outside(legacy_s16 column, legacy_s16 row, legacy_s16 fallback)

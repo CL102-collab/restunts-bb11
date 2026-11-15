@@ -25,6 +25,7 @@
 #ifdef RESTUNTS_SDL3
 #include "../c/hires/hires.h"
 #include "../c/opponent/opponent_animation.h"
+#include "../c/opponent/opponent.h"
 #include "../c/shape2d/shape2d_internal.h"
 #endif
 
@@ -81,6 +82,18 @@ static legacy_u8 movie_loaded, movie_won, movie_drawn, fallback_pending;
 static legacy_u32 movie_draws, movie_unloads, original_draws, previous_original_draws;
 static legacy_u32 fallback_restorations, movie_draws_between_originals, display_shortcut_count;
 static legacy_u32 movie_failure_draw;
+static legacy_u32 unit_portrait_loads, unit_portrait_releases;
+
+struct SHAPE2D *unit_opponent_result_portrait(void)
+{
+	unit_portrait_loads++;
+	return &fixture_shapes[0];
+}
+
+void unit_opponent_portrait_release(void)
+{
+	unit_portrait_releases++;
+}
 
 legacy_s32 hires_enabled(void)
 {
@@ -809,6 +822,23 @@ static void test_external_animation_interaction(void)
 	assert(display_shortcut_count == FIXTURE_SHORTCUT_COUNT && hires_raster_active != 0);
 	assert(movie_draws_between_originals != 0);
 }
+
+static void test_unit_static_results(void)
+{
+	movie_available = 1;
+	display_shortcuts = 0;
+	movie_failure_draw = 0;
+	for (legacy_u8 won = 0; won < 2U; won++) {
+		initialize_end_screen(FIXTURE_POINTER_SCENARIO);
+		gameconfig.game_opponenttype = OPPONENT_UNIT;
+		gState_total_finish_time = FIXTURE_PLAYER_FINISH_TIME;
+		gState_opponent_finish_time = won ? FIXTURE_OPPONENT_LOSS_TIME : FIXTURE_OPPONENT_WIN_TIME;
+		unit_portrait_loads = unit_portrait_releases = 0;
+		(void)end_hiscore();
+		assert(unit_portrait_loads == 1U && unit_portrait_releases == 1U);
+		assert(movie_loaded == 0 && movie_draws == 0);
+	}
+}
 #endif
 
 static void run_immediate_pointer_case(enum FIXTURE_POINTER_LAYOUT layout, legacy_u8 won,
@@ -873,6 +903,7 @@ int main(void)
 #endif
 #ifdef RESTUNTS_SDL3
 	test_external_animation_interaction();
+	test_unit_static_results();
 	puts("External opponent animation lifecycle and display toggles passed.");
 #endif
 	test_immediate_pointer_selection();

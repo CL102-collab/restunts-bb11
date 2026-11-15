@@ -8,6 +8,9 @@
 #include "../track/track_types.h"
 #include "../track/track_objects.h"
 #include "opponent.h"
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
+#include "unit_opponent.h"
+#endif
 #include "../externs.h"
 #include "../extended/extended_opponent.h"
 
@@ -475,6 +478,12 @@ static void opponent_check_finish(void)
 
 void update_opponent_tick(void)
 {
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
+	if (unit_opponent_is_selected()) {
+		unit_opponent_tick();
+		return;
+	}
+#endif
 	legacy_s16 speed_step;
 	legacy_s16 steering_step;
 	if (framespersec == GAME_FRAME_RATE_NORMAL) {

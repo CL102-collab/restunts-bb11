@@ -436,6 +436,13 @@ game music; missing or unsupported clips use the original animation. F12 also
 works on this screen. See [custom opponent animations](docs/opponents/README.md#custom-win-and-lose-animations)
 for paths, encoding and 32-bit DOS details.
 
+SDL3 builds also include [UNIT](docs/unit-opponent.md), a seventh opponent with
+its own driving planner, a pixel-art robot portrait, and a paginated biography.
+UNIT uses the selected car. A ten-second planning screen precedes a new race;
+live planning then uses at most one worker, with a bounded synchronous Web fallback.
+Races against UNIT record CSRPL, including the `UNIT` identifier and its driving
+commands so playback reproduces the recorded decisions.
+
 HyperVision also targets **60 FPS** in SDL3 driving, replay playback, the nighttime
 intro, and rotating car previews. Driving and replay playback interpolate between
 completed physics states. At the normal 20 Hz simulation rate, each new keyframe

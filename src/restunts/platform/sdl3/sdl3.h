@@ -30,6 +30,8 @@ void sdl3_video_redraw(void);
 void sdl3_video_screenshot(void);
 void sdl3_video_toggle_fullscreen(void);
 void sdl3_video_refresh(void);
+/* A zero duration closes the full-output planning overlay. */
+void sdl3_video_planning_progress(legacy_u32 elapsed_ms, legacy_u32 duration_ms);
 SDL_Window *sdl3_video_window(void);
 void sdl3_video_window_to_game(legacy_f32 window_x, legacy_f32 window_y, legacy_f32 *x,
 							   legacy_f32 *y);

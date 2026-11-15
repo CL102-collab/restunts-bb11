@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "../c/ghost/ghost.h"
+#include "../c/ghost/ghost_internal.h"
+#include "../c/opponent/opponent.h"
 #include "../c/externs.h"
 #include "../c/car/car_resources.h"
 #define EXTENDED_TEST_GHOST_STUBS
@@ -356,6 +358,21 @@ static void make_replay(const char *name, legacy_u16 fps, legacy_u16 frame_count
 		legacy_u8 input = (legacy_u8)(frame + 1U);
 		dos_file_write(file, &input, 1);
 	}
+}
+
+static void test_classic_replay_opponent_range(void)
+{
+	struct GAMEINFO config = {0};
+	memcpy(config.game_playercarid, "ANSX", REPLAY_CAR_ID_SIZE);
+	memcpy(config.game_opponentcarid, "P964", REPLAY_CAR_ID_SIZE);
+	config.game_framespersec = GAME_FRAME_RATE_NORMAL;
+	config.game_opponenttype = OPPONENT_LEGACY_LAST;
+	assert(ghost_valid_config(&config));
+	/* A legacy RPL cannot identify UNIT or carry the recorded opponent controls. */
+	config.game_opponenttype = OPPONENT_UNIT;
+	assert(!ghost_valid_config(&config));
+	config.game_opponenttype = -1;
+	assert(!ghost_valid_config(&config));
 }
 
 static void test_selection_is_separate(void)
@@ -892,6 +909,7 @@ static void test_track_changes_and_cleanup(void)
 
 int main(void)
 {
+	test_classic_replay_opponent_range();
 	test_selection_is_separate();
 	test_invalid_selection_preserves_previous();
 	test_playback_timing_and_isolation();

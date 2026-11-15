@@ -10,9 +10,10 @@ function(restunts_configure_wasm target asset_root shell)
         set(restunts_wasm_environment "web,worker")
         set(restunts_thread_support true)
         # Synchronous render jobs run on the browser thread. Preload all possible
-        # render workers plus one spare so their startup never needs that thread
-        # to process a message while it is waiting for a completed render job.
-        set(restunts_pthread_pool_size 8)
+        # render workers, UNIT's live planner, and one SDL spare. Their startup
+        # must not need the browser to process a message while it waits for a
+        # completed render job.
+        set(restunts_pthread_pool_size 9)
         target_link_options(${target} PRIVATE -pthread
             -sPTHREAD_POOL_SIZE=${restunts_pthread_pool_size}
             -sPTHREAD_POOL_SIZE_STRICT=2

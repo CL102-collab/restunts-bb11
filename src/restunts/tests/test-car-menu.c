@@ -24,6 +24,8 @@
 #include "../c/frame/frame_internal.h"
 #include "../c/hires/shape3d_hires.h"
 #include "../c/opponent/opponent_portrait.h"
+#include "../c/opponent/opponent.h"
+#include "../c/opponent/unit_opponent_assets.h"
 #include "../c/menu/menu_background.h"
 #include "../c/shape2d/shape2d_internal.h"
 
@@ -37,6 +39,26 @@ static legacy_u32 acceleration_step;
 static legacy_u8 resource_bytes[64][32];
 static struct SHAPE2D fixture_shapes[4];
 static struct SPRITE fixture_sprites[4];
+#ifdef RESTUNTS_SDL3
+static legacy_u16 unit_biography_pages_seen;
+
+struct SHAPE2D *unit_opponent_menu_portrait(legacy_u8 opponent, legacy_s8 **originals)
+{
+	assert(opponent <= OPPONENT_LAST);
+	return (struct SHAPE2D *)originals[opponent == OPPONENT_UNIT ? OPPONENT_LEGACY_LAST : opponent];
+}
+
+void unit_opponent_portrait_release(void)
+{
+}
+
+legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
+{
+	assert(page < 3U);
+	unit_biography_pages_seen |= (legacy_u16)(1U << page);
+	return 3;
+}
+#endif
 static const legacy_s8 *fixture_files[] = {(const legacy_s8 *)"CARVETT.RES",
 										   (const legacy_s8 *)"CARANSX.RES",
 										   (const legacy_s8 *)"CARCOUN.RES"};

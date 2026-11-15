@@ -5,7 +5,7 @@
 #include "../c/replay/replay.h"
 #include "../c/residue.h"
 #include "../c/track/track_collision.h"
-#include "../c/extended/extended_replay_runtime.h"
+#include "../c/extended/extended_physics_snapshot.h"
 
 #define GENGHOST_LEGACY_MAX_FRAMES 12000U
 #define GENGHOST_MAX_FRAMES 120000U
@@ -14,22 +14,8 @@
 /* The engine is process-global. Snapshots belong to the one initialized track,
  * car and rule set; workers must use separate processes, not concurrent ticks.
  * GAMESTATE alone omits random and legacy stack state that affects collisions. */
-struct GENGHOST_SNAPSHOT {
-	struct GAMESTATE state;
-	struct LEGACY_EXECUTION_RESIDUE residue;
-	struct EXTENDED_REPLAY_CLOCKS clocks;
-	legacy_s32 context_x, context_z;
-	struct TRACK_COLLISION_SNAPSHOT collision;
-	struct VECTORLONG position;
-	struct VECTOR rotation, initial_rotation, forward, world;
-	struct MATRIX car_rotation, plane_rotation, wheel_rotation;
-	legacy_s8 random_seed[GAMESTATE_RANDOM_SEED_SIZE];
-	legacy_s16 plane, next_position, heading, plane_heading, wheel_heading;
-	legacy_s16 render_headings, flag_animation, penalty;
-	legacy_u16 elapsed1, elapsed2, closed_hihat;
-	legacy_u8 exit_request, start_sequence, frame_countdown, slow_countdown;
-	legacy_s8 penalty_counter;
-};
+/* Keep the generator API tag while sharing the engine snapshot implementation. */
+#define GENGHOST_SNAPSHOT EXTENDED_PHYSICS_SNAPSHOT
 
 struct GENGHOST_RESULT {
 	legacy_uint frames;

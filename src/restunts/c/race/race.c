@@ -9,6 +9,7 @@
 #include "../../platform/sdl3/touch_game.h"
 #include "../../platform/sdl3/controller_game.h"
 #include "../extended/extended_replay_runtime.h"
+#include "../opponent/unit_opponent.h"
 #endif
 #ifdef RESTUNTS_AMIGA
 #include "../../platform/amiga/amiga.h"
@@ -550,6 +551,9 @@ static void race_release_resources(void)
 	audio_carstate();
 	audio_remove_driver_timer();
 	race_finish_opponent();
+#ifdef RESTUNTS_SDL3
+	unit_opponent_stop();
+#endif
 
 	replay_overflow_acknowledged_word =
 		LEGACY_S16_FROM_BITS(LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
@@ -563,6 +567,9 @@ static void race_release_resources(void)
 
 void run_game(void)
 {
+#ifdef RESTUNTS_SDL3
+	unit_opponent_stop();
+#endif
 	AMIGA_NORMAL_RACE_TRACE("run_game begin");
 	rect_windshield.left = 0;
 	rect_windshield.right = RACE_SCREEN_WIDTH;
@@ -591,6 +598,17 @@ void run_game(void)
 	} else {
 		AMIGA_NORMAL_RACE_TRACE("initialize begin");
 		race_initialize_state();
+
+#ifdef RESTUNTS_SDL3
+		if (!race_prepare_unit()) {
+			mouse_minmax_position(0);
+			remove_frame_callback();
+			free_player_cars();
+			race_hires_presentation_finish();
+			ghost_end_race();
+			return;
+		}
+#endif
 		AMIGA_NORMAL_RACE_TRACE("initialize complete; frames begin");
 #ifdef RESTUNTS_SDL3
 		sdl3_touch_set_game_active(1);

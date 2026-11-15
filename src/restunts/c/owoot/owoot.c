@@ -3,6 +3,7 @@
 #include "owoot_road.h"
 #include "../crash_state.h"
 #include "../externs.h"
+#include "../opponent/opponent.h"
 
 legacy_s16 owoot_enabled = 0;
 
@@ -24,8 +25,14 @@ void configure_owoot(legacy_s16 argc, legacy_s8 *argv[])
 
 void owoot_update_player(struct CARSTATE *car, legacy_s16 car_index)
 {
-	if (!owoot_enabled || car_index != PLAYER_CAR_INDEX ||
-		state.game_inputmode != GAME_INPUT_MODE_ACTIVE ||
+	legacy_s16 enforce = car_index == PLAYER_CAR_INDEX;
+#ifdef RESTUNTS_SDL3
+	if (car_index == OPPONENT_CAR_INDEX &&
+		(legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		enforce = 1;
+	}
+#endif
+	if (!owoot_enabled || !enforce || state.game_inputmode != GAME_INPUT_MODE_ACTIVE ||
 		car->car_crashBmpFlag != CRASH_EVENT_NONE) {
 		return;
 	}
@@ -34,7 +41,7 @@ void owoot_update_player(struct CARSTATE *car, legacy_s16 car_index)
 	 * ramp cannot grant an exemption after an unrelated later jump. */
 	legacy_s16 allowed_jump = owoot_jump_is_valid(car);
 	if (allowed_jump == OWOOT_JUMP_FAILED) {
-		update_crash_state(CRASH_EVENT_COLLISION, PLAYER_CAR_INDEX);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 		return;
 	}
 	legacy_s16 follows_route = owoot_route_is_valid(car, allowed_jump);
@@ -52,5 +59,5 @@ void owoot_update_player(struct CARSTATE *car, legacy_s16 car_index)
 			}
 		}
 	}
-	update_crash_state(CRASH_EVENT_COLLISION, PLAYER_CAR_INDEX);
+	update_crash_state(CRASH_EVENT_COLLISION, car_index);
 }

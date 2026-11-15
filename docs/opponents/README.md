@@ -151,9 +151,35 @@ expanded by nearest neighbor into the 296 x 316 enhanced photo area, preserving
 every palette color. Legacy 296 x 316 files are used without resizing. The menu
 continues to draw its original number, border and clipboard over the photograph.
 
-CMake runtime installation copies only the final six prepared PNGs to
-`bin/opponents/game/`. The archived photographs and working tiles are for future
-edits and regeneration. No extra original game resource files are required.
+CMake runtime installation copies the six original opponents’ prepared PNGs
+and UNIT’s portrait to `bin/opponents/game/`. The archived photographs and working
+tiles are for future edits and regeneration. No extra original game resource
+files are required.
+
+## UNIT (SDL3 opponent 7)
+
+UNIT is the Unitree humanoid robot opponent, identified as `UNIT` in extended
+replays. Its original-size **80 x 83** portrait is compiled into SDL3 builds so
+it remains available in every display mode. The same static image appears on
+both win and loss screens. The prepared **160 x 166** `game/opp7.png` is an exact
+nearest-neighbor enlargement using the `SDMAIN.PVS:!pal` palette, rather than a
+photographic HyperVision replacement.
+
+The opponent menu retains the full supplied biography. **Up** and **Down** page
+through the background while the name, age, experience, expertise and problems
+remain visible. The original six opponents and non-SDL3 builds retain their
+existing resources and selection range.
+
+The imagegen master is preserved in
+[`game-sources/full-resolution/opp7.png`](game-sources/full-resolution/opp7.png),
+with the native indexed tile in
+[`game-sources/native/opp7.png`](game-sources/native/opp7.png). Rebuild or verify
+the indexed assets and embedded pixel header with:
+
+```sh
+python3 tools/scripts/prepare-unit-opponent.py
+python3 tools/scripts/prepare-unit-opponent.py --check
+```
 
 ## Custom win and lose animations
 

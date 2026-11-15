@@ -11,6 +11,7 @@
 #include "../externs.h"
 #include "../fileio.h"
 #include "../platform.h"
+#include "../opponent/unit_opponent.h"
 static struct EXTENDED_GHOST_REPLAY ghost_extended;
 static struct EXTENDED_REPLAY_SUSPENDED saved_extended;
 static legacy_s8 saved_track_name[EXTENDED_FILE_STEM_CAPACITY];
@@ -49,6 +50,12 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 	}
 	struct GAMEINFO checked = config;
 	checked.game_recordedframes = 0;
+	/* The CSRPL reader has already validated the custom opponent identifier.
+	 * Reuse the legacy rate/car validation without allowing custom opponents
+	 * into identifier-free RPL files. */
+	if (checked.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE) {
+		checked.game_opponenttype = CSRPL_CLASSIC_OPPONENT_LAST;
+	}
 	if (!ghost_valid_config(&checked)) {
 		extended_ghost_free(&candidate);
 		return 1;
@@ -72,8 +79,14 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 	} else {
 		memcpy(legacy_track, track_element_map, sizeof(legacy_track));
 	}
-	legacy_int loaded =
-		extended_track_load(candidate.view.track_data, candidate.view.track_size, NULL, 0);
+	legacy_int loaded;
+	if ((candidate.view.metadata.flags & CSRPL_FLAG_CLASSIC_TRACK) != 0U) {
+		extended_track_unload();
+		memcpy(track_element_map, candidate.view.track_data, REPLAY_TRACK_SIZE);
+		loaded = 1;
+	} else {
+		loaded = extended_track_load(candidate.view.track_data, candidate.view.track_size, NULL, 0);
+	}
 	if (!loaded || track_setup() != 0) {
 		if (loaded) {
 			if (previous) {
@@ -150,6 +163,7 @@ legacy_s16 extended_ghost_runtime_begin(void)
 		extended_replay_runtime_resume(&saved_extended);
 		return 0;
 	}
+	unit_opponent_stop();
 	if (ghost_extended.bytes) {
 		extended_track_set_name((const legacy_s8 *)ghost_extended.view.metadata.track_name);
 	}
@@ -157,6 +171,7 @@ legacy_s16 extended_ghost_runtime_begin(void)
 }
 void extended_ghost_runtime_end(void)
 {
+	unit_opponent_stop();
 	extended_replay_runtime_resume(&saved_extended);
 	extended_track_set_name(saved_track_name);
 }

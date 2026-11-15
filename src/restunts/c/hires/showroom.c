@@ -5,6 +5,7 @@
 #include "../menu/menu_internal.h"
 #include "shape3d_hires.h"
 #include "../opponent/opponent_portrait.h"
+#include "../opponent/unit_opponent_assets.h"
 #include "../menu/menu_background.h"
 #include "../shape2d/shape2d_internal.h"
 #include "../shape3d/shape3d.h"
@@ -127,7 +128,7 @@ legacy_u8 hires_showroom_redraw_portrait(const struct HIRES_SHOWROOM *showroom, 
 void hires_showroom_portrait(struct HIRES_SHOWROOM *showroom, legacy_u16 opponent,
 							 struct RECTANGLE *rectangle)
 {
-	struct SHAPE2D *shape = (struct SHAPE2D *)oppresources[opponent];
+	struct SHAPE2D *shape = unit_opponent_menu_portrait((legacy_u8)opponent, oppresources);
 	opponent_portrait_draw_at(&drawing_sprite, shape, (legacy_u8)opponent,
 							  SHOWROOM_OPPONENT_PANEL_X, 0);
 	if (showroom->portrait_dirty != 0) {

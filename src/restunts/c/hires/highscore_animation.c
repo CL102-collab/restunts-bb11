@@ -4,6 +4,7 @@
 #include "../highscore/highscore_internal.h"
 #include "hires.h"
 #include "../opponent/opponent_animation.h"
+#include "../opponent/opponent.h"
 #include "../shape2d/shape2d_internal.h"
 
 void hires_highscore_reset_animation(struct END_SCREEN_STATE *screen)
@@ -21,6 +22,9 @@ void hires_highscore_load_animation(const struct END_SCREEN_STATE *screen)
 void hires_highscore_show_animation(struct END_SCREEN_STATE *screen, legacy_s16 animation_width,
 									legacy_s16 animation_height)
 {
+	if (screen->opponent_active > OPPONENT_LEGACY_LAST) {
+		return;
+	}
 	screen->hires_animation.width = animation_width;
 	screen->hires_animation.height = animation_height;
 	if (screen->outcome != END_SCREEN_OUTCOME_NONE) {
@@ -33,6 +37,9 @@ void hires_highscore_show_animation(struct END_SCREEN_STATE *screen, legacy_s16 
 void hires_highscore_update_animation(struct END_SCREEN_STATE *screen,
 									  HIRES_HIGHSCORE_DRAW_FRAME draw_frame)
 {
+	if (screen->opponent_active > OPPONENT_LEGACY_LAST) {
+		return;
+	}
 	if (screen->outcome == END_SCREEN_OUTCOME_NONE || !hires_enabled()) {
 		screen->hires_animation.drawn = 0;
 		return;

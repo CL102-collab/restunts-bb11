@@ -14,6 +14,7 @@
 #include "audio/audio_control.h"
 #ifdef RESTUNTS_SDL3
 #include "driving_rules.h"
+#include "opponent/opponent.h"
 #ifndef RESTUNTS_HEADLESS
 #endif
 #endif
@@ -744,6 +745,27 @@ void file_set_replay_filename(const legacy_s8 *path)
 	replay_filename[length] = 0;
 }
 
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#define FILE_LEGACY_REPLAY_OPPONENT_OFFSET 6U
+/* Reject custom opponents before the legacy read overwrites track/input storage
+ * or the format switch releases an existing CSRPL session. */
+static legacy_s16 file_legacy_replay_supported_opponent(const legacy_s8 *path)
+{
+	legacy_u8 header[REPLAY_GAMEINFO_SIZE];
+	g_is_busy = 1;
+	legacy_u16 handle = file_open_resource(path);
+	legacy_u16 count = 0;
+	if (handle != 0U) {
+		count = dos_file_read(handle, header, sizeof(header));
+		dos_file_close(handle);
+	}
+	g_is_busy = 0;
+	/* Retain the ordinary file loader's existing missing/truncated-file errors. */
+	return count != sizeof(header) ||
+		   header[FILE_LEGACY_REPLAY_OPPONENT_OFFSET] <= OPPONENT_LEGACY_LAST;
+}
+#endif
+
 legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name)
 {
 	return file_load_replay_format(dir, name, ".rpl");
@@ -753,6 +775,12 @@ legacy_s16 file_load_replay_format(const legacy_s8 *dir, const legacy_s8 *name,
 								   const legacy_s8 *extension)
 {
 #if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (strcmp(extension, ".csrpl") != 0) {
+		file_build_path(dir, name, ".rpl", g_path_buf);
+		if (!file_legacy_replay_supported_opponent(g_path_buf)) {
+			return 1;
+		}
+	}
 	legacy_s16 result;
 	if (extended_fileio_load_replay(dir, name, extension, &result)) {
 		return result;

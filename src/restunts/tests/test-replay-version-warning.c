@@ -21,6 +21,8 @@
 #define TEST_FUTURE_REVISION 101U
 #define TEST_SHORT_FUTURE_REVISION (CSRPL_VERSION + 1U)
 #define TEST_FILE_HANDLE 1U
+#define TEST_LEGACY_OPPONENT_OFFSET 6U
+#define TEST_CUSTOM_OPPONENT_TYPE 7U
 
 legacy_s8 g_is_busy;
 legacy_s8 g_path_buf[TEST_PATH_SIZE];
@@ -40,6 +42,7 @@ static legacy_u16 unload_calls, clear_calls, legacy_decode_calls;
 static legacy_char captured_message[TEST_MESSAGE_SIZE];
 static legacy_char captured_messages[TEST_WARNING_CAPACITY][TEST_MESSAGE_SIZE];
 static legacy_s32 file_position;
+static legacy_u8 legacy_opponent;
 
 int extended_file_load_replay(const legacy_s8 *path)
 {
@@ -121,8 +124,9 @@ legacy_s32 dos_file_tell(legacy_u16 handle)
 legacy_u16 dos_file_read(legacy_u16 handle, void far *destination, legacy_u16 count)
 {
 	assert(handle == TEST_FILE_HANDLE && count == sizeof(legacy_header));
-	assert(destination == legacy_header && file_position == 0);
+	assert(file_position == 0);
 	memset(destination, 0, count);
+	((legacy_u8 *)destination)[TEST_LEGACY_OPPONENT_OFFSET] = legacy_opponent;
 	file_position = count;
 	return count;
 }
@@ -149,6 +153,7 @@ void replay_gameinfo_decode(struct GAMEINFO *out, const legacy_u8 far *header)
 static void reset_fixture(void)
 {
 	g_is_busy = 0;
+	legacy_opponent = 0;
 	dialog_border_color = 9;
 	load_calls = warning_calls = version_calls = rules_calls = current_rules_calls = 0;
 	fixture_version = CSRPL_VERSION;
@@ -274,6 +279,15 @@ int main(void)
 	assert(current_rules_calls == 0 && g_is_busy == 0);
 	assert(unload_calls == 1 && clear_calls == 1 && legacy_decode_calls == 1);
 	assert(strcmp((const legacy_char *)replay_filename, "LEGACY") == 0);
+	/* A custom opponent requires CSRPL identity and recorded command data.
+	 * Reject the legacy file before discarding the current session. */
+	reset_fixture();
+	legacy_opponent = TEST_CUSTOM_OPPONENT_TYPE;
+	struct GAMEINFO previous_config = gameconfig;
+	assert(file_load_replay_format("Fixture", "LEGACY", ".rpl") != 0);
+	assert(unload_calls == 0 && clear_calls == 0 && legacy_decode_calls == 0);
+	assert(g_is_busy == 0 && memcmp(&gameconfig, &previous_config, sizeof(gameconfig)) == 0);
+	assert(strcmp((const legacy_char *)replay_filename, "PREVIOUS") == 0);
 #else
 	reset_fixture();
 	file_warn_replay_version(TEST_FUTURE_REVISION);

@@ -37,6 +37,7 @@
 #define HIGHSCORE_NO_HIGHLIGHT LEGACY_U8_MAX
 #define HIGHSCORE_NAME_MAX_CHARACTERS 16
 #define HIGHSCORE_NAME_INPUT_TIMEOUT 30000UL
+#define HIGHSCORE_CLASSIC_MAX_TICKS (LEGACY_U16_MAX - 1U)
 
 #define END_SCREEN_WIDTH 320U
 #define END_SCREEN_TOP_HEIGHT 100
@@ -125,9 +126,27 @@ void extended_hiscore_show_error(void)
 	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
 				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 }
+static legacy_int extended_hiscore_classic_finish_invalid(void)
+{
+	if (!extended_replay_is_active()) {
+		return 0;
+	}
+	/* Classic tracks keep their 16-bit HIG table even with an extended replay.
+	 * Check the full finish including penalties before legacy narrowing and
+	 * 10Hz normalization; the all-ones value is reserved for an empty row. */
+	legacy_u32 finish = extended_race_stats.player_finish;
+	legacy_u32 scale =
+		framespersec == GAME_FRAME_RATE_LOW ? GAME_FRAME_RATE_NORMAL / GAME_FRAME_RATE_LOW : 1U;
+	return finish == 0 || finish > HIGHSCORE_CLASSIC_MAX_TICKS / scale;
+}
 legacy_s16 extended_highscore_enter_current(legacy_u32 frames, void far *prompt, legacy_u8 car_flag)
 {
 	if (!extended_track_active()) {
+		if (extended_hiscore_classic_finish_invalid()) {
+			ranking_highlight = HIGHSCORE_NO_HIGHLIGHT;
+			highscore_draw_table();
+			return 1;
+		}
 		return 0;
 	}
 	ranking_highlight = HIGHSCORE_NO_HIGHLIGHT;
@@ -251,7 +270,7 @@ legacy_s16 extended_highscore_validate_current(legacy_s8 *status)
 legacy_s16 extended_highscore_check_current(legacy_s8 *status, legacy_u32 *finish_time)
 {
 	if (!extended_track_active()) {
-		return 0;
+		return extended_hiscore_classic_finish_invalid();
 	}
 	legacy_u32 finish = extended_highscore_player_finish((legacy_u16)gState_total_finish_time);
 	if (*status == 0 && finish != 0) {

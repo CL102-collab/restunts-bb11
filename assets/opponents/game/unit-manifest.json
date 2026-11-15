@@ -1,0 +1,36 @@
+{
+  "generator": "tools/scripts/prepare-unit-opponent.py",
+  "opponent": 7,
+  "identifier": "UNIT",
+  "source": "docs/opponents/game-sources/full-resolution/opp7.png",
+  "source_size": [
+    1231,
+    1278
+  ],
+  "source_sha256": "d491da0d81b9243500e0e8cafa012e90be4ee67e58e908aa839f4d487a9b89e5",
+  "palette_source": "SDMAIN.PVS:!pal",
+  "palette_source_sha256": "a33b54cff282fed2d68134fcf334f4e44917f906a6556013e0f6c6dd546cdd3b",
+  "palette_rgb_sha256": "0fc80b406c5fbb11d58c243acba08afc7af7c290eb090997d3751694dc1640c9",
+  "native_size": [
+    80,
+    83
+  ],
+  "photo_size": [
+    74,
+    79
+  ],
+  "runtime_size": [
+    160,
+    166
+  ],
+  "pixel_sha256": "2f243d882c4cea7f62376f7f8e3853141100ebd61fcea7178e75fcb825924cfe",
+  "runtime_sha256": "45d1a193ee6cd217ec1168c2c04b472c8b1b081eec02bddd32172efcbaf786d1",
+  "colors_used": 44,
+  "processing": [
+    "Imagegen restyled the supplied Unitree reference as pixel art",
+    "BOX reduction to 74 x 79 portrait pixels",
+    "Quantize to exact SDMAIN VGA palette without dithering",
+    "Preserve original frame and apply a pixel-art numeral 7",
+    "Nearest-neighbor 2x enlargement for enhanced portrait asset"
+  ]
+}

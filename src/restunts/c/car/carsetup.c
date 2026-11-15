@@ -13,6 +13,7 @@
 #include "../owoot/owoot.h"
 #include "../physics/physics_internal.h"
 #include "../extended/extended_opponent.h"
+#include "../opponent/opponent.h"
 #ifdef RESTUNTS_SDL3
 #include "../fatal.h"
 #endif
@@ -364,11 +365,24 @@ void setup_aero_trackdata(void far *carresptr, legacy_s16 is_opponent)
  * allocation with the original decompression layout, independent of caches. */
 static void far *load_opponent_speed_data(legacy_u8 far **speed_data)
 {
-	opponent_resource_name[3] = (legacy_s8)((legacy_u8)gameconfig.game_opponenttype + '0');
+	legacy_u8 resource_opponent = (legacy_u8)gameconfig.game_opponenttype;
+#ifdef RESTUNTS_SDL3
+	/* UNIT owns its driving policy and artwork. The original Skid resource
+	 * supplies only the seed route costs required by legacy track setup. */
+	if (resource_opponent == OPPONENT_UNIT) {
+		resource_opponent = OPPONENT_LEGACY_LAST;
+	}
+#endif
+	opponent_resource_name[3] = (legacy_s8)(resource_opponent + '0');
 	void far *resource =
 		file_load_resfile_with_tail(opponent_resource_name, OPPONENT_ROUTE_COST_COUNT);
 	copy_string(opponent_highscore_name,
 				locate_text_res((legacy_s8 far *)resource, opponent_name_text_id));
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		copy_string(opponent_highscore_name, "UNIT");
+	}
+#endif
 	(void)locate_shape_alt((legacy_s8 far *)resource, opponent_path_resource_id);
 	*speed_data =
 		(legacy_u8 far *)locate_shape_alt((legacy_s8 far *)resource, opponent_speed_resource_id);

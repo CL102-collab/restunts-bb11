@@ -305,6 +305,10 @@ void update_crash_state(legacy_s16 crash_event, legacy_s16 car_index)
 			} else {
 				state.game_opponent_finish_time =
 					LEGACY_S16_WRAP_ADD(state.game_frame, elapsed_time1);
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
+				state.game_opponent_finish_time =
+					extended_crash_opponent_finish_time(state.game_opponent_finish_time);
+#endif
 			}
 			break;
 

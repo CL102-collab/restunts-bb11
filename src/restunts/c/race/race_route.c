@@ -90,24 +90,25 @@ static legacy_s16 penalty_route_alternate(legacy_s16 track_index)
 	return track_alternate_route_links[track_index];
 }
 
-static legacy_s16 finish_penalty_route(legacy_s16 *current_track, legacy_s16 *penalty_count,
-									   legacy_s16 best_track, legacy_s16 best_distance,
-									   legacy_s16 column, legacy_s16 row)
+static legacy_s16 finish_penalty_route(struct RACE_PENALTY_STATE *rules, legacy_s16 *current_track,
+									   legacy_s16 *penalty_count, legacy_s16 best_track,
+									   legacy_s16 best_distance, legacy_s16 column, legacy_s16 row)
 {
 	if (best_distance != PENALTY_ROUTE_DISTANCE_NONE) {
 		*current_track = best_track;
 		*penalty_count = best_distance;
 	} else {
-		state.game_startcol = column;
-		state.game_startcol2 = column;
-		state.game_startrow = row;
-		state.game_startrow2 = row;
+		rules->minimum_column = column;
+		rules->maximum_column = column;
+		rules->minimum_row = row;
+		rules->maximum_row = row;
 		*penalty_count = PENALTY_ROUTE_OUTSIDE_TRACK;
 	}
 	return PENALTY_DETECTED;
 }
 
 struct PENALTY_ROUTE_SEARCH {
+	struct RACE_PENALTY_STATE *rules;
 	legacy_u8 visited[PENALTY_ROUTE_VISITED_CAPACITY];
 	legacy_s16 pending_track[PENALTY_ROUTE_PENDING_CAPACITY];
 	legacy_s16 pending_distance[PENALTY_ROUTE_PENDING_CAPACITY];
@@ -206,10 +207,10 @@ static legacy_s16 penalty_route_record_match(struct PENALTY_ROUTE_SEARCH *search
 	if (penalty_route_alternate(search->track_index) != PENALTY_ROUTE_SENTINEL) {
 		*next_track = search->track_index;
 	}
-	state.game_startcol = LEGACY_S8_FROM_BITS(bounds.minimum_column);
-	state.game_startcol2 = LEGACY_S8_FROM_BITS(bounds.maximum_column);
-	state.game_startrow = LEGACY_S8_FROM_BITS(bounds.minimum_row);
-	state.game_startrow2 = LEGACY_S8_FROM_BITS(bounds.maximum_row);
+	search->rules->minimum_column = LEGACY_S8_FROM_BITS(bounds.minimum_column);
+	search->rules->maximum_column = LEGACY_S8_FROM_BITS(bounds.maximum_column);
+	search->rules->minimum_row = LEGACY_S8_FROM_BITS(bounds.minimum_row);
+	search->rules->maximum_row = LEGACY_S8_FROM_BITS(bounds.maximum_row);
 	if (search->distance <= PENALTY_ROUTE_DISTANCE_NONE) {
 		*current_track = *next_track;
 		*penalty_count = search->distance;
@@ -271,10 +272,10 @@ static legacy_s16 match_previous_penalty_route(struct PENALTY_ROUTE_SEARCH *sear
 			!penalty_route_reaches(search, index, *current_track)) {
 			continue;
 		}
-		state.game_startcol = LEGACY_S8_FROM_BITS(bounds.minimum_column);
-		state.game_startcol2 = LEGACY_S8_FROM_BITS(bounds.maximum_column);
-		state.game_startrow = LEGACY_S8_FROM_BITS(bounds.minimum_row);
-		state.game_startrow2 = LEGACY_S8_FROM_BITS(bounds.maximum_row);
+		search->rules->minimum_column = LEGACY_S8_FROM_BITS(bounds.minimum_column);
+		search->rules->maximum_column = LEGACY_S8_FROM_BITS(bounds.maximum_column);
+		search->rules->minimum_row = LEGACY_S8_FROM_BITS(bounds.minimum_row);
+		search->rules->maximum_row = LEGACY_S8_FROM_BITS(bounds.maximum_row);
 		*current_track = index;
 		*penalty_count = PENALTY_ROUTE_FINISH_REACHED;
 		return 1;
@@ -307,8 +308,9 @@ static legacy_s16 search_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
 					match_previous_penalty_route(search, current_track, penalty_count)) {
 					return PENALTY_DETECTED;
 				}
-				return finish_penalty_route(current_track, penalty_count, search->best_track,
-											search->best_distance, search->column, search->row);
+				return finish_penalty_route(search->rules, current_track, penalty_count,
+											search->best_track, search->best_distance,
+											search->column, search->row);
 			}
 			search->pending_count =
 				LEGACY_U16_WRAP_SUB(search->pending_count, PENALTY_ROUTE_PENDING_STEP);
@@ -336,18 +338,20 @@ static legacy_s16 search_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
 	}
 }
 
-legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
+legacy_s16 race_penalty_detect(struct RACE_PENALTY_STATE *rules, const struct VECTORLONG *position,
+							   legacy_s16 *current_track, legacy_s16 *penalty_count)
 {
 	struct PENALTY_ROUTE_SEARCH search;
+	search.rules = rules;
 
-	search.column = LEGACY_S8_FROM_BITS(
-		(legacy_u8)((legacy_u32)state.playerstate.car_position.lx >> TRACK_WORLD_TILE_SHIFT));
-	search.row = LEGACY_S8_FROM_BITS(LEGACY_U8_WRAP_SUB(
-		TRACK_GRID_LAST_COORDINATE,
-		(legacy_u8)((legacy_u32)state.playerstate.car_position.lz >> TRACK_WORLD_TILE_SHIFT)));
-	search.row = extended_race_route_player_row(search.row);
-	if ((search.column == state.game_startcol || search.column == state.game_startcol2) &&
-		(search.row == state.game_startrow || search.row == state.game_startrow2)) {
+	search.column =
+		LEGACY_S8_FROM_BITS((legacy_u8)((legacy_u32)position->lx >> TRACK_WORLD_TILE_SHIFT));
+	search.row = LEGACY_S8_FROM_BITS(
+		LEGACY_U8_WRAP_SUB(TRACK_GRID_LAST_COORDINATE,
+						   (legacy_u8)((legacy_u32)position->lz >> TRACK_WORLD_TILE_SHIFT)));
+	search.row = extended_race_route_position_row(search.row, position);
+	if ((search.column == rules->minimum_column || search.column == rules->maximum_column) &&
+		(search.row == rules->minimum_row || search.row == rules->maximum_row)) {
 		if (extended_race_route_current_matches(*current_track, search.column, search.row)) {
 			*penalty_count = PENALTY_ROUTE_DISTANCE_NONE;
 			return PENALTY_NOT_DETECTED;
@@ -364,6 +368,37 @@ legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
 	return search_penalty_route(&search, current_track, penalty_count);
 }
 
+static void player_penalty_read(struct RACE_PENALTY_STATE *rules)
+{
+	rules->confirmed_route = state.game_player_confirmed_route;
+	rules->previous_route = state.game_player_previous_route;
+	rules->minimum_column = state.game_startcol;
+	rules->maximum_column = state.game_startcol2;
+	rules->minimum_row = state.game_startrow;
+	rules->maximum_row = state.game_startrow2;
+	rules->status = state.game_player_route_status;
+	rules->confirmations = state.game_route_confirmation_count;
+	rules->laps = state.playerstate.car_lap_count;
+}
+
+static void player_penalty_write_bounds(const struct RACE_PENALTY_STATE *rules)
+{
+	state.game_startcol = rules->minimum_column;
+	state.game_startcol2 = rules->maximum_column;
+	state.game_startrow = rules->minimum_row;
+	state.game_startrow2 = rules->maximum_row;
+}
+
+legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
+{
+	struct RACE_PENALTY_STATE rules;
+	player_penalty_read(&rules);
+	legacy_s16 result =
+		race_penalty_detect(&rules, &state.playerstate.car_position, current_track, penalty_count);
+	player_penalty_write_bounds(&rules);
+	return result;
+}
+
 void update_penalty_display(void)
 {
 	if (show_penalty_counter != 0) {
@@ -374,86 +409,105 @@ void update_penalty_display(void)
 /* Vector from the player's car to its current route point. A y of -1 marks
  * a route point with no height of its own: the route search still measures
  * the drop to the car, the steering hint treats the point as level. */
-static void route_point_delta(struct VECTOR *delta, legacy_s16 unspecified_height_reference)
+static void route_point_delta(struct VECTOR *delta, const struct CARSTATE *car,
+							  legacy_s16 unspecified_height_reference)
 {
-	*delta = state.playerstate.car_route_target;
-	delta->x = LEGACY_S16_WRAP_SUB(delta->x, position_to_word(state.playerstate.car_position.lx));
+	*delta = car->car_route_target;
+	delta->x = LEGACY_S16_WRAP_SUB(delta->x, position_to_word(car->car_position.lx));
 	if (delta->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
-		delta->y =
-			unspecified_height_reference == ROUTE_HEIGHT_REFERENCE_CAR_LEVEL
-				? 0
-				: LEGACY_S16_WRAP_NEGATE(position_to_word(state.playerstate.car_position.ly));
+		delta->y = unspecified_height_reference == ROUTE_HEIGHT_REFERENCE_CAR_LEVEL
+					   ? 0
+					   : LEGACY_S16_WRAP_NEGATE(position_to_word(car->car_position.ly));
 	} else {
-		delta->y =
-			LEGACY_S16_WRAP_SUB(delta->y, position_to_word(state.playerstate.car_position.ly));
+		delta->y = LEGACY_S16_WRAP_SUB(delta->y, position_to_word(car->car_position.ly));
 	}
-	delta->z = LEGACY_S16_WRAP_SUB(delta->z, position_to_word(state.playerstate.car_position.lz));
+	delta->z = LEGACY_S16_WRAP_SUB(delta->z, position_to_word(car->car_position.lz));
 }
 
-static legacy_u8 confirm_player_route(legacy_s16 route_index, legacy_s16 skipped_route_count)
+static legacy_u8 confirm_route(struct RACE_PENALTY_STATE *rules, legacy_s16 route_index,
+							   legacy_s16 skipped_route_count)
 {
 	legacy_u8 commit_penalty = 0;
 
-	if (route_index == 0 && state.game_player_previous_route != 0) {
-		state.playerstate.car_lap_count = LEGACY_S8_WRAP_ADD(state.playerstate.car_lap_count, 1);
+	if (route_index == 0 && rules->previous_route != 0) {
+		rules->laps = LEGACY_S8_WRAP_ADD(rules->laps, 1);
 		commit_penalty = 1;
 	} else if (skipped_route_count >= 0 && skipped_route_count < PENALTY_ROUTE_DECISION_DISTANCE) {
-		state.game_route_confirmation_count = ROUTE_CONFIRMATION_NONE;
-		state.game_player_confirmed_route = route_index;
+		rules->confirmations = ROUTE_CONFIRMATION_NONE;
+		rules->confirmed_route = route_index;
 	} else if (skipped_route_count == PENALTY_ROUTE_FINISH_REACHED ||
 			   skipped_route_count > PENALTY_ROUTE_DECISION_DISTANCE) {
-		if (track_primary_route_links[state.game_player_previous_route] == route_index ||
-			track_alternate_route_links[state.game_player_previous_route] == route_index) {
-			state.game_route_confirmation_count =
-				LEGACY_S8_WRAP_ADD(state.game_route_confirmation_count, ROUTE_CONFIRMATION_STEP);
+		if (track_primary_route_links[rules->previous_route] == route_index ||
+			track_alternate_route_links[rules->previous_route] == route_index) {
+			rules->confirmations =
+				LEGACY_S8_WRAP_ADD(rules->confirmations, ROUTE_CONFIRMATION_STEP);
 		} else {
-			if (track_primary_route_links[route_index] == state.game_player_previous_route ||
-				track_alternate_route_links[route_index] == state.game_player_previous_route) {
-				state.game_player_route_status = ROUTE_TRACKING_WRONG_WAY;
+			if (track_primary_route_links[route_index] == rules->previous_route ||
+				track_alternate_route_links[route_index] == rules->previous_route) {
+				rules->status = ROUTE_TRACKING_WRONG_WAY;
 			}
-			state.game_route_confirmation_count = ROUTE_CONFIRMATION_INITIAL;
+			rules->confirmations = ROUTE_CONFIRMATION_INITIAL;
 		}
-		if (state.game_route_confirmation_count >= PENALTY_ROUTE_CONFIRMATION_COUNT) {
+		if (rules->confirmations >= PENALTY_ROUTE_CONFIRMATION_COUNT) {
 			commit_penalty = 1;
 		}
 	}
 	return commit_penalty;
 }
 
-void update_player_route_penalty(void)
+legacy_s16 race_penalty_step(struct RACE_PENALTY_STATE *rules, const struct VECTORLONG *position)
 {
-	legacy_s16 route_index = state.game_player_confirmed_route;
+	legacy_s16 committed = 0;
+	legacy_s16 route_index = rules->confirmed_route;
 	legacy_s16 skipped_route_count;
-	legacy_s16 route_distance = detect_penalty(&route_index, &skipped_route_count);
+	legacy_s16 route_distance =
+		race_penalty_detect(rules, position, &route_index, &skipped_route_count);
+	rules->last_skipped = skipped_route_count;
 	if (route_distance != 0) {
 		legacy_u8 commit_penalty = 0;
 		if (skipped_route_count == PENALTY_ROUTE_OUTSIDE_TRACK) {
-			state.game_player_route_status = ROUTE_TRACKING_OUTSIDE_TRACK;
-			state.game_route_confirmation_count = ROUTE_CONFIRMATION_NONE;
+			rules->status = ROUTE_TRACKING_OUTSIDE_TRACK;
+			rules->confirmations = ROUTE_CONFIRMATION_NONE;
 		} else {
-			if (state.game_player_route_status == ROUTE_TRACKING_OUTSIDE_TRACK) {
-				state.game_player_route_status = ROUTE_TRACKING_NORMAL;
-				state.game_route_confirmation_count = ROUTE_CONFIRMATION_NONE;
+			if (rules->status == ROUTE_TRACKING_OUTSIDE_TRACK) {
+				rules->status = ROUTE_TRACKING_NORMAL;
+				rules->confirmations = ROUTE_CONFIRMATION_NONE;
 			}
-			if (state.game_player_route_status == ROUTE_TRACKING_NORMAL) {
-				commit_penalty = confirm_player_route(route_index, skipped_route_count);
+			if (rules->status == ROUTE_TRACKING_NORMAL) {
+				commit_penalty = confirm_route(rules, route_index, skipped_route_count);
 			}
 		}
 		if (commit_penalty != 0) {
-			state.game_player_confirmed_route = route_index;
-			state.game_route_confirmation_count = ROUTE_CONFIRMATION_NONE;
+			rules->confirmed_route = route_index;
+			rules->confirmations = ROUTE_CONFIRMATION_NONE;
 			if (skipped_route_count > 0) {
-				penalty_time =
-					LEGACY_S16_WRAP_MUL(LEGACY_S16_WRAP_MUL(skipped_route_count, framespersec),
-										PENALTY_SECONDS_PER_SKIPPED_ROUTE);
-				show_penalty_counter = LEGACY_S8_FROM_BITS(
-					(legacy_u8)LEGACY_U16_SHL(framespersec, PENALTY_DISPLAY_DURATION_SHIFT));
-				state.game_penalty = LEGACY_S16_WRAP_ADD(state.game_penalty, penalty_time);
-				extended_race_route_add_penalty(skipped_route_count, framespersec,
-												PENALTY_SECONDS_PER_SKIPPED_ROUTE);
+				committed = skipped_route_count;
 			}
 		}
-		state.game_player_previous_route = route_index;
+		rules->previous_route = route_index;
+	}
+	return committed;
+}
+
+void update_player_route_penalty(void)
+{
+	struct RACE_PENALTY_STATE rules;
+	player_penalty_read(&rules);
+	legacy_s16 skipped_route_count = race_penalty_step(&rules, &state.playerstate.car_position);
+	player_penalty_write_bounds(&rules);
+	state.game_player_confirmed_route = rules.confirmed_route;
+	state.game_player_previous_route = rules.previous_route;
+	state.game_player_route_status = rules.status;
+	state.game_route_confirmation_count = rules.confirmations;
+	state.playerstate.car_lap_count = rules.laps;
+	if (skipped_route_count > 0) {
+		penalty_time = LEGACY_S16_WRAP_MUL(LEGACY_S16_WRAP_MUL(skipped_route_count, framespersec),
+										   PENALTY_SECONDS_PER_SKIPPED_ROUTE);
+		show_penalty_counter = LEGACY_S8_FROM_BITS(
+			(legacy_u8)LEGACY_U16_SHL(framespersec, PENALTY_DISPLAY_DURATION_SHIFT));
+		state.game_penalty = LEGACY_S16_WRAP_ADD(state.game_penalty, penalty_time);
+		extended_race_route_add_penalty(skipped_route_count, framespersec,
+										PENALTY_SECONDS_PER_SKIPPED_ROUTE);
 	}
 }
 
@@ -471,7 +525,8 @@ static legacy_s16 player_route_depth(legacy_s8 previous_route_status,
 				 state.playerstate.car_route_index ||
 			 track_alternate_route_links[state.game_player_confirmed_route] ==
 				 state.playerstate.car_route_index)) {
-			route_point_delta(&world_route_delta, ROUTE_HEIGHT_REFERENCE_CAR_LEVEL);
+			route_point_delta(&world_route_delta, &state.playerstate,
+							  ROUTE_HEIGHT_REFERENCE_CAR_LEVEL);
 			mat_mul_vector(&world_route_delta, world_to_car_rotation, &local_route_delta);
 			route_depth = local_route_delta.z;
 		} else {
@@ -481,8 +536,8 @@ static legacy_s16 player_route_depth(legacy_s8 previous_route_status,
 	return route_depth;
 }
 
-static legacy_s8 select_player_route_point(legacy_s16 route_index,
-										   struct MATRIX *world_to_car_rotation)
+static legacy_s8 select_car_route_point(struct CARSTATE *car, legacy_s16 route_index,
+										struct MATRIX *world_to_car_rotation)
 {
 	legacy_s8 candidate_route_point = ROUTE_POINT_FIRST;
 	legacy_s8 selected_route_point;
@@ -491,10 +546,9 @@ static legacy_s8 select_player_route_point(legacy_s16 route_index,
 	struct VECTOR local_route_delta;
 	struct VECTOR route_delta_or_best_depth;
 	do {
-		route_end_reached = LEGACY_S8_FROM_BITS(
-			(legacy_u8)get_track_route_point(route_index, &state.playerstate.car_route_target,
-											 (legacy_s16)(legacy_u8)candidate_route_point, 0));
-		route_point_delta(&world_route_delta, ROUTE_HEIGHT_REFERENCE_TRACK_LEVEL);
+		route_end_reached = LEGACY_S8_FROM_BITS((legacy_u8)get_track_route_point(
+			route_index, &car->car_route_target, (legacy_s16)(legacy_u8)candidate_route_point, 0));
+		route_point_delta(&world_route_delta, car, ROUTE_HEIGHT_REFERENCE_TRACK_LEVEL);
 		mat_mul_vector(&world_route_delta, world_to_car_rotation, &local_route_delta);
 		if (candidate_route_point == ROUTE_POINT_FIRST ||
 			(local_route_delta.z < route_delta_or_best_depth.z && local_route_delta.z > 0)) {
@@ -507,7 +561,8 @@ static legacy_s8 select_player_route_point(legacy_s16 route_index,
 	return selected_route_point;
 }
 
-static void recover_player_route_direction(legacy_s16 route_index, legacy_s8 selected_route_point)
+static legacy_int route_heading_matches(const struct CARSTATE *car, legacy_s16 route_index,
+										legacy_s8 selected_route_point)
 {
 	struct VECTOR route_segment_start[ROUTE_GEOMETRY_POINT_COUNT];
 	struct VECTOR route_segment_end[ROUTE_GEOMETRY_POINT_COUNT];
@@ -523,15 +578,40 @@ static void recover_player_route_direction(legacy_s16 route_index, legacy_s8 sel
 	}
 	legacy_s16 route_direction = LEGACY_S16_FROM_BITS(
 		(legacy_u16)LEGACY_S16_WRAP_SUB(
-			state.playerstate.car_rotate.x,
+			car->car_rotate.x,
 			polarAngle(LEGACY_S16_WRAP_SUB(route_segment_start[0].x, route_segment_end[0].x),
 					   LEGACY_S16_WRAP_SUB(route_segment_end[0].z, route_segment_start[0].z))) &
 		ANGLE_MASK);
-	if (route_direction > ROUTE_ALIGNMENT_WRAP_LIMIT || route_direction < ANGLE_EIGHTH_TURN) {
+	return route_direction > ROUTE_ALIGNMENT_WRAP_LIMIT || route_direction < ANGLE_EIGHTH_TURN;
+}
+
+static void recover_player_route_direction(legacy_s16 route_index, legacy_s8 selected_route_point)
+{
+	if (route_heading_matches(&state.playerstate, route_index, selected_route_point)) {
 		state.game_player_route_status = ROUTE_TRACKING_NORMAL;
 		state.game_route_confirmation_count = ROUTE_CONFIRMATION_INITIAL;
 		state.playerstate.car_route_index = route_index;
 		state.playerstate.car_route_point_index = selected_route_point;
+	}
+}
+
+void race_penalty_recover_direction(struct RACE_PENALTY_STATE *rules, const struct CARSTATE *car)
+{
+	legacy_s16 route_index = rules->previous_route;
+	if (rules->status != ROUTE_TRACKING_WRONG_WAY || car->car_crashBmpFlag != CRASH_EVENT_NONE ||
+		route_index < 0 || route_index >= track_pieces_counter ||
+		track_alternate_route_links[route_index] != TRACK_ROUTE_LINK_NONE) {
+		return;
+	}
+	/* Match native wrong-way recovery without changing either car's route
+	 * provenance. Geometry selection writes only this temporary car copy. */
+	struct CARSTATE sample = *car;
+	struct MATRIX *rotation = mat_rot_zxy(car->car_rotate.z, car->car_rotate.y, car->car_rotate.x,
+										  MATRIX_ROTATION_ORDER_YXZ);
+	legacy_s8 point = select_car_route_point(&sample, route_index, rotation);
+	if (route_heading_matches(car, route_index, point)) {
+		rules->status = ROUTE_TRACKING_NORMAL;
+		rules->confirmations = ROUTE_CONFIRMATION_INITIAL;
 	}
 }
 
@@ -560,7 +640,7 @@ static void update_player_route_indicator(void)
 	struct VECTOR local_route_delta;
 	if (state.playerstate.car_route_index != ROUTE_INDEX_NONE &&
 		state.game_player_route_status == ROUTE_TRACKING_NORMAL) {
-		route_point_delta(&world_route_delta, ROUTE_HEIGHT_REFERENCE_CAR_LEVEL);
+		route_point_delta(&world_route_delta, &state.playerstate, ROUTE_HEIGHT_REFERENCE_CAR_LEVEL);
 		world_to_car_rotation =
 			mat_rot_zxy(state.playerstate.car_rotate.z, state.playerstate.car_rotate.y,
 						state.playerstate.car_rotate.x, MATRIX_ROTATION_ORDER_YXZ);
@@ -642,7 +722,7 @@ void update_player_route_guidance(legacy_s8 previous_route_status)
 				guidance_required = 0;
 			} else {
 				legacy_s8 selected_route_point =
-					select_player_route_point(route_index, world_to_car_rotation);
+					select_car_route_point(&state.playerstate, route_index, world_to_car_rotation);
 				if (state.game_player_route_status == ROUTE_TRACKING_WRONG_WAY) {
 					recover_player_route_direction(route_index, selected_route_point);
 				} else {

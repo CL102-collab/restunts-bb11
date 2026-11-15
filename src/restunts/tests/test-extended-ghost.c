@@ -9,6 +9,13 @@
 static FILE *source;
 static struct CSTRK_TRACK current;
 static int active;
+static legacy_u8 classic_track[CSRPL_CLASSIC_TRACK_SIZE];
+legacy_u8 *track_element_map = classic_track;
+
+#define TEST_UNIT_GHOST_FRAMES 2U
+#define TEST_UNIT_GHOST_STEERING 120
+#define TEST_UNIT_GHOST_ROUTE_INDEX 17
+#define TEST_UNIT_GHOST_ROUTE_POINT 23U
 
 legacy_u16 dos_file_open(const legacy_s8 *name, legacy_s16 mode)
 {
@@ -46,6 +53,67 @@ int extended_track_active(void)
 const struct CSTRK_TRACK *extended_track_model(void)
 {
 	return &current;
+}
+
+static void test_classic_unit_ghost(void)
+{
+	static const legacy_u8 inputs[TEST_UNIT_GHOST_FRAMES] = {1U, 5U};
+	legacy_u8 commands[TEST_UNIT_GHOST_FRAMES * CSRPL_OPPONENT_COMMAND_SIZE];
+	struct CSRPL_OPPONENT_COMMAND command = {1U, 0U, -TEST_UNIT_GHOST_STEERING,
+											 TEST_UNIT_GHOST_ROUTE_INDEX,
+											 TEST_UNIT_GHOST_ROUTE_POINT};
+	for (legacy_u16 frame = 0; frame < TEST_UNIT_GHOST_FRAMES; frame++) {
+		csrpl_opponent_command_write(commands + frame * CSRPL_OPPONENT_COMMAND_SIZE, &command);
+	}
+	struct CSRPL_METADATA metadata = {0};
+	metadata.version = CSRPL_VERSION;
+	metadata.flags = CSRPL_FLAG_CLASSIC_TRACK | CSRPL_FLAG_OPPONENT_COMMANDS;
+	metadata.opponent_type = CSRPL_UNIT_OPPONENT_TYPE;
+	memcpy(metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE);
+	memcpy(metadata.player_car_id, "PMIN", CSRPL_CAR_ID_SIZE);
+	memcpy(metadata.opponent_car_id, "PMIN", CSRPL_CAR_ID_SIZE);
+	memcpy(metadata.track_name, "CLASSIC", sizeof("CLASSIC"));
+	metadata.frames_per_second = 20U;
+	metadata.frame_count = TEST_UNIT_GHOST_FRAMES;
+	legacy_u8 *replay = NULL;
+	size_t replay_size = 0;
+	assert(csrpl_encode_with_commands(&metadata, classic_track, sizeof(classic_track), inputs,
+									  TEST_UNIT_GHOST_FRAMES, commands, TEST_UNIT_GHOST_FRAMES,
+									  &replay, &replay_size, NULL, 0U));
+	source = tmpfile();
+	assert(source);
+	assert(fwrite(replay, 1U, replay_size, source) == replay_size);
+	free(replay);
+	struct EXTENDED_GHOST_REPLAY selected = {0};
+	struct GAMEINFO config;
+	assert(extended_ghost_read((const legacy_s8 *)"classic-unit.csrpl", &selected, &config));
+	assert(config.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE);
+	assert(memcmp(config.game_opponentcarid, "PMIN", CSRPL_CAR_ID_SIZE) == 0);
+	assert(selected.view.metadata.flags == metadata.flags);
+	assert(memcmp(selected.view.metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
+	assert(memcmp(selected.view.inputs, inputs, sizeof(inputs)) == 0);
+	assert(memcmp(selected.view.opponent_commands, commands, sizeof(commands)) == 0);
+	assert(selected.view.track_size == CSRPL_CLASSIC_TRACK_SIZE);
+	assert(memcmp(selected.view.track_data, classic_track, sizeof(classic_track)) == 0);
+	struct CSRPL_OPPONENT_COMMAND decoded;
+	csrpl_opponent_command_read(selected.view.opponent_commands + CSRPL_OPPONENT_COMMAND_SIZE,
+								&decoded);
+	assert(decoded.input == command.input && decoded.steering == command.steering);
+	assert(decoded.route_index == command.route_index &&
+		   decoded.route_point == command.route_point);
+	active = 0;
+	assert(extended_ghost_matches_track(&selected));
+	classic_track[CSRPL_CLASSIC_TRACK_SIZE - 1U] ^= 1U;
+	assert(!extended_ghost_matches_track(&selected));
+	classic_track[CSRPL_CLASSIC_TRACK_SIZE - 1U] ^= 1U;
+	assert(extended_ghost_matches_track(&selected));
+	active = 1;
+	assert(!extended_ghost_matches_track(&selected));
+	active = 0;
+	extended_ghost_free(&selected);
+	assert(selected.bytes == NULL && selected.view.opponent_commands == NULL);
+	fclose(source);
+	source = NULL;
 }
 
 int main(void)
@@ -101,6 +169,7 @@ int main(void)
 	free(replay);
 	free(inputs);
 	free(track);
+	test_classic_unit_ghost();
 	cstrk_free(&current);
 	puts("Extended ghost input isolation, long frame counts and track identity passed");
 	return 0;

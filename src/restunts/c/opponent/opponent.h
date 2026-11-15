@@ -4,7 +4,13 @@
 #include "../legacy.h"
 
 #define OPPONENT_FIRST 1U
-#define OPPONENT_LAST 6U
+#define OPPONENT_LEGACY_LAST 6U
+#define OPPONENT_UNIT 7U
+#ifdef RESTUNTS_SDL3
+#define OPPONENT_LAST OPPONENT_UNIT
+#else
+#define OPPONENT_LAST OPPONENT_LEGACY_LAST
+#endif
 
 void update_opponent(void);
 

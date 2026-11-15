@@ -20,6 +20,20 @@ static void test_encoded_size_boundaries(void)
 	assert(output == TEST_ENCODED_SIZE_SENTINEL);
 	assert(csrpl_encoded_size(1U, 0U, &output));
 	assert(output == CSRPL_HEADER_SIZE + 1U);
+	assert(csrpl_encoded_size_with_flags(1U, 1U, CSRPL_FLAG_OPPONENT_COMMANDS, &output));
+	assert(output == CSRPL_HEADER_SIZE + 2U + CSRPL_OPPONENT_COMMAND_SIZE);
+	output = TEST_ENCODED_SIZE_SENTINEL;
+	assert(!csrpl_encoded_size_with_flags(1U, 1U, CSRPL_KNOWN_FLAGS + 1U, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+#if SIZE_MAX <= UINT32_MAX
+	assert(!csrpl_encoded_size_with_flags(1U, UINT32_MAX, CSRPL_FLAG_OPPONENT_COMMANDS, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+#else
+	assert(csrpl_encoded_size_with_flags(UINT32_MAX, UINT32_MAX, CSRPL_FLAG_OPPONENT_COMMANDS,
+										 &output));
+	assert(output == (legacy_u64)CSRPL_HEADER_SIZE + UINT32_MAX +
+						 (legacy_u64)UINT32_MAX * (1U + CSRPL_OPPONENT_COMMAND_SIZE));
+#endif
 #if SIZE_MAX <= UINT32_MAX
 	/* Exactly full address spaces are valid; one more header or input byte
 	 * must fail without publishing a wrapped result. No allocation is needed. */
@@ -574,9 +588,184 @@ static void test_track_name_layouts(void)
 	cstrk_free(&track);
 }
 
+#define TEST_UNIT_FRAME_COUNT 3U
+#define TEST_UNIT_STEERING_LIMIT 240
+#define TEST_UNIT_ROUTE_POINT_LIMIT 255U
+#define TEST_UNIT_FLAGS_OFFSET 12U
+#define TEST_UNIT_OPPONENT_OFFSET 34U
+
+static void test_opponent_command_wire(void)
+{
+	struct CSRPL_OPPONENT_COMMAND command = {CSRPL_INPUT_MASK, 0U, -TEST_UNIT_STEERING_LIMIT,
+											 LEGACY_S16_MAX, TEST_UNIT_ROUTE_POINT_LIMIT};
+	legacy_u8 wire[CSRPL_OPPONENT_COMMAND_SIZE];
+	csrpl_opponent_command_write(wire, &command);
+	assert(csrpl_opponent_command_valid(wire));
+	struct CSRPL_OPPONENT_COMMAND decoded;
+	csrpl_opponent_command_read(wire, &decoded);
+	assert(decoded.input == command.input && decoded.flags == command.flags);
+	assert(decoded.steering == command.steering && decoded.route_index == command.route_index);
+	assert(decoded.route_point == command.route_point);
+	command.steering = TEST_UNIT_STEERING_LIMIT;
+	csrpl_opponent_command_write(wire, &command);
+	assert(csrpl_opponent_command_valid(wire));
+	command.steering++;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+	command.steering = -TEST_UNIT_STEERING_LIMIT - 1;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+	command.steering = 0;
+	command.route_index = -1;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+	command.route_index = 0;
+	command.route_point = TEST_UNIT_ROUTE_POINT_LIMIT + 1U;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+	command.route_point = 0;
+	command.input = CSRPL_INPUT_MASK + 1U;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+	command.input = 0;
+	command.flags = 1U;
+	csrpl_opponent_command_write(wire, &command);
+	assert(!csrpl_opponent_command_valid(wire));
+}
+
+static void test_extended_opponent_codec(legacy_int classic)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[TEST_REPLAY_ERROR_CAPACITY];
+	legacy_u8 *track_data = NULL;
+	size_t track_size = 0;
+	if (classic) {
+		track_size = CSRPL_CLASSIC_TRACK_SIZE;
+		track_data = calloc(track_size, 1U);
+		assert(track_data);
+	} else {
+		assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+		assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
+	}
+	static const legacy_u8 inputs[TEST_UNIT_FRAME_COUNT] = {1U, 6U, CSRPL_INPUT_MASK};
+	legacy_u8 commands[TEST_UNIT_FRAME_COUNT * CSRPL_OPPONENT_COMMAND_SIZE];
+	for (legacy_u16 frame = 0; frame < TEST_UNIT_FRAME_COUNT; frame++) {
+		struct CSRPL_OPPONENT_COMMAND command = {
+			inputs[frame], 0U, (legacy_s16)(-TEST_UNIT_STEERING_LIMIT + frame), (legacy_s16)frame,
+			TEST_UNIT_ROUTE_POINT_LIMIT - frame};
+		csrpl_opponent_command_write(commands + frame * CSRPL_OPPONENT_COMMAND_SIZE, &command);
+	}
+	struct CSRPL_METADATA metadata = {0};
+	metadata.version = CSRPL_VERSION;
+	metadata.flags = CSRPL_FLAG_OPPONENT_COMMANDS | (classic ? CSRPL_FLAG_CLASSIC_TRACK : 0U);
+	metadata.opponent_type = CSRPL_UNIT_OPPONENT_TYPE;
+	memcpy(metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE);
+	memcpy(metadata.player_car_id, "PMIN", CSRPL_CAR_ID_SIZE);
+	memcpy(metadata.opponent_car_id, "PMIN", CSRPL_CAR_ID_SIZE);
+	metadata.frames_per_second = 20U;
+	metadata.frame_count = TEST_UNIT_FRAME_COUNT;
+	legacy_u8 *encoded = NULL;
+	size_t size = 0;
+	assert(csrpl_encode_with_commands(&metadata, track_data, track_size, inputs,
+									  TEST_UNIT_FRAME_COUNT, commands, TEST_UNIT_FRAME_COUNT,
+									  &encoded, &size, error, sizeof(error)));
+	assert(size == CSRPL_HEADER_SIZE + track_size + sizeof(inputs) + sizeof(commands));
+	assert(encoded[TEST_UNIT_OPPONENT_OFFSET] == CSRPL_UNIT_OPPONENT_TYPE);
+	assert(memcmp(encoded + CSRPL_OPPONENT_ID_OFFSET, "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
+	struct CSRPL_VIEW view = {0};
+	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(view.metadata.flags == metadata.flags);
+	assert(view.metadata.opponent_type == metadata.opponent_type);
+	assert(memcmp(view.metadata.opponent_id, metadata.opponent_id, CSRPL_OPPONENT_ID_SIZE) == 0);
+	assert(view.track_size == track_size && memcmp(view.track_data, track_data, track_size) == 0);
+	assert(memcmp(view.inputs, inputs, sizeof(inputs)) == 0);
+	assert(memcmp(view.opponent_commands, commands, sizeof(commands)) == 0);
+	legacy_u8 *saved = NULL;
+	size_t saved_size = 0;
+	assert(csrpl_encode_with_commands(&view.metadata, view.track_data, view.track_size, view.inputs,
+									  view.metadata.frame_count, view.opponent_commands,
+									  view.metadata.frame_count, &saved, &saved_size, error,
+									  sizeof(error)));
+	assert(saved_size == size && memcmp(saved, encoded, size) == 0);
+	free(saved);
+	struct CSRPL_VIEW unchanged = view;
+	assert(!csrpl_decode(encoded, size - 1U, &view, error, sizeof(error)));
+	assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+	assert(!csrpl_decode(encoded, size + 1U, &view, error, sizeof(error)));
+	assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+	legacy_u8 *sentinel = encoded;
+	size_t sentinel_size = size;
+	assert(!csrpl_encode(&metadata, track_data, track_size, inputs, TEST_UNIT_FRAME_COUNT,
+						 &sentinel, &sentinel_size, error, sizeof(error)));
+	assert(sentinel == encoded && sentinel_size == size);
+	assert(!csrpl_encode_with_commands(&metadata, track_data, track_size, inputs,
+									   TEST_UNIT_FRAME_COUNT, commands, TEST_UNIT_FRAME_COUNT - 1U,
+									   &sentinel, &sentinel_size, error, sizeof(error)));
+	assert(sentinel == encoded && sentinel_size == size);
+	assert(!csrpl_encode_with_commands(&metadata, track_data, track_size, inputs,
+									   TEST_UNIT_FRAME_COUNT, NULL, TEST_UNIT_FRAME_COUNT,
+									   &sentinel, &sentinel_size, error, sizeof(error)));
+	assert(sentinel == encoded && sentinel_size == size);
+	/* Old revisions cannot be relabeled to carry the new identifier or stream. */
+	metadata.version = CSRPL_OPPONENT_COMMAND_VERSION - 1U;
+	assert(!csrpl_encode_with_commands(&metadata, track_data, track_size, inputs,
+									   TEST_UNIT_FRAME_COUNT, commands, TEST_UNIT_FRAME_COUNT,
+									   &sentinel, &sentinel_size, error, sizeof(error)));
+	LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, metadata.version);
+	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+	metadata.version = CSRPL_VERSION;
+	LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, metadata.version);
+	/* Neither absent IDs nor opponent commands attached to a legacy opponent are valid. */
+	memset(encoded + CSRPL_OPPONENT_ID_OFFSET, 0, CSRPL_OPPONENT_ID_SIZE);
+	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	memcpy(encoded + CSRPL_OPPONENT_ID_OFFSET, metadata.opponent_id, CSRPL_OPPONENT_ID_SIZE);
+	encoded[TEST_UNIT_OPPONENT_OFFSET] = CSRPL_CLASSIC_OPPONENT_LAST;
+	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	encoded[TEST_UNIT_OPPONENT_OFFSET] = CSRPL_UNIT_OPPONENT_TYPE;
+	encoded[TEST_UNIT_FLAGS_OFFSET] = CSRPL_KNOWN_FLAGS + 1U;
+	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	encoded[TEST_UNIT_FLAGS_OFFSET] = (legacy_u8)metadata.flags;
+	/* Applied command validation rejects malformed controls, steering and route state. */
+	legacy_u8 *wire = encoded + CSRPL_HEADER_SIZE + track_size + sizeof(inputs);
+	static const legacy_u8 bad_commands[][CSRPL_OPPONENT_COMMAND_SIZE] = {
+		{CSRPL_INPUT_MASK + 1U, 0U, 0U, 0U, 0U, 0U, 0U, 0U},
+		{0U, 1U, 0U, 0U, 0U, 0U, 0U, 0U},
+		{0U, 0U, TEST_UNIT_STEERING_LIMIT + 1U, 0U, 0U, 0U, 0U, 0U},
+		{0U, 0U, 0U, 0U, LEGACY_U8_MAX, LEGACY_U8_MAX, 0U, 0U},
+		{0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U}};
+	for (size_t index = 0; index < sizeof(bad_commands) / sizeof(bad_commands[0]); index++) {
+		memcpy(wire, bad_commands[index], CSRPL_OPPONENT_COMMAND_SIZE);
+		assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+		assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+	}
+	memcpy(wire, commands, CSRPL_OPPONENT_COMMAND_SIZE);
+	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	if (classic) {
+		assert(!csrpl_encode_with_commands(&metadata, track_data, track_size - 1U, inputs,
+										   TEST_UNIT_FRAME_COUNT, commands, TEST_UNIT_FRAME_COUNT,
+										   &sentinel, &sentinel_size, error, sizeof(error)));
+	}
+	free(encoded);
+	/* A new race may legitimately contain no simulation frames yet. */
+	metadata.frame_count = 0U;
+	assert(csrpl_encode_with_commands(&metadata, track_data, track_size, NULL, 0U, NULL, 0U,
+									  &encoded, &size, error, sizeof(error)));
+	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(view.metadata.frame_count == 0U &&
+		   view.metadata.opponent_type == CSRPL_UNIT_OPPONENT_TYPE);
+	free(encoded);
+	free(track_data);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	test_encoded_size_boundaries();
+	test_opponent_command_wire();
+	test_extended_opponent_codec(0);
+	test_extended_opponent_codec(1);
 	test_track_name_layouts();
 	test_recording_and_seek_storage();
 	test_large_timeline();

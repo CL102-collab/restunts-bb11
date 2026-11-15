@@ -20,7 +20,7 @@ foreach(theme desert tropical alpine city country)
             "${restunts_web_assets}/assets/skyboxes/${theme}-${image}.png" COPYONLY)
     endforeach()
 endforeach()
-foreach(opponent RANGE 1 6)
+foreach(opponent RANGE 1 7)
     configure_file("${CMAKE_SOURCE_DIR}/assets/opponents/game/opp${opponent}.png"
         "${restunts_web_assets}/assets/opponents/game/opp${opponent}.png" COPYONLY)
     foreach(outcome win lose)

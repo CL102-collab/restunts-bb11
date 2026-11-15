@@ -23,13 +23,14 @@
 #include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../opponent/opponent_portrait.h"
+#include "../opponent/unit_opponent_assets.h"
 #include "menu_background.h"
 #include "../shape2d/shape2d_internal.h"
 #endif
 
 #define OPPONENT_RESOURCE_FILE_INDEX 4
 #define OPPONENT_NONE 0U
-#define OPPONENT_AFTER_LAST 7U
+#define OPPONENT_AFTER_LAST (OPPONENT_LAST + 1U)
 #define OPPONENT_ID_DIGIT_INDEX 3U
 #define OPPONENT_MENU_BUTTON_COUNT 5U
 #define OPPONENT_MENU_NO_SELECTION 255U
@@ -72,10 +73,23 @@ struct OPPONENT_MENU_STATE {
 	legacy_u8 displayed_ghost;
 	legacy_u8 blit_mode;
 	legacy_u8 resource_loaded;
+#ifdef RESTUNTS_SDL3
+	legacy_u16 biography_page;
+	legacy_u16 biography_pages;
+#endif
 };
 
 static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 {
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		font_set_fontdef2(fontnptr);
+		font_set_colors(0, VIDEO_UI_COLOR(dialog_fnt_colour));
+		menu->biography_pages = unit_opponent_draw_biography(menu->biography_page);
+		font_set_fontdef();
+		return;
+	}
+#endif
 	legacy_s8 far *description;
 	if ((legacy_u8)gameconfig.game_opponenttype != OPPONENT_NONE) {
 		description = locate_text_res(menu->opponent_resource, opponent_description_id);
@@ -186,7 +200,11 @@ static void opponent_menu_draw_background(void)
 	}
 
 	shape2d_select_ega_palette(opp_res, (legacy_u8)gameconfig.game_opponenttype);
+#ifdef RESTUNTS_SDL3
+	shape = unit_opponent_menu_portrait((legacy_u8)gameconfig.game_opponenttype, oppresources);
+#else
 	shape = (struct SHAPE2D far *)oppresources[(legacy_u8)gameconfig.game_opponenttype];
+#endif
 	sprite_draw_palette_mapped(shape);
 #ifdef RESTUNTS_SDL3
 	opponent_portrait_draw(&drawing_sprite, shape, (legacy_u8)gameconfig.game_opponenttype);
@@ -224,7 +242,11 @@ static void opponent_menu_refresh(struct OPPONENT_MENU_STATE *menu)
 		}
 
 		ensure_file_exists(OPPONENT_RESOURCE_FILE_INDEX);
-		if ((legacy_u8)gameconfig.game_opponenttype != OPPONENT_NONE) {
+		if ((legacy_u8)gameconfig.game_opponenttype != OPPONENT_NONE
+#ifdef RESTUNTS_SDL3
+			&& (legacy_u8)gameconfig.game_opponenttype <= OPPONENT_LEGACY_LAST
+#endif
+		) {
 			opponent_resource_name[OPPONENT_ID_DIGIT_INDEX] =
 				(legacy_s8)((legacy_u8)gameconfig.game_opponenttype + '0');
 			menu->opponent_resource = (legacy_s8 far *)file_load_resfile(opponent_resource_name);
@@ -236,6 +258,10 @@ static void opponent_menu_refresh(struct OPPONENT_MENU_STATE *menu)
 		render_window_sprite =
 			sprite_make_wnd(OPPONENT_MENU_SCREEN_WIDTH, OPPONENT_MENU_SCREEN_HEIGHT,
 							OPPONENT_MENU_TRANSPARENT_COLOR);
+#ifdef RESTUNTS_SDL3
+		menu->biography_page = 0;
+		menu->biography_pages = 1;
+#endif
 		menu->displayed_opponent = (legacy_u8)gameconfig.game_opponenttype;
 		menu->displayed_ghost = selected_ghost;
 		menu->previous_selection = OPPONENT_MENU_NO_SELECTION;
@@ -276,6 +302,22 @@ static legacy_u16 opponent_menu_poll_input(struct OPPONENT_MENU_STATE *menu)
 
 static legacy_u8 opponent_menu_activate_key(struct OPPONENT_MENU_STATE *menu, legacy_u16 key)
 {
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT &&
+		(key == KEY_UP || key == KEY_DOWN)) {
+		if (key == KEY_UP && menu->biography_page != 0) {
+			menu->biography_page--;
+		} else if (key == KEY_DOWN && menu->biography_page + 1U < menu->biography_pages) {
+			menu->biography_page++;
+		}
+		mouse_draw_opaque_check();
+		opponent_menu_draw_background();
+		opponent_menu_draw_description(menu);
+		menu->previous_selection = OPPONENT_MENU_NO_SELECTION;
+		mouse_draw_transparent_check();
+		return 0;
+	}
+#endif
 	if (key == (legacy_u16)KEY_F12
 #ifdef RESTUNTS_SDL3
 		|| key == (legacy_u16)KEY_SHIFT_F12
@@ -361,7 +403,9 @@ static legacy_u8 opponent_menu_activate_selection(struct OPPONENT_MENU_STATE *me
 		check_input();
 		mouse_draw_opaque_check();
 		sprite_free_wnd(render_window_sprite);
-		unload_resource(menu->opponent_resource);
+		if (menu->resource_loaded != 0) {
+			unload_resource(menu->opponent_resource);
+		}
 		show_waiting();
 		run_car_menu(&gameconfig.game_opponentcarid[0], &gameconfig.game_opponentmaterial,
 					 &gameconfig.game_opponenttransmission,
@@ -398,6 +442,7 @@ static void opponent_menu_release(struct OPPONENT_MENU_STATE *menu)
 	}
 #ifdef RESTUNTS_SDL3
 	opponent_portrait_unload();
+	unit_opponent_portrait_release();
 	menu_background_unload();
 #endif
 	mmgr_free(opp_res);

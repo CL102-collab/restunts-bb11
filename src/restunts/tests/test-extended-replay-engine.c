@@ -33,6 +33,10 @@
 #undef printf
 #undef strlen
 
+#ifdef RESTUNTS_TEST_UNIT_PILOT_DESKTOP
+void test_unit_pilot_desktop(void);
+#endif
+
 #define ENGINE_TEST_FRAMES 70001U
 #define ENGINE_TEST_HILL_REPLAY_FRAMES 120U
 #define ENGINE_TEST_LEFT_COLUMN 40U
@@ -384,7 +388,8 @@ static void test_extended_opponent_laps(void)
 	for (legacy_u8 terrain = ENGINE_OPPONENT_FLAT; terrain <= ENGINE_OPPONENT_ELEVATED; terrain++) {
 		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
 			gameconfig.game_framespersec = rates[rate];
-			for (legacy_u8 opponent = OPPONENT_FIRST; opponent <= OPPONENT_LAST; opponent++) {
+			for (legacy_u8 opponent = OPPONENT_FIRST; opponent <= OPPONENT_LEGACY_LAST;
+				 opponent++) {
 				gameconfig.game_opponenttype = opponent;
 				if (terrain == ENGINE_OPPONENT_ELEVATED) {
 					create_elevated_opponent_track();
@@ -1816,6 +1821,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_extended_opponent_laps();
 	test_ninhbinh_opponent_finish();
 	test_long_extended_names();
+#ifdef RESTUNTS_TEST_UNIT_PILOT_DESKTOP
+	ghost_free_simulation_resources();
+	memcpy(gameconfig.game_playercarid, "P962", CSRPL_CAR_ID_SIZE);
+	memcpy(gameconfig.game_opponentcarid, "P962", CSRPL_CAR_ID_SIZE);
+	gameconfig.game_playertransmission = TRANSMISSION_AUTOMATIC;
+	gameconfig.game_opponenttransmission = TRANSMISSION_AUTOMATIC;
+	gameconfig.game_opponenttype = OPPONENT_UNIT;
+	gameconfig.game_framespersec = GAME_FRAME_RATE_NORMAL;
+	create_track(0);
+	ghost_load_simulation_resources();
+	extended_replay_runtime_begin();
+	initialize_simulation();
+	test_unit_pilot_desktop();
+#endif
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

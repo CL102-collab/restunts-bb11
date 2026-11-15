@@ -6,6 +6,7 @@
 #include "../externs.h"
 #include "../platform.h"
 #include "../fileio.h"
+#include "../opponent/unit_opponent.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -114,6 +115,7 @@ int extended_file_load_track(const legacy_s8 *path)
 	int success = extended_track_load(bytes, size, extended_io_error, sizeof(extended_io_error));
 	free(bytes);
 	if (success) {
+		unit_opponent_stop();
 		extended_track_name_from_path(path);
 		extended_replay_runtime_clear();
 	}
@@ -142,6 +144,12 @@ int extended_file_load_replay(const legacy_s8 *path)
 	}
 	struct CSRPL_VIEW view;
 	int success = csrpl_decode(bytes, size, &view, extended_io_error, sizeof(extended_io_error));
+	if (success && view.metadata.opponent_type > CSRPL_CLASSIC_OPPONENT_LAST &&
+		(view.metadata.opponent_type != CSRPL_UNIT_OPPONENT_TYPE ||
+		 memcmp(view.metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE) != 0)) {
+		extended_io_fail("The recorded opponent is not supported by this game.");
+		success = 0;
+	}
 	if (success) {
 		/* Prepare the replay in an isolated owner first. Track activation also
 		 * allocates before committing, so failure preserves the complete session. */
@@ -153,13 +161,16 @@ int extended_file_load_replay(const legacy_s8 *path)
 		success = extended_replay_runtime_load(&view);
 		if (!success) {
 			extended_io_fail("Not enough memory for replay input history.");
+		} else if ((view.metadata.flags & CSRPL_FLAG_CLASSIC_TRACK) != 0U) {
+			extended_track_unload();
+			memcpy(track_element_map, view.track_data, REPLAY_TRACK_SIZE);
 		} else {
 			success = extended_track_load(view.track_data, view.track_size, extended_io_error,
 										  sizeof(extended_io_error));
 		}
 		if (success) {
-			extended_replay_free(&previous.recording);
-			extended_replay_history_free(&previous.history);
+			unit_opponent_stop();
+			extended_replay_runtime_discard(&previous);
 			extended_metadata_to_gameinfo(&view.metadata);
 		} else {
 			gameconfig = saved_config;
@@ -176,19 +187,35 @@ int extended_file_load_replay(const legacy_s8 *path)
 int extended_file_write_replay(const legacy_s8 *path)
 {
 	extended_io_error[0] = 0;
-	if (!extended_track_active() || !extended_replay_is_active()) {
+	if (!extended_replay_is_active()) {
 		return extended_io_fail("No Chocolate Stunts recording is available.");
 	}
 	uint8_t *track_bytes = NULL;
 	size_t track_size = 0;
-	if (!cstrk_encode(extended_track_model(), &track_bytes, &track_size, extended_io_error,
-					  sizeof(extended_io_error))) {
-		return 1;
+	if (extended_track_active()) {
+		if (!cstrk_encode(extended_track_model(), &track_bytes, &track_size, extended_io_error,
+						  sizeof(extended_io_error))) {
+			return 1;
+		}
+	} else {
+		track_size = REPLAY_TRACK_SIZE;
+		track_bytes = malloc(track_size);
+		if (track_bytes == NULL) {
+			return extended_io_fail("Not enough memory to save the classic track.");
+		}
+		memcpy(track_bytes, track_element_map, track_size);
 	}
 	struct CSRPL_METADATA metadata;
 	memset(&metadata, 0, sizeof(metadata));
 	metadata.version = extended_replay_version();
 	metadata.driving_rules = extended_replay_driving_rules();
+	metadata.flags = extended_replay_flags();
+	if (extended_track_active()) {
+		metadata.flags &= (legacy_u32)~CSRPL_FLAG_CLASSIC_TRACK;
+	} else {
+		metadata.flags |= CSRPL_FLAG_CLASSIC_TRACK;
+	}
+	memcpy(metadata.opponent_id, extended_replay_opponent_id(), CSRPL_OPPONENT_ID_SIZE);
 	memcpy(metadata.player_car_id, gameconfig.game_playercarid, REPLAY_CAR_ID_SIZE);
 	metadata.player_material = gameconfig.game_playermaterial;
 	metadata.player_transmission = gameconfig.game_playertransmission;
@@ -202,11 +229,18 @@ int extended_file_write_replay(const legacy_s8 *path)
 	}
 	metadata.frames_per_second = gameconfig.game_framespersec;
 	metadata.frame_count = extended_replay_recorded_frames();
+	if ((metadata.flags & CSRPL_FLAG_OPPONENT_COMMANDS) != 0U &&
+		metadata.frame_count > extended_replay_opponent_command_count()) {
+		/* Input polling may queue samples beyond the last simulated tick. */
+		metadata.frame_count = extended_replay_opponent_command_count();
+	}
 	uint8_t *bytes = NULL;
 	size_t size = 0;
-	int success = csrpl_encode(&metadata, track_bytes, track_size, extended_replay_inputs(),
-							   metadata.frame_count, &bytes, &size, extended_io_error,
-							   sizeof(extended_io_error));
+	legacy_int success = csrpl_encode_with_commands(
+		&metadata, track_bytes, track_size, extended_replay_inputs(), metadata.frame_count,
+		extended_replay_opponent_commands(),
+		(metadata.flags & CSRPL_FLAG_OPPONENT_COMMANDS) != 0U ? metadata.frame_count : 0U, &bytes,
+		&size, extended_io_error, sizeof(extended_io_error));
 	free(track_bytes);
 	if (!success) {
 		return 1;

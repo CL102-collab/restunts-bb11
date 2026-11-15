@@ -140,6 +140,7 @@ legacy_s16 extended_replay_ui_restart(void)
 		return 0;
 	}
 	extended_replay_runtime_begin();
+	extended_replay_set_classic_track(!extended_track_active());
 	return 1;
 }
 legacy_s16 extended_replay_ui_branch(void)
@@ -180,8 +181,10 @@ legacy_s16 extended_replay_ui_draw_current(void)
 }
 void extended_replay_ui_begin_live_track(void)
 {
-	if (extended_track_active() && is_in_replay == 0) {
+	if ((extended_track_active() || gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE) &&
+		is_in_replay == 0) {
 		extended_replay_runtime_begin();
+		extended_replay_set_classic_track(!extended_track_active());
 	}
 }
 const legacy_s8 *extended_replay_ui_extension(const legacy_s8 *fallback)

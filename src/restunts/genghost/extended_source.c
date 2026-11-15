@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <SDL3/SDL.h>
 #include "extended_source.h"
+#include "extended_simulation.h"
 #include "../c/extended/cstrk.h"
 #include "../c/extended/csrpl.h"
 
@@ -12,7 +13,9 @@
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
 	 2U * CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS +      \
 	 CSTRK_MAX_NOTES + CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE)
-#define GENGHOST_MAX_SOURCE_SIZE (CSRPL_HEADER_SIZE + GENGHOST_MAX_TRACK_SIZE + GENGHOST_MAX_FRAMES)
+#define GENGHOST_MAX_SOURCE_SIZE                                                                   \
+	(CSRPL_HEADER_SIZE + GENGHOST_MAX_TRACK_SIZE +                                                 \
+	 GENGHOST_MAX_FRAMES * (1U + CSRPL_OPPONENT_COMMAND_SIZE))
 #define GENGHOST_SOURCE_ERROR_SIZE 256U
 
 static const legacy_u8 cstrk_signature[GENGHOST_FORMAT_SIGNATURE_SIZE] = {'C', 'S', 'T',  'R',
@@ -183,6 +186,12 @@ legacy_int extended_source_decode(struct GENGHOST_SOURCE *source, legacy_u8 *fil
 			return -1;
 		}
 		const struct CSRPL_METADATA *metadata = &extended_replay.metadata;
+		if (metadata->opponent_type > CSRPL_CLASSIC_OPPONENT_LAST &&
+			(metadata->opponent_type != CSRPL_UNIT_OPPONENT_TYPE ||
+			 memcmp(metadata->opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE) != 0)) {
+			fputs("Unsupported CSRPL opponent identifier\n", stderr);
+			return -1;
+		}
 		if (metadata->frame_count > GENGHOST_MAX_FRAMES) {
 			fprintf(stderr, "Replay exceeds the generator's %u-frame limit\n", GENGHOST_MAX_FRAMES);
 			return -1;
@@ -350,7 +359,7 @@ legacy_int extended_source_validate_output(const struct GENGHOST_SOURCE *source,
 	const legacy_char *output_extension = strrchr(extended_source_base_name(output), '.');
 	if (source->extended &&
 		(!output_extension || SDL_strcasecmp(output_extension, ".csrpl") != 0)) {
-		fputs("CSTRK ghosts require an output filename ending in .csrpl\n", stderr);
+		fputs("CSTRK and CSRPL sources require an output filename ending in .csrpl\n", stderr);
 		return -1;
 	}
 	return 0;
@@ -360,17 +369,21 @@ void extended_source_configure(const struct GENGHOST_SOURCE *source, legacy_int 
 							   legacy_int fine_tune)
 {
 	if (source->extended && source->is_replay) {
-		struct CSRPL_METADATA metadata = source->extended_replay.metadata;
-		metadata.frames_per_second = source->frame_rate;
+		struct CSRPL_VIEW replay = source->extended_replay;
+		replay.metadata.frames_per_second = source->frame_rate;
 		if (!verify && !fine_tune) {
-			/* Generation uses the embedded track for a solo ghost; existing
-			 * opponent-dependent inputs are not a compatible search seed. */
-			metadata.opponent_type = 0;
-			/* New inputs use this engine's physics, even when the track came
-			 * from a recording made by a newer engine. */
-			metadata.version = CSRPL_VERSION;
+			/* A fresh ghost uses the embedded track with no recorded rival. */
+			replay.metadata.opponent_type = 0;
+			replay.metadata.flags &= (legacy_u32)~CSRPL_FLAG_OPPONENT_COMMANDS;
+			memset(replay.metadata.opponent_id, 0, sizeof(replay.metadata.opponent_id));
+			replay.opponent_commands = NULL;
+			replay.metadata.frame_count = 0;
+			replay.inputs = NULL;
+			replay.metadata.version = CSRPL_VERSION;
 		}
-		genghost_sim_set_replay_metadata(&metadata);
+		extended_genghost_sim_set_replay(&replay);
+	} else {
+		extended_genghost_sim_set_replay(NULL);
 	}
 }
 

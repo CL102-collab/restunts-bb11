@@ -135,6 +135,10 @@ void hires_forget(const void *base)
 	assert(base == framebuffer);
 }
 
+void unit_opponent_stop(void)
+{
+}
+
 void hires_shutdown(void)
 {
 	high_resolution_active = false;

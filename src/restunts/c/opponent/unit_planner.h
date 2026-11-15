@@ -1,0 +1,106 @@
+#ifndef RESTUNTS_UNIT_PLANNER_H
+#define RESTUNTS_UNIT_PLANNER_H
+
+#include "../legacy.h"
+
+/* Planner coordinates are full-width world units (car_position / 64), speed
+ * is mph, yaw is radians, and accelerations are mph per second. All geometry
+ * and car parameters are copied: worker threads never read engine globals. */
+enum UNIT_ROUTE_STUNT {
+	UNIT_STUNT_NONE = 0,
+	UNIT_STUNT_PROTECTED = 1,
+	UNIT_STUNT_BARREL = 2,
+	UNIT_STUNT_RAMP = 3,
+	UNIT_STUNT_MAX = UNIT_STUNT_RAMP
+};
+
+struct UNIT_ROUTE_POINT {
+	legacy_f64 x, y, z, half_width, speed_limit, speed_floor;
+	legacy_s16 route_index;
+	legacy_u16 route_point;
+	legacy_u8 surface, shortcut_safe, height_unspecified, stunt, align_center;
+};
+
+struct UNIT_VEHICLE {
+	legacy_f64 x, y, z, yaw, speed, vx, vz, half_width, half_length;
+	legacy_f64 steering, steering_rate, vy;
+	legacy_u8 recovering, shortcuts_forbidden, airborne;
+};
+
+struct UNIT_CAR_LIMITS {
+	legacy_f64 max_speed, acceleration, braking, lateral_acceleration;
+	legacy_f64 wheelbase;
+	legacy_f64 half_width, half_length;
+	/* Optional ratios to paved grip, indexed by CAR_SURFACE_TYPE. Zero uses
+	 * conservative built-in ratios. */
+	legacy_f64 surface_grip[5];
+};
+
+enum UNIT_PLAN_BRAKE {
+	UNIT_PLAN_BRAKE_NONE = 0,
+	UNIT_PLAN_BRAKE_COLLISION = 1,
+	UNIT_PLAN_BRAKE_STOP = 2
+};
+
+struct UNIT_PLAN {
+	legacy_f64 target_x, target_y, target_z, target_speed;
+	legacy_u32 route_cursor, generation;
+	legacy_u8 brake, valid, from_worker;
+};
+
+struct UNIT_PLANNER_STATS {
+	legacy_u64 opening_candidates, route_candidates, live_candidates, worker_accepted;
+	legacy_u32 workers;
+	legacy_u8 opening_ready, route_ready;
+};
+
+struct UNIT_PLANNER;
+
+/* Creation establishes an immediately usable conservative guide. Startup
+ * workers first optimize the first four route pieces, then the complete route.
+ * A requested worker count of zero selects all available CPUs; negative forces
+ * bounded synchronous operation for tests or platforms without threads. */
+struct UNIT_PLANNER *unit_planner_create(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
+										 const struct UNIT_CAR_LIMITS *limits, legacy_u8 owoot,
+										 legacy_s32 requested_workers);
+/* Independent deterministic pilot snapshot: copies the current profiles and
+ * geometry, resets request/candidate state, and starts live mode without workers.
+ * It does not stop or take ownership of the source planner. */
+struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner);
+/* Branch a paused synchronous pilot at the same native snapshot. Unlike the
+ * fresh clone, this preserves candidate order and recent request/publication. */
+struct UNIT_PLANNER *unit_planner_clone_continuation(struct UNIT_PLANNER *planner);
+/* Reuse an allocated pilot snapshot in constant work. Both planners must be
+ * paused/live and descend from the same geometry clone generation. */
+legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
+											 struct UNIT_PLANNER *source);
+/* Freeze native-validated pilot profiles before the first live request. This
+ * finishes startup, retains its single live worker, and rejects other geometry. */
+legacy_int unit_planner_adopt_profiles(struct UNIT_PLANNER *planner,
+									   struct UNIT_PLANNER *validated);
+void unit_planner_destroy(struct UNIT_PLANNER *planner);
+/* Replace a prepared opening prefix with complete route geometry. The old
+ * planner is destroyed only on success; NULL leaves it usable. Opening search
+ * is seeded from its best profile and repeated if the chosen prefix changed. */
+struct UNIT_PLANNER *unit_planner_rebuild(struct UNIT_PLANNER *planner,
+										  const struct UNIT_ROUTE_POINT *points, legacy_u32 count);
+/* Stop startup workers and retain exactly one background planner when possible.
+ * This is idempotent. No unbounded whole-route evaluation is joined. */
+void unit_planner_finish_startup(struct UNIT_PLANNER *planner);
+/* Idempotent handoff for bounded native previews on the race thread. Pause
+ * joins at most the current small rollout; resume starts one worker if allowed. */
+legacy_int unit_planner_pause_live(struct UNIT_PLANNER *planner);
+legacy_int unit_planner_resume_live(struct UNIT_PLANNER *planner);
+/* Called by the progress-screen event loop. With no threads this does at most
+ * work_units small resumable chunks; threaded builds return immediately. */
+void unit_planner_work(struct UNIT_PLANNER *planner, legacy_u32 work_units);
+/* Publish a new immutable driving snapshot and return guidance immediately.
+ * Recent worker results are accepted only for this route neighborhood and a
+ * nearby pose. Older work cannot overwrite a newer request. Single-threaded
+ * platforms evaluate a fixed small number of predictive rollouts per call. */
+legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEHICLE *unit,
+							 const struct UNIT_VEHICLE *player, legacy_u32 route_cursor,
+							 legacy_u32 generation, struct UNIT_PLAN *plan);
+void unit_planner_stats(struct UNIT_PLANNER *planner, struct UNIT_PLANNER_STATS *stats);
+
+#endif

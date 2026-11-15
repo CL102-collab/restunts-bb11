@@ -11,6 +11,7 @@
 #include "../../c/game_input.h"
 #include "../../c/fatal.h"
 #include "../../c/hires/hires.h"
+#include "../../c/opponent/unit_opponent.h"
 #include <string.h>
 #ifdef __ANDROID__
 #include <jni.h>
@@ -1276,6 +1277,7 @@ void sdl3_input_shutdown(void)
 
 void sdl3_platform_shutdown(void)
 {
+	unit_opponent_stop();
 	dos_timer_shutdown();
 	dos_audio_shutdown();
 	sdl3_input_shutdown();

@@ -666,6 +666,27 @@ legacy_s16 extended_owoot_barrel_roll_complete(const struct CARSTATE *carstate)
 #endif
 }
 
+legacy_u16 extended_owoot_barrel_progress(const struct CARSTATE *carstate, legacy_s16 source)
+{
+#ifdef RESTUNTS_SDL3
+	if (carstate == 0 || source < 0 || source >= track_pieces_counter ||
+		carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] != source + 1 ||
+		!route_is_roll_ramp(source)) {
+		return 0;
+	}
+	legacy_u16 packed = (legacy_u16)carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_LAUNCH];
+	legacy_u16 phase = packed >> OWOOT_ROLL_ANGLE_BITS;
+	if (phase == OWOOT_ROLL_COMPLETE) {
+		return ANGLE_FULL_TURN;
+	}
+	return phase >= OWOOT_ROLL_BEFORE_SIDE && phase < OWOOT_ROLL_COMPLETE ? packed & ANGLE_MASK : 0;
+#else
+	(void)carstate;
+	(void)source;
+	return 0;
+#endif
+}
+
 legacy_s16 extended_owoot_jump_is_valid(struct CARSTATE *carstate)
 {
 #ifdef RESTUNTS_SDL3

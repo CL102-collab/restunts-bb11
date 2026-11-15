@@ -1,5 +1,8 @@
 #include "highscore_internal.h"
 #include "../video/video_color.h"
+#ifdef RESTUNTS_SDL3
+#include "../opponent/opponent.h"
+#endif
 
 void end_format_time(legacy_s8 *out, legacy_u32 frame)
 {
@@ -100,6 +103,14 @@ static void end_hiscore_consume_text(struct END_SCREEN_TEXT_LINE *line, legacy_s
 void end_hiscore_draw_opponent_text(legacy_s8 far *opponent_resource, legacy_u8 outcome,
 									legacy_u8 text_prefix, legacy_s16 animation_x)
 {
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		font_set_fontdef2(fontnptr);
+		font_draw_text("UNIT", END_SCREEN_TEXT_LEFT, END_SCREEN_TEXT_TOP);
+		font_set_fontdef();
+		return;
+	}
+#endif
 	struct END_SCREEN_TEXT_LINE line;
 	line.line_y = END_SCREEN_TEXT_TOP;
 	line.output_length = 0;

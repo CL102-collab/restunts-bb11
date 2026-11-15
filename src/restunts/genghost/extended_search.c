@@ -6,7 +6,7 @@
 #include "../c/extended/extended_owoot_internal.h"
 #include "../c/extended/extended_owoot_route.h"
 #include "../c/extended/roll_ramp.h"
-#include <float.h>
+#include "../c/extended/extended_barrel_search.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,12 +30,6 @@ legacy_int extended_genghost_search_native_proposals(const struct GENGHOST_ROUTE
 	return trials >= genghost_barrel_seed_count(route);
 }
 
-#define BARREL_REPAIR_POPULATION 32U
-#define BARREL_REPAIR_CHECKPOINTS 4U
-#define BARREL_REPAIR_UNITS 64U
-#define BARREL_REPAIR_FIELDS 12U
-#define BARREL_REPAIR_AIR_PEDALS 4U
-#define BARREL_REPAIR_MAX_CHANGES 3U
 #define BARREL_REPAIR_STALL_TICKS 400U
 #define BARREL_REPAIR_POLL_TICKS 64U
 #define BARREL_REPAIR_SURVIVAL_SECONDS 1U
@@ -48,50 +42,22 @@ legacy_int extended_genghost_search_native_proposals(const struct GENGHOST_ROUTE
 #define BARREL_REPAIR_PROGRESS_WEIGHT 0.01
 #define BARREL_REPAIR_BODY_HEIGHT 8.0
 #define BARREL_REPAIR_ANGLE_WEIGHT 32.0
-#define BARREL_REPAIR_LATERAL_LIMIT 0.8
-#define BARREL_REPAIR_SPEED_MINIMUM 0.85
-#define BARREL_REPAIR_SPEED_MAXIMUM 1.5
-#define BARREL_REPAIR_SHIFT_MINIMUM 0.65
-#define BARREL_REPAIR_SHIFT_MAXIMUM 1.05
 
 extern legacy_f64 fabs(legacy_f64);
 
-struct BARREL_REPAIR_PARAMETERS {
-	legacy_f64 speed, lateral, shift;
-	legacy_uint checkpoint, begin, duration, gap, counter, pedal_begin, pedal_duration;
-	legacy_u8 side, pedal, air_brake;
-};
-
 struct GENGHOST_BARREL_REPAIR {
-	struct GENGHOST_SNAPSHOT snapshots[BARREL_REPAIR_CHECKPOINTS];
-	struct GENGHOST_DRIVER drivers[BARREL_REPAIR_CHECKPOINTS];
-	legacy_uint frames[BARREL_REPAIR_CHECKPOINTS], span, bank;
-	struct BARREL_REPAIR_PARAMETERS population[BARREL_REPAIR_POPULATION];
-	legacy_f64 fitness[BARREL_REPAIR_POPULATION];
-	legacy_uint count;
-	legacy_u64 revision, attempts;
-	legacy_u32 random;
+	struct GENGHOST_SNAPSHOT snapshots[EXTENDED_BARREL_CHECKPOINTS];
+	struct GENGHOST_DRIVER drivers[EXTENDED_BARREL_CHECKPOINTS];
+	legacy_uint frames[EXTENDED_BARREL_CHECKPOINTS], span, bank;
+	struct EXTENDED_BARREL_SEARCH search;
+	legacy_u64 revision;
 	legacy_int source, ready;
 	size_t first, last;
 };
 
-static legacy_u32 barrel_random(struct GENGHOST_BARREL_REPAIR *repair)
-{
-	legacy_u32 value = repair->random;
-	value ^= value << 13U;
-	value ^= value >> 17U;
-	value ^= value << 5U;
-	return repair->random = value;
-}
-
 static legacy_f64 barrel_clamp(legacy_f64 value, legacy_f64 minimum, legacy_f64 maximum)
 {
 	return value < minimum ? minimum : value > maximum ? maximum : value;
-}
-
-static legacy_f64 barrel_signed(struct GENGHOST_BARREL_REPAIR *repair)
-{
-	return (legacy_f64)(barrel_random(repair) & 0xffffU) / 32767.5 - 1.0;
 }
 
 static legacy_int barrel_stopped(genghost_barrel_stop_function stop, void *opaque,
@@ -179,14 +145,11 @@ static legacy_int barrel_prepare(struct GENGHOST_BARREL_REPAIR *repair,
 	legacy_int source = route->points[selected].piece;
 	if (repair->source != source) {
 		repair->source = source;
-		repair->count = 0U;
-		repair->attempts = 0U;
+		extended_barrel_search_clear(&repair->search);
 	}
 	/* Parameter ideas survive a better prefix; their old numerical fitness
 	 * does not. Every new entry state is measured by native playback again. */
-	for (legacy_uint index = 0U; index < repair->count; ++index) {
-		repair->fitness[index] = -DBL_MAX;
-	}
+	extended_barrel_search_invalidate(&repair->search);
 	genghost_driver_reset(&driver);
 	genghost_sim_reset();
 	legacy_uint checkpoint = 0U, entry_frame = 0U, airborne_frame = 0U, bank_frame = 0U;
@@ -194,9 +157,9 @@ static legacy_int barrel_prepare(struct GENGHOST_BARREL_REPAIR *repair,
 		if (barrel_stopped(stop, opaque, frame)) {
 			return 0;
 		}
-		while (checkpoint < BARREL_REPAIR_CHECKPOINTS) {
-			legacy_f64 lead = (legacy_f64)(BARREL_REPAIR_CHECKPOINTS - checkpoint) *
-							  CSTRK_TILE_WORLD_SIZE / BARREL_REPAIR_CHECKPOINTS;
+		while (checkpoint < EXTENDED_BARREL_CHECKPOINTS) {
+			legacy_f64 lead = (legacy_f64)(EXTENDED_BARREL_CHECKPOINTS - checkpoint) *
+							  CSTRK_TILE_WORLD_SIZE / EXTENDED_BARREL_CHECKPOINTS;
 			if (driver.progress + lead < route->points[selected].distance) {
 				break;
 			}
@@ -228,7 +191,7 @@ static legacy_int barrel_prepare(struct GENGHOST_BARREL_REPAIR *repair,
 	if (!checkpoint || !entry_frame) {
 		return 0;
 	}
-	while (checkpoint < BARREL_REPAIR_CHECKPOINTS) {
+	while (checkpoint < EXTENDED_BARREL_CHECKPOINTS) {
 		repair->frames[checkpoint] = repair->frames[checkpoint - 1U];
 		repair->drivers[checkpoint] = repair->drivers[checkpoint - 1U];
 		repair->snapshots[checkpoint] = repair->snapshots[checkpoint - 1U];
@@ -244,104 +207,6 @@ static legacy_int barrel_prepare(struct GENGHOST_BARREL_REPAIR *repair,
 	return 1;
 }
 
-static struct BARREL_REPAIR_PARAMETERS barrel_parameters(struct GENGHOST_BARREL_REPAIR *repair)
-{
-	struct BARREL_REPAIR_PARAMETERS result = {0};
-	/* Fund mirrored ordinary steering/countersteering patterns across launch
-	 * speeds before local refinement. Timings are fractions of the measured
-	 * native entry-to-lip traversal, rather than track or replay frame numbers. */
-	if (!repair->count || repair->attempts % 8U == 0U) {
-		legacy_u64 ordinal = repair->attempts / 8U;
-		result.checkpoint = (legacy_uint)(ordinal % BARREL_REPAIR_CHECKPOINTS);
-		result.speed = 1.0 + (legacy_f64)((ordinal / BARREL_REPAIR_CHECKPOINTS) % 5U) * 0.1;
-		result.side = (legacy_u8)((ordinal / 2U) % 2U);
-		result.lateral = result.side ? 0.125 : -0.125;
-		result.shift = ordinal % 2U ? 0.9 : 1.0;
-		result.duration = BARREL_REPAIR_UNITS / 3U;
-		legacy_uint bank = repair->bank * BARREL_REPAIR_UNITS / repair->span;
-		result.begin = bank > result.duration / 2U ? bank - result.duration / 2U : 0U;
-		result.gap = BARREL_REPAIR_UNITS / 16U;
-		result.counter = BARREL_REPAIR_UNITS / 4U;
-		result.pedal_duration = BARREL_REPAIR_UNITS / 32U;
-		result.pedal_begin = bank > result.pedal_duration ? bank - result.pedal_duration : 0U;
-		result.pedal = 1U;
-		result.air_brake = (legacy_u8)((ordinal / 5U) % BARREL_REPAIR_AIR_PEDALS);
-		if (ordinal % 8U == 0U && ordinal) {
-			result.begin = barrel_random(repair) % BARREL_REPAIR_UNITS;
-			result.duration = 4U + barrel_random(repair) % (BARREL_REPAIR_UNITS / 2U);
-			result.counter = 4U + barrel_random(repair) % (BARREL_REPAIR_UNITS / 2U);
-			result.pedal_begin = barrel_random(repair) % BARREL_REPAIR_UNITS;
-		}
-		return result;
-	}
-	legacy_uint selected = barrel_random(repair) % repair->count;
-	legacy_uint other = barrel_random(repair) % repair->count;
-	if (repair->fitness[other] > repair->fitness[selected]) {
-		selected = other;
-	}
-	result = repair->population[selected];
-	legacy_uint changes = 1U + barrel_random(repair) % BARREL_REPAIR_MAX_CHANGES;
-	for (legacy_uint change = 0U; change < changes; ++change) {
-		legacy_uint field = barrel_random(repair) % BARREL_REPAIR_FIELDS;
-		legacy_f64 delta = barrel_signed(repair);
-		switch (field) {
-			case 0U:
-				result.speed =
-					barrel_clamp(result.speed + delta * 0.04, BARREL_REPAIR_SPEED_MINIMUM,
-								 BARREL_REPAIR_SPEED_MAXIMUM);
-				break;
-			case 1U:
-				result.lateral =
-					barrel_clamp(result.lateral + delta * 0.08, -BARREL_REPAIR_LATERAL_LIMIT,
-								 BARREL_REPAIR_LATERAL_LIMIT);
-				break;
-			case 2U:
-				result.shift =
-					barrel_clamp(result.shift + delta * 0.04, BARREL_REPAIR_SHIFT_MINIMUM,
-								 BARREL_REPAIR_SHIFT_MAXIMUM);
-				break;
-			case 3U:
-				result.begin =
-					(legacy_uint)barrel_clamp(result.begin + delta * 6.0, 0.0, BARREL_REPAIR_UNITS);
-				break;
-			case 4U:
-				result.duration = (legacy_uint)barrel_clamp(result.duration + delta * 6.0, 1.0,
-															BARREL_REPAIR_UNITS / 2U);
-				break;
-			case 5U:
-				result.gap = (legacy_uint)barrel_clamp(result.gap + delta * 4.0, 0.0,
-													   BARREL_REPAIR_UNITS / 3U);
-				break;
-			case 6U:
-				result.counter = (legacy_uint)barrel_clamp(result.counter + delta * 6.0, 1.0,
-														   BARREL_REPAIR_UNITS / 2U);
-				break;
-			case 7U:
-				result.pedal_begin = (legacy_uint)barrel_clamp(result.pedal_begin + delta * 6.0,
-															   0.0, BARREL_REPAIR_UNITS * 2U);
-				break;
-			case 8U:
-				result.pedal_duration = (legacy_uint)barrel_clamp(
-					result.pedal_duration + delta * 3.0, 0.0, BARREL_REPAIR_UNITS / 2U);
-				break;
-			case 9U:
-				result.checkpoint = barrel_random(repair) % BARREL_REPAIR_CHECKPOINTS;
-				break;
-			case 10U:
-				result.air_brake = (legacy_u8)(barrel_random(repair) % BARREL_REPAIR_AIR_PEDALS);
-				break;
-			default:
-				if (barrel_random(repair) % 4U == 0U) {
-					result.side = !result.side;
-				} else {
-					result.pedal = barrel_random(repair) % 3U;
-				}
-				break;
-		}
-	}
-	return result;
-}
-
 static legacy_int barrel_matches_source(const struct GENGHOST_BARREL_REPAIR *repair,
 										const struct CARSTATE *car)
 {
@@ -353,52 +218,6 @@ static legacy_int barrel_matches_source(const struct GENGHOST_BARREL_REPAIR *rep
 	 * that placement, rather than borrowing a neighboring ramp's milestones. */
 	const struct CSTRK_OBJECT *actual = route_extended_object(source);
 	return actual && actual == route_extended_object((legacy_s16)repair->source);
-}
-
-static legacy_uint barrel_ticks(legacy_uint units, legacy_uint span)
-{
-	return units * span / BARREL_REPAIR_UNITS;
-}
-
-static legacy_int barrel_same_parameters(const struct BARREL_REPAIR_PARAMETERS *first,
-										 const struct BARREL_REPAIR_PARAMETERS *second)
-{
-	return first->speed == second->speed && first->lateral == second->lateral &&
-		   first->shift == second->shift && first->checkpoint == second->checkpoint &&
-		   first->begin == second->begin && first->duration == second->duration &&
-		   first->gap == second->gap && first->counter == second->counter &&
-		   first->pedal_begin == second->pedal_begin &&
-		   first->pedal_duration == second->pedal_duration && first->side == second->side &&
-		   first->pedal == second->pedal && first->air_brake == second->air_brake;
-}
-
-static void barrel_insert(struct GENGHOST_BARREL_REPAIR *repair,
-						  const struct BARREL_REPAIR_PARAMETERS *parameters, legacy_f64 fitness)
-{
-	legacy_uint slot = repair->count;
-	for (legacy_uint index = 0U; index < repair->count; ++index) {
-		if (barrel_same_parameters(&repair->population[index], parameters)) {
-			if (fitness > repair->fitness[index]) {
-				repair->fitness[index] = fitness;
-			}
-			return;
-		}
-	}
-	if (slot == BARREL_REPAIR_POPULATION) {
-		slot = 0U;
-		for (legacy_uint index = 1U; index < repair->count; ++index) {
-			if (repair->fitness[index] < repair->fitness[slot]) {
-				slot = index;
-			}
-		}
-		if (fitness <= repair->fitness[slot]) {
-			return;
-		}
-	} else {
-		++repair->count;
-	}
-	repair->population[slot] = *parameters;
-	repair->fitness[slot] = fitness;
 }
 
 legacy_int extended_genghost_search_barrel_repair(
@@ -416,15 +235,15 @@ legacy_int extended_genghost_search_barrel_repair(
 		}
 		(*repair_state)->source = -1;
 		(*repair_state)->revision = ~(legacy_u64)0U;
-		(*repair_state)->random = options->seed ? options->seed : 1U;
+		extended_barrel_search_init(&(*repair_state)->search, options->seed);
 	}
 	struct GENGHOST_BARREL_REPAIR *repair = *repair_state;
 	if (!barrel_prepare(repair, route, options, parent, parent_length, parent_policy, revision,
 						totals, stop, opaque)) {
 		return 0;
 	}
-	struct BARREL_REPAIR_PARAMETERS parameters = barrel_parameters(repair);
-	++repair->attempts;
+	struct EXTENDED_BARREL_PARAMETERS parameters = extended_barrel_search_next(
+		&repair->search, repair->span, repair->bank, EXTENDED_BARREL_FIELDS_ALL, NULL);
 	legacy_uint frame = repair->frames[parameters.checkpoint];
 	memcpy(inputs, parent, frame);
 	genghost_sim_restore(&repair->snapshots[parameters.checkpoint]);
@@ -435,12 +254,6 @@ legacy_int extended_genghost_search_barrel_repair(
 		policy.segment[segment].lateral_offset = parameters.lateral;
 		policy.segment[segment].shift_rpm_scale = parameters.shift;
 	}
-	legacy_uint begin = barrel_ticks(parameters.begin, repair->span);
-	legacy_uint duration = barrel_ticks(parameters.duration, repair->span);
-	legacy_uint counter_begin = begin + duration + barrel_ticks(parameters.gap, repair->span);
-	legacy_uint counter_end = counter_begin + barrel_ticks(parameters.counter, repair->span);
-	legacy_uint pedal_begin = barrel_ticks(parameters.pedal_begin, repair->span);
-	legacy_uint pedal_end = pedal_begin + barrel_ticks(parameters.pedal_duration, repair->span);
 	const struct GENGHOST_WAYPOINT *entry = &route->points[repair->first];
 	const struct GENGHOST_WAYPOINT *lip = &route->points[repair->last];
 	const struct GENGHOST_WAYPOINT *receiver = &route->points[repair->last + 1U];
@@ -464,23 +277,9 @@ legacy_int extended_genghost_search_barrel_repair(
 											   options->collision, options->owoot);
 		if (!landing_frame && driver->barrel_waypoint == repair->first + 1U &&
 			driver->barrel_active >= 2U) {
-			legacy_u8 steering = parameters.side ? INPUT_STEER_RIGHT_FLAG : INPUT_STEER_LEFT_FLAG;
-			if (ticks >= begin && ticks < begin + duration) {
-				input = (legacy_u8)((input & ~(INPUT_STEER_LEFT_FLAG | INPUT_STEER_RIGHT_FLAG)) |
-									steering);
-			} else if (ticks >= counter_begin && ticks < counter_end) {
-				steering = parameters.side ? INPUT_STEER_LEFT_FLAG : INPUT_STEER_RIGHT_FLAG;
-				input = (legacy_u8)((input & ~(INPUT_STEER_LEFT_FLAG | INPUT_STEER_RIGHT_FLAG)) |
-									steering);
-			}
-			if (ticks >= pedal_begin && ticks < pedal_end) {
-				input = (legacy_u8)(input & ~(INPUT_ACCELERATE_FLAG | INPUT_BRAKE_FLAG));
-				if (parameters.pedal == 1U) {
-					input |= INPUT_BRAKE_FLAG;
-				} else if (parameters.pedal == 2U) {
-					input |= INPUT_ACCELERATE_FLAG;
-				}
-			}
+			struct EXTENDED_BARREL_INPUT pattern =
+				extended_barrel_search_input(&parameters, repair->span, ticks);
+			input = (legacy_u8)((input & ~pattern.mask) | pattern.value);
 			++ticks;
 		}
 		if (!landing_frame && parameters.air_brake && driver->barrel_active == 3U &&
@@ -560,7 +359,7 @@ legacy_int extended_genghost_search_barrel_repair(
 		driver->progress * BARREL_REPAIR_PROGRESS_WEIGHT - lateral * BARREL_REPAIR_LATERAL_WEIGHT -
 		height * BARREL_REPAIR_HEIGHT_WEIGHT - behind * BARREL_REPAIR_DISTANCE_WEIGHT +
 		survived * BARREL_REPAIR_SURVIVAL_WEIGHT;
-	barrel_insert(repair, &parameters, fitness);
+	extended_barrel_search_observe(&repair->search, &parameters, fitness);
 	return 1;
 }
 

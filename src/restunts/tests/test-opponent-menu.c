@@ -212,8 +212,13 @@ legacy_s16 sprite_blit_to_video(struct SPRITE *sprite, legacy_s16 mode)
 	return car_fixture_sprite_blit_to_video(sprite, mode);
 }
 
+#ifdef RESTUNTS_SDL3
+static const legacy_u8 previous_opponent[8] = {7, 7, 1, 2, 3, 4, 5, 6};
+static const legacy_u8 next_opponent[8] = {1, 2, 3, 4, 5, 6, 7, 1};
+#else
 static const legacy_u8 previous_opponent[7] = {6, 6, 1, 2, 3, 4, 5};
 static const legacy_u8 next_opponent[7] = {1, 2, 3, 4, 5, 6, 1};
+#endif
 static legacy_u16 opponent_keys[OPPONENT_TEST_EVENT_CAPACITY];
 static legacy_s16 opponent_hits[OPPONENT_TEST_EVENT_CAPACITY];
 static legacy_u8 expected_opponents[OPPONENT_TEST_EVENT_CAPACITY];
@@ -588,7 +593,7 @@ void sprite_draw_palette_mapped(struct SHAPE2D *shape)
 		opponent_ghost_fill_calls = 0;
 	}
 	assert(shape == &fixture_shapes[0] || shape == &fixture_shapes[1]);
-	assert((legacy_u8)gameconfig.game_opponenttype <= 6);
+	assert((legacy_u8)gameconfig.game_opponenttype <= OPPONENT_LAST);
 #ifdef RESTUNTS_SDL3
 	if (background_mapped_draws == OPPONENT_TEST_MAPPED_CLEAR) {
 		assert(shape == &fixture_shapes[0] && background_ready == 0);
@@ -626,7 +631,7 @@ void run_car_menu(legacy_s8 *id, legacy_s8 *material, legacy_s8 *transmission, l
 
 static void expect_load(legacy_u8 opponent)
 {
-	if (opponent != 0) {
+	if (opponent != 0 && opponent <= OPPONENT_LEGACY_LAST) {
 		assert(expected_load_count < OPPONENT_TEST_EVENT_CAPACITY);
 		expected_loads[expected_load_count++] = opponent;
 	}
@@ -744,11 +749,11 @@ static void test_return_to_clock(legacy_u8 page_flipping)
 	add_event(KEY_ENTER, 6); /* None unloads the existing opponent. */
 	add_event(KEY_LEFT, 0);
 	add_event(KEY_LEFT, 0);
-	add_event(KEY_ENTER, 0); /* Last after None must select the sixth opponent. */
-	expect_load(6);
-	add_event(KEY_RIGHT, 6);
-	add_event(KEY_RIGHT, 6);
-	add_event(KEY_ENTER, 6);
+	add_event(KEY_ENTER, 0); /* Last after None must select the final available opponent. */
+	expect_load(OPPONENT_LAST);
+	add_event(KEY_RIGHT, OPPONENT_LAST);
+	add_event(KEY_RIGHT, OPPONENT_LAST);
+	add_event(KEY_ENTER, OPPONENT_LAST);
 	add_event(KEY_RIGHT, 0); /* Clock -> Ghost -> Done. */
 	add_event(KEY_RIGHT, 0);
 	add_event(KEY_ENTER, 0);
@@ -791,7 +796,7 @@ static void test_clear_ghost(legacy_u8 page_flipping, legacy_u8 selection)
 	ghost_selected = 1;
 	add_event(KEY_ENTER, 0);
 	opponent_hits[event_count - 1] = selection;
-	legacy_u8 opponent = selection == 0 ? 6 : (selection == 1 ? 1 : 0);
+	legacy_u8 opponent = selection == 0 ? OPPONENT_LAST : (selection == 1 ? 1 : 0);
 	expect_load(opponent);
 	add_event(KEY_ENTER, opponent);
 	opponent_hits[event_count - 1] = 4;
@@ -906,10 +911,38 @@ static void test_renderer_toggle(legacy_u8 page_flipping, legacy_u8 opponent, le
 #endif
 }
 
+#ifdef RESTUNTS_SDL3
+static void test_unit_biography(legacy_u8 page_flipping)
+{
+	begin_case(OPPONENT_UNIT, page_flipping);
+	unit_biography_pages_seen = 0;
+	add_event(KEY_UP, OPPONENT_UNIT);
+	add_event(KEY_DOWN, OPPONENT_UNIT);
+	add_event(KEY_DOWN, OPPONENT_UNIT);
+	add_event(KEY_DOWN, OPPONENT_UNIT);
+	add_event(KEY_UP, OPPONENT_UNIT);
+	add_event(KEY_ESCAPE, OPPONENT_UNIT);
+	finish_case(OPPONENT_UNIT, 1);
+	assert(unit_biography_pages_seen == 7U);
+	assert(opponent_background_draws == 6U);
+	assert(load_count == 0);
+
+	begin_case(OPPONENT_UNIT, page_flipping);
+	add_event(KEY_ENTER, OPPONENT_UNIT);
+	opponent_hits[event_count - 1U] = 3;
+	add_event(KEY_ESCAPE, OPPONENT_UNIT);
+	finish_case(OPPONENT_UNIT, 2);
+	assert(car_menu_calls == 1 && load_count == 0);
+}
+#endif
+
 int main(void)
 {
 	for (legacy_u8 page_flipping = 0; page_flipping < 2; page_flipping++) {
-		for (legacy_u8 initial = 0; initial < 7; initial++) {
+#ifdef RESTUNTS_SDL3
+		test_unit_biography(page_flipping);
+#endif
+		for (legacy_u8 initial = 0; initial <= OPPONENT_LAST; initial++) {
 			for (legacy_u8 direction = 0; direction < 2; direction++) {
 				test_direction(initial, direction, 1, page_flipping);
 				test_direction(initial, direction, 19, page_flipping);

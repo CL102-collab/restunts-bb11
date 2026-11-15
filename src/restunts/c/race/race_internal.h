@@ -7,6 +7,7 @@
 #include "../renderer/race_view.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/race_presentation.h"
+legacy_s16 race_prepare_unit(void);
 #endif
 
 #define RACE_SCREEN_WIDTH 320

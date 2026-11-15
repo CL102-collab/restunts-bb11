@@ -2,9 +2,11 @@
 #include "cstrk.h"
 #include "extended_track.h"
 #include "../platform.h"
+#include "../externs.h"
 
 #include <stdlib.h>
 #include <string.h>
+#undef memcpy
 
 int extended_ghost_read(const legacy_s8 *path, struct EXTENDED_GHOST_REPLAY *out,
 						struct GAMEINFO *config)
@@ -46,6 +48,12 @@ int extended_ghost_read(const legacy_s8 *path, struct EXTENDED_GHOST_REPLAY *out
 		return 0;
 	}
 	const struct CSRPL_METADATA *metadata = &candidate.view.metadata;
+	if (metadata->opponent_type > CSRPL_CLASSIC_OPPONENT_LAST &&
+		(metadata->opponent_type != CSRPL_UNIT_OPPONENT_TYPE ||
+		 memcmp(metadata->opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE) != 0)) {
+		extended_ghost_free(&candidate);
+		return 0;
+	}
 	struct GAMEINFO next;
 	memset(&next, 0, sizeof(next));
 	memcpy(next.game_playercarid, metadata->player_car_id, REPLAY_CAR_ID_SIZE);
@@ -74,7 +82,14 @@ void extended_ghost_free(struct EXTENDED_GHOST_REPLAY *replay)
 
 int extended_ghost_matches_track(const struct EXTENDED_GHOST_REPLAY *replay)
 {
-	if (!replay->bytes || !extended_track_active()) {
+	if (!replay->bytes) {
+		return 0;
+	}
+	if ((replay->view.metadata.flags & CSRPL_FLAG_CLASSIC_TRACK) != 0U) {
+		return !extended_track_active() && replay->view.track_size == REPLAY_TRACK_SIZE &&
+			   memcmp(replay->view.track_data, track_element_map, REPLAY_TRACK_SIZE) == 0;
+	}
+	if (!extended_track_active()) {
 		return 0;
 	}
 	uint8_t *data = NULL;

@@ -88,6 +88,9 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 }
 #endif
 #ifdef EXTENDED_TEST_GHOST_STUBS
+void unit_opponent_stop(void)
+{
+}
 void file_warn_replay_version(legacy_u16 version)
 {
 	(void)version;
@@ -175,6 +178,10 @@ void extended_replay_set_input_frame(uint32_t frame)
 void extended_replay_runtime_begin(void)
 {
 	assert(!"Unexpected extended recording");
+}
+void extended_replay_set_classic_track(legacy_int classic)
+{
+	(void)classic;
 }
 void extended_replay_runtime_clear(void)
 {

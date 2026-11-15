@@ -25,6 +25,7 @@
 #include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/showroom.h"
+#include "../opponent/unit_opponent_assets.h"
 #endif
 
 #define GAME_RESOURCE_FILE_INDEX 2
@@ -170,7 +171,12 @@ static void car_menu_initialize(struct CAR_MENU_STATE *menu)
 	if (menu->opponent_type != CAR_MENU_PLAYER_MODE) {
 		car_menu_redraw_cliprect.right = CAR_MENU_OPPONENT_PANEL_RIGHT;
 		if (video_uses_page_flipping != 0) {
+#ifdef RESTUNTS_SDL3
+			opponent_shape =
+				unit_opponent_menu_portrait((legacy_u8)menu->opponent_type, oppresources);
+#else
 			opponent_shape = (struct SHAPE2D far *)oppresources[(legacy_u16)menu->opponent_type];
+#endif
 			/* Preserve resource access order independently of argument evaluation. */
 			legacy_u16 height = shape2d_get_height(opponent_shape);
 			legacy_u16 width = shape2d_get_width(opponent_shape);
@@ -416,7 +422,11 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 			if (video_uses_page_flipping == 0) {
 				shape2d_select_ega_palette(opp_res, (legacy_u8)menu->opponent_type);
 				sprite_putimage_transparent(
+#ifdef RESTUNTS_SDL3
+					unit_opponent_menu_portrait((legacy_u8)menu->opponent_type, oppresources),
+#else
 					(struct SHAPE2D far *)oppresources[(legacy_u16)menu->opponent_type],
+#endif
 					CAR_MENU_OPPONENT_PANEL_X, 0);
 			} else {
 				sprite_copy_image_at(menu->opponent_sprite->sprite_bitmapptr,

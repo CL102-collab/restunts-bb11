@@ -598,14 +598,26 @@ static void test_roll_completion_and_checkpoint_state(void)
 {
 	struct CARSTATE car = roll_fixture_car();
 	assert(extended_owoot_barrel_roll_complete(&car) == 0);
+	assert(extended_owoot_barrel_progress(&car, car.car_route_index) == 0);
 	roll_fixture_arm(&car);
+	legacy_s16 source = car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] - 1;
+	assert(extended_owoot_barrel_progress(&car, source) == 0);
 	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	struct CARSTATE before_feedback = car;
+	assert(extended_owoot_barrel_progress(&car, source) == ANGLE_QUARTER_TURN);
+	assert(extended_owoot_barrel_progress(&car, source + 1) == 0);
+	assert(extended_owoot_barrel_progress(&car, -1) == 0);
+	assert(extended_owoot_barrel_progress(&car, track_pieces_counter) == 0);
+	assert(extended_owoot_barrel_progress(0, source) == 0);
+	assert(memcmp(&car, &before_feedback, sizeof(car)) == 0);
 	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(extended_owoot_barrel_progress(&car, source) == ANGLE_HALF_TURN);
 	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	struct CARSTATE checkpoint = car;
 	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
 	assert(roll_fixture_air(&car, 0) == 1);
 	assert(extended_owoot_barrel_roll_complete(&car) == 1);
+	assert(extended_owoot_barrel_progress(&car, source) == ANGLE_FULL_TURN);
 	struct CARSTATE tilted = car;
 	assert(roll_fixture_land(&tilted, TEST_CAR_ROLL) == 0);
 	/* The first tire may touch while the completed roll still leans, then
@@ -624,6 +636,7 @@ static void test_roll_completion_and_checkpoint_state(void)
 	assert(roll_fixture_land(&car, 0) == 0);
 	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
 	assert(extended_owoot_barrel_roll_complete(&car) == 0);
+	assert(extended_owoot_barrel_progress(&car, source) == 0);
 	/* Validation progress belongs to the copied car, rather than a global
 	 * phase that could be lost or borrowed during replay seeking. */
 	struct CARSTATE other = roll_fixture_car();

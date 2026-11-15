@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../genghost/simulation.h"
+#include "../genghost/extended_simulation.h"
 #include "../genghost/routes.h"
 #include "../genghost/search.h"
 #include "../c/externs.h"
@@ -16,6 +17,7 @@
 #include "../c/crash_state.h"
 #include "../c/physics/physics_internal.h"
 #include "../c/extended/roll_ramp.h"
+#include "../c/opponent/unit_opponent_internal.h"
 
 #undef memcpy
 #undef strlen
@@ -35,7 +37,9 @@
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
 	 2U * CSTRK_MAX_OBJECTS + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS + CSTRK_MAX_NOTES +            \
 	 CSTRK_CUSTOM_HORIZON_TRAILER_MAX_SIZE)
-#define EXTENDED_TEST_MAX_SOURCE (CSRPL_HEADER_SIZE + EXTENDED_TEST_MAX_TRACK + GENGHOST_MAX_FRAMES)
+#define EXTENDED_TEST_MAX_SOURCE                                                                   \
+	(CSRPL_HEADER_SIZE + EXTENDED_TEST_MAX_TRACK +                                                 \
+	 GENGHOST_MAX_FRAMES * (1U + CSRPL_OPPONENT_COMMAND_SIZE))
 
 static legacy_u8 *read_source(const legacy_char *path, legacy_uint *size)
 {
@@ -75,7 +79,7 @@ static void initialize_replay(const struct CSRPL_VIEW *view, const legacy_char *
 		arguments[count++] = (legacy_char *)"--owoot";
 	}
 	genghost_sim_set_frame_rate(view->metadata.frames_per_second);
-	genghost_sim_set_replay_metadata(&view->metadata);
+	extended_genghost_sim_set_replay(view);
 	assert(genghost_sim_init_track(view->track_data, (legacy_uint)view->track_size,
 								   (const legacy_char *)view->metadata.player_car_id,
 								   view->metadata.player_transmission, count, arguments) == 0);
@@ -182,6 +186,9 @@ struct EXTENDED_TEST_ROLL {
 static void initialize_roll(struct EXTENDED_TEST_ROLL *roll)
 {
 	memset(roll, 0, sizeof(*roll));
+	if (!extended_track_active()) {
+		return;
+	}
 	const struct CSTRK_TRACK *track = extended_track_model();
 	for (legacy_u32 index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
@@ -254,6 +261,9 @@ static void sample_roll(struct EXTENDED_TEST_ROLL *roll)
 
 static legacy_u16 checkpoint_passed_count(legacy_u16 id)
 {
+	if (!extended_track_active()) {
+		return 0;
+	}
 	const struct CSTRK_TRACK *track = extended_track_model();
 	legacy_u16 count = 0;
 	for (legacy_u32 index = 0; index < track->object_count; index++) {
@@ -277,14 +287,25 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 	legacy_u8 captured_checkpoint = 0;
 	const struct CSTRK_TRACK *track = extended_track_model();
 	legacy_u8 has_checkpoints = 0;
-	for (legacy_u32 index = 0; index < track->object_count; index++) {
+	legacy_u8 recorded_opponent = replay.metadata.opponent_type > CSRPL_CLASSIC_OPPONENT_LAST;
+	if (recorded_opponent) {
+		assert(extended_replay_opponent_command_count() == replay.metadata.frame_count);
+		assert(memcmp(extended_replay_opponent_commands(), replay.opponent_commands,
+					  (size_t)replay.metadata.frame_count * CSRPL_OPPONENT_COMMAND_SIZE) == 0);
+	}
+	assert(extended_track_active() == !(replay.metadata.flags & CSRPL_FLAG_CLASSIC_TRACK));
+	for (legacy_u32 index = 0; extended_track_active() && index < track->object_count; index++) {
 		has_checkpoints |= cstrk_is_checkpoint(track->objects[index].legacy_id);
 	}
 	struct GENGHOST_SNAPSHOT checkpoint, expected, restored;
 	for (legacy_uint frame = 0; frame < replay.metadata.frame_count; frame++) {
-		if (has_checkpoints && !captured_checkpoint) {
+		if ((has_checkpoints && !captured_checkpoint) ||
+			(recorded_opponent && frame == replay.metadata.frame_count / 2U)) {
 			genghost_sim_capture(&checkpoint);
 			checkpoint_frame = frame;
+			if (recorded_opponent) {
+				captured_checkpoint = 1;
+			}
 		}
 		assert(genghost_sim_step(replay.inputs[frame]) >= 0);
 		if (has_checkpoints && (checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID) ||
@@ -301,7 +322,7 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 			maximum_z = state.playerstate.car_position.lz;
 		}
 	}
-	if (has_checkpoints) {
+	if (has_checkpoints || recorded_opponent) {
 		assert(captured_checkpoint);
 		genghost_sim_capture(&expected);
 		genghost_sim_restore(&checkpoint);
@@ -317,7 +338,8 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 		   "\"penalty_frames\":%u,\"total_frames\":%u,\"frames_per_second\":%u,"
 		   "\"maximum_x\":%d,\"maximum_z\":%d,\"barrel_present\":%s,"
 		   "\"barrel_complete\":%s,\"airborne_roll\":%d,\"blue_passed\":%u,\"red_passed\":%u,"
-		   "\"shared_passed\":%u}\n",
+		   "\"shared_passed\":%u,\"opponent_x\":%d,\"opponent_z\":%d,"
+		   "\"classic_track\":%s}\n",
 		   result.frames, result.finished ? "true" : "false", result.crashed ? "true" : "false",
 		   result.finish_frame, result.penalty_frames, result.total_frames,
 		   genghost_sim_frame_rate(), (legacy_int)(maximum_x / EXTENDED_TEST_POSITION_SCALE),
@@ -325,7 +347,37 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 		   roll.complete ? "true" : "false", (legacy_int)roll.maximum,
 		   checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID),
 		   checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID),
-		   checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID));
+		   checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID),
+		   (legacy_int)state.opponentstate.car_position.lx,
+		   (legacy_int)state.opponentstate.car_position.lz,
+		   extended_track_active() ? "false" : "true");
+}
+
+/* Author fixed-pedal fixtures through the native simulation. Route provenance
+ * is an observed physical cursor and cannot be a constant fabricated pair. */
+static void record_unit_fixture(const legacy_u8 *bytes, legacy_uint size, const legacy_char *output,
+								const legacy_char *program)
+{
+	struct CSRPL_VIEW replay;
+	assert(csrpl_decode(bytes, size, &replay, NULL, 0));
+	assert(replay.metadata.opponent_type == CSRPL_UNIT_OPPONENT_TYPE);
+	initialize_replay(&replay, program);
+	struct UNIT_ROUTE route = {0};
+	assert(unit_route_build(&route));
+	for (legacy_u32 frame = 0; frame < replay.metadata.frame_count; frame++) {
+		struct CSRPL_OPPONENT_COMMAND command;
+		csrpl_opponent_command_read(
+			replay.opponent_commands + (size_t)frame * CSRPL_OPPONENT_COMMAND_SIZE, &command);
+		const struct CARSTATE *car = &state.opponentstate;
+		legacy_u32 cursor = unit_route_advance(&route, car, unit_route_cursor(&route, car));
+		command.route_index = route.points[cursor].route_index;
+		command.route_point = route.points[cursor].route_point;
+		assert(extended_replay_record_opponent_command(frame, &command));
+		assert(genghost_sim_step(replay.inputs[frame]) >= 0);
+	}
+	assert(genghost_sim_write_replay(output, "UNIT", replay.inputs, replay.metadata.frame_count) ==
+		   0);
+	unit_route_free(&route);
 }
 
 static legacy_int budget_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
@@ -394,6 +446,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 						   strcmp((const legacy_char *)argv[1], "--snapshot10") == 0
 							   ? GAME_FRAME_RATE_LOW
 							   : GAME_FRAME_RATE_NORMAL);
+	} else if (strcmp((const legacy_char *)argv[1], "--unit-record") == 0) {
+		assert(argc == 4);
+		record_unit_fixture(source, size, (const legacy_char *)argv[3],
+							(const legacy_char *)argv[0]);
 	} else if (strcmp((const legacy_char *)argv[1], "--barrel-budget") == 0) {
 		assert(argc == 3);
 		test_barrel_search_budget(source, size, (const legacy_char *)argv[0]);

@@ -988,7 +988,12 @@ int main(void)
 {
 	test_opponent_navigation();
 	test_track_navigation();
+#ifdef RESTUNTS_SDL3
+	/* SDL3 navigation now cycles through UNIT and avoids original-resource loads for it. */
+	assert(trace_hash == UINT64_C(0x520b9398798d3df0));
+#else
 	assert(trace_hash == UINT64_C(0xf466790d466a90a8));
+#endif
 	test_ghost_track_changes();
 	test_track_renderer_toggle();
 #ifdef RESTUNTS_SDL3

@@ -4,10 +4,10 @@
 #include "simulation.h"
 
 void extended_genghost_sim_set_metadata(const struct CSRPL_METADATA *metadata);
+/* Borrow the source through initialization; runtime loading copies both streams. */
+void extended_genghost_sim_set_replay(const struct CSRPL_VIEW *replay);
 legacy_uint extended_genghost_sim_frame(void);
 legacy_uint extended_genghost_sim_frame_limit(void);
-void extended_genghost_sim_capture(struct GENGHOST_SNAPSHOT *saved);
-void extended_genghost_sim_restore(const struct GENGHOST_SNAPSHOT *saved);
 legacy_int extended_genghost_sim_load(const legacy_u8 *track, legacy_uint track_size,
 									  legacy_int *handled);
 void extended_genghost_sim_configure(void);

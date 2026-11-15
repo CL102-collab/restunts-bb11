@@ -31,6 +31,10 @@
 #define SCREENSHOT_LAST_NUMBER 9999U
 #define SCREENSHOT_NAME_FORMAT "SHOT%04u.PNG"
 #define SCREENSHOT_NAME_CAPACITY sizeof("SHOT0000.PNG")
+#define PLANNING_BAR_WIDTH_PERCENT 30
+#define PLANNING_BAR_PERCENT_SCALE 100
+#define PLANNING_BAR_HEIGHT 100
+#define PLANNING_BAR_BLUE 170
 
 struct PRESENTATION_PAGE {
 	legacy_u32 *pixels;
@@ -60,6 +64,71 @@ static legacy_u8 drawing_frame;
 static legacy_u8 adaptive_frame;
 static legacy_u8 measured_frame;
 static legacy_u64 render_frame_started;
+static legacy_u32 planning_elapsed_ms;
+static legacy_u32 planning_duration_ms;
+
+void sdl3_video_planning_progress(legacy_u32 elapsed_ms, legacy_u32 duration_ms)
+{
+	planning_elapsed_ms = SDL_min(elapsed_ms, duration_ms);
+	planning_duration_ms = duration_ms;
+	if (window == NULL || duration_ms == 0) {
+		return;
+	}
+	if (surface_output) {
+		SDL_Surface *surface = SDL_GetWindowSurface(window);
+		if (surface == NULL) {
+			return;
+		}
+		legacy_int width = surface->w * PLANNING_BAR_WIDTH_PERCENT / PLANNING_BAR_PERCENT_SCALE;
+		legacy_int height = SDL_min(surface->h, PLANNING_BAR_HEIGHT);
+		SDL_Rect fill = {(surface->w - width) / 2, (surface->h - height) / 2,
+						 (legacy_int)((legacy_u64)width * planning_elapsed_ms / duration_ms),
+						 height};
+		SDL_FillSurfaceRect(surface, NULL, SDL_MapSurfaceRGB(surface, 0, 0, 0));
+		SDL_FillSurfaceRect(surface, &fill, SDL_MapSurfaceRGB(surface, 0, 0, PLANNING_BAR_BLUE));
+		SDL_UpdateWindowSurface(window);
+	} else if (renderer != NULL) {
+		legacy_int logical_w, logical_h, output_w, output_h;
+		legacy_f32 scale_x, scale_y;
+		legacy_u8 red, green, blue, alpha;
+		SDL_RendererLogicalPresentation presentation;
+		SDL_BlendMode blend;
+		SDL_Rect viewport, clip;
+		legacy_u8 viewport_set = SDL_RenderViewportSet(renderer);
+		legacy_u8 clip_set = SDL_RenderClipEnabled(renderer);
+		SDL_GetRenderLogicalPresentation(renderer, &logical_w, &logical_h, &presentation);
+		SDL_GetRenderScale(renderer, &scale_x, &scale_y);
+		SDL_GetRenderViewport(renderer, &viewport);
+		SDL_GetRenderClipRect(renderer, &clip);
+		SDL_GetRenderDrawColor(renderer, &red, &green, &blue, &alpha);
+		SDL_GetRenderDrawBlendMode(renderer, &blend);
+		SDL_SetRenderLogicalPresentation(renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
+		SDL_SetRenderScale(renderer, 1, 1);
+		SDL_SetRenderViewport(renderer, NULL);
+		SDL_SetRenderClipRect(renderer, NULL);
+		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+		if (SDL_GetCurrentRenderOutputSize(renderer, &output_w, &output_h)) {
+			legacy_f32 width =
+				(legacy_f32)output_w * PLANNING_BAR_WIDTH_PERCENT / PLANNING_BAR_PERCENT_SCALE;
+			legacy_f32 height = (legacy_f32)SDL_min(output_h, PLANNING_BAR_HEIGHT);
+			SDL_FRect fill = {
+				((legacy_f32)output_w - width) / 2, ((legacy_f32)output_h - height) / 2,
+				width * (legacy_f32)planning_elapsed_ms / (legacy_f32)duration_ms, height};
+			SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+			SDL_RenderClear(renderer);
+			SDL_SetRenderDrawColor(renderer, 0, 0, PLANNING_BAR_BLUE, SDL_ALPHA_OPAQUE);
+			SDL_RenderFillRect(renderer, &fill);
+			SDL_RenderPresent(renderer);
+		}
+		SDL_SetRenderLogicalPresentation(renderer, logical_w, logical_h, presentation);
+		SDL_SetRenderScale(renderer, scale_x, scale_y);
+		SDL_SetRenderViewport(renderer, viewport_set ? &viewport : NULL);
+		SDL_SetRenderClipRect(renderer, clip_set ? &clip : NULL);
+		SDL_SetRenderDrawBlendMode(renderer, blend);
+		SDL_SetRenderDrawColor(renderer, red, green, blue, alpha);
+	}
+	last_present = SDL_GetTicks();
+}
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 static legacy_u8 startup_fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
 
@@ -471,6 +540,10 @@ static void present_texture(legacy_u8 new_frame)
 
 void sdl3_video_present(void)
 {
+	if (planning_duration_ms != 0) {
+		sdl3_video_planning_progress(planning_elapsed_ms, planning_duration_ms);
+		return;
+	}
 	if (window == NULL || drawing_frame) {
 		return;
 	}
@@ -509,6 +582,10 @@ void sdl3_video_present(void)
 
 void sdl3_video_redraw(void)
 {
+	if (planning_duration_ms != 0) {
+		sdl3_video_planning_progress(planning_elapsed_ms, planning_duration_ms);
+		return;
+	}
 	if (window == NULL) {
 		return;
 	}

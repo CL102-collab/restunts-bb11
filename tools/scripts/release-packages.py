@@ -138,6 +138,7 @@ ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LI
 ANDROID_DEX_PATTERN = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex")
 ANDROID_SIGNATURE_PATTERN = re.compile(r"META-INF/[A-Za-z0-9_-]+\.(?:SF|RSA|DSA|EC)")
 ANDROID_ASSET_METADATA = {"assets/menus/manifest.json", "assets/opponents/game/manifest.json",
+                          "assets/opponents/game/unit-manifest.json",
                           "assets/skyboxes/manifest.json", "assets/music/README.md"}
 ANDROID_RESOURCES = {"res/drawable/ic_launcher_foreground.xml", "res/drawable/tv_banner.xml",
                      "res/mipmap-anydpi-v26/ic_launcher.xml"}
@@ -223,7 +224,7 @@ WASM_AUDIO_SERIAL_LIBRARIES = ("librestunts_game.a", "librestunts_webm.a", "libS
 CMAKE_FALSE_VALUES = {"", "0", "OFF", "NO", "FALSE", "N", "IGNORE", "NOTFOUND"}
 SKYBOX_THEMES = ("desert", "tropical", "alpine", "city", "country")
 SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
-OPPONENT_COUNT = 6
+OPPONENT_COUNT = 7
 MENU_BACKGROUNDS = ("main", "showroom", "opponent")
 MUSIC_TRACKS = ("titl", "slct", "over", "vict")
 CLASSIC_CUSTOM_CAR_FILES = ("CARMCMU.RES", "CARTERR.RES", "STMCMU.3SH", "STTERR.3SH",

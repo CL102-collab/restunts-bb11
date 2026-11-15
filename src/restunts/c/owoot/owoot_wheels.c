@@ -4,6 +4,7 @@
 #include "../fileio.h"
 #include "../memmgr.h"
 #include "../fatal.h"
+#include "../opponent/opponent.h"
 
 #define OWOOT_FIRST_WHEEL_VERTEX 8U
 #define OWOOT_WHEEL_CONTROL_COUNT 6U
@@ -15,9 +16,20 @@
 /* Preserve the unsteered model, independently of the renderer's mutable copy.
  * Each wheel has two circles, each specified by a centre and two radii. */
 static struct VECTOR wheel_controls[CARSTATE_WHEEL_COUNT][OWOOT_WHEEL_CONTROL_COUNT];
+#ifdef RESTUNTS_SDL3
+static struct VECTOR opponent_wheel_controls[CARSTATE_WHEEL_COUNT][OWOOT_WHEEL_CONTROL_COUNT];
+#endif
 
-void owoot_read_wheel_shape(const legacy_u8 far *shape)
+static void owoot_read_car_wheel_shape(const legacy_u8 far *shape, legacy_u16 car_index)
 {
+	struct VECTOR(*target_controls)[OWOOT_WHEEL_CONTROL_COUNT] = wheel_controls;
+#ifdef RESTUNTS_SDL3
+	if (car_index == OPPONENT_CAR_INDEX) {
+		target_controls = opponent_wheel_controls;
+	}
+#else
+	(void)car_index;
+#endif
 	if (!owoot_enabled) {
 		return;
 	}
@@ -31,33 +43,56 @@ void owoot_read_wheel_shape(const legacy_u8 far *shape)
 		for (legacy_u16 point = 0; point < OWOOT_WHEEL_CONTROL_COUNT; point++) {
 			legacy_u16 index = OWOOT_FIRST_WHEEL_VERTEX + wheel * OWOOT_WHEEL_CONTROL_COUNT + point;
 			const legacy_u8 far *vertex = shape + SHAPE3D_HEADER_SIZE + index * SHAPE3D_VERTEX_SIZE;
-			wheel_controls[wheel][point].x = LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(vertex));
-			wheel_controls[wheel][point].y =
+			target_controls[wheel][point].x = LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(vertex));
+			target_controls[wheel][point].y =
 				LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(vertex + SHAPE3D_VERTEX_Y_OFFSET));
-			wheel_controls[wheel][point].z =
+			target_controls[wheel][point].z =
 				LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(vertex + SHAPE3D_VERTEX_Z_OFFSET));
 		}
 	}
 }
 
+void owoot_read_wheel_shape(const legacy_u8 far *shape)
+{
+	owoot_read_car_wheel_shape(shape, PLAYER_CAR_INDEX);
+}
+
 /* Physics dumps do not load car graphics. Load just long enough to retain the
  * same wheel controls as the game, including custom cars. */
-void owoot_load_player_wheels(void)
+static void owoot_load_car_wheels(const legacy_s8 car_id[REPLAY_CAR_ID_SIZE], legacy_u16 car_index)
 {
 	if (!owoot_enabled) {
 		return;
 	}
 	legacy_s8 filename[] = "stxxxx.p3s";
 	for (legacy_u16 index = 0; index < REPLAY_CAR_ID_SIZE; index++) {
-		filename[index + OWOOT_RESOURCE_ID_OFFSET] = gameconfig.game_playercarid[index];
+		filename[index + OWOOT_RESOURCE_ID_OFFSET] = car_id[index];
 	}
 	void far *resource = file_decomp_nofatal(filename);
 	if (resource == 0) {
 		strcpy(filename + OWOOT_RESOURCE_EXTENSION_OFFSET, "3sh");
 		resource = file_load_binary_fatal(filename);
 	}
-	owoot_read_wheel_shape((const legacy_u8 far *)locate_shape_fatal(resource, "car1"));
+	owoot_read_car_wheel_shape((const legacy_u8 far *)locate_shape_fatal(resource, "car1"),
+							   car_index);
 	mmgr_free(resource);
+}
+
+#ifdef RESTUNTS_SDL3
+void owoot_load_opponent_wheels(void)
+{
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		owoot_load_car_wheels(gameconfig.game_opponentcarid, OPPONENT_CAR_INDEX);
+	}
+}
+#endif
+
+void owoot_load_player_wheels(void)
+{
+	owoot_load_car_wheels(gameconfig.game_playercarid, PLAYER_CAR_INDEX);
+#ifdef RESTUNTS_SDL3
+	owoot_load_opponent_wheels();
+#endif
 }
 
 /* The renderer uses sixteen points with these Q14 coefficients, rather than
@@ -81,18 +116,24 @@ static legacy_s16 ring_coordinate(legacy_s16 center, legacy_s16 first, legacy_s1
 legacy_u16 owoot_wheel_footprint(const struct CARSTATE *car, legacy_u16 wheel,
 								 struct VECTOR output[OWOOT_WHEEL_VERTEX_COUNT])
 {
+	const struct VECTOR(*source_controls)[OWOOT_WHEEL_CONTROL_COUNT] = wheel_controls;
+#ifdef RESTUNTS_SDL3
+	if (car == &state.opponentstate && (legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		source_controls = opponent_wheel_controls;
+	}
+#endif
 	struct MATRIX rotation = *mat_rot_zxy(-car->car_rotate.z, -car->car_rotate.y,
 										  -car->car_rotate.x, MATRIX_ROTATION_ORDER_ZXY);
 	legacy_s16 sine = sin_fast(LEGACY_S16_SAR(car->car_steeringAngle, 1U));
 	legacy_s16 cosine = cos_fast(LEGACY_S16_SAR(car->car_steeringAngle, 1U));
 	struct VECTOR controls[OWOOT_WHEEL_CONTROL_COUNT];
-	legacy_s16 center_x =
-		LEGACY_S16_SAR(LEGACY_S16_WRAP_ADD(wheel_controls[wheel][0].x,
-										   wheel_controls[wheel][SHAPE3D_WHEEL_RIM_VERTEX_COUNT].x),
-					   1U);
-	legacy_s16 center_z = wheel_controls[wheel][0].z;
+	legacy_s16 center_x = LEGACY_S16_SAR(
+		LEGACY_S16_WRAP_ADD(source_controls[wheel][0].x,
+							source_controls[wheel][SHAPE3D_WHEEL_RIM_VERTEX_COUNT].x),
+		1U);
+	legacy_s16 center_z = source_controls[wheel][0].z;
 	for (legacy_u16 point = 0; point < OWOOT_WHEEL_CONTROL_COUNT; point++) {
-		controls[point] = wheel_controls[wheel][point];
+		controls[point] = source_controls[wheel][point];
 		if (wheel < OWOOT_STEERED_WHEEL_COUNT && car->car_steeringAngle != CAR_STEERING_CENTERED) {
 			/* Match shape3d_steer_car_wheel_vertices: its cached control
 			 * offsets are centre-minus-vertex, and both sine terms add.

@@ -238,6 +238,14 @@ set(common_sources
     gameinit.c gamestep.c simd.c car/carsetup.c
     trkutil.c track/trackres.c headless/headless_data.c headless/headless_trackdata.c
     state.c race/race_route.c physics/physics_grip.c opponent/opponent.c
+    opponent/unit_opponent.c opponent/unit_launch.c opponent/unit_profiles.c
+    extended/extended_unit_route.c
+    opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_collision.c
+    opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
+    extended/extended_unit_checkpoint.c extended/extended_physics_snapshot.c
+    extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_trace.c
+    opponent/unit_pilot_candidates.c opponent/unit_pilot_controls.c opponent/unit_pilot_pulses.c
+    extended/extended_barrel_search.c
     track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c
     physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c
     track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c
@@ -264,6 +272,7 @@ set(game_sources
     replay/replay_record.c
     replay/replay_viewer.c replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c
     race/race.c race/race_rewind.c race/race_presentation.c ghost/ghost.c ghost/ghost_line.c
+    race/race_unit.c opponent/unit_opponent_assets.c
     extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
     extended/extended_race_stats.c extended/extended_ghost.c extended/extended_validation.c
     extended/extended_horizon.c extended/extended_horizon_skybox.c
@@ -583,6 +592,8 @@ foreach(opponent RANGE 1 6)
     endforeach()
 endforeach()
 set(skybox_themes desert tropical alpine city country)
+install(FILES "assets/opponents/game/opp7.png"
+    DESTINATION bin/${restunts_opponent_install_directory}/game COMPONENT Runtime)
 set(skybox_images scen sce2 sce3 sce4)
 foreach(theme RANGE 0 4)
     list(GET skybox_themes ${theme} theme_name)
@@ -603,6 +614,93 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
+    add_executable(test-unit-launch src/restunts/tests/test-unit-launch.c
+        ${core}/opponent/unit_launch.c)
+    target_compile_options(test-unit-launch PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-launch PRIVATE restunts_options)
+    add_test(NAME unit-launch COMMAND test-unit-launch)
+    add_executable(test-unit-collision src/restunts/tests/test-unit-collision.c
+        ${core}/opponent/unit_collision.c)
+    target_compile_definitions(test-unit-collision PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-unit-collision PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-collision PRIVATE m)
+    add_test(NAME unit-collision COMMAND test-unit-collision)
+    add_executable(test-unit-profiles src/restunts/tests/test-unit-profiles.c
+        ${core}/opponent/unit_profiles.c)
+    target_compile_definitions(test-unit-profiles PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-unit-profiles PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-profiles PRIVATE m)
+    add_test(NAME unit-profiles COMMAND test-unit-profiles)
+    add_executable(test-unit-pilot-controls src/restunts/tests/test-unit-pilot-controls.c
+        ${core}/opponent/unit_pilot_controls.c)
+    target_compile_options(test-unit-pilot-controls PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-pilot-controls PRIVATE restunts_options)
+    add_test(NAME unit-pilot-controls COMMAND test-unit-pilot-controls)
+    add_executable(test-extended-barrel-search src/restunts/tests/test-extended-barrel-search.c
+        ${core}/extended/extended_barrel_search.c)
+    target_compile_options(test-extended-barrel-search PRIVATE -UNDEBUG)
+    target_link_libraries(test-extended-barrel-search PRIVATE restunts_options)
+    add_test(NAME extended-barrel-search COMMAND test-extended-barrel-search)
+    add_executable(test-unit-pilot-pulses src/restunts/tests/test-unit-pilot-pulses.c
+        ${core}/opponent/unit_pilot_pulses.c ${core}/extended/extended_barrel_search.c)
+    target_compile_definitions(test-unit-pilot-pulses PRIVATE
+        RESTUNTS_SDL3 RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+    target_compile_options(test-unit-pilot-pulses PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-pilot-pulses PRIVATE m)
+    add_test(NAME unit-pilot-pulses COMMAND test-unit-pilot-pulses)
+    add_executable(test-unit-shortcut src/restunts/tests/test-unit-shortcut.c
+        ${core}/extended/extended_unit_shortcut.c)
+    target_compile_options(test-unit-shortcut PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-shortcut PRIVATE restunts_options)
+    add_test(NAME unit-shortcut COMMAND test-unit-shortcut)
+    add_executable(test-unit-route-graph src/restunts/tests/test-unit-route-graph.c
+        ${core}/opponent/unit_route_graph.c)
+    target_compile_options(test-unit-route-graph PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-route-graph PRIVATE restunts_options)
+    add_test(NAME unit-route-graph COMMAND test-unit-route-graph)
+    add_executable(test-unit-checkpoint src/restunts/tests/test-unit-checkpoint.c
+        ${core}/extended/extended_unit_checkpoint.c ${core}/extended/extended_checkpoint.c
+        ${core}/extended/extended_cstrk.c ${core}/extended/extended_cstrk_horizon.c)
+    target_link_libraries(test-unit-checkpoint PRIVATE restunts_options)
+    target_compile_options(test-unit-checkpoint PRIVATE -UNDEBUG)
+    add_test(NAME unit-checkpoint COMMAND test-unit-checkpoint)
+    add_executable(test-unit-pilot src/restunts/tests/test-unit-pilot.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_trace.c
+        ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
+        ${core}/extended/extended_barrel_search.c)
+    target_compile_definitions(test-unit-pilot PRIVATE RESTUNTS_SDL3)
+    target_include_directories(test-unit-pilot PRIVATE
+        $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_options(test-unit-pilot PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-pilot PRIVATE m)
+    add_test(NAME unit-pilot COMMAND test-unit-pilot)
+    add_executable(test-unit-pilot-continuation src/restunts/tests/test-unit-pilot-continuation.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_trace.c
+        ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
+        ${core}/extended/extended_barrel_search.c)
+    target_compile_definitions(test-unit-pilot-continuation PRIVATE RESTUNTS_SDL3)
+    target_include_directories(test-unit-pilot-continuation PRIVATE
+        $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_options(test-unit-pilot-continuation PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-pilot-continuation PRIVATE m)
+    add_test(NAME unit-pilot-continuation COMMAND test-unit-pilot-continuation)
+    foreach(unit_planner_variant threaded sync)
+        add_executable(test-unit-planner-${unit_planner_variant}
+            src/restunts/tests/test-unit-planner.c
+            ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_math.c)
+        target_link_libraries(test-unit-planner-${unit_planner_variant} PRIVATE restunts_options)
+        target_compile_options(test-unit-planner-${unit_planner_variant} PRIVATE -UNDEBUG)
+        if(unit_planner_variant STREQUAL "sync")
+            target_compile_definitions(test-unit-planner-sync PRIVATE RESTUNTS_UNIT_SYNC_ONLY)
+        endif()
+        add_test(NAME unit-planner-${unit_planner_variant}
+            COMMAND test-unit-planner-${unit_planner_variant})
+    endforeach()
+    add_executable(test-unit-opponent-assets src/restunts/tests/test-unit-opponent-assets.c
+        ${core}/opponent/unit_opponent_assets.c)
+    target_link_libraries(test-unit-opponent-assets PRIVATE restunts_options)
+    target_compile_options(test-unit-opponent-assets PRIVATE -UNDEBUG)
+    add_test(NAME unit-opponent-assets COMMAND test-unit-opponent-assets)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         add_executable(test-audio-resources-worker src/restunts/tests/test-audio-resources-worker.c
             ${platform}/memory.c ${platform}/audio_resources_worker.c)
@@ -887,6 +985,16 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-penalty-routing PRIVATE -UNDEBUG ${restunts_test_section_options})
         target_link_options(test-penalty-routing PRIVATE ${restunts_test_gc_sections})
         add_test(NAME penalty-routing COMMAND test-penalty-routing)
+        add_executable(test-unit-penalty src/restunts/tests/test-unit-penalty.c
+            ${core}/race/race_route.c ${core}/extended/extended_race_route.c
+            ${core}/extended/extended_unit_penalty.c ${core}/extended/extended_statecrs.c
+            ${core}/math/math.c ${core}/legacy.c ${core}/strlib.c)
+        target_link_libraries(test-unit-penalty PRIVATE restunts_options)
+        target_compile_definitions(test-unit-penalty PRIVATE RESTUNTS_SDL3 RESTUNTS_HEADLESS
+            RESTUNTS_EXTENDED_REPLAY)
+        target_compile_options(test-unit-penalty PRIVATE -UNDEBUG ${restunts_test_section_options})
+        target_link_options(test-unit-penalty PRIVATE ${restunts_test_gc_sections})
+        add_test(NAME unit-penalty COMMAND test-unit-penalty)
     endif()
     if(NOT CMAKE_CROSSCOMPILING)
         # Information switches must work without game files or a working data path.
@@ -1005,6 +1113,88 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
 endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    add_executable(test-unit-race ${common_sources} ${core}/headless/headless.c ${platform_common}
+        ${core}/extended/extended_replay_runtime.c ${platform}/main.c
+        src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
+        src/restunts/tests/test-unit-race.c)
+    target_compile_definitions(test-unit-race PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+    target_compile_options(test-unit-race PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-race PRIVATE restunts_options)
+    set(unit_race_fixture "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/flat-rectangle.trk")
+    set(unit_race_tests unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
+        unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoint-human
+        unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
+        unit-race-glacier-human unit-race-glacier-owoot-human)
+    add_test(NAME unit-race-prepared COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK" 7
+        --prepare-ms 10000 --planner-yield-ms 2
+        --verify-replay --require-finish --require-clean)
+    set_tests_properties(unit-race-prepared PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-glacier-sync COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
+        --prepare-ms 10000 --planner-sync --frames 18000
+        --verify-replay --require-finish --require-clean)
+    set_tests_properties(unit-race-glacier-sync PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-glacier-owoot-sync COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
+        --prepare-ms 10000 --planner-sync --frames 18000 --owoot:on
+        --verify-replay --require-finish --require-clean)
+    set_tests_properties(unit-race-glacier-owoot-sync PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-native-grid COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
+        --prepare-ms 10000 --planner-yield-ms 2 --frames 60 --human grid --owoot:on
+        --verify-replay --require-clean)
+    set_tests_properties(unit-race-native-grid PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-glacier-human COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
+        --prepare-ms 10000 --planner-yield-ms 2 --frames 18000 --human grid-then-park
+        --verify-replay --require-finish --require-clean --require-worker)
+    set_tests_properties(unit-race-glacier-human PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-glacier-owoot-human COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
+        --prepare-ms 10000 --planner-yield-ms 2 --frames 18000 --human grid-then-park --owoot:on
+        --verify-replay --require-finish --require-clean --require-worker)
+    set_tests_properties(unit-race-glacier-owoot-human PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-prepared-worker COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+        --prepare-ms 10000 --planner-yield-ms 2 --frames 180 --human accelerating
+        --verify-replay --require-clean --require-worker)
+    set_tests_properties(unit-race-prepared-worker PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-checkpoint-human COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/blue-checkpoints.cstrk" 7
+        --human stationary --verify-replay --require-finish --require-clean)
+    add_test(NAME unit-race-default COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK" 7
+        --verify-replay --require-finish --require-clean)
+    add_test(NAME unit-race-owoot COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+        --owoot:on --verify-replay --require-finish --require-clean)
+    add_test(NAME unit-race-10hz COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+        --frame-rate 10 --owoot:on --verify-replay --require-finish --require-clean)
+    foreach(unit_car ANSX LM02)
+        string(TOLOWER "${unit_car}" unit_car_lower)
+        add_test(NAME unit-race-${unit_car_lower} COMMAND test-unit-race
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+            --car "${unit_car}" --owoot:on --verify-replay --require-finish --require-clean)
+    endforeach()
+    add_test(NAME unit-race-manual COMMAND test-unit-race
+        --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+        --car AUDI --manual --owoot:on --verify-replay --require-finish --require-clean)
+    foreach(unit_human stationary accelerating crossing)
+        list(APPEND unit_race_tests unit-race-human-${unit_human})
+        add_test(NAME unit-race-human-${unit_human} COMMAND test-unit-race
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
+            --frames 180 --human "${unit_human}" --verify-replay --require-clean)
+    endforeach()
+    set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT 180
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(UNIX)
         add_executable(test-genghost-ipc src/restunts/tests/test-genghost-ipc.c)
         target_compile_options(test-genghost-ipc PRIVATE
@@ -1233,6 +1423,18 @@ if(RESTUNTS_BUILD_TESTS)
             RESTUNTS_NINHBINH_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/ninhbinh.cstrk")
         target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
         target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)
+        if(NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+            target_sources(test-extended-replay-engine PRIVATE
+                src/restunts/tests/test-unit-pilot-desktop.c)
+            target_compile_definitions(test-extended-replay-engine PRIVATE
+                RESTUNTS_TEST_UNIT_PILOT_DESKTOP)
+            target_link_options(test-extended-replay-engine PRIVATE
+                "LINKER:--wrap=unit_opponent_pilot_step"
+                "LINKER:--wrap=unit_opponent_pilot_wait_step"
+                "LINKER:--wrap=audio_play_car_events"
+                "LINKER:--wrap=audio_play_crash_and_stop_engine"
+                "LINKER:--wrap=audio_carstate")
+        endif()
         add_test(NAME extended-replay-engine COMMAND test-extended-replay-engine
             --data-dir "${CMAKE_SOURCE_DIR}/stunts")
         set_tests_properties(extended-replay-engine PROPERTIES

@@ -123,8 +123,9 @@ void extended_menu_load_startup_track(void)
 }
 void extended_menu_begin_track_recording(void)
 {
-	if (extended_track_active()) {
+	if (extended_track_active() || gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE) {
 		extended_replay_runtime_begin();
+		extended_replay_set_classic_track(!extended_track_active());
 	}
 }
 legacy_u8 extended_menu_horizon(legacy_u8 fallback)

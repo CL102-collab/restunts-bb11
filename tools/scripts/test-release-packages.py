@@ -768,7 +768,8 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertTrue(modes[name] & stat.S_IXUSR)
                 for required in ("lib/libnuked-opl2.so", "share/restunts/nuked-opl2-lite/opl2.c",
                                  "share/licenses/restunts/Nuked-OPL2-LICENSE",
-                                 "bin/opponents/game/opp6.png", "bin/skyboxes/sky4-3.png",
+                                 "bin/opponents/game/opp6.png", "bin/opponents/game/opp7.png",
+                                 "bin/skyboxes/sky4-3.png",
                                  "bin/menus/main.png", "bin/menus/showroom.png",
                                  "bin/menus/opponent.png"):
                     self.assertIn(required, files)
@@ -1019,7 +1020,7 @@ class ReleasePackageTests(unittest.TestCase):
             for missing in ("AndroidManifest.xml", "classes.dex", "res/drawable/tv_banner.xml",
                             "resources.arsc", "assets/licenses/Nuked-OPL2-LICENSE.txt",
                             "assets/skyboxes/city-sce2.png", "assets/menus/main.png",
-                            "assets/opponents/game/opp6.png"):
+                            "assets/opponents/game/opp6.png", "assets/opponents/game/opp7.png"):
                 with self.subTest(target=target, missing=missing), \
                         self.assertRaisesRegex(ValueError, "missing APK members"):
                     PACKAGES.validate_android_apk(target, self.apk_data(target, missing=(missing,)))
@@ -1115,6 +1116,16 @@ class ReleasePackageTests(unittest.TestCase):
                         apk.writestr(entry, FILE_DATA)
                 with self.subTest(target=target, name=name, mode=mode), self.assertRaisesRegex(ValueError, message):
                     PACKAGES.validate_android_genghost_apk(target, output.getvalue())
+
+    def test_android_apks_allow_unit_artwork_provenance(self):
+        name = "assets/opponents/game/unit-manifest.json"
+        for target in PACKAGES.ANDROID_TARGETS:
+            with self.subTest(target=target):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, {name: b"{}\n"}))
+        self.assertIn("bin/opponent/game/opp7.png", PACKAGES.required_files("dos32"))
+        for target in ("dos16", "amiga-m68k", "templeos"):
+            with self.subTest(target=target):
+                self.assertFalse(any("opp7.png" in name for name in PACKAGES.required_files(target)))
 
     def test_android_apks_allow_only_named_gradle_version_control_metadata(self):
         metadata = {"META-INF/version-control-info.textproto":
@@ -1352,7 +1363,8 @@ class ReleasePackageTests(unittest.TestCase):
     def test_missing_artwork_library_source_and_license_are_rejected(self):
         files = {name: self.runtime_data("windows-arm64", name) for name in PACKAGES.required_files("windows-arm64")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
-        for missing in ("bin/opponents/game/opp6.png", "bin/skyboxes/sky4-3.png",
+        for missing in ("bin/opponents/game/opp6.png", "bin/opponents/game/opp7.png",
+                        "bin/skyboxes/sky4-3.png",
                         "bin/menus/main.png", "bin/menus/showroom.png", "bin/menus/opponent.png",
                         "share/docs/restunts/genghost-state-planner.md",
                         "bin/nuked-opl2.dll", "share/restunts/nuked-opl2-lite/opl2.c",
@@ -1391,7 +1403,8 @@ class ReleasePackageTests(unittest.TestCase):
         for missing in ("share/restunts/wasm-relink/objects/main.c.o",
                         "share/restunts/wasm-relink/data/assets/menus/main.png",
                         "share/restunts/wasm-relink/data/assets/menus/showroom.png",
-                        "share/restunts/wasm-relink/data/assets/menus/opponent.png"):
+                        "share/restunts/wasm-relink/data/assets/menus/opponent.png",
+                        "share/restunts/wasm-relink/data/assets/opponents/game/opp7.png"):
             incomplete = files.copy()
             incomplete.pop(missing)
             with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):
