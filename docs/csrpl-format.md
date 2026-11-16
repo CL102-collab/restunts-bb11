@@ -92,7 +92,7 @@ is 32 bits, twice the original field's width.
 | 26 | 2 | Recorded driving-rule bitmask, described below |
 | 28 | 4 | Player car resource ID |
 | 32 | 1 | Player paint material |
-| 33 | 1 | Player transmission, automatic 0 or manual 1 |
+| 33 | 1 | Player transmission, manual 0 or automatic 1 |
 | 34 | 1 | Opponent number; 0 means none, 1–6 are original opponents, 7 is UNIT |
 | 35 | 4 | Opponent car resource ID |
 | 39 | 1 | Opponent paint material |

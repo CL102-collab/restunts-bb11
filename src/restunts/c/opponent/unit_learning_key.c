@@ -140,6 +140,10 @@ legacy_int unit_learning_key_current(const struct UNIT_ROUTE *route, struct UNIT
 		UNIT_LEARNING_FIELD(key, point, height_unspecified);
 		UNIT_LEARNING_FIELD(key, point, stunt);
 		UNIT_LEARNING_FIELD(key, point, banked_corner);
+		if (point->bank_support) {
+			unit_learning_key_u32(key, index);
+			UNIT_LEARNING_FIELD(key, point, bank_support);
+		}
 		UNIT_LEARNING_FIELD(key, point, clearance_only);
 		UNIT_LEARNING_FIELD(key, point, align_center);
 	}

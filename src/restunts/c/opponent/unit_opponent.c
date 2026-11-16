@@ -77,8 +77,13 @@ static legacy_u8 unit_learning_active;
 static void unit_learning_begin_session(void)
 {
 	unit_learning_stats = (struct UNIT_LEARNING_STATS){0};
-	unit_learning_active =
-		unit_learning_cache_enabled() && unit_learning_key_current(&unit_route, &unit_learning_key);
+	legacy_u32 frame =
+		extended_replay_is_active() ? extended_replay_frame() : (legacy_u16)state.game_frame;
+	/* Durable incumbents must start at the grid. Recovery or replay-branch
+	 * preparation must not save a late-race suffix as a complete learned lap. */
+	unit_learning_active = game_replay_mode == REPLAY_MODE_LIVE && frame == 0 &&
+						   unit_learning_cache_enabled() &&
+						   unit_learning_key_current(&unit_route, &unit_learning_key);
 	unit_learning_stats.enabled = unit_learning_active;
 	if (!unit_learning_active) {
 		return;

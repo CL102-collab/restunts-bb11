@@ -1,5 +1,6 @@
 #define _GNU_SOURCE 1
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,7 @@
 #include "../c/replay/replay_record.h"
 #include "../c/game_input.h"
 #include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/track/track_collision.h"
 #include "../c/crash_state.h"
 #include "../c/extended/cstrk.h"
@@ -28,6 +30,7 @@
 #include "../c/physics/physics_internal.h"
 #include "../c/extended/roll_ramp.h"
 #include "../c/opponent/opponent.h"
+#include "../c/opponent/unit_opponent_internal.h"
 
 #undef memcpy
 #undef printf
@@ -88,6 +91,10 @@ void test_unit_pilot_desktop(void);
 #define ENGINE_NINHBINH_OPPONENT_TYPE 6U
 #define ENGINE_NINHBINH_PARK_COLUMN 28U
 #define ENGINE_NINHBINH_PARK_ROW 87U
+#define ENGINE_UNIT_COVERED_BANK_FIRST 177
+#define ENGINE_UNIT_COVERED_BANK_LAST 178
+#define ENGINE_UNIT_COVERING_RAMP 179
+#define ENGINE_UNIT_STANDALONE_BANK 171
 
 enum ENGINE_OPPONENT_TERRAIN {
 	ENGINE_OPPONENT_FLAT,
@@ -433,6 +440,121 @@ static void test_extended_opponent_laps(void)
 		 "and 20 Hz.");
 }
 
+static void test_unit_bank_admission_flags(void)
+{
+	struct UNIT_ROUTE route = {0};
+	assert(unit_route_build(&route) && !route.classic_track);
+	legacy_u32 banks = 0, graded_banks = 0, unspecified_banks = 0;
+	legacy_u8 checked_margin = 0;
+	for (legacy_u32 index = 0; index < route.count; index++) {
+		const struct UNIT_ROUTE_POINT *point = &route.points[index];
+		legacy_s16 piece = point->route_index;
+		legacy_u8 id = (legacy_u8)track_route_element_ids[piece];
+		legacy_s16 model = trkObjectList[id].ss_physicalModel;
+		if (model < PHYSICAL_MODEL_BANKED_ENTRANCE_B || model > PHYSICAL_MODEL_BANKED_CORNER) {
+			continue;
+		}
+		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece], id);
+		assert(object);
+		banks++;
+		graded_banks += object->slope_x != 0 || object->slope_y != 0;
+		/* Admission safety must preserve ordinary bank solver roles and the
+		 * route-crossing geometry used by recorded opponent commands. */
+		assert(point->bank_support);
+		assert(point->stunt == UNIT_STUNT_NONE && !point->clearance_only);
+		if (!checked_margin && index) {
+			const struct UNIT_ROUTE_POINT *previous = &route.points[index - 1U];
+			legacy_f64 tx = point->x - previous->x, tz = point->z - previous->z;
+			legacy_f64 span = hypot(tx, tz);
+			assert(span > 0.0);
+			tx /= span;
+			tz /= span;
+			struct CARSTATE outside = {0};
+			legacy_f64 along = route.limits.half_length;
+			legacy_f64 lateral = point->half_width * 2.0;
+			outside.car_position.lx =
+				(legacy_s32)((point->x + along * tx - lateral * tz) * UNIT_POSITION_SCALE);
+			outside.car_position.ly = (legacy_s32)(point->y * UNIT_POSITION_SCALE);
+			outside.car_position.lz =
+				(legacy_s32)((point->z + along * tz + lateral * tx) * UNIT_POSITION_SCALE);
+			assert(unit_route_advance(&route, &outside, index) == index);
+			checked_margin = 1;
+		}
+		assert(point->speed_floor == 0.0 && !point->banked_corner);
+		struct CARSTATE native = {0};
+		get_track_route_point(piece, &native.car_route_target, (legacy_s16)point->route_point,
+							  NULL);
+		if (native.car_route_target.y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+			/* Approximate height must remain compatible with established native
+			 * approach snapshots; support comes from physics, not this estimate. */
+			assert(point->height_unspecified);
+			assert(point->y == extended_track_elevation((legacy_u8)track_route_columns[piece],
+														(legacy_u8)track_route_rows[piece],
+														TRACK_TILE_HALF_SIZE,
+														TRACK_TILE_HALF_SIZE));
+			unspecified_banks++;
+		} else {
+			assert(!point->height_unspecified && point->y == native.car_route_target.y);
+		}
+	}
+	assert(banks && graded_banks && unspecified_banks && checked_margin);
+	unit_route_free(&route);
+}
+
+static void test_unit_bank_solver_roles(void)
+{
+	const struct GAMEINFO saved_config = gameconfig;
+	ghost_free_simulation_resources();
+	gameconfig.game_opponenttype = OPPONENT_UNIT;
+	assert(extended_file_load_track((const legacy_s8 *)RESTUNTS_GLACIER_TRACK_FIXTURE) == 0);
+	assert(track_setup() == 0);
+	ghost_load_simulation_resources();
+	test_unit_bank_admission_flags();
+	struct UNIT_ROUTE route = {0};
+	assert(unit_route_build(&route));
+	legacy_u32 covered_first = route.count, ramp_first = route.count;
+	legacy_u32 covered_points = 0, ramp_points = 0, standalone_points = 0;
+	for (legacy_u32 index = 0; index < route.count; index++) {
+		const struct UNIT_ROUTE_POINT *point = &route.points[index];
+		if (point->route_index >= ENGINE_UNIT_COVERED_BANK_FIRST &&
+			point->route_index <= ENGINE_UNIT_COVERED_BANK_LAST) {
+			if (covered_first == route.count) {
+				covered_first = index;
+			}
+			assert(point->bank_support);
+			assert(point->stunt == UNIT_STUNT_NONE && !point->clearance_only);
+			assert(point->height_unspecified && point->fallback_speed_limit > 0.0);
+			covered_points++;
+		} else if (point->route_index == ENGINE_UNIT_COVERING_RAMP) {
+			if (ramp_first == route.count) {
+				ramp_first = index;
+			}
+			assert(point->stunt == UNIT_STUNT_RAMP && point->speed_floor > 0.0);
+			ramp_points++;
+		} else if (point->route_index == ENGINE_UNIT_STANDALONE_BANK) {
+			assert(point->bank_support);
+			assert(point->stunt == UNIT_STUNT_NONE && !point->clearance_only);
+			standalone_points++;
+		}
+	}
+	assert(covered_points && ramp_points && standalone_points && covered_first < ramp_first);
+	legacy_f64 runway = 0.0;
+	for (legacy_u32 index = covered_first; index < ramp_first; index++) {
+		const struct UNIT_ROUTE_POINT *a = &route.points[index], *b = &route.points[index + 1U];
+		runway += hypot(hypot(b->x - a->x, b->z - a->z), b->y - a->y);
+	}
+	/* The complete bank is inside the jump's four-tile approach, while it
+	 * extends beyond the shorter approach used by other ordered maneuvers. */
+	assert(runway > UNIT_NATIVE_APPROACH_TILES * TRACK_TILE_SIZE);
+	assert(runway <= UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE);
+	unit_route_free(&route);
+	ghost_free_simulation_resources();
+	extended_track_unload();
+	gameconfig = saved_config;
+	ghost_load_simulation_resources();
+}
+
 /* Keep the user's full circuit as a regression: passing the first incline
  * alone misses the later elevated turns, descents and changes of grade. */
 static void test_ninhbinh_opponent_finish(void)
@@ -456,6 +578,9 @@ static void test_ninhbinh_opponent_finish(void)
 			ghost_load_simulation_resources();
 			extended_replay_runtime_begin();
 			initialize_simulation();
+			if (!car && !rate) {
+				test_unit_bank_admission_flags();
+			}
 			state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
 			state.playerstate.car_position.lx =
 				(ENGINE_NINHBINH_PARK_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2L) *
@@ -1820,6 +1945,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_terrain_below_roll_ramp_does_not_arm();
 	test_extended_opponent_laps();
 	test_ninhbinh_opponent_finish();
+	test_unit_bank_solver_roles();
 	test_long_extended_names();
 #ifdef RESTUNTS_TEST_UNIT_PILOT_DESKTOP
 	ghost_free_simulation_resources();

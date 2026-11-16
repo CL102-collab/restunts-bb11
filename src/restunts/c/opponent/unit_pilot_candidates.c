@@ -233,6 +233,7 @@ void unit_pilot_restore_overrides(void)
 
 void unit_pilot_start_trial(void)
 {
+	unit_pilot_bank_before_step(unit_route_cursor(unit_pilot_state->route, &state.opponentstate));
 	/* Alternate lower/higher launch speeds around the physical guide. Native
 	 * contact and penalty checks decide whether a whole approach is usable. */
 	static const legacy_f64 refinement[UNIT_PILOT_REFINEMENT_COUNT] = {-0.005, 0.005, -0.01, 0.01,

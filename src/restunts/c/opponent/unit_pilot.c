@@ -136,6 +136,7 @@ static legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
 		return 0;
 	}
 	unit_pilot_state->route = route;
+	unit_pilot_bank_reset(unit_route_cursor(route, &state.opponentstate));
 	unit_pilot_state->learning_full_start = unit_pilot_learning.active;
 	unit_pilot_state->pulses = unit_pilot_pulses_create(UNIT_PILOT_PULSE_SEED);
 	unit_pilot_state->entries = calloc(route->verified_count, sizeof(*unit_pilot_state->entries));
@@ -451,7 +452,7 @@ static legacy_int unit_pilot_reached_receiver(legacy_u32 cursor)
 	return 0;
 }
 
-static legacy_int unit_pilot_grounded(void)
+legacy_int unit_pilot_grounded(void)
 {
 	const struct CARSTATE *car = &state.opponentstate;
 	struct VECTOR footprint[OWOOT_WHEEL_VERTEX_COUNT];
@@ -511,8 +512,8 @@ static void unit_pilot_accept_trial(void)
 		unit_pilot_state->entries[piece].valid = 1;
 	}
 	unit_pilot_state->stats.accepted++;
-	unit_pilot_state->committed_steps = unit_pilot_state->step_count;
-	if (unit_pilot_state->recheck) {
+	unit_pilot_commit_steps(unit_pilot_state->step_count);
+	if (unit_pilot_state->recheck && !unit_pilot_state->bank.pending) {
 		unit_pilot_state->stats.active = 0;
 		unit_pilot_state->recheck_status = 1;
 	}
@@ -573,7 +574,7 @@ static void unit_pilot_learned_replay_tick(void)
 	} else if (event == CRASH_EVENT_FINISH &&
 			   unit_pilot_state->step_count == unit_pilot_state->learned_replay_count) {
 		unit_pilot_state->stats.completed_lap = 1;
-		unit_pilot_state->committed_steps = unit_pilot_state->step_count;
+		unit_pilot_bank_finish();
 		unit_pilot_state->stats.active = 0;
 	} else if (event != CRASH_EVENT_NONE ||
 			   unit_pilot_state->step_count == unit_pilot_state->learned_replay_count) {
@@ -592,6 +593,7 @@ static void unit_pilot_tick(void)
 		return;
 	}
 	legacy_u32 cursor = unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
+	unit_pilot_bank_before_step(cursor);
 	if (!unit_pilot_state->trial && unit_pilot_state->first == unit_pilot_state->route->count) {
 		unit_pilot_find_stunt();
 	}
@@ -601,6 +603,7 @@ static void unit_pilot_tick(void)
 		extended_physics_capture(&unit_pilot_state->approach);
 		unit_pilot_state->approach_frame = unit_pilot_state->frame;
 		unit_pilot_state->approach_steps = unit_pilot_state->step_count;
+		unit_pilot_state->approach_bank = unit_pilot_state->bank;
 		if (!unit_planner_restore_continuation(unit_pilot_state->approach_planner,
 											   unit_pilot_state->planner)) {
 			unit_pilot_exhaust(UNIT_PILOT_FAILURE_MEMORY);
@@ -712,7 +715,7 @@ static void unit_pilot_tick(void)
 			unit_pilot_accept_trial();
 		}
 		unit_pilot_state->stats.completed_lap = 1;
-		unit_pilot_state->committed_steps = unit_pilot_state->step_count;
+		unit_pilot_bank_finish();
 		if (!unit_pilot_learning.active && unit_pilot_learning.data &&
 			unit_pilot_state->learning_full_start) {
 			unit_pilot_learning_capture(1);
@@ -727,11 +730,20 @@ static void unit_pilot_tick(void)
 		unit_pilot_fail_trial(event);
 		return;
 	}
+	cursor = unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
+	unit_pilot_bank_after_step(cursor);
 	/* Ordinary driving is already verified by this exact native step. Keep its
 	 * safe prefix when preparation expires or a later maneuver fails; stunt
 	 * controls remain speculative until their complete landing is accepted. */
 	if (!unit_pilot_state->trial && !extended_unit_penalty_recovery_required()) {
-		unit_pilot_state->committed_steps = unit_pilot_state->step_count;
+		unit_pilot_commit_steps(unit_pilot_state->step_count);
+		/* A successful maneuver can land onto an unfinished bank. Keep its
+		 * recheck running until that bank's exit also admits the commands. */
+		if (unit_pilot_state->recheck && unit_pilot_state->stats.accepted &&
+			!unit_pilot_state->bank.pending && unit_pilot_state->committed_steps) {
+			unit_pilot_state->stats.active = 0;
+			unit_pilot_state->recheck_status = 1;
+		}
 	}
 	cursor = unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
 	if (unit_pilot_state->trial && cursor > unit_pilot_state->last &&
@@ -1030,6 +1042,7 @@ static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u
 	}
 	unit_pilot_state->step_count = unit_pilot_state->committed_steps = unit_pilot_state->next_step =
 		0;
+	unit_pilot_bank_reset(unit_route_cursor(unit_pilot_state->route, &state.opponentstate));
 	unit_pilot_state->last_live_frame = frame;
 	unit_pilot_state->wait_remaining = rolling ? 0U : UNIT_PILOT_WAIT_TICKS;
 	unit_pilot_state->handoff_frame = frame + unit_pilot_state->wait_remaining;

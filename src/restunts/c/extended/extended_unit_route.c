@@ -186,10 +186,13 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 	point->route_point = point_index;
 	legacy_u8 id = (legacy_u8)track_route_element_ids[piece];
 	legacy_s16 model = trkObjectList[id].ss_physicalModel;
+	legacy_u8 banked =
+		model >= PHYSICAL_MODEL_BANKED_ENTRANCE_B && model <= PHYSICAL_MODEL_BANKED_CORNER;
 	point->surface = (legacy_u8)(trkObjectList[id].ss_surfaceType + CAR_SURFACE_PAVED);
 	if (extended_track_active()) {
 		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
 			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece], id);
+		point->bank_support = object && banked;
 		if (object && object->surface <= CSTRK_ROAD_ICE) {
 			point->surface = object->surface + CAR_SURFACE_PAVED;
 		}
@@ -264,7 +267,7 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 								 ? UNIT_STUNT_CORKSCREW_FLOOR
 								 : UNIT_STUNT_OTHER_FLOOR;
 	}
-	if (model >= PHYSICAL_MODEL_BANKED_ENTRANCE_B && model <= PHYSICAL_MODEL_BANKED_CORNER) {
+	if (banked) {
 		/* Fresh live guidance reserves a centered, slower banked approach.
 		 * Complete native previews retain the original speed envelope and
 		 * prove their actual receiving contact before caching controls. */

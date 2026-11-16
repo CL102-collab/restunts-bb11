@@ -46,7 +46,12 @@ Banked corners also receive native checks, with the planner accounting
 for the game's roll-based steering assistance. Slaloms retain their ordered
 weaving guide while native trials check faster entry speeds against the poles.
 Classic sustaining maneuvers try faster native candidates before the original
-recipes; CSTRK retains its established geometry and sustaining-search policy.
+recipes; CSTRK retains its sustaining-search policy. Placed CSTRK bank entrances,
+straights, and corners retain their ordinary steering, speed search, and route
+crossing margins. Their approach commands remain speculative until native
+physics proves supported receiving-road contact after the bank. The native bank
+cross-section remains unspecified, so an approximate guide height cannot certify
+support. Custom banks retain their established steering policy.
 Clearance checks inside an existing jump approach share that validation, and
 connecting road checks do not merge otherwise separate stunt searches.
 An airborne crossing of a native, height-unspecified finish uses the same timing
@@ -170,6 +175,15 @@ seeds against playback:
 ```sh
 python3 tools/scripts/test-unit-opponent.py out/sdl3-linux-x64/test-unit-race stunts src/restunts/tests/fixtures/unit/glacier.cstrk stunts/DEFAULT.TRK
 ```
+
+The Ninh Binh bank regression also preserves a recorded McMurtry failure. The
+headless harness can inspect it with `--source-replay FILE --replay-only`, or
+replay an exact prefix and resume UNIT with `--branch-frame N`. Recorded cars,
+transmissions, physics revision, rules, and player inputs remain intact. A branch
+can request native preparation; only a frame-zero start may update durable
+full-lap learning. Mid-race preparation cannot save a suffix as a learned lap.
+The regression checks replay compatibility, receiving-road support before bank
+commands are released, and clean complete laps from the recorded approach.
 
 Add `--owoot` for OWOOT, or `--planner-sync` for ten-second single-threaded
 preparation and bounded live planning. `--prepare-ms 0` exercises a replay

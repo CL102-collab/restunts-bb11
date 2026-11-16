@@ -12,6 +12,14 @@ static struct UNIT_PLANNER source;
 #define TEST_RECEIVER_PENDING_TICKS 55U
 #define TEST_RECEIVER_OWNER 3
 #define TEST_RECEIVER_STABLE_TICKS 4U
+#define TEST_BANK_ENTRY 40U
+#define TEST_BANK_SAMPLES 2U
+#define TEST_BANK_FAILURE_TICK 50U
+#define TEST_RETRY_BANK_ENTRY 30U
+#define TEST_RETRY_BEFORE_FAILURE 45U
+#define TEST_BANK_RECEIVER_END 55U
+#define TEST_BANK_RECHECK_BOUND 100U
+#define TEST_BANK_UNSUPPORTED_EXIT_TICKS 16U
 #define TEST_LEARNING_LATER_FIRST 90U
 #define TEST_LEARNING_LATER_RECEIVER_LAST 97U
 #define TEST_LEARNING_LIVE_PROGRESS 100U
@@ -227,6 +235,132 @@ static void test_clearance_receiving_road(void)
 		unit_pilot_work(TEST_RECEIVER_STABLE_TICKS);
 		assert(unit_pilot_state->stats.accepted == clearance);
 	}
+	unit_pilot_stop();
+}
+
+static void set_ordinary_bank(void)
+{
+	for (legacy_u32 point = TEST_BANK_ENTRY; point < TEST_BANK_ENTRY + TEST_BANK_SAMPLES; point++) {
+		points[point].bank_support = 1;
+		points[point].height_unspecified = 1;
+	}
+}
+
+static void test_bank_controls_wait_for_supported_receiver(void)
+{
+	for (legacy_u8 checked = 0; checked <= 1U; checked++) {
+		reset_fixture(0);
+		if (checked) {
+			set_ordinary_bank();
+		}
+		native_road_support = 0;
+		assert(unit_pilot_begin(&source));
+		unit_pilot_work(TEST_RECEIVER_PENDING_TICKS);
+		assert(unit_pilot_state->step_count == TEST_RECEIVER_PENDING_TICKS);
+		struct CARSTATE bank_entry = unit_pilot_state->steps[TEST_BANK_ENTRY].car;
+		struct CSRPL_OPPONENT_COMMAND command;
+		assert(!unit_pilot_state->trial && !unit_pilot_state->stats.accepted);
+		if (!checked) {
+			/* Ordinary previews used to release a non-crashing bank departure
+			 * before proving support on the receiving road. */
+			assert(unit_pilot_state->committed_steps == TEST_RECEIVER_PENDING_TICKS);
+			assert(unit_pilot_command(&bank_entry, TEST_BANK_ENTRY, &command));
+		} else {
+			assert(unit_pilot_state->committed_steps > 0);
+			assert(unit_pilot_state->committed_steps < TEST_BANK_ENTRY);
+			assert(!unit_pilot_command(&bank_entry, TEST_BANK_ENTRY, &command));
+			/* Paved flags and horizontal progress cannot certify an off-deck
+			 * landing. Admission must wait for actual receiving-road support. */
+			native_road_support = 1;
+			unit_pilot_work(TEST_RECEIVER_STABLE_TICKS);
+			assert(!unit_pilot_state->trial && !unit_pilot_state->stats.accepted);
+			assert(unit_pilot_state->committed_steps == unit_pilot_state->step_count);
+			assert(unit_pilot_command(&bank_entry, TEST_BANK_ENTRY, &command));
+		}
+		assert(command.route_point == TEST_BANK_ENTRY);
+		unit_pilot_stop();
+	}
+	reset_fixture(0);
+	set_ordinary_bank();
+	native_road_support = 0;
+	fail_ordinary_at = TEST_BANK_FAILURE_TICK;
+	assert(unit_pilot_begin(&source));
+	unit_pilot_work(TEST_RECEIVER_PENDING_TICKS);
+	assert(unit_pilot_state->stats.exhausted);
+	assert(unit_pilot_state->committed_steps > 0);
+	assert(unit_pilot_state->committed_steps < TEST_BANK_ENTRY);
+	assert(unit_pilot_finish() && !unit_pilot_continuation_pending());
+	struct CARSTATE bank_entry = unit_pilot_state->steps[TEST_BANK_ENTRY].car;
+	struct CSRPL_OPPONENT_COMMAND command;
+	assert(!unit_pilot_command(&bank_entry, TEST_BANK_ENTRY, &command));
+	unit_pilot_stop();
+}
+
+static void test_bank_admission_survives_failed_hard_trial(void)
+{
+	reset_fixture(1);
+	for (legacy_u32 point = TEST_RETRY_BANK_ENTRY;
+		 point < TEST_RETRY_BANK_ENTRY + TEST_BANK_SAMPLES; point++) {
+		points[point].bank_support = 1;
+	}
+	reject_receiver = 1;
+	assert(unit_pilot_begin(&source));
+	unit_pilot_work(TEST_RETRY_BEFORE_FAILURE);
+	assert(unit_pilot_state->trial && !unit_pilot_state->stats.failed_trials);
+	/* The bank's supported exit is reached inside a still-unproved barrel
+	 * trial. It cannot release controls held from before that trial's start. */
+	assert(!unit_pilot_state->bank.pending && unit_pilot_state->approach_bank.pending);
+	legacy_u32 held = unit_pilot_state->approach_bank.hold_steps;
+	assert(unit_pilot_state->committed_steps == held);
+	native_road_support = 0;
+	unit_pilot_work(1);
+	assert(unit_pilot_state->stats.failed_trials == 1);
+	assert(unit_pilot_state->step_count == unit_pilot_state->approach_steps);
+	unit_pilot_work(1);
+	assert(unit_pilot_state->bank.pending && !unit_pilot_state->bank.stable_ticks);
+	assert(unit_pilot_state->bank.hold_steps == held);
+	assert(unit_pilot_state->committed_steps == held);
+	native_road_support = 1;
+	unit_pilot_work(TEST_RECEIVER_PENDING_TICKS);
+	assert(unit_pilot_state->stats.accepted == 1);
+	assert(!unit_pilot_state->bank.pending);
+	assert(unit_pilot_state->committed_steps == unit_pilot_state->step_count);
+	unit_pilot_stop();
+}
+
+static void test_recheck_waits_for_receiving_bank_exit(void)
+{
+	reset_fixture(1);
+	state.playerstate.car_position.lx = state.playerstate.car_position.lz = -64;
+	for (legacy_u32 point = TEST_BANK_ENTRY + TEST_BANK_SAMPLES;
+		 point < TEST_RECEIVER_CLEARANCE_FIRST; point++) {
+		points[point].bank_support = 1;
+	}
+	for (legacy_u32 point = TEST_BANK_RECEIVER_END + 1U; point < route.count; point++) {
+		points[point].route_index = 0;
+	}
+	assert(unit_pilot_begin(&source));
+	assert(unit_pilot_recheck_begin(&source, 0, 1));
+	for (legacy_u32 tick = 0; tick < TEST_BANK_RECHECK_BOUND && !unit_pilot_state->stats.accepted;
+		 tick++) {
+		unit_pilot_work(1);
+	}
+	assert(unit_pilot_state->stats.accepted == 1 && !unit_pilot_state->trial);
+	assert(unit_pilot_state->bank.pending && unit_pilot_state->stats.active);
+	assert(unit_pilot_state->recheck_status == 0);
+	assert(unit_pilot_recheck_status(0) == 0);
+	legacy_u32 held = unit_pilot_state->committed_steps;
+	native_road_support = 0;
+	unit_pilot_work(TEST_BANK_UNSUPPORTED_EXIT_TICKS);
+	assert(unit_pilot_state->bank.pending && unit_pilot_state->stats.active);
+	assert(unit_pilot_state->committed_steps == held);
+	assert(unit_pilot_state->recheck_status == 0);
+	assert(unit_pilot_recheck_status(0) == 0);
+	native_road_support = 1;
+	unit_pilot_work(TEST_RECEIVER_STABLE_TICKS);
+	assert(!unit_pilot_state->bank.pending && !unit_pilot_state->stats.active);
+	assert(unit_pilot_state->committed_steps > held);
+	assert(unit_pilot_recheck_status(unit_pilot_state->handoff_frame) == 1);
 	unit_pilot_stop();
 }
 
@@ -776,6 +910,9 @@ legacy_int main(void)
 	test_rolling_recheck();
 	test_receiving_road_geometry();
 	test_clearance_receiving_road();
+	test_bank_controls_wait_for_supported_receiver();
+	test_bank_admission_survives_failed_hard_trial();
+	test_recheck_waits_for_receiving_bank_exit();
 	test_two_chunk_frame_budget();
 	test_pulse_retry_and_expired_handoff();
 	test_ramp_runup_and_group_boundaries();

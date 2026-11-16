@@ -32,6 +32,8 @@ struct UNIT_ROUTE_POINT {
 	legacy_u16 route_point;
 	legacy_u8 surface, shortcut_safe, height_unspecified, stunt;
 	legacy_u8 banked_corner; /* Native thirty-degree bank steering assistance. */
+	/* Ordinary placed bank: hold cached approach until native exit support. */
+	legacy_u8 bank_support;
 	/* Certify support and obstacles while retaining ordinary planning. */
 	legacy_u8 clearance_only;
 	legacy_u8 align_center; /* UNIT_ROUTE_ALIGNMENT flags. */

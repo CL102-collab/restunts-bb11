@@ -6,6 +6,8 @@
 #include <SDL3/SDL.h>
 
 #include "../genghost/simulation.h"
+#include "../genghost/extended_simulation.h"
+#include "../c/driving_rules.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
 #include "../c/crash_state.h"
@@ -55,6 +57,7 @@
 #define UNIT_BENCHMARK_STALL_START_SECONDS 2U
 #define UNIT_BENCHMARK_STALL_SECONDS 1U
 #define UNIT_BENCHMARK_FINISH_TEST_OFFSET 256.0
+#define UNIT_BENCHMARK_REPLAY_RULE_ARGUMENTS 8U
 
 static void test_finish_crossing(void)
 {
@@ -372,6 +375,236 @@ static legacy_u8 *read_track(const legacy_char *path, legacy_uint *size)
 	return data;
 }
 
+static void print_learning_stats(void)
+{
+	if (!unit_learning_cache_enabled()) {
+		return;
+	}
+	struct UNIT_LEARNING_STATS learning;
+	unit_opponent_learning_stats(&learning);
+	printf("learning_enabled=%u learning_loaded=%u learning_saved=%u "
+		   "learning_loaded_samples=%" LEGACY_PRIu64
+		   " learning_loaded_native_samples=%" LEGACY_PRIu64
+		   " learning_search_samples=%" LEGACY_PRIu64 " learning_native_samples=%" LEGACY_PRIu64
+		   " learning_best_frames=%u\n",
+		   learning.enabled, learning.loaded, learning.saved, learning.loaded_samples,
+		   learning.loaded_native_samples, learning.search_samples, learning.native_samples,
+		   learning.best_frames);
+}
+
+struct UNIT_SOURCE_REPLAY_OPTIONS {
+	const legacy_char *path;
+	legacy_u32 branch_frame, frame_limit, preparation_ms, planner_yield_ms;
+	legacy_int replay_only, planner_sync, prepare_until_plan, verify;
+	legacy_int require_finish, require_clean, pilot_debug;
+	FILE *trace, *pilot_trace, *pilot_entry_trace;
+};
+
+static void source_replay_trace(FILE *trace, const legacy_char *phase, legacy_u8 input,
+								const struct CSRPL_OPPONENT_COMMAND *command)
+{
+	if (!trace) {
+		return;
+	}
+	const struct CARSTATE *car = &state.opponentstate;
+	const struct CARSTATE *player = &state.playerstate;
+	fprintf(trace,
+			"%s,%u,%.2f,%u,%u,%d,%d,%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
+			"%d,%d,%d,%d,%d,%u,%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%d,%d,%d,",
+			phase, genghost_sim_frame(),
+			genghost_sim_frame() / (legacy_f64)genghost_sim_frame_rate(), input, command->input,
+			command->steering, command->route_index, command->route_point,
+			car->car_position.lx / UNIT_BENCHMARK_WORLD_SCALE,
+			car->car_position.ly / UNIT_BENCHMARK_WORLD_SCALE,
+			car->car_position.lz / UNIT_BENCHMARK_WORLD_SCALE,
+			car->car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE, car->car_steeringAngle,
+			car->car_route_index, car->car_route_point_index, car->car_crashBmpFlag,
+			car->car_rotate.x, car->car_rotate.y, car->car_rotate.z, car->car_sumSurfAllWheels,
+			car->car_sumSurfFrontWheels, car->car_sumSurfRearWheels, car->car_surfacegrip_sum,
+			car->car_demandedGrip, car->car_velocity_heading_offset, car->car_is_accelerating,
+			car->car_is_braking, extended_unit_penalty_total(), extended_replay_clocks.penalty,
+			player->car_position.lx / UNIT_BENCHMARK_WORLD_SCALE,
+			player->car_position.ly / UNIT_BENCHMARK_WORLD_SCALE,
+			player->car_position.lz / UNIT_BENCHMARK_WORLD_SCALE,
+			player->car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE, player->car_steeringAngle,
+			player->car_route_index, player->car_route_point_index, player->car_crashBmpFlag,
+			player->car_rotate.x, player->car_rotate.y, player->car_rotate.z,
+			player->car_sumSurfAllWheels);
+	legacy_u8 bytes[GAMESTATE_SERIALIZED_SIZE];
+	assert(gamestate_serialize(bytes, &state) == sizeof(bytes));
+	for (legacy_u32 index = 0; index < sizeof(bytes); index++) {
+		fprintf(trace, "%02x", bytes[index]);
+	}
+	fputc('\n', trace);
+}
+
+static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTIONS *options,
+										  const legacy_char *program)
+{
+	legacy_uint size;
+	legacy_u8 *bytes = read_track(options->path, &size);
+	struct CSRPL_VIEW replay;
+	assert(csrpl_decode(bytes, size, &replay, NULL, 0));
+	legacy_u16 rules = replay.metadata.driving_rules;
+	legacy_char *arguments[UNIT_BENCHMARK_REPLAY_RULE_ARGUMENTS] = {0};
+	legacy_int count = 0;
+	arguments[count++] = (legacy_char *)program;
+	arguments[count++] = (legacy_char *)(rules & DRIVING_RULE_POWER_GEAR ? "--pg:on" : "--pg:off");
+	arguments[count++] =
+		(legacy_char *)(rules & DRIVING_RULE_LEGACY_COLLISION ? "--lc:on" : "--lc:off");
+	arguments[count++] =
+		(legacy_char *)(rules & DRIVING_RULE_LEFT_CORNER_BIAS ? "--lcb:on" : "--lcb:off");
+	arguments[count++] =
+		(legacy_char *)(rules & DRIVING_RULE_DUAL_WAY_SWITCHING ? "--dws:on" : "--dws:off");
+	arguments[count++] =
+		(legacy_char *)(rules & DRIVING_RULE_CHICANE_FAST_GRASS ? "--cfg:on" : "--cfg:off");
+	if (rules & DRIVING_RULE_AMIGA_GRASS) {
+		arguments[count++] = (legacy_char *)"--amigagrass";
+	}
+	if (rules & DRIVING_RULE_OWOOT) {
+		arguments[count++] = (legacy_char *)"--owoot:on";
+	}
+	genghost_sim_set_frame_rate(replay.metadata.frames_per_second);
+	extended_genghost_sim_set_replay(&replay);
+	assert(genghost_sim_init_track(replay.track_data, (legacy_uint)replay.track_size,
+								   (const legacy_char *)replay.metadata.player_car_id,
+								   replay.metadata.player_transmission, count, arguments) == 0);
+	assert(driving_rules_current() == rules);
+	assert(extended_replay_version() == replay.metadata.version);
+	assert(memcmp(gameconfig.game_playercarid, replay.metadata.player_car_id, CSRPL_CAR_ID_SIZE) ==
+		   0);
+	assert(memcmp(gameconfig.game_opponentcarid, replay.metadata.opponent_car_id,
+				  CSRPL_CAR_ID_SIZE) == 0);
+	assert(gameconfig.game_playertransmission == replay.metadata.player_transmission);
+	assert(gameconfig.game_opponenttransmission == replay.metadata.opponent_transmission);
+	legacy_int branch = options->branch_frame != LEGACY_U32_MAX;
+	assert(!options->replay_only || !branch);
+	assert(!branch || (options->branch_frame <= replay.metadata.frame_count &&
+					   options->branch_frame < options->frame_limit &&
+					   replay.metadata.opponent_type == OPPONENT_UNIT));
+	legacy_u32 limit =
+		branch ? options->frame_limit
+			   : (options->frame_limit < replay.metadata.frame_count ? options->frame_limit
+																	 : replay.metadata.frame_count);
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	struct GENGHOST_SNAPSHOT initial;
+	genghost_sim_capture(&initial);
+	legacy_u64 *hashes = options->verify ? calloc(limit, sizeof(*hashes)) : NULL;
+	assert(!options->verify || hashes);
+	if (options->trace) {
+		fputs("phase,frame,time,player_input,command_input,command_steering,command_route,command_"
+			  "point,"
+			  "x,y,z,speed,steering,route,point,event,yaw,pitch,roll,contact,front_contact,rear_"
+			  "contact,"
+			  "grip,demanded,velocity_heading_offset,throttle,brake,penalty_frames,player_penalty_"
+			  "frames,"
+			  "player_x,player_y,player_z,player_speed,player_steering,player_route,player_point,"
+			  "player_event,"
+			  "player_yaw,player_pitch,player_roll,player_contact,gamestate_hex\n",
+			  options->trace);
+		struct CSRPL_OPPONENT_COMMAND none = {0};
+		source_replay_trace(options->trace, "recorded", INPUT_NONE, &none);
+	}
+	legacy_u32 frames = 0, failures = 0;
+	for (; frames < limit; frames++) {
+		if (branch && frames == options->branch_frame) {
+			/* The recorded prefix supplied every physics tick. Truncate only its
+			 * future controls; preserve the exact state, clocks, revision and rules. */
+			assert(extended_replay_branch(frames));
+			game_replay_mode = REPLAY_MODE_LIVE;
+			if (options->preparation_ms) {
+				assert(unit_opponent_prepare_begin_with_workers(options->planner_sync ? -1 : 0));
+				legacy_u64 began = SDL_GetTicks();
+				do {
+					unit_opponent_prepare_work();
+					if (options->pilot_debug) {
+						debug_pilot_failure(&failures, options->pilot_trace,
+											options->pilot_entry_trace);
+					}
+					if (options->prepare_until_plan) {
+						struct UNIT_PILOT_STATS preview;
+						unit_pilot_stats(&preview);
+						if (preview.completed_lap || preview.exhausted) {
+							break;
+						}
+					}
+					SDL_Delay(1U);
+				} while (SDL_GetTicks() - began < options->preparation_ms);
+				assert(unit_opponent_prepare_end());
+			}
+			printf("branch_frame=%u branch_x=%.3f branch_y=%.3f branch_z=%.3f branch_speed=%.3f\n",
+				   frames, state.opponentstate.car_position.lx / UNIT_BENCHMARK_WORLD_SCALE,
+				   state.opponentstate.car_position.ly / UNIT_BENCHMARK_WORLD_SCALE,
+				   state.opponentstate.car_position.lz / UNIT_BENCHMARK_WORLD_SCALE,
+				   state.opponentstate.car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE);
+		}
+		legacy_u8 input =
+			frames < replay.metadata.frame_count ? replay.inputs[frames] : INPUT_BRAKE_FLAG;
+		assert(genghost_sim_step(input) >= 0);
+		struct CSRPL_OPPONENT_COMMAND command = {0};
+		(void)extended_replay_opponent_command_at(frames, &command);
+		source_replay_trace(options->trace,
+							branch && frames >= options->branch_frame ? "live" : "recorded", input,
+							&command);
+		if (hashes) {
+			hashes[frames] = state_hash();
+		}
+		if (options->pilot_debug && branch && frames >= options->branch_frame) {
+			debug_pilot_failure(&failures, options->pilot_trace, options->pilot_entry_trace);
+		}
+		if (branch && frames >= options->branch_frame &&
+			state.opponentstate.car_crashBmpFlag != CRASH_EVENT_NONE) {
+			frames++;
+			break;
+		}
+		if (branch && frames >= options->branch_frame && options->planner_yield_ms) {
+			SDL_Delay(options->planner_yield_ms);
+		}
+	}
+	legacy_u8 event = state.opponentstate.car_crashBmpFlag;
+	legacy_u32 penalty = extended_unit_penalty_total();
+	printf("source_replay_version=%u source_replay_rules=%u player_car=%.*s player_transmission=%u "
+		   "opponent=%u opponent_car=%.*s opponent_transmission=%u frames=%u seconds=%.2f "
+		   "frame_rate=%u "
+		   "event=%u finished=%u penalty_frames=%u player_event=%u branch=%u\n",
+		   replay.metadata.version, rules, CSRPL_CAR_ID_SIZE, replay.metadata.player_car_id,
+		   replay.metadata.player_transmission, replay.metadata.opponent_type, CSRPL_CAR_ID_SIZE,
+		   replay.metadata.opponent_car_id, replay.metadata.opponent_transmission, frames,
+		   frames / (legacy_f64)genghost_sim_frame_rate(), genghost_sim_frame_rate(), event,
+		   event == CRASH_EVENT_FINISH, penalty, state.playerstate.car_crashBmpFlag, branch);
+	unit_opponent_stop();
+	print_learning_stats();
+	if (options->verify) {
+		genghost_sim_restore(&initial);
+		game_replay_mode = REPLAY_MODE_PLAYBACK;
+		for (legacy_u32 frame = 0; frame < frames; frame++) {
+			update_gamestate_silent();
+			if (state_hash() != hashes[frame]) {
+				fprintf(stderr, "Source replay state mismatch at frame %u\n", frame + 1U);
+				free(hashes);
+				free(bytes);
+				return 1;
+			}
+		}
+		printf("replay_verified_frames=%u\n", frames);
+	}
+	free(hashes);
+	free(bytes);
+	if (options->trace) {
+		assert(fclose(options->trace) == 0);
+	}
+	if (options->pilot_trace) {
+		assert(fclose(options->pilot_trace) == 0);
+	}
+	if (options->pilot_entry_trace) {
+		assert(fclose(options->pilot_entry_trace) == 0);
+	}
+	return (options->require_finish && event != CRASH_EVENT_FINISH) ||
+				   (options->require_clean && penalty != 0)
+			   ? 1
+			   : 0;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 {
 	if (argc < 3) {
@@ -385,10 +618,17 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			"[--require-clean] [--require-no-stalls] [--human "
 			"stationary|accelerating|crossing|grid|grid-then-park] "
 			"[--human-drive-frames N] [--unit-cache-dir DIR] "
-			"[--owoot:on]\n");
+			"[--owoot:on]\n"
+			"       test-unit-race [--data-dir DIR] --source-replay FILE "
+			"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
 		return 1;
 	}
-	legacy_u8 opponent = (legacy_u8)strtoul((legacy_char *)argv[2], NULL, 10);
+	const legacy_char *source_replay =
+		strcmp((legacy_char *)argv[1], "--source-replay") == 0 ? (legacy_char *)argv[2] : NULL;
+	legacy_u32 branch_frame = LEGACY_U32_MAX;
+	legacy_int replay_only = 0;
+	legacy_u8 opponent =
+		source_replay ? OPPONENT_UNIT : (legacy_u8)strtoul((legacy_char *)argv[2], NULL, 10);
 	assert(opponent >= OPPONENT_FIRST && opponent <= OPPONENT_LAST);
 	legacy_u32 frame_limit = UNIT_BENCHMARK_DEFAULT_FRAMES;
 	legacy_u16 frame_rate = GENGHOST_FRAME_RATE;
@@ -411,7 +651,13 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	FILE *pilot_trace = NULL;
 	FILE *pilot_entry_trace = NULL;
 	for (legacy_s16 index = 3; index < argc; index++) {
-		if (strcmp((legacy_char *)argv[index], "--frames") == 0 && index + 1 < argc) {
+		if (strcmp((legacy_char *)argv[index], "--source-replay") == 0 && index + 1 < argc) {
+			source_replay = (legacy_char *)argv[++index];
+		} else if (strcmp((legacy_char *)argv[index], "--replay-only") == 0) {
+			replay_only = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--branch-frame") == 0 && index + 1 < argc) {
+			branch_frame = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
+		} else if (strcmp((legacy_char *)argv[index], "--frames") == 0 && index + 1 < argc) {
 			frame_limit = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
 		} else if (strcmp((legacy_char *)argv[index], "--frame-rate") == 0 && index + 1 < argc) {
 			frame_rate = (legacy_u16)strtoul((legacy_char *)argv[++index], NULL, 10);
@@ -488,6 +734,21 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		}
 	}
 	assert(frame_limit > 0 && frame_limit <= GENGHOST_MAX_FRAMES);
+	if (source_replay) {
+		if (require_no_stalls || require_worker) {
+			fputs("--source-replay does not support --require-no-stalls or --require-worker\n",
+				  stderr);
+			return 1;
+		}
+		struct UNIT_SOURCE_REPLAY_OPTIONS options = {
+			source_replay,	branch_frame,		frame_limit,
+			preparation_ms, planner_yield_ms,	replay_only,
+			planner_sync,	prepare_until_plan, verify,
+			require_finish, require_clean,		pilot_debug,
+			trace,			pilot_trace,		pilot_entry_trace};
+		return source_replay_benchmark(&options, (legacy_char *)argv[0]);
+	}
+	assert(!replay_only && branch_frame == LEGACY_U32_MAX);
 	legacy_uint track_size;
 	legacy_u8 *track = read_track((legacy_char *)argv[1], &track_size);
 	struct CSRPL_METADATA metadata = {0};
@@ -803,17 +1064,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	}
 	free(hashes);
 	unit_opponent_stop();
-	if (opponent == OPPONENT_UNIT && unit_learning_cache_enabled()) {
-		struct UNIT_LEARNING_STATS learning;
-		unit_opponent_learning_stats(&learning);
-		printf("learning_enabled=%u learning_loaded=%u learning_saved=%u "
-			   "learning_loaded_samples=%" LEGACY_PRIu64
-			   " learning_loaded_native_samples=%" LEGACY_PRIu64
-			   " learning_search_samples=%" LEGACY_PRIu64 " learning_native_samples=%" LEGACY_PRIu64
-			   " learning_best_frames=%u\n",
-			   learning.enabled, learning.loaded, learning.saved, learning.loaded_samples,
-			   learning.loaded_native_samples, learning.search_samples, learning.native_samples,
-			   learning.best_frames);
+	if (opponent == OPPONENT_UNIT) {
+		print_learning_stats();
 	}
 	legacy_int failed_human =
 		human != UNIT_BENCHMARK_HUMAN_PARKED &&

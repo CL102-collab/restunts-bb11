@@ -244,7 +244,8 @@ set(common_sources
     opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
     extended/extended_unit_checkpoint.c extended/extended_physics_snapshot.c
-    extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_trace.c
+    extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_banks.c
+    opponent/unit_pilot_trace.c
     opponent/unit_pilot_candidates.c opponent/unit_pilot_controls.c opponent/unit_pilot_pulses.c
     extended/extended_barrel_search.c
     track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c
@@ -672,7 +673,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-unit-checkpoint PRIVATE -UNDEBUG)
     add_test(NAME unit-checkpoint COMMAND test-unit-checkpoint)
     add_executable(test-unit-pilot src/restunts/tests/test-unit-pilot.c
-        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_trace.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_banks.c
+        ${core}/opponent/unit_pilot_trace.c
         ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
         ${core}/extended/extended_barrel_search.c)
     target_compile_definitions(test-unit-pilot PRIVATE RESTUNTS_SDL3)
@@ -682,7 +684,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-unit-pilot PRIVATE m)
     add_test(NAME unit-pilot COMMAND test-unit-pilot)
     add_executable(test-unit-pilot-continuation src/restunts/tests/test-unit-pilot-continuation.c
-        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_trace.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_banks.c
+        ${core}/opponent/unit_pilot_trace.c
         ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
         ${core}/extended/extended_barrel_search.c)
     target_compile_definitions(test-unit-pilot-continuation PRIVATE RESTUNTS_SDL3)
@@ -1253,6 +1256,13 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/branches.cstrk"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk")
     set_tests_properties(unit-learning-persistence PROPERTIES RUN_SERIAL TRUE)
+    list(APPEND unit_race_tests unit-bank-replay)
+    add_test(NAME unit-bank-replay COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-bank-replay.py"
+        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/assets/cars"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/ninhbinh-banked.csrpl")
+    set_tests_properties(unit-bank-replay PROPERTIES RUN_SERIAL TRUE)
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT 180
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(UNIX)
@@ -1480,7 +1490,8 @@ if(RESTUNTS_BUILD_TESTS)
             RESTUNTS_HALF_PIPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/half-pipe-uphill.csrpl"
             RESTUNTS_FAN_SLOPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/fan-adhesion-slopes.csrpl"
             RESTUNTS_ZERO_SPEED_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/zero-speed-offset.csrpl"
-            RESTUNTS_NINHBINH_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/ninhbinh.cstrk")
+            RESTUNTS_NINHBINH_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/ninhbinh.cstrk"
+            RESTUNTS_GLACIER_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk")
         target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
         target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)
         if(NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

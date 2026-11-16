@@ -41,12 +41,20 @@ struct UNIT_PILOT_STEP {
 	struct CSRPL_OPPONENT_COMMAND command;
 };
 
+struct UNIT_PILOT_BANK {
+	legacy_f64 approach_distance;
+	legacy_u32 search, first, last, receiver_first, receiver_last, approach;
+	legacy_u32 hold_steps, deferred_steps, observed_steps, stable_ticks;
+	legacy_u8 pending;
+};
+
 struct UNIT_PILOT {
 	struct EXTENDED_PHYSICS_SNAPSHOT live, run, approach;
 	struct UNIT_PILOT_ENVELOPE envelope;
 	struct UNIT_PILOT_STATS stats;
 	struct UNIT_PILOT_ENTRY *entries;
 	struct UNIT_PILOT_STEP *steps;
+	struct UNIT_PILOT_BANK bank, approach_bank;
 	legacy_u32 step_count, step_capacity, committed_steps, approach_steps, next_step;
 	legacy_u32 learned_replay_count;
 	/* Only fresh preparation previews can produce a portable complete lap. */
@@ -85,6 +93,12 @@ struct UNIT_PILOT {
 };
 
 extern struct UNIT_PILOT *unit_pilot_state;
+legacy_int unit_pilot_grounded(void);
+void unit_pilot_bank_reset(legacy_u32 cursor);
+void unit_pilot_bank_before_step(legacy_u32 cursor);
+void unit_pilot_bank_after_step(legacy_u32 cursor);
+void unit_pilot_commit_steps(legacy_u32 steps);
+void unit_pilot_bank_finish(void);
 void unit_pilot_exhaust(legacy_s16 failure);
 void unit_pilot_fail_trial(legacy_s16 failure);
 void unit_pilot_capture_failure(legacy_s16 failure);

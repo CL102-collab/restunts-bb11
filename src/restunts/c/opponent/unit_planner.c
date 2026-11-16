@@ -325,9 +325,9 @@ static legacy_int same_route_point(const struct UNIT_ROUTE_POINT *a,
 	return a->x == b->x && a->y == b->y && a->z == b->z && a->route_index == b->route_index &&
 		   a->route_point == b->route_point && a->half_width == b->half_width &&
 		   a->surface == b->surface && a->stunt == b->stunt &&
-		   a->banked_corner == b->banked_corner && a->clearance_only == b->clearance_only &&
-		   a->speed_limit == b->speed_limit && a->speed_floor == b->speed_floor &&
-		   a->fallback_speed_limit == b->fallback_speed_limit &&
+		   a->banked_corner == b->banked_corner && a->bank_support == b->bank_support &&
+		   a->clearance_only == b->clearance_only && a->speed_limit == b->speed_limit &&
+		   a->speed_floor == b->speed_floor && a->fallback_speed_limit == b->fallback_speed_limit &&
 		   a->shortcut_safe == b->shortcut_safe && a->height_unspecified == b->height_unspecified &&
 		   a->align_center == b->align_center;
 }
