@@ -810,6 +810,154 @@ static void test_camera_modes(void)
 	}
 }
 
+enum {
+	CHASE_TEST_CLOSE_DISTANCE = 150,
+	CHASE_TEST_NORMAL_DISTANCE = 210,
+	CHASE_TEST_FAR_DISTANCE = 300,
+	CHASE_TEST_ELEVATION = 48,
+	CHASE_TEST_SLOPE_RISE = 450,
+	CHASE_TEST_SLOPE_RUN = 1024,
+	CHASE_TEST_WORLD_X = 6656,
+	CHASE_TEST_WORLD_Y = 691,
+	CHASE_TEST_WORLD_Z = -31232,
+	CHASE_TEST_POSITION_SCALE = 64,
+	CHASE_TEST_VIEW_COUNT = 3
+};
+
+static legacy_s32 chase_test_car_plane_height(const struct VECTOR *position,
+											  const struct VECTOR *car, const struct VECTOR *up)
+{
+	return (legacy_s32)(position->x - car->x) * up->x + (legacy_s32)(position->y - car->y) * up->y +
+		   (legacy_s32)(position->z - car->z) * up->z;
+}
+
+static void test_downhill_chase_camera_orbit(void)
+{
+	static const legacy_s16 distances[] = {CHASE_TEST_CLOSE_DISTANCE, CHASE_TEST_NORMAL_DISTANCE,
+										   CHASE_TEST_FAR_DISTANCE};
+	legacy_s16 grade = polarAngle(CHASE_TEST_SLOPE_RISE, CHASE_TEST_SLOPE_RUN);
+	legacy_s16 pitches[] = {0, 0, 0, -ANGLE_EIGHTH_TURN, -ANGLE_QUARTER_TURN};
+	pitches[1] = -grade;
+	pitches[2] = grade;
+	const struct VECTOR car = {CHASE_TEST_WORLD_X, CHASE_TEST_WORLD_Y, CHASE_TEST_WORLD_Z};
+	cameramode = CAMERA_MODE_CUSTOM;
+	followOpponentFlag = ghost_fixture_active = 0;
+	gameconfig.game_opponenttype = 0;
+	terrainHeight = 0;
+	track_wall_collision_enabled = 0;
+	for (legacy_u16 preset = 0; preset < sizeof(distances) / sizeof(distances[0]); preset++) {
+		custom_camera =
+			(struct CUSTOM_CAMERA){distances[preset], CHASE_TEST_ELEVATION, ANGLE_HALF_TURN};
+		const struct CUSTOM_CAMERA controls = custom_camera;
+		for (legacy_s16 yaw = 0; yaw <= ANGLE_MASK; yaw += ANGLE_EIGHTH_TURN) {
+			for (legacy_u16 pitch = 0; pitch < sizeof(pitches) / sizeof(pitches[0]); pitch++) {
+				struct VECTOR local_up = {0, TRIG_FIXED_ONE, 0};
+				struct VECTOR local_forward = {0, 0, TRIG_FIXED_ONE};
+				struct VECTOR up, forward;
+				struct MATRIX rotation = *frame_car_rotation(yaw, pitches[pitch], 0);
+				mat_mul_vector(&local_up, &rotation, &up);
+				mat_mul_vector(&local_forward, &rotation, &forward);
+				struct FRAME_CAMERA original = {0};
+				custom_camera_preset = CUSTOM_CAMERA_PRESET_ORIGINAL;
+				assert(frame_position_camera(&original, &car, yaw, pitches[pitch], 0, 0) == 0);
+				struct FRAME_CAMERA chase = {0};
+				custom_camera_preset = CUSTOM_CAMERA_PRESET_CLOSE + preset;
+				assert(frame_position_camera(&chase, &car, yaw, pitches[pitch], 0, 0) == 0);
+				assert(chase.position.y > car.y);
+				assert(chase_test_car_plane_height(&chase.position, &car, &up) >= 0);
+				if (forward.y >= 0) {
+					/* Flat roads and uphill grades keep the original orbit exactly. */
+					assert(memcmp(&chase.position, &original.position, sizeof(car)) == 0);
+				} else {
+					assert(chase.position.y >= original.position.y);
+					if (yaw == 0 && pitches[pitch] == -grade) {
+						/* ninhbinh's elevated road falls one level per tile. The old
+						 * world-space orbit is below that sloping road/body plane. */
+						assert(chase_test_car_plane_height(&original.position, &car, &up) < 0);
+						assert(chase_test_car_plane_height(&chase.position, &car, &up) > 0);
+						frame_aim_external_camera(&chase, &car);
+						assert(chase.position.y > car.y + FRAME_CAMERA_TARGET_HEIGHT_OFFSET);
+						assert(chase.pitch > ANGLE_HALF_TURN);
+						assert(chase.position.y >= terrainHeight);
+					}
+				}
+				assert(memcmp(&custom_camera, &controls, sizeof(controls)) == 0);
+			}
+		}
+	}
+	/* Terrain clearance still takes precedence over the requested chase orbit. */
+	struct FRAME_CAMERA camera = {0};
+	terrainHeight = CHASE_TEST_WORLD_Y + CHASE_TEST_FAR_DISTANCE;
+	assert(frame_position_camera(&camera, &car, 0, -grade, 0, 0) == 0);
+	frame_aim_external_camera(&camera, &car);
+	assert(camera.position.y >= terrainHeight);
+	custom_camera_preset = CUSTOM_CAMERA_PRESET_ORIGINAL;
+	terrainHeight = 0;
+}
+
+static void test_chase_camera_viewed_pose(void)
+{
+	legacy_s16 grade = polarAngle(CHASE_TEST_SLOPE_RISE, CHASE_TEST_SLOPE_RUN);
+	const struct VECTOR car = {CHASE_TEST_WORLD_X, CHASE_TEST_WORLD_Y, CHASE_TEST_WORLD_Z};
+	custom_camera =
+		(struct CUSTOM_CAMERA){CHASE_TEST_NORMAL_DISTANCE, CHASE_TEST_ELEVATION, ANGLE_HALF_TURN};
+	custom_camera_preset = CUSTOM_CAMERA_PRESET_NORMAL;
+	cameramode = CAMERA_MODE_CUSTOM;
+	terrainHeight = 0;
+	track_wall_collision_enabled = 0;
+	for (legacy_u8 viewed = 0; viewed < CHASE_TEST_VIEW_COUNT; viewed++) {
+		for (legacy_u8 snapshot = 0; snapshot < 2U; snapshot++) {
+#if !defined(RESTUNTS_SDL3)
+			if (snapshot != 0) {
+				continue;
+			}
+#endif
+			memset(&state, 0, sizeof(state));
+			memset(&ghost_fixture, 0, sizeof(ghost_fixture));
+			state.playerstate.car_rotate.y = state.opponentstate.car_rotate.y = grade;
+			ghost_fixture.car_rotate.y = grade;
+			struct GAMESTATE presentation = state;
+			struct CARSTATE presentation_ghost = ghost_fixture;
+			struct CARSTATE *selected =
+				viewed == 0	  ? (snapshot ? &presentation.playerstate : &state.playerstate)
+				: viewed == 1 ? (snapshot ? &presentation.opponentstate : &state.opponentstate)
+							  : (snapshot ? &presentation_ghost : &ghost_fixture);
+			selected->car_position.lx = CHASE_TEST_WORLD_X * CHASE_TEST_POSITION_SCALE;
+			selected->car_position.ly = CHASE_TEST_WORLD_Y * CHASE_TEST_POSITION_SCALE;
+			selected->car_position.lz = CHASE_TEST_WORLD_Z * CHASE_TEST_POSITION_SCALE;
+			selected->car_rotate.x = ANGLE_EIGHTH_TURN;
+			selected->car_rotate.y = -grade;
+			gameconfig.game_opponenttype = viewed == 1;
+			followOpponentFlag = viewed != 0;
+			ghost_fixture_active = viewed == 2;
+			frame_state = snapshot ? &presentation : &state;
+#ifdef RESTUNTS_SDL3
+			frame_hires_uses_snapshot = snapshot;
+			frame_hires_ghost = snapshot ? &presentation_ghost : 0;
+			frame_hires_ghost_camera = snapshot ? &ghost_camera_fixture : 0;
+#endif
+			struct GAMESTATE unchanged_state = state;
+			struct CARSTATE unchanged_ghost = ghost_fixture;
+			struct FRAME_CAMERA expected = {0};
+			struct FRAME_CAMERA actual = {0};
+			assert(frame_position_camera(&expected, &car, ANGLE_EIGHTH_TURN, -grade, 0, 0) == 0);
+			frame_aim_external_camera(&expected, &car);
+			frame_setup_camera(&actual);
+			assert(memcmp(&actual, &expected, sizeof(actual)) == 0);
+			assert(memcmp(&state, &unchanged_state, sizeof(state)) == 0);
+			assert(memcmp(&ghost_fixture, &unchanged_ghost, sizeof(ghost_fixture)) == 0);
+		}
+	}
+#ifdef RESTUNTS_SDL3
+	frame_hires_uses_snapshot = 0;
+	frame_hires_ghost = 0;
+	frame_hires_ghost_camera = 0;
+#endif
+	frame_state = &state;
+	custom_camera_preset = CUSTOM_CAMERA_PRESET_ORIGINAL;
+	ghost_fixture_active = followOpponentFlag = 0;
+}
+
 static void test_covered_tiles(void)
 {
 	struct FRAME_TILE tile;
@@ -2835,6 +2983,8 @@ legacy_int main(void)
 #else
 	assert(trace_hash == UINT64_C(0x1f0a24dd55dcfc37));
 #endif
+	test_downhill_chase_camera_orbit();
+	test_chase_camera_viewed_pose();
 	test_dashboard_top_layers();
 	test_invalid_multitile_flags();
 	test_ghost_uses_independent_visual_state();

@@ -74,6 +74,7 @@ struct RECTANGLE *alternate_frame_rects;
 struct CUSTOM_CAMERA custom_camera = {CUSTOM_CAMERA_INITIAL_DISTANCE,
 									  CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE,
 									  CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE};
+legacy_u8 custom_camera_preset = CUSTOM_CAMERA_PRESET_ORIGINAL;
 
 struct BUTTON_AREA menu_buttons[5] = {{105, 208, 119, 197},
 									  {66, 107, 77, 120},

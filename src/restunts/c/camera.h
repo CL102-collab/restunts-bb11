@@ -12,6 +12,14 @@ enum CAMERA_MODE {
 	CAMERA_MODE_TRACKSIDE = 3
 };
 
+enum CUSTOM_CAMERA_PRESET {
+	CUSTOM_CAMERA_PRESET_ORIGINAL,
+	CUSTOM_CAMERA_PRESET_CLOSE,
+	CUSTOM_CAMERA_PRESET_NORMAL,
+	CUSTOM_CAMERA_PRESET_FAR,
+	CUSTOM_CAMERA_PRESET_COUNT
+};
+
 #define CAMERA_MODE_COUNT 4U
 #define CAMERA_MODE_MASK (CAMERA_MODE_COUNT - 1U)
 
@@ -29,6 +37,8 @@ struct CUSTOM_CAMERA {
 	legacy_s16 azimuth_angle;
 };
 extern struct CUSTOM_CAMERA custom_camera;
+/* The active F3 preset is separate from matching manual camera settings. */
+extern legacy_u8 custom_camera_preset;
 extern legacy_s8 cameramode;
 extern legacy_s8 followOpponentFlag;
 extern legacy_s8 followOpponentFlag_copy;

@@ -30,15 +30,6 @@
 #define CUSTOM_CAMERA_CHASE_ELEVATION                                                              \
 	(CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE - CUSTOM_CAMERA_CHASE_DOWN_STEPS * CAMERA_ANGLE_STEP)
 
-enum CUSTOM_CAMERA_PRESET {
-	CUSTOM_CAMERA_PRESET_ORIGINAL,
-	CUSTOM_CAMERA_PRESET_CLOSE,
-	CUSTOM_CAMERA_PRESET_NORMAL,
-	CUSTOM_CAMERA_PRESET_FAR,
-	CUSTOM_CAMERA_PRESET_COUNT
-};
-
-static legacy_u8 custom_camera_preset = CUSTOM_CAMERA_PRESET_ORIGINAL;
 static struct CUSTOM_CAMERA custom_camera_original;
 static legacy_s8 custom_camera_original_dashboard;
 

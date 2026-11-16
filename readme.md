@@ -221,10 +221,11 @@ through three chase views, then back to the original view:
 3. The same chase angle at the default zoom.
 4. The same chase angle with three zoom-out steps from the default zoom.
 
-The three chase presets hide the dashboard. Cycling back to the original view
-or selecting another camera restores the original F3 position and prior dashboard
-visibility. Returning to F3 from another camera starts with the original view.
-Replay pan and zoom controls still work; the next F3 preset uses its fixed position.
+The three chase presets hide the dashboard and raise their viewing angle on
+descents to stay above the car and sloping road behind it. Cycling back to the
+original view or selecting another camera restores the original F3 position and
+prior dashboard visibility. Returning to F3 from another camera starts with the
+original view. Replay pan and zoom controls still work; the next F3 preset uses its fixed position.
 
 <a id="supersight-and-fps-display"></a>
 

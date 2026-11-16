@@ -57,8 +57,20 @@ legacy_s16 frame_position_camera(struct FRAME_CAMERA *camera, const struct VECTO
 		offset_vector.x = 0;
 		offset_vector.y = 0;
 		offset_vector.z = custom_camera.distance;
+		legacy_s16 elevation = custom_camera.elevation_angle;
+		if (custom_camera_preset != CUSTOM_CAMERA_PRESET_ORIGINAL && car_to_cam_rotated.y < 0) {
+			/* A shallow world-space orbit can pass below a descending road behind the car.
+			 * Keep the chase view above its downhill body plane without tilting uphill views. */
+			legacy_s16 descent =
+				polarAngle(LEGACY_S16_WRAP_NEGATE(car_to_cam_rotated.y),
+						   polarRadius2D(car_to_cam_rotated.x, car_to_cam_rotated.z));
+			elevation = LEGACY_S16_WRAP_ADD(elevation, descent);
+			if (elevation > ANGLE_QUARTER_TURN) {
+				elevation = ANGLE_QUARTER_TURN;
+			}
+		}
 		car_rot_matrix =
-			mat_rot_zxy(0, LEGACY_S16_WRAP_NEGATE(custom_camera.elevation_angle),
+			mat_rot_zxy(0, LEGACY_S16_WRAP_NEGATE(elevation),
 						LEGACY_S16_WRAP_SUB(polarAngle(car_to_cam_rotated.x, car_to_cam_rotated.z),
 											custom_camera.azimuth_angle),
 						MATRIX_ROTATION_ORDER_ZXY);
