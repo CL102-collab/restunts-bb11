@@ -23,14 +23,14 @@
     160,
     166
   ],
-  "pixel_sha256": "2f243d882c4cea7f62376f7f8e3853141100ebd61fcea7178e75fcb825924cfe",
-  "runtime_sha256": "45d1a193ee6cd217ec1168c2c04b472c8b1b081eec02bddd32172efcbaf786d1",
+  "pixel_sha256": "f12b60e95411ebfe58fa8bb74e009b3801d09eeb7a409e2b5f180bda3ca63652",
+  "runtime_sha256": "933a1fb6a476fb8f1c7a66405471d40209314552a749536b6215aa095648f726",
   "colors_used": 44,
   "processing": [
     "Imagegen restyled the supplied Unitree reference as pixel art",
     "BOX reduction to 74 x 79 portrait pixels",
     "Quantize to exact SDMAIN VGA palette without dithering",
-    "Preserve original frame and apply a pixel-art numeral 7",
+    "Preserve original frame and apply a matching seven-segment numeral 7",
     "Nearest-neighbor 2x enlargement for enhanced portrait asset"
   ]
 }

@@ -17,9 +17,10 @@ PHOTO_SIZE = (74, 79)
 OUTPUT_SCALE = 2
 DIGIT_POSITION = (66, 4)
 DIGIT_COLOR = 39
+# Match the original opponents' top and right seven-segment strokes and gaps.
 DIGIT_SEVEN = (
-    "111111", "000001", "000010", "000010", "000100",
-    "000100", "001000", "001000", "001000",
+    "011110", "000001", "000001", "000001", "000000",
+    "000001", "000001", "000001", "000000",
 )
 DIGIT_SIZE = (len(DIGIT_SEVEN[0]), len(DIGIT_SEVEN))
 HEADER_BYTES_PER_LINE = 16
@@ -132,7 +133,7 @@ def generate(repository, source):
             "Imagegen restyled the supplied Unitree reference as pixel art",
             "BOX reduction to 74 x 79 portrait pixels",
             "Quantize to exact SDMAIN VGA palette without dithering",
-            "Preserve original frame and apply a pixel-art numeral 7",
+            "Preserve original frame and apply a matching seven-segment numeral 7",
             "Nearest-neighbor 2x enlargement for enhanced portrait asset",
         ],
     }
