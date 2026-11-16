@@ -6,6 +6,10 @@
 
 #define UNIT_PORTRAIT_WIDTH 80U
 #define UNIT_PORTRAIT_HEIGHT 83U
+#define UNIT_PORTRAIT_DIGIT_X 66U
+#define UNIT_PORTRAIT_DIGIT_Y 4U
+#define UNIT_PORTRAIT_DIGIT_WIDTH 6U
+#define UNIT_PORTRAIT_DIGIT_HEIGHT 9U
 
 // clang-format off
 static const legacy_u8 unit_portrait_pixels[UNIT_PORTRAIT_WIDTH * UNIT_PORTRAIT_HEIGHT] = {
@@ -424,6 +428,15 @@ static const legacy_u8 unit_portrait_pixels[UNIT_PORTRAIT_WIDTH * UNIT_PORTRAIT_
 	 15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,
 	 15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,
 	 15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   0,   0,
+};
+
+/* Original photo pixels beneath the selection-screen numeral. */
+static const legacy_u8
+	unit_portrait_result_patch[UNIT_PORTRAIT_DIGIT_WIDTH * UNIT_PORTRAIT_DIGIT_HEIGHT] = {
+	 24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,
+	 24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,
+	 24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,  24,
+	 24,  24,  24,  24,  24,  24,
 };
 // clang-format on
 

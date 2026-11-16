@@ -160,8 +160,9 @@ files are required.
 
 UNIT is the Unitree humanoid robot opponent, identified as `UNIT` in extended
 replays. Its original-size **80 x 83** portrait is compiled into SDL3 builds so
-it remains available in every display mode. The same static image appears on
-both win and loss screens. The prepared **160 x 166** `game/opp7.png` is an exact
+it remains available in every display mode. Both win and loss screens show the
+static portrait without the corner numeral; opponent selection screens retain
+its number 7. The prepared **160 x 166** `game/opp7.png` is an exact
 nearest-neighbor enlargement using the `SDMAIN.PVS:!pal` palette, rather than a
 photographic HyperVision replacement.
 

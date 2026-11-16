@@ -22,6 +22,7 @@
 #define TEST_BIO_PAGE_TOP 166
 #define TEST_BIO_METADATA_COUNT 5U
 #define TEST_BIO_MAX_LINES 8U
+#define TEST_PORTRAIT_DIGIT_COLOR 39U
 
 struct TEST_DRAW {
 	legacy_s8 text[TEST_TEXT_CAPACITY];
@@ -77,12 +78,31 @@ void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 	draw_count++;
 }
 
-static void assert_portrait_pixels(const struct SHAPE2D *portrait)
+static void assert_portrait_pixels(const struct SHAPE2D *portrait, legacy_u8 numbered)
 {
 	assert(portrait->width == UNIT_PORTRAIT_WIDTH);
 	assert(portrait->height == UNIT_PORTRAIT_HEIGHT);
-	assert(memcmp((const legacy_u8 *)portrait + SHAPE2D_HEADER_SIZE, unit_portrait_pixels,
-				  sizeof(unit_portrait_pixels)) == 0);
+	legacy_u8 expected[sizeof(unit_portrait_pixels)];
+	memcpy(expected, unit_portrait_pixels, sizeof(expected));
+	if (!numbered) {
+		legacy_u16 changed = 0;
+		for (legacy_u16 row = 0; row < UNIT_PORTRAIT_DIGIT_HEIGHT; row++) {
+			for (legacy_u16 column = 0; column < UNIT_PORTRAIT_DIGIT_WIDTH; column++) {
+				legacy_u16 offset = (UNIT_PORTRAIT_DIGIT_Y + row) * UNIT_PORTRAIT_WIDTH +
+									UNIT_PORTRAIT_DIGIT_X + column;
+				legacy_u8 background =
+					unit_portrait_result_patch[row * UNIT_PORTRAIT_DIGIT_WIDTH + column];
+				if (expected[offset] != background) {
+					assert(expected[offset] == TEST_PORTRAIT_DIGIT_COLOR);
+					changed++;
+				}
+				expected[offset] = background;
+			}
+		}
+		assert(changed != 0);
+	}
+	assert(memcmp((const legacy_u8 *)portrait + SHAPE2D_HEADER_SIZE, expected, sizeof(expected)) ==
+		   0);
 }
 
 static void test_portrait_ownership(void)
@@ -107,17 +127,29 @@ static void test_portrait_ownership(void)
 	assert(release_count == 0);
 	struct SHAPE2D *portrait = unit_opponent_result_portrait();
 	assert(allocation_count == 1);
-	assert_portrait_pixels(portrait);
+	assert_portrait_pixels(portrait, 0);
 	assert(unit_opponent_result_portrait() == portrait);
+	assert_portrait_pixels(portrait, 0);
 	assert(unit_opponent_menu_portrait(OPPONENT_UNIT, resources) == portrait);
 	assert(memcmp(portrait, &originals[OPPONENT_LEGACY_LAST], SHAPE2D_HEADER_SIZE) == 0);
-	assert_portrait_pixels(portrait);
+	assert_portrait_pixels(portrait, 1);
+	/* Result screens remove only the number, even after the menu cached it. */
+	assert(unit_opponent_result_portrait() == portrait);
+	assert_portrait_pixels(portrait, 0);
+	assert(unit_opponent_result_portrait() == portrait);
+	assert_portrait_pixels(portrait, 0);
+	for (legacy_u16 index = 0; index <= OPPONENT_LEGACY_LAST; index++) {
+		assert(unit_opponent_menu_portrait((legacy_u8)index, resources) == &originals[index]);
+	}
+	assert_portrait_pixels(portrait, 0);
+	assert(unit_opponent_menu_portrait(OPPONENT_UNIT, resources) == portrait);
+	assert_portrait_pixels(portrait, 1);
 	/* A new menu layout updates geometry without reallocating cached pixels. */
 	originals[OPPONENT_LEGACY_LAST].position_x++;
 	originals[OPPONENT_LEGACY_LAST].plane_flags[0] = 1;
 	assert(unit_opponent_menu_portrait(OPPONENT_UNIT, resources) == portrait);
 	assert(memcmp(portrait, &originals[OPPONENT_LEGACY_LAST], SHAPE2D_HEADER_SIZE) == 0);
-	assert_portrait_pixels(portrait);
+	assert_portrait_pixels(portrait, 1);
 	assert(allocation_count == 1);
 	unit_opponent_portrait_release();
 	assert(release_count == 1 && allocation == NULL);
@@ -126,7 +158,7 @@ static void test_portrait_ownership(void)
 	/* A later result screen starts with fresh geometry and the same portrait. */
 	portrait = unit_opponent_result_portrait();
 	assert(allocation_count == 2);
-	assert_portrait_pixels(portrait);
+	assert_portrait_pixels(portrait, 0);
 	assert(portrait->position_x == 0 && portrait->position_y == 0);
 	assert(portrait->plane_flags[0] == 0);
 	unit_opponent_portrait_release();

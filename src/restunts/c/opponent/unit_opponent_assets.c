@@ -41,6 +41,16 @@ static struct SHAPE2D *unit_opponent_load_portrait(const struct SHAPE2D *origina
 	if (original != 0) {
 		memcpy(unit_portrait, original, SHAPE2D_HEADER_SIZE);
 	}
+	/* The shared portrait keeps its selection number only in opponent menus. */
+	legacy_u8 *pixels = (legacy_u8 *)unit_portrait + SHAPE2D_HEADER_SIZE;
+	for (legacy_u16 row = 0; row < UNIT_PORTRAIT_DIGIT_HEIGHT; row++) {
+		legacy_u16 offset =
+			(UNIT_PORTRAIT_DIGIT_Y + row) * UNIT_PORTRAIT_WIDTH + UNIT_PORTRAIT_DIGIT_X;
+		const legacy_u8 *source =
+			original != 0 ? unit_portrait_pixels + offset
+						  : unit_portrait_result_patch + row * UNIT_PORTRAIT_DIGIT_WIDTH;
+		memcpy(pixels + offset, source, UNIT_PORTRAIT_DIGIT_WIDTH);
+	}
 	return unit_portrait;
 }
 
