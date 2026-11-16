@@ -175,8 +175,8 @@ static void test_biography(void)
 		"Background: When the last human who has ever played Stunts has died at the age of 67 "
 		"in 2055 after being hit by a car with full self driving enabled, no-one played Stunts "
 		"anymore. That's why it was needed to create AI pipsqueaks who could compete against "
-		"each other in competitions, organized exclusively for AI. Since their knowledge was "
-		"shared between each other, it wasn't really a competition anymore, but a distributed "
+		"each other in competitions, organized exclusively for AI. Since their knowledge is "
+		"shared between each other, it isn't really a competition anymore, but a distributed "
 		"system for optimizing parameters to approximate a function that maps inputs to outputs.";
 	assert(strcmp((const legacy_char *)unit_opponent_background(), expected_background) == 0);
 	legacy_u16 pages = unit_opponent_draw_biography(0);

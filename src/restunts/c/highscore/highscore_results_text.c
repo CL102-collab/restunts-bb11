@@ -2,6 +2,51 @@
 #include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../opponent/opponent.h"
+
+struct UNIT_RESULT_TEXT {
+	const legacy_s8 *opening[END_SCREEN_TEXT_VARIANT_COUNT];
+	const legacy_s8 *middle[END_SCREEN_OUTCOME_VARIANT_COUNT];
+	const legacy_s8 *closing[END_SCREEN_TEXT_VARIANT_COUNT];
+};
+
+static const struct UNIT_RESULT_TEXT unit_win_text = {
+	{
+		"Empirical validation complete. The robot was annoyingly correct.",
+		"Model prediction: first place. Reality has complied.",
+		"Benchmark complete. Biology appears to be the bottleneck.",
+	},
+	{
+		/* The first pair is for a player who did not finish. */
+		"Your lap time remains undefined. A bold approach to minimization.",
+		"You explored the state space thoroughly. The finish state remains unexplored.",
+		"I minimized lap time. Your objective function remains unclear.",
+		"I used model predictive control. You appear to have used positive thinking.",
+	},
+	{
+		"Reproducibility matters. Lose again to confirm.",
+		"Counterexamples are accepted at the finish line.",
+		"You may now blame input latency.",
+	},
+};
+
+static const struct UNIT_RESULT_TEXT unit_loss_text = {
+	{
+		"Empirical counterexample received.",
+		"The simulator and the scoreboard disagree.",
+		"Reality has declined my pull request.",
+	},
+	{
+		"I minimized expected lap time. You minimized actual lap time.",
+		"My planner found the global optimum. Unfortunately, for the wrong model.",
+		"My convergence proof assumed infinite iterations. You insisted on a finish line.",
+		"97 years of experience. I may have confused overfitting with wisdom.",
+	},
+	{
+		"Your victory is now a regression test.",
+		"Recompiling excuses with optimization enabled.",
+		"I will reproduce this result. Then overfit to it.",
+	},
+};
 #endif
 
 void end_format_time(legacy_s8 *out, legacy_u32 frame)
@@ -31,9 +76,26 @@ void end_hiscore_draw_current_text(legacy_s16 *y)
 	*y = LEGACY_S16_WRAP_ADD(*y, HIGHSCORE_ROW_HEIGHT);
 }
 
-static legacy_s8 far *end_hiscore_result_text(legacy_s8 far *opponent_resource, legacy_u8 outcome,
-											  legacy_u8 text_prefix, legacy_u16 resource_index)
+static const legacy_s8 far *end_hiscore_result_text(legacy_s8 far *opponent_resource,
+													legacy_u8 outcome, legacy_u8 text_prefix,
+													legacy_u16 resource_index)
 {
+#ifdef RESTUNTS_SDL3
+	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+		if (outcome == END_SCREEN_OUTCOME_NONE) {
+			return "UNIT";
+		}
+		const struct UNIT_RESULT_TEXT *text =
+			outcome == END_SCREEN_OUTCOME_WIN ? &unit_win_text : &unit_loss_text;
+		if (resource_index == 0) {
+			return text->opening[end_opening_variant];
+		} else if (resource_index == 1) {
+			return text->middle[end_outcome_variant];
+		} else {
+			return text->closing[end_closing_variant];
+		}
+	}
+#endif
 	legacy_s8 text_id[END_SCREEN_TEXT_ID_SIZE];
 	if (outcome == END_SCREEN_OUTCOME_NONE) {
 		return locate_text_res(opponent_resource, opponent_neutral_result_text_id);
@@ -81,7 +143,7 @@ static void end_hiscore_append_text_word(struct END_SCREEN_TEXT_LINE *line, lega
 	}
 }
 
-static void end_hiscore_consume_text(struct END_SCREEN_TEXT_LINE *line, legacy_s8 far *text,
+static void end_hiscore_consume_text(struct END_SCREEN_TEXT_LINE *line, const legacy_s8 far *text,
 									 legacy_s16 animation_x)
 {
 	for (;;) {
@@ -103,14 +165,6 @@ static void end_hiscore_consume_text(struct END_SCREEN_TEXT_LINE *line, legacy_s
 void end_hiscore_draw_opponent_text(legacy_s8 far *opponent_resource, legacy_u8 outcome,
 									legacy_u8 text_prefix, legacy_s16 animation_x)
 {
-#ifdef RESTUNTS_SDL3
-	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
-		font_set_fontdef2(fontnptr);
-		font_draw_text("UNIT", END_SCREEN_TEXT_LEFT, END_SCREEN_TEXT_TOP);
-		font_set_fontdef();
-		return;
-	}
-#endif
 	struct END_SCREEN_TEXT_LINE line;
 	line.line_y = END_SCREEN_TEXT_TOP;
 	line.output_length = 0;
@@ -119,7 +173,7 @@ void end_hiscore_draw_opponent_text(legacy_s8 far *opponent_resource, legacy_u8 
 	legacy_u16 resource_count =
 		outcome == END_SCREEN_OUTCOME_NONE ? 1U : END_SCREEN_TEXT_VARIANT_COUNT;
 	for (legacy_u16 resource_index = 0; resource_index < resource_count; resource_index++) {
-		legacy_s8 far *text =
+		const legacy_s8 far *text =
 			end_hiscore_result_text(opponent_resource, outcome, text_prefix, resource_index);
 		font_set_fontdef2(fontnptr);
 		end_hiscore_consume_text(&line, text, animation_x);

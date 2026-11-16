@@ -24,6 +24,7 @@
 #include "../c/keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../c/hires/hires.h"
+#include "../c/highscore/highscore_internal.h"
 #include "../c/opponent/opponent_animation.h"
 #include "../c/opponent/opponent.h"
 #include "../c/shape2d/shape2d_internal.h"
@@ -49,6 +50,7 @@ static struct HIGHSCORE_ENTRY fixture_scores[HIGHSCORE_ENTRY_COUNT];
 #define FIXTURE_OPPONENT_WIN_TIME 550
 #define FIXTURE_OPPONENT_LOSS_TIME 750
 #define FIXTURE_BUTTON_CENTER_DIVISOR 2
+#define FIXTURE_TEXT_GLYPH_WIDTH 4U
 
 enum FIXTURE_RESULT_BUTTON {
 	FIXTURE_RESULT_REPLAY_BUTTON = 1,
@@ -76,6 +78,15 @@ static struct BUTTON_AREA pointer_area;
 #define FIXTURE_ANIMATION_TOP 43
 #define FIXTURE_DECODE_FAILURE_DRAW 3U
 #define FIXTURE_SHORTCUT_COUNT 3U
+#define FIXTURE_UNIT_PORTRAIT_WIDTH 80U
+#define FIXTURE_UNIT_TEXT_CAPACITY 256U
+#define FIXTURE_UNIT_SELECTION_SAMPLES 12U
+#define FIXTURE_UNIT_TEXT_GLYPH_WIDTH 6U
+
+static legacy_u8 unit_text_capture;
+static legacy_s8 unit_text[FIXTURE_UNIT_TEXT_CAPACITY];
+static legacy_u16 unit_text_lines;
+static legacy_s16 unit_text_animation_x;
 
 static legacy_u8 movie_available, display_shortcuts, hires_raster_active;
 static legacy_u8 movie_loaded, movie_won, movie_drawn, fallback_pending;
@@ -386,6 +397,26 @@ legacy_s16 font_centered_text_x(const legacy_s8 *text)
 
 void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 {
+#ifdef RESTUNTS_SDL3
+	if (unit_text_capture && x == END_SCREEN_TEXT_LEFT && y >= END_SCREEN_TEXT_TOP &&
+		y < END_SCREEN_TOP_HEIGHT) {
+		if (y == END_SCREEN_TEXT_TOP) {
+			unit_text[0] = 0;
+			unit_text_lines = 0;
+		}
+		assert(y == END_SCREEN_TEXT_TOP + unit_text_lines * END_SCREEN_TEXT_LINE_HEIGHT);
+		assert(y + font_glyph_height <= END_SCREEN_TOP_HEIGHT);
+		assert((legacy_s16)(_strlen(text) * FIXTURE_UNIT_TEXT_GLYPH_WIDTH) <
+			   unit_text_animation_x - END_SCREEN_TEXT_RIGHT_MARGIN);
+		assert(_strlen(unit_text) + _strlen(text) + 2U <= sizeof(unit_text));
+		assert(text[0] != 0 && text[0] != ' ' && text[_strlen(text) - 1U] != ' ');
+		if (unit_text[0] != 0) {
+			_strcat(unit_text, " ");
+		}
+		_strcat(unit_text, text);
+		unit_text_lines++;
+	}
+#endif
 	trace_word(1017);
 	trace_text(text);
 	trace_word((legacy_u16)x);
@@ -414,7 +445,12 @@ legacy_s16 font_text_width(const legacy_s8 *text)
 {
 	trace_word(1021);
 	trace_text(text);
-	return (legacy_s16)(_strlen(text) * 4);
+#ifdef RESTUNTS_SDL3
+	if (unit_text_capture) {
+		return (legacy_s16)(_strlen(text) * FIXTURE_UNIT_TEXT_GLYPH_WIDTH);
+	}
+#endif
+	return (legacy_s16)(_strlen(text) * FIXTURE_TEXT_GLYPH_WIDTH);
 }
 
 void format_frame_as_string(legacy_s8 *destination, legacy_s16 frame_count,
@@ -823,6 +859,168 @@ static void test_external_animation_interaction(void)
 	assert(movie_draws_between_originals != 0);
 }
 
+static const legacy_s8 *const unit_win_openings[END_SCREEN_TEXT_VARIANT_COUNT] = {
+	"Empirical validation complete. The robot was annoyingly correct.",
+	"Model prediction: first place. Reality has complied.",
+	"Benchmark complete. Biology appears to be the bottleneck."};
+static const legacy_s8 *const unit_win_middles[END_SCREEN_OUTCOME_VARIANT_COUNT] = {
+	"Your lap time remains undefined. A bold approach to minimization.",
+	"You explored the state space thoroughly. The finish state remains unexplored.",
+	"I minimized lap time. Your objective function remains unclear.",
+	"I used model predictive control. You appear to have used positive thinking."};
+static const legacy_s8 *const unit_win_closings[END_SCREEN_TEXT_VARIANT_COUNT] = {
+	"Reproducibility matters. Lose again to confirm.",
+	"Counterexamples are accepted at the finish line.", "You may now blame input latency."};
+static const legacy_s8 *const unit_loss_openings[END_SCREEN_TEXT_VARIANT_COUNT] = {
+	"Empirical counterexample received.", "The simulator and the scoreboard disagree.",
+	"Reality has declined my pull request."};
+static const legacy_s8 *const unit_loss_middles[END_SCREEN_OUTCOME_VARIANT_COUNT] = {
+	"I minimized expected lap time. You minimized actual lap time.",
+	"My planner found the global optimum. Unfortunately, for the wrong model.",
+	"My convergence proof assumed infinite iterations. You insisted on a finish line.",
+	"97 years of experience. I may have confused overfitting with wisdom."};
+static const legacy_s8 *const unit_loss_closings[END_SCREEN_TEXT_VARIANT_COUNT] = {
+	"Your victory is now a regression test.", "Recompiling excuses with optimization enabled.",
+	"I will reproduce this result. Then overfit to it."};
+
+static void assert_unit_message(legacy_u8 outcome)
+{
+	legacy_s8 expected[FIXTURE_UNIT_TEXT_CAPACITY];
+	if (outcome == END_SCREEN_OUTCOME_NONE) {
+		_strcpy(expected, "UNIT");
+	} else {
+		legacy_u8 won = outcome == END_SCREEN_OUTCOME_WIN;
+		_strcpy(expected, won ? unit_win_openings[end_opening_variant]
+							  : unit_loss_openings[end_opening_variant]);
+		_strcat(expected, " ");
+		_strcat(expected, won ? unit_win_middles[end_outcome_variant]
+							  : unit_loss_middles[end_outcome_variant]);
+		_strcat(expected, " ");
+		_strcat(expected, won ? unit_win_closings[end_closing_variant]
+							  : unit_loss_closings[end_closing_variant]);
+	}
+	assert(_strlen(unit_text) == _strlen(expected));
+	for (legacy_u16 index = 0; index <= _strlen(expected); index++) {
+		assert(unit_text[index] == expected[index]);
+	}
+}
+
+static void test_unit_dialogue_combinations(void)
+{
+	initialize_end_screen(FIXTURE_POINTER_SCENARIO);
+	gameconfig.game_opponenttype = OPPONENT_UNIT;
+	unit_text_capture = 1;
+	for (legacy_u8 scale = 1; scale <= 2U; scale++) {
+		unit_text_animation_x = END_SCREEN_ANIMATION_RIGHT - FIXTURE_UNIT_PORTRAIT_WIDTH * scale;
+		for (legacy_u8 outcome = END_SCREEN_OUTCOME_LOSS; outcome <= END_SCREEN_OUTCOME_WIN;
+			 outcome++) {
+			for (legacy_u16 opening = 0; opening < END_SCREEN_TEXT_VARIANT_COUNT; opening++) {
+				for (legacy_s16 middle = 0; middle < END_SCREEN_OUTCOME_VARIANT_COUNT; middle++) {
+					for (legacy_u16 closing = 0; closing < END_SCREEN_TEXT_VARIANT_COUNT;
+						 closing++) {
+						end_opening_variant = opening;
+						end_outcome_variant = middle;
+						end_closing_variant = closing;
+						legacy_u32 random_before = random_index;
+						for (legacy_u8 redraw = 0; redraw < 2U; redraw++) {
+							end_hiscore_draw_opponent_text(0, outcome, 0, unit_text_animation_x);
+							assert_unit_message(outcome);
+							assert(unit_text_lines > 1U);
+							assert(end_opening_variant == opening &&
+								   end_outcome_variant == middle && end_closing_variant == closing);
+							assert(random_index == random_before);
+						}
+					}
+				}
+			}
+		}
+		end_hiscore_draw_opponent_text(0, END_SCREEN_OUTCOME_NONE, 0, unit_text_animation_x);
+		assert_unit_message(END_SCREEN_OUTCOME_NONE);
+		assert(unit_text_lines == 1U);
+	}
+	unit_text_capture = 0;
+}
+
+static void test_unit_dialogue_selection(void)
+{
+	movie_available = 1;
+	display_shortcuts = 0;
+	movie_failure_draw = 0;
+	for (legacy_u8 outcome = END_SCREEN_OUTCOME_LOSS; outcome <= END_SCREEN_OUTCOME_WIN;
+		 outcome++) {
+		legacy_u8 seen_openings = 0, seen_middles = 0, seen_closings = 0;
+		for (legacy_u8 finished = outcome == END_SCREEN_OUTCOME_LOSS; finished <= 1U; finished++) {
+			for (legacy_u8 restartable = 0; restartable <= 1U; restartable++) {
+				for (legacy_u32 seed = 0; seed < FIXTURE_UNIT_SELECTION_SAMPLES; seed++) {
+					initialize_end_screen(FIXTURE_POINTER_SCENARIO);
+					gameconfig.game_opponenttype = OPPONENT_UNIT;
+					gState_total_finish_time = finished ? FIXTURE_PLAYER_FINISH_TIME : 0;
+					gState_opponent_finish_time = outcome == END_SCREEN_OUTCOME_WIN
+													  ? FIXTURE_OPPONENT_WIN_TIME
+													  : FIXTURE_OPPONENT_LOSS_TIME;
+					replay_recording_flags = restartable ? REPLAY_RECORDING_RESTARTABLE_FLAG : 0;
+					random_index = seed;
+					legacy_s16 opening = (seed + 1U) % END_SCREEN_TEXT_VARIANT_COUNT;
+					legacy_s16 closing = (seed + 1U) % END_SCREEN_TEXT_VARIANT_COUNT;
+					legacy_s16 middle = (seed + 1U) % END_SCREEN_OUTCOME_VARIANT_COUNT;
+					if (outcome == END_SCREEN_OUTCOME_WIN) {
+						/* A replay may carry the opposite finish-status pair. */
+						middle = seed % END_SCREEN_WIN_VARIANT_COUNT +
+								 (!finished ? END_SCREEN_FINISHED_VARIANT_OFFSET : 0);
+					}
+					end_opening_variant = opening;
+					end_outcome_variant = middle;
+					end_closing_variant = closing;
+					unit_text_animation_x =
+						END_SCREEN_ANIMATION_RIGHT -
+						(FIXTURE_ANIMATION_WIDTH + scenario % FIXTURE_ANIMATION_WIDTH_VARIANTS) *
+							video_shape_width_scale;
+					unit_text_capture = 1;
+					(void)end_hiscore();
+					unit_text_capture = 0;
+					assert(random_index ==
+						   seed + (restartable ? 0 : END_SCREEN_TEXT_VARIANT_COUNT));
+					if (restartable) {
+						assert(end_opening_variant == opening && end_closing_variant == closing);
+						legacy_s16 expected_middle = middle;
+						if (outcome == END_SCREEN_OUTCOME_WIN) {
+							expected_middle = middle % END_SCREEN_WIN_VARIANT_COUNT +
+											  (finished ? END_SCREEN_FINISHED_VARIANT_OFFSET : 0);
+						}
+						assert(end_outcome_variant == expected_middle);
+					} else {
+						assert(end_opening_variant != opening && end_closing_variant != closing);
+						seen_openings |= 1U << end_opening_variant;
+						seen_middles |= 1U << end_outcome_variant;
+						seen_closings |= 1U << end_closing_variant;
+					}
+					if (outcome == END_SCREEN_OUTCOME_WIN) {
+						assert((end_outcome_variant >= END_SCREEN_FINISHED_VARIANT_OFFSET) ==
+							   finished);
+					}
+					assert_unit_message(outcome);
+				}
+			}
+		}
+		assert(seen_openings == (1U << END_SCREEN_TEXT_VARIANT_COUNT) - 1U);
+		assert(seen_middles == (1U << END_SCREEN_OUTCOME_VARIANT_COUNT) - 1U);
+		assert(seen_closings == (1U << END_SCREEN_TEXT_VARIANT_COUNT) - 1U);
+	}
+	initialize_end_screen(FIXTURE_POINTER_SCENARIO);
+	gameconfig.game_opponenttype = OPPONENT_UNIT;
+	gState_total_finish_time = gState_opponent_finish_time = 0;
+	unit_text_animation_x =
+		END_SCREEN_ANIMATION_RIGHT -
+		(FIXTURE_ANIMATION_WIDTH + scenario % FIXTURE_ANIMATION_WIDTH_VARIANTS) *
+			video_shape_width_scale;
+	unit_text_capture = 1;
+	(void)end_hiscore();
+	unit_text_capture = 0;
+	assert(random_index == 0);
+	assert_unit_message(END_SCREEN_OUTCOME_NONE);
+	puts("UNIT dialogue combinations, finish-status selection and replay stability passed.");
+}
+
 static void test_unit_static_results(void)
 {
 	movie_available = 1;
@@ -904,6 +1102,8 @@ int main(void)
 #ifdef RESTUNTS_SDL3
 	test_external_animation_interaction();
 	test_unit_static_results();
+	test_unit_dialogue_combinations();
+	test_unit_dialogue_selection();
 	puts("External opponent animation lifecycle and display toggles passed.");
 #endif
 	test_immediate_pointer_selection();

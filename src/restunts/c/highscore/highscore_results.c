@@ -279,6 +279,19 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 #ifdef RESTUNTS_SDL3
 	hires_highscore_reset_animation(screen);
 	if (screen->opponent_active == OPPONENT_UNIT) {
+		if (screen->outcome != END_SCREEN_OUTCOME_NONE &&
+			((legacy_u8)replay_recording_flags & REPLAY_RECORDING_RESTARTABLE_FLAG) == 0) {
+			end_hiscore_choose_text_variants(screen);
+		}
+		if (screen->outcome == END_SCREEN_OUTCOME_WIN) {
+			/* Revisited results can retain a selector from a different finish status. */
+			end_outcome_variant =
+				(legacy_s16)((legacy_u16)end_outcome_variant & END_SCREEN_BINARY_RANDOM_MASK);
+			if (end_player_finish_time() != 0) {
+				end_outcome_variant =
+					LEGACY_S16_WRAP_ADD(end_outcome_variant, END_SCREEN_FINISHED_VARIANT_OFFSET);
+			}
+		}
 		static legacy_u8 single_frame[] = {1, 0};
 		screen->animation_resource = (legacy_s8 *)unit_opponent_result_portrait();
 		screen->animation_sequence = single_frame;

@@ -171,6 +171,13 @@ through the background while the name, age, experience, expertise and problems
 remain visible. The original six opponents and non-SDL3 builds retain their
 existing resources and selection range.
 
+UNIT's race-result dialogue selects from three openings, four middle lines,
+and three closings for each outcome. Its winning middle lines distinguish
+whether the player finished. The twenty fragments use technical, deadpan humor
+about route optimization, model errors, and the gap between predictions and
+actual results. They wrap beside the portrait using the normal result-screen
+font and remain consistent while the screen is redrawn.
+
 The imagegen master is preserved in
 [`game-sources/full-resolution/opp7.png`](game-sources/full-resolution/opp7.png),
 with the native indexed tile in
