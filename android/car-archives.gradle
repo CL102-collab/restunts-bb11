@@ -1,0 +1,16 @@
+// Both APKs use the same deterministic car archives as the native release packages.
+def carSources = rootProject.file('../assets/cars')
+def carArchiveScript = rootProject.file('../tools/scripts/prepare-car-archives.py')
+def carArchiveDirectory = layout.buildDirectory.dir('generated/car-archives')
+def carArchiveNames = ['TERR.zip', 'MCMU.zip']
+
+ext.bundledCarArchiveDirectory = carArchiveDirectory
+ext.bundledCarArchiveNames = carArchiveNames
+ext.prepareBundledCarArchives = tasks.register('prepareBundledCarArchives', Exec) {
+    inputs.file carArchiveScript
+    inputs.dir carSources
+    outputs.files(carArchiveNames.collect { name -> carArchiveDirectory.map { it.file(name) } })
+    commandLine 'python3', carArchiveScript.absolutePath,
+        '--source-dir', carSources.absolutePath,
+        '--output-dir', carArchiveDirectory.get().asFile.absolutePath
+}

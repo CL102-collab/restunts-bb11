@@ -36,6 +36,11 @@ FIXTURE_TEMPLEOS_DATE = 1
 TEMPLEOS_TOOLS = PACKAGES.ROOT / "src/restunts/platform/templeos/tools"
 TEMPLEOS_FORMAT = runpy.run_path(str(TEMPLEOS_TOOLS / "MAKE_DATA_CD.PY"))
 PORTED_TARGETS = {"templeos", "amiga-m68k"}
+CAR_ARCHIVE_BUILDER = runpy.run_path(str(SCRIPT.with_name("prepare-car-archives.py")))
+EXPECTED_CAR_ARCHIVE_MEMBERS = {
+    "TERR.zip": {"CARTERR.RES", "STTERR.3SH", "STDATERR.VSH", "STDBTERR.VSH"},
+    "MCMU.zip": {"CARMCMU.RES", "STMCMU.3SH", "STMCMU.H3D", "STDAMCMU.VSH", "STDBMCMU.VSH"},
+}
 ELF_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
     "freebsd-x86": "FreeBSD 32-bit x86 with SSE2",
@@ -84,6 +89,36 @@ class ReleasePackageTests(unittest.TestCase):
             path = source / "assets/cars" / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((PACKAGES.ROOT / "assets/cars" / name).read_bytes())
+
+    def bundled_car_archives(self):
+        source = PACKAGES.ROOT / "assets/cars"
+        key = source.resolve()
+        if not hasattr(type(self), "car_archive_cache"):
+            type(self).car_archive_cache = {}
+        cache = type(self).car_archive_cache
+        if key not in cache:
+            cache[key] = CAR_ARCHIVE_BUILDER["build_archives"](source)
+        return cache[key]
+
+    def car_archive(self, archive_name, entries=None, compression=zipfile.ZIP_DEFLATED,
+                    modes=None, force_zip64=False):
+        if entries is None:
+            entries = [(name, (PACKAGES.ROOT / "assets/cars" / name).read_bytes())
+                       for name in sorted(EXPECTED_CAR_ARCHIVE_MEMBERS[archive_name])]
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as archive:
+            for name, content in entries:
+                entry = zipfile.ZipInfo(name, FIXTURE_ZIP_TIMESTAMP)
+                entry.create_system = 3
+                entry.external_attr = (modes or {}).get(name, stat.S_IFREG | PACKAGES.FILE_MODE) << 16
+                entry.compress_type = compression
+                with contextlib.redirect_stderr(io.StringIO()):
+                    if force_zip64:
+                        with archive.open(entry, "w", force_zip64=True) as member:
+                            member.write(content)
+                    else:
+                        archive.writestr(entry, content)
+        return output.getvalue()
 
     def elf_data(self, elf_class, machine, shared=False, flags=0):
         header = bytearray(PACKAGES.ELF_HEADER_SIZES[elf_class])
@@ -264,6 +299,8 @@ class ReleasePackageTests(unittest.TestCase):
         horizon_source = PACKAGES.custom_horizon_source(name)
         if horizon_source is not None:
             return horizon_source.read_bytes()
+        if PACKAGES.custom_car_archive_members(name) is not None:
+            return self.bundled_car_archives()[Path(name).name]
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
             return car_source.read_bytes()
@@ -464,10 +501,22 @@ class ReleasePackageTests(unittest.TestCase):
                 for contents in collections:
                     packaged = {name for name in contents if name.startswith(directory + "/")}
                     self.assertEqual(packaged, PACKAGES.custom_car_files(directory))
+                    if target in PACKAGES.SDL3_TARGETS:
+                        self.assertEqual(packaged, {f"{directory}/{name}"
+                                                   for name in EXPECTED_CAR_ARCHIVE_MEMBERS})
                     for name in packaged:
-                        expected = (PACKAGES.ROOT / "assets/cars" / Path(name).name).read_bytes()
-                        self.assertEqual(contents[name], expected)
-                        self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
+                        if target in PACKAGES.SDL3_TARGETS:
+                            with zipfile.ZipFile(io.BytesIO(contents[name])) as car:
+                                expected_names = EXPECTED_CAR_ARCHIVE_MEMBERS[Path(name).name]
+                                self.assertEqual(set(car.namelist()), expected_names)
+                                self.assertEqual(len(car.infolist()), len(expected_names))
+                                for member in car.infolist():
+                                    expected = (PACKAGES.ROOT / "assets/cars" / member.filename).read_bytes()
+                                    self.assertEqual(car.read(member), expected)
+                        else:
+                            expected = (PACKAGES.ROOT / "assets/cars" / Path(name).name).read_bytes()
+                            self.assertEqual(contents[name], expected)
+                            self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
 
     def test_native_archives_preserve_the_tracks_folder(self):
         expected = (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
@@ -491,14 +540,14 @@ class ReleasePackageTests(unittest.TestCase):
             files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
             for name in files:
-                if PACKAGES.custom_car_source(name) is None:
+                if (PACKAGES.custom_car_source(name) is None and
+                        PACKAGES.custom_car_archive_members(name) is None):
                     continue
                 with self.subTest(target=target, missing=name), \
                         self.assertRaisesRegex(ValueError, "missing packaged files"):
                     PACKAGES.validate_contents(target, {key: data for key, data in files.items()
                                                         if key != name}, modes)
-                with self.subTest(target=target, replaced=name), \
-                        self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
+                with self.subTest(target=target, replaced=name), self.assertRaises(ValueError):
                     PACKAGES.validate_contents(target, {**files, name: FILE_DATA}, modes)
         for target in PACKAGES.ANDROID_TARGETS:
             for make_apk, validate in ((self.apk_data, PACKAGES.validate_android_apk),
@@ -508,8 +557,175 @@ class ReleasePackageTests(unittest.TestCase):
                             self.assertRaisesRegex(ValueError, "missing.*APK members"):
                         validate(target, make_apk(target, missing=(name,)))
                     with self.subTest(target=target, apk=make_apk.__name__, replaced=name), \
-                            self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
+                            self.assertRaises(ValueError):
                         validate(target, make_apk(target, {name: FILE_DATA}))
+
+    def test_sdl3_packages_reject_loose_cars_beside_the_archives(self):
+        for target in ("linux-x64", "dos32", "browser"):
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            directory = ("share/restunts/wasm-relink/data/assets/cars" if target == "browser"
+                         else "bin/cars")
+            for resource in PACKAGES.CUSTOM_CAR_FILES:
+                name = f"{directory}/{resource}"
+                with self.subTest(target=target, resource=resource), \
+                        self.assertRaisesRegex(ValueError, "Unexpected package file"):
+                    PACKAGES.validate_contents(target, {
+                        **files, name: (PACKAGES.ROOT / "assets/cars" / resource).read_bytes()},
+                        {**modes, name: PACKAGES.FILE_MODE})
+        loose = "assets/cars/CARTERR.RES"
+        data = (PACKAGES.ROOT / "assets/cars/CARTERR.RES").read_bytes()
+        for target in PACKAGES.ANDROID_TARGETS:
+            for make_apk, validate in ((self.apk_data, PACKAGES.validate_android_apk),
+                                       (self.genghost_apk_data, PACKAGES.validate_android_genghost_apk)):
+                with self.subTest(target=target, apk=make_apk.__name__), self.assertRaises(ValueError):
+                    validate(target, make_apk(target, {loose: data}))
+
+    def test_custom_car_archives_are_deterministic_and_preserve_runtime_metadata(self):
+        source = self.root / "cars"
+        source.mkdir()
+        for name in PACKAGES.CUSTOM_CAR_FILES:
+            shutil.copyfile(PACKAGES.ROOT / "assets/cars" / name, source / name)
+        expected_members = {name: set(members) for name, members in
+                            CAR_ARCHIVE_BUILDER["CAR_ARCHIVE_MEMBERS"].items()}
+        self.assertEqual(expected_members, EXPECTED_CAR_ARCHIVE_MEMBERS)
+        first = CAR_ARCHIVE_BUILDER["build_archives"](source)
+        for index, path in enumerate(source.iterdir()):
+            os.utime(path, (1000000000 + index, 1700000000 + index))
+            path.chmod(0o755)
+        self.assertEqual(CAR_ARCHIVE_BUILDER["build_archives"](source), first)
+        for name, content in first.items():
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                self.assertEqual(archive.namelist(), sorted(EXPECTED_CAR_ARCHIVE_MEMBERS[name]))
+                for entry in archive.infolist():
+                    self.assertEqual(entry.date_time, FIXTURE_ZIP_TIMESTAMP)
+                    self.assertEqual(entry.compress_type, zipfile.ZIP_DEFLATED)
+                    self.assertEqual(entry.create_system, 3)
+                    self.assertTrue(stat.S_ISREG(entry.external_attr >> 16))
+                    self.assertEqual(stat.S_IMODE(entry.external_attr >> 16), PACKAGES.FILE_MODE)
+                    self.assertLessEqual(entry.extract_version, 20)
+                    self.assertFalse(entry.flag_bits & 1)
+                    self.assertEqual(archive.read(entry), (source / entry.filename).read_bytes())
+            PACKAGES.validate_custom_car_resources({f"bin/cars/{name}": content})
+
+    def test_custom_car_archive_generation_requires_complete_nonempty_sources(self):
+        source = self.root / "cars"
+        source.mkdir()
+        with self.assertRaises(FileNotFoundError):
+            CAR_ARCHIVE_BUILDER["build_archives"](source)
+        for name in PACKAGES.CUSTOM_CAR_FILES:
+            shutil.copyfile(PACKAGES.ROOT / "assets/cars" / name, source / name)
+        (source / "CARTERR.RES").write_bytes(b"")
+        with self.assertRaisesRegex(ValueError, "Empty custom car resource"):
+            CAR_ARCHIVE_BUILDER["build_archives"](source)
+
+    def test_custom_car_zip_members_are_checked_against_exact_source_inventory(self):
+        for car_name, member_names in EXPECTED_CAR_ARCHIVE_MEMBERS.items():
+            entries = [(name, (PACKAGES.ROOT / "assets/cars" / name).read_bytes())
+                       for name in sorted(member_names)]
+            first_name, first_data = entries[0]
+            variants = {
+                "missing": entries[1:],
+                "extra": entries + [("MISC.RES", FILE_DATA)],
+                "nested": [("nested/" + first_name, first_data)] + entries[1:],
+                "parent": [("../" + first_name, first_data)] + entries[1:],
+                "case": [(first_name.lower(), first_data)] + entries[1:],
+                "duplicate": entries + entries[:1],
+                "substituted": [(first_name, FILE_DATA)] + entries[1:],
+            }
+            for variant, members in variants.items():
+                with self.subTest(car=car_name, variant=variant), self.assertRaises(ValueError):
+                    PACKAGES.validate_custom_car_resources({
+                        f"bin/cars/{car_name}": self.car_archive(car_name, members)})
+            with self.subTest(car=car_name, variant="symlink"), self.assertRaises(ValueError):
+                PACKAGES.validate_custom_car_resources({f"bin/cars/{car_name}":
+                    self.car_archive(car_name, modes={first_name: stat.S_IFLNK | 0o777})})
+            with self.subTest(car=car_name, variant="wrong car"), self.assertRaises(ValueError):
+                other = "MCMU.zip" if car_name == "TERR.zip" else "TERR.zip"
+                PACKAGES.validate_custom_car_resources({f"bin/cars/{car_name}":
+                                                       self.bundled_car_archives()[other]})
+            for method in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+                with self.subTest(car=car_name, compression=method):
+                    PACKAGES.validate_custom_car_resources({f"bin/cars/{car_name}":
+                        self.car_archive(car_name, compression=method)})
+
+    def test_custom_car_zip_rejects_unsupported_or_corrupt_archives(self):
+        name = "bin/cars/TERR.zip"
+        ordinary = self.car_archive("TERR.zip")
+        encrypted = bytearray(ordinary)
+        central = encrypted.index(b"PK\x01\x02")
+        for offset in (6, central + 8):
+            flags = struct.unpack_from("<H", encrypted, offset)[0]
+            struct.pack_into("<H", encrypted, offset, flags | 1)
+        wrong_crc = bytearray(ordinary)
+        wrong_crc[central + 16] ^= 1
+        variants = {
+            "not a ZIP": FILE_DATA,
+            "truncated": ordinary[:-8],
+            "CRC": bytes(wrong_crc),
+            "encrypted": bytes(encrypted),
+            "ZIP64": self.car_archive("TERR.zip", force_zip64=True),
+            "BZIP2": self.car_archive("TERR.zip", compression=zipfile.ZIP_BZIP2),
+        }
+        for variant, content in variants.items():
+            with self.subTest(variant=variant), self.assertRaises(ValueError):
+                PACKAGES.validate_custom_car_resources({name: content})
+
+    def test_custom_car_zip_requires_runtime_compatible_local_headers(self):
+        name = "bin/cars/TERR.zip"
+        ordinary = self.car_archive("TERR.zip")
+        local_format = struct.Struct("<4s5H3I2H")
+        local_fields = ("signature", "version", "flags", "method", "time", "date", "crc",
+                        "compressed_size", "expanded_size", "name_length", "extra_length")
+        central_format = struct.Struct("<4s6H3I5H2I")
+        central_fields = ("signature", "creator", "version", "flags", "method", "time", "date",
+                          "crc", "compressed_size", "expanded_size", "name_length", "extra_length",
+                          "comment_length", "disk", "internal_attributes", "attributes", "offset")
+        stored_version = 10
+        deflated_version = 20
+        descriptor_flag = 0x0008
+        utf8_flag = 0x0800
+
+        def replace_headers(content=ordinary, local=None, central=None):
+            data = bytearray(content)
+            central_offset = data.index(b"PK\x01\x02")
+            for fields, layout, offset, changes in (
+                    (local_fields, local_format, 0, local),
+                    (central_fields, central_format, central_offset, central)):
+                header = dict(zip(fields, layout.unpack_from(data, offset)))
+                header.update(changes or {})
+                layout.pack_into(data, offset, *(header[field] for field in fields))
+            return bytes(data)
+
+        first_header = dict(zip(local_fields, local_format.unpack_from(ordinary)))
+        wrong_name = bytearray(ordinary)
+        wrong_name[local_format.size] ^= 0x20
+        variants = {
+            "DEFLATE version 1.0": replace_headers(
+                local={"version": stored_version}, central={"version": stored_version}),
+            "local version": replace_headers(local={"version": deflated_version + 1}),
+            "local compression": replace_headers(local={"method": zipfile.ZIP_STORED}),
+            "local flags": replace_headers(local={"flags": utf8_flag}),
+            "local CRC": replace_headers(local={"crc": first_header["crc"] ^ 1}),
+            "local compressed size": replace_headers(
+                local={"compressed_size": first_header["compressed_size"] + 1}),
+            "local expanded size": replace_headers(
+                local={"expanded_size": first_header["expanded_size"] + 1}),
+            "local name": bytes(wrong_name),
+            "local extra": replace_headers(local={"extra_length": 1}),
+            "data descriptor": replace_headers(
+                local={"flags": descriptor_flag}, central={"flags": descriptor_flag}),
+            "central reserved version byte": replace_headers(
+                central={"version": deflated_version | 0x0100}),
+        }
+        stored = self.car_archive("TERR.zip", compression=zipfile.ZIP_STORED)
+        variants["STORED version below 1.0"] = replace_headers(
+            stored, local={"version": stored_version - 1}, central={"version": stored_version - 1})
+        for variant, content in variants.items():
+            with self.subTest(variant=variant), self.assertRaises(ValueError):
+                PACKAGES.validate_custom_car_resources({name: content})
+        PACKAGES.validate_custom_car_resources({name: replace_headers(
+            stored, local={"version": stored_version}, central={"version": stored_version})})
 
     def test_custom_car_exception_allows_only_distributed_names_and_directories(self):
         for directory in PACKAGES.CUSTOM_CAR_DIRECTORIES:
@@ -963,10 +1179,14 @@ class ReleasePackageTests(unittest.TestCase):
                 PACKAGES.android_minimum_sdk("android-armv7")
 
     def test_android_game_apks_accept_the_complete_bundled_asset_inventory(self):
+        assets = PACKAGES.ROOT / "assets"
         for target in PACKAGES.ANDROID_TARGETS:
             bundled = {path.relative_to(PACKAGES.ROOT).as_posix(): self.runtime_data(
                 target, path.relative_to(PACKAGES.ROOT).as_posix())
-                for path in (PACKAGES.ROOT / "assets").rglob("*") if path.is_file()}
+                for path in assets.rglob("*")
+                if path.is_file() and path.relative_to(assets).parts[0] != "cars"}
+            bundled.update({f"assets/cars/{name}": content
+                            for name, content in self.bundled_car_archives().items()})
             with self.subTest(target=target):
                 PACKAGES.validate_android_apk(target, self.apk_data(target, bundled))
 

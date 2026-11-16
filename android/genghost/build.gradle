@@ -23,11 +23,12 @@ def prepareStorage = tasks.register('prepareGenghostStorageJava', Sync) {
     into storageSources
 }
 
+apply from: rootProject.file('car-archives.gradle')
 def carAssets = layout.buildDirectory.dir('generated/car-assets')
 def prepareCars = tasks.register('prepareGenghostCarAssets', Sync) {
-    from('../../assets/cars') {
-        caseSensitive = false
-        include '*.res', '*.3sh', '*.h3d', '*.vsh'
+    dependsOn prepareBundledCarArchives
+    from(bundledCarArchiveDirectory) {
+        include bundledCarArchiveNames
         into 'cars'
     }
     into carAssets

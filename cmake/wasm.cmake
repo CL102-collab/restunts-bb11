@@ -4,9 +4,9 @@ set(restunts_web_assets "${CMAKE_CURRENT_BINARY_DIR}/web-assets")
 set(restunts_web_shell "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/shell.html")
 # Recreate only this generated directory so removed assets cannot linger.
 file(REMOVE_RECURSE "${restunts_web_assets}")
-foreach(car_file IN LISTS restunts_car_files)
-    configure_file("${CMAKE_SOURCE_DIR}/assets/cars/${car_file}"
-        "${restunts_web_assets}/assets/cars/${car_file}" COPYONLY)
+foreach(car_archive IN LISTS restunts_car_archives)
+    configure_file("${restunts_car_archive_directory}/${car_archive}"
+        "${restunts_web_assets}/assets/cars/${car_archive}" COPYONLY)
 endforeach()
 foreach(horizon_file IN LISTS restunts_horizon_files)
     configure_file("${CMAKE_SOURCE_DIR}/assets/horizons/${horizon_file}"

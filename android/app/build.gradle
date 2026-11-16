@@ -11,6 +11,20 @@ def releaseSigning = ['ANDROID_KEYSTORE_FILE', 'ANDROID_KEYSTORE_PASSWORD',
 }
 def releaseSigningConfigured = releaseSigning.values().every { it != null && !it.isEmpty() }
 
+apply from: rootProject.file('car-archives.gradle')
+def packagedAssets = layout.buildDirectory.dir('generated/package-assets')
+def prepareAssets = tasks.register('prepareGameAssets', Sync) {
+    dependsOn prepareBundledCarArchives
+    from('../../assets') {
+        exclude 'cars/**'
+    }
+    from(bundledCarArchiveDirectory) {
+        include bundledCarArchiveNames
+        into 'cars'
+    }
+    into packagedAssets
+}
+
 android {
     namespace 'org.restunts.android'
     compileSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
@@ -52,7 +66,7 @@ android {
     sourceSets.main {
         java.srcDir new File(sdlDirectory, 'android-project/app/src/main/java')
         // Only port enhancements and dependency notices. Never include stunts/.
-        assets.srcDirs '../../assets', '../generated-assets'
+        assets.srcDirs packagedAssets, '../generated-assets'
     }
     externalNativeBuild {
         cmake {
@@ -95,3 +109,6 @@ android {
         }
     }
 }
+
+// Stage the game assets without loose copies of the bundled car resources.
+tasks.named('preBuild').configure { dependsOn prepareAssets }

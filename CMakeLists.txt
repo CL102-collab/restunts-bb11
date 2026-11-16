@@ -431,8 +431,7 @@ target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_part
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
 set(restunts_horizon_files Antarctica.png)
-set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STMCMU.H3D STTERR.3SH
-    STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
+include(cmake/car-archives.cmake)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
     RESTUNTS_EDITOR_DIRECTORY="${CMAKE_CURRENT_BINARY_DIR}"
     RESTUNTS_MENU_DIRECTORY="${restunts_asset_directory}/menus"
@@ -551,8 +550,9 @@ target_compile_definitions(pixldump PRIVATE RESTUNTS_PIXLDUMP)
 target_link_libraries(pixldump PRIVATE restunts_game)
 
 install(TARGETS restunts repldump pixldump RUNTIME DESTINATION bin COMPONENT Runtime)
-foreach(car_file IN LISTS restunts_car_files)
-    install(FILES "assets/cars/${car_file}" DESTINATION bin/cars COMPONENT Runtime)
+foreach(car_archive IN LISTS restunts_car_archives)
+    install(FILES "${restunts_car_archive_directory}/${car_archive}"
+        DESTINATION bin/cars COMPONENT Runtime)
 endforeach()
 install(FILES assets/tracks/README.TXT DESTINATION bin/tracks COMPONENT Runtime)
 foreach(horizon_file IN LISTS restunts_horizon_files)

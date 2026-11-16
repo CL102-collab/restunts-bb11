@@ -16,9 +16,18 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+import zlib
 
 
 ROOT = Path(__file__).resolve().parents[2]
+CAR_ARCHIVES = runpy.run_path(str(ROOT / "tools/scripts/prepare-car-archives.py"))
+CAR_ARCHIVE_MEMBERS = CAR_ARCHIVES["CAR_ARCHIVE_MEMBERS"]
+CAR_ARCHIVE_ALLOWED_FLAGS = 0x0806
+CAR_ARCHIVE_DEFLATE_FLAGS = 0x0006
+CAR_ARCHIVE_MAX_VERSION = 20
+CAR_ARCHIVE_MIN_VERSIONS = {zipfile.ZIP_STORED: 10, zipfile.ZIP_DEFLATED: 20}
+CAR_ARCHIVE_LOCAL_HEADER = struct.Struct("<4s5H3I2H")
+CAR_ARCHIVE_LOCAL_SIGNATURE = b"PK\x03\x04"
 MANIFEST = "PACKAGE-MANIFEST.json"
 MANIFEST_VERSION = 1
 README = "README-PACKAGE.txt"
@@ -236,6 +245,7 @@ CUSTOM_HORIZON_DIRECTORIES = {"horizons", "bin/horizons", "assets/horizons",
 CUSTOM_CAR_FILES = CLASSIC_CUSTOM_CAR_FILES + ("STMCMU.H3D",)
 CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
                           "share/restunts/wasm-relink/data/assets/cars"}
+CUSTOM_CAR_ARCHIVE_DIRECTORIES = CUSTOM_CAR_DIRECTORIES - {"cars"}
 SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE",
                         "puff-LICENSE")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -271,8 +281,69 @@ def custom_car_source(name):
     return None
 
 
+def custom_car_archive_members(name):
+    path = PurePosixPath(name)
+    if str(path.parent) in CUSTOM_CAR_ARCHIVE_DIRECTORIES:
+        return CAR_ARCHIVE_MEMBERS.get(path.name)
+    return None
+
+
+def build_custom_car_archives():
+    return CAR_ARCHIVES["build_archives"](ROOT / "assets/cars")
+
+
+def validate_custom_car_local_header(name, content, entry):
+    offset = entry.header_offset
+    require(0 <= offset <= len(content) - CAR_ARCHIVE_LOCAL_HEADER.size,
+            f"Truncated custom car archive header: {name}/{entry.filename}")
+    (signature, version, flags, method, _time, _date, crc, compressed, expanded,
+     name_length, extra_length) = CAR_ARCHIVE_LOCAL_HEADER.unpack_from(content, offset)
+    name_offset = offset + CAR_ARCHIVE_LOCAL_HEADER.size
+    data_offset = name_offset + name_length + extra_length
+    # The generated archives are seekable and have complete local headers.
+    # Reject descriptors and extras rather than accepting metadata the native loader rejects.
+    require(signature == CAR_ARCHIVE_LOCAL_SIGNATURE and version == entry.extract_version and
+            flags == entry.flag_bits and method == entry.compress_type and crc == entry.CRC and
+            compressed == entry.compress_size and expanded == entry.file_size and
+            extra_length == 0 and data_offset + compressed <= len(content) and
+            content[name_offset:name_offset + name_length] == entry.filename.encode("ascii"),
+            f"Inconsistent custom car archive header: {name}/{entry.filename}")
+
+
+def validate_custom_car_archive(name, content, members):
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            entries = archive.infolist()
+            require(len(entries) == len(members) and
+                    {entry.filename for entry in entries} == set(members),
+                    f"Custom car archive members differ: {name}")
+            for entry in entries:
+                require(entry.filename == entry.orig_filename and
+                        stat.S_ISREG(entry.external_attr >> 16),
+                        f"Unsupported custom car archive member: {name}/{entry.filename}")
+                require(entry.compress_type in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED} and
+                        CAR_ARCHIVE_MIN_VERSIONS[entry.compress_type] <= entry.extract_version <=
+                        CAR_ARCHIVE_MAX_VERSION and entry.reserved == 0 and
+                        (entry.compress_type != zipfile.ZIP_STORED or
+                         not entry.flag_bits & CAR_ARCHIVE_DEFLATE_FLAGS) and
+                        entry.flag_bits & ~CAR_ARCHIVE_ALLOWED_FLAGS == 0 and not entry.extra,
+                        f"Unsupported custom car archive format: {name}/{entry.filename}")
+                validate_custom_car_local_header(name, content, entry)
+                source = ROOT / "assets/cars" / entry.filename
+                require(source.is_file(), f"Missing custom car source resource: {source}")
+                require(entry.file_size == source.stat().st_size and
+                        archive.read(entry) == source.read_bytes(),
+                        f"Custom car resource differs from source: {name}/{entry.filename}")
+    except (zipfile.BadZipFile, RuntimeError, NotImplementedError, EOFError, zlib.error) as error:
+        raise ValueError(f"Invalid custom car archive: {name}: {error}") from error
+
+
 def validate_custom_car_resources(files):
     for name, content in files.items():
+        members = custom_car_archive_members(name)
+        if members is not None:
+            validate_custom_car_archive(name, content, members)
+            continue
         source = custom_car_source(name)
         if source is not None:
             require(source.is_file(), f"Missing custom car source resource: {source}")
@@ -304,7 +375,7 @@ def custom_horizon_files(directory):
 
 def custom_car_files(directory):
     # Classic ports install directly under cars/ or TempleOS PORT/CARS.
-    names = CLASSIC_CUSTOM_CAR_FILES if directory in {"cars", "PORT/CARS"} else CUSTOM_CAR_FILES
+    names = CLASSIC_CUSTOM_CAR_FILES if directory in {"cars", "PORT/CARS"} else CAR_ARCHIVE_MEMBERS
     return {f"{directory}/{name}" for name in names}
 
 
@@ -721,7 +792,9 @@ def readme(target, commit):
         return ("\r\n".join(lines) + "\r\n").encode("utf-8")
     if target in SDL3_TARGETS:
         lines += [f"Open {track_editor_path(target)} in a modern browser to edit tracks offline.",
-                  "The track editor is self-contained; no server or extra editor files are needed."]
+                  "The track editor is self-contained; no server or extra editor files are needed.",
+                  "Bundled cars use TERR.zip and MCMU.zip in the cars asset folder.",
+                  "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model."]
         if target != "dos32":
             guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
             lines += ["Sound settings selects Ad Lib, MT-32, or No sound; OGG music replacement is separate.",

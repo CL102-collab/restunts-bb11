@@ -435,6 +435,9 @@ car ID, for example `CDOR.ZIP`. Store `CARCDOR.RES` (or `.PRE`), `STCDOR.3SH`
 An optional `STCDOR.H3D` HyperVision model can be included. Filenames are matched
 without case. Adding or removing the ZIP is sufficient; the game does not extract files.
 Browser folder import and the Android ghost generator also recognize these archives.
+Release packages bundle the Tesla and McMurtry resources as `TERR.zip` and
+`MCMU.zip` in this format, including McMurtry's optional HyperVision model.
+The same archives are installed natively and embedded in browser and Android builds.
 
 Location priority stays the same. Within each location, loose resources precede ZIP
 members, giving this search order:
