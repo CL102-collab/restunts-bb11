@@ -104,6 +104,44 @@ same wheel and jump checks used for the player. Independent native penalty and
 checkpoint observers check UNIT's actual motion. Their state is restored with
 replay snapshots; any accidental penalty is added to UNIT's finish time.
 
+## Learning between races
+
+UNIT saves route-search progress when a prepared race closes or the game shuts
+down normally. The next race resumes the candidate sequence instead of starting
+over. Separate caches belong to each track geometry, opponent-car physics,
+transmission, frame-rate, and driving-rules combination. Road, terrain, obstacle,
+car-physics, or OWOOT changes produce a different identity. Track names, horizons,
+and notes do not affect the identity. Planner and physics revisions invalidate
+incompatible caches.
+
+The cache retains search progress, learned maneuver recipes, and the best clean
+native-preview lap. On the next start, saved commands run through fresh native
+physics to rebuild expected car states. They cannot control the live car until
+that validation finishes. Remaining preparation time tests new candidates;
+only a complete, penalty-free, faster native lap replaces the incumbent.
+Failed, slower, or unfinished candidates retain the previous validated lap.
+Live rechecks cannot replace it with traffic-dependent partial controls.
+An incomplete first preview can still retain accepted maneuver recipes for
+validation on a later start.
+
+Preparation remains ten seconds. Repeated starts accumulate search work and can
+improve the saved best lap, but every start need not improve it. Player traffic
+and avoidance can change the actual race time. The existing racing-line model
+and mandatory stunt alignment still apply; caching does not add the offline
+ghost generator's per-section optimization.
+
+Learning files use `.ULC` in the writable game/save directory. Browser and
+Android builds use their existing saved-file persistence. Missing, incompatible,
+corrupt, or unwritable caches do not prevent racing. Delete the corresponding
+`.ULC` files to reset learning. Replays use recorded commands and do not train
+or rewrite the cache.
+
+Headless regressions disable persistence by default. The benchmark flag
+`--unit-cache-dir /absolute/path/to/existing/directory` opts into an isolated
+cache. Its diagnostics report loading, saving, continued search, and the best
+native lap. A regression runs separate processes to check warm starts, continued
+exploration, best-lap retention, key isolation, and corrupt-cache recovery.
+
 ## Replays and testing
 
 UNIT races use CSRPL on both classic and CSTRK tracks. Classic tracks retain

@@ -10,6 +10,8 @@
 #include "unit_launch.h"
 #include "unit_profiles.h"
 #include "unit_collision.h"
+#include "unit_learning_cache.h"
+#include "unit_learning_key.h"
 #include "opponent.h"
 #include "../externs.h"
 #include "../game_input.h"
@@ -67,6 +69,57 @@ static legacy_u32 unit_recheck_retry;
 static legacy_f64 unit_recheck_lead;
 static legacy_u64 unit_applied_worker_commands;
 static legacy_u8 unit_current_from_worker;
+static struct UNIT_LEARNING_KEY unit_learning_key;
+static struct UNIT_LEARNING_DATA unit_learning_data;
+static struct UNIT_LEARNING_STATS unit_learning_stats;
+static legacy_u8 unit_learning_active;
+
+static void unit_learning_begin_session(void)
+{
+	unit_learning_stats = (struct UNIT_LEARNING_STATS){0};
+	unit_learning_active =
+		unit_learning_cache_enabled() && unit_learning_key_current(&unit_route, &unit_learning_key);
+	unit_learning_stats.enabled = unit_learning_active;
+	if (!unit_learning_active) {
+		return;
+	}
+	if (unit_learning_cache_load(&unit_learning_key, unit_route.verified_count,
+								 &unit_learning_data)) {
+		if (unit_planner_import_learning(unit_planner, &unit_learning_data.search)) {
+			unit_learning_stats.loaded = 1;
+			unit_learning_stats.loaded_samples = unit_learning_data.search.completed_samples;
+			unit_learning_stats.loaded_native_samples = unit_learning_data.native_samples;
+		} else {
+			unit_learning_cache_release(&unit_learning_data);
+		}
+	}
+}
+
+static void unit_learning_end_session(void)
+{
+	if (unit_learning_active && unit_planner) {
+		unit_pilot_learning_save_progress();
+		(void)unit_planner_export_learning(unit_planner, &unit_learning_data.search);
+		unit_learning_stats.search_samples = unit_learning_data.search.completed_samples;
+		unit_learning_stats.native_samples = unit_learning_data.native_samples;
+		unit_learning_stats.best_frames = unit_learning_data.best_frames;
+		unit_learning_stats.saved =
+			unit_learning_cache_save(&unit_learning_key, &unit_learning_data) != 0;
+	}
+	unit_learning_active = 0;
+}
+
+void unit_opponent_learning_stats(struct UNIT_LEARNING_STATS *stats)
+{
+	if (stats) {
+		*stats = unit_learning_stats;
+		if (unit_learning_active) {
+			stats->search_samples = unit_learning_data.search.completed_samples;
+			stats->native_samples = unit_learning_data.native_samples;
+			stats->best_frames = unit_learning_data.best_frames;
+		}
+	}
+}
 
 legacy_int unit_opponent_is_selected(void)
 {
@@ -75,8 +128,10 @@ legacy_int unit_opponent_is_selected(void)
 
 void unit_opponent_stop(void)
 {
+	unit_learning_end_session();
 	unit_opponent_pilot_input_override(0, 0);
 	unit_pilot_stop();
+	unit_learning_cache_release(&unit_learning_data);
 	unit_planner_destroy(unit_planner);
 	unit_planner = NULL;
 	unit_route_free(&unit_route);
@@ -100,6 +155,9 @@ legacy_int unit_opponent_prepare_begin_with_workers(legacy_s32 requested_workers
 	owoot_load_opponent_wheels();
 	unit_planner = unit_planner_create(unit_route.points, unit_route.count, &unit_route.limits,
 									   owoot_enabled != 0, requested_workers);
+	if (unit_planner) {
+		unit_learning_begin_session();
+	}
 	unit_preparation = unit_planner ? UNIT_PREPARATION_PLANNING : UNIT_PREPARATION_FAILED;
 	return unit_planner != NULL;
 }
@@ -116,7 +174,11 @@ void unit_opponent_prepare_work(void)
 	}
 	unit_planner_work(unit_planner, UNIT_PREPARATION_WORK_UNITS);
 	if (unit_preparation != UNIT_PREPARATION_PLANNING) {
-		unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
+		if (unit_learning_active) {
+			unit_pilot_learning_work(unit_planner, UNIT_PREPARATION_NATIVE_TICKS);
+		} else {
+			unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
+		}
 		return;
 	}
 	struct UNIT_PLANNER_STATS stats;
@@ -126,7 +188,10 @@ void unit_opponent_prepare_work(void)
 	}
 	/* The first search covers the complete checkpoint-aware lap. Native
 	 * previews then refine the same route throughout the remaining wait. */
-	if (unit_pilot_begin(unit_planner)) {
+	legacy_int started = unit_learning_active
+							 ? unit_pilot_learning_begin(unit_planner, &unit_learning_data)
+							 : unit_pilot_begin(unit_planner);
+	if (started) {
 		unit_preparation = UNIT_PREPARATION_COMPLETE;
 	} else {
 		unit_preparation = UNIT_PREPARATION_FAILED;
@@ -139,7 +204,11 @@ legacy_int unit_opponent_prepare_end(void)
 		unit_opponent_stop();
 		return 0;
 	}
-	struct UNIT_PLANNER *validated = unit_pilot_finish();
+	if (unit_learning_active) {
+		(void)unit_planner_export_learning(unit_planner, &unit_learning_data.search);
+	}
+	struct UNIT_PLANNER *validated =
+		unit_learning_active ? unit_pilot_learning_finish() : unit_pilot_finish();
 	if (validated) {
 		(void)unit_planner_adopt_profiles(unit_planner, validated);
 	}
@@ -503,6 +572,19 @@ void unit_opponent_pilot_last_command(struct CSRPL_OPPONENT_COMMAND *command)
 	}
 }
 
+legacy_s16 unit_opponent_pilot_replay_step(legacy_u32 frame,
+										   const struct CSRPL_OPPONENT_COMMAND *command)
+{
+	(void)frame;
+	unit_opponent_pilot_input_override(0, 0);
+	if (!command || !unit_route.count || !unit_apply_provenance(command)) {
+		return -1;
+	}
+	unit_last_preview_command = *command;
+	unit_apply_physics(command);
+	return state.opponentstate.car_crashBmpFlag;
+}
+
 static void unit_hold_command(struct CSRPL_OPPONENT_COMMAND *command)
 {
 	const struct CARSTATE *car = &state.opponentstate;
@@ -780,7 +862,9 @@ void unit_opponent_tick(void)
 	/* Rewind retains the immutable geometry, while each command restores route
 	 * provenance in CARSTATE. Plans from the abandoned future are discarded. */
 	if (frame < unit_last_frame && unit_planner) {
+		unit_learning_end_session();
 		unit_pilot_stop();
+		unit_learning_cache_release(&unit_learning_data);
 		unit_recheck_pending = unit_recheck_settled = 0;
 		unit_recheck_piece = ROUTE_INDEX_NONE;
 		unit_recheck_lead = 0.0;

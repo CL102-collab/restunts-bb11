@@ -12,6 +12,9 @@ static struct UNIT_PLANNER source;
 #define TEST_RECEIVER_PENDING_TICKS 55U
 #define TEST_RECEIVER_OWNER 3
 #define TEST_RECEIVER_STABLE_TICKS 4U
+#define TEST_LEARNING_LATER_FIRST 90U
+#define TEST_LEARNING_LATER_RECEIVER_LAST 97U
+#define TEST_LEARNING_LIVE_PROGRESS 100U
 
 static void begin_prefix(void)
 {
@@ -582,6 +585,188 @@ static void test_recheck_handoff_continuation(void)
 	}
 }
 
+static void release_learning(struct UNIT_LEARNING_DATA *data)
+{
+	free(data->pieces);
+	free(data->commands);
+	memset(data, 0, sizeof(*data));
+}
+
+static void test_learning_incumbent_and_revalidation(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	struct CSRPL_OPPONENT_COMMAND command;
+	struct UNIT_PILOT_STATS stats;
+	reset_fixture(0);
+	learning_motion = finish_event = 1;
+	struct GAMESTATE before = state;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, 64);
+	assert(!data.command_count && data.native_samples == 1);
+	unit_pilot_learning_work(&source, 64);
+	assert(data.best_frames == 127 && data.command_count == 127 && data.native_samples == 2);
+	unit_pilot_learning_work(&source, 64);
+	assert(data.best_frames == 64 && data.command_count == 64 && data.native_samples == 3);
+	unit_pilot_learning_work(&source, 1);
+	assert(data.best_frames == 64 && data.native_samples == 4);
+	unit_pilot_learning_work(&source, 64);
+	unit_pilot_learning_work(&source, 64);
+	assert(data.best_frames == 64 && data.native_samples == 5);
+	assert(unit_pilot_learning_finish());
+	unit_pilot_stats(&stats);
+	assert(stats.completed_lap && unit_pilot_state->step_count == 64);
+	assert(unit_pilot_state->seed->profile.lane == 1.0);
+	assert(unit_pilot_command(&state.opponentstate, 0, &command) && command.input == 1);
+	assert_live_unchanged(&before);
+
+	reset_fixture(0);
+	learning_motion = finish_event = 1;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, 1);
+	assert(unit_pilot_learning_finish());
+	assert(data.best_frames == 64 && !unit_pilot_continuation_pending());
+	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
+	assert(!unit_pilot_state->committed_steps);
+	assert_live_unchanged(&before);
+
+	reset_fixture(0);
+	learning_motion = finish_event = 1;
+	assert(unit_pilot_learning_begin(&source, &data));
+	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
+	unit_pilot_learning_work(&source, 1);
+	assert(replayed_commands == 1 && !unit_pilot_command(&state.opponentstate, 0, &command));
+	unit_pilot_learning_work(&source, 63);
+	assert(replayed_commands == 64 && data.best_frames == 64 && data.native_samples == 6);
+	unit_pilot_learning_work(&source, 1);
+	assert(data.best_frames == 64 && data.native_samples == 6);
+	assert(unit_pilot_learning_finish());
+	assert(unit_pilot_state->stats.completed_lap);
+	assert(unit_pilot_command(&state.opponentstate, 0, &command) && command.input == 1);
+	assert_live_unchanged(&before);
+
+	reset_fixture(0);
+	learning_motion = finish_event = 1;
+	rejected_replay_frame = 2;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, 64);
+	assert(replayed_commands == 2 && !data.best_frames && !data.command_count);
+	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
+	unit_pilot_learning_finish();
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_learning_partial_and_native_continuation(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	struct CSRPL_OPPONENT_COMMAND command;
+	reset_fixture(1);
+	finish_event = reject_fast = 1;
+	data.pieces = calloc(route.verified_count, sizeof(*data.pieces));
+	assert(data.pieces);
+	data.piece_count = route.verified_count;
+	data.pieces[1].speed = 100.0;
+	data.pieces[3].speed = 150.0;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, 55);
+	assert(!data.command_count);
+	assert(unit_pilot_learning_finish());
+	assert(data.piece_count == route.verified_count && data.pieces[1].speed == 99.0);
+	assert(unit_pilot_state->stats.failed_trials == 1);
+	assert(data.pieces[3].speed == 150.0 && speeds[3] == 0.0);
+	assert(!data.best_frames && !data.command_count && unit_pilot_continuation_pending());
+	assert(unit_pilot_command(&state.opponentstate, 0, &command));
+	assert(!unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS));
+	assert(data.best_frames == 70 && data.command_count == 70);
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_learning_recheck_suffix_is_not_a_lap(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	struct CSRPL_OPPONENT_COMMAND command;
+	reset_fixture(1);
+	finish_event = 1;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, 64);
+	unit_pilot_learning_work(&source, 64);
+	assert(unit_pilot_learning_finish());
+	assert(data.best_frames == 70 && unit_pilot_state->learning_full_start);
+	legacy_u32 full_frames = data.best_frames;
+	struct CSRPL_OPPONENT_COMMAND *incumbent = data.commands;
+	/* Resume beyond the starting grid so finishing this forecast would be a
+	 * shorter suffix, despite the car legitimately reaching the finish. */
+	state.opponentstate.car_reserved_route_word1 = 20;
+	state.opponentstate.car_position.lz = 2000 * 64;
+	state.playerstate.car_position.lx = state.playerstate.car_position.lz = -64;
+	assert(unit_pilot_recheck_begin(&source, 0, 1));
+	assert(!unit_pilot_state->learning_full_start);
+	unit_pilot_work(64);
+	assert(unit_pilot_recheck_status(32) == 1);
+	state.opponentstate = unit_pilot_state->steps[0].car;
+	struct GAMESTATE before = state;
+	assert(unit_pilot_command(&state.opponentstate, 32, &command));
+	assert(!unit_pilot_state->recheck && unit_pilot_continuation_pending());
+	assert(!unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS));
+	assert(unit_pilot_state->stats.completed_lap && unit_pilot_state->step_count < full_frames);
+	assert(data.best_frames == full_frames && data.command_count == full_frames);
+	assert(data.commands == incumbent && data.commands[0].route_point == 0);
+	assert_live_unchanged(&before);
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_learning_interrupted_continuation_progress(void)
+{
+	for (legacy_u8 save_before_recheck = 0; save_before_recheck < 2; save_before_recheck++) {
+		struct UNIT_LEARNING_DATA data = {0};
+		struct CSRPL_OPPONENT_COMMAND command;
+		reset_fixture(1);
+		finish_event = 1;
+		route.finish_begin = route.count - 1U;
+		points[TEST_LEARNING_LATER_FIRST].stunt = UNIT_STUNT_PROTECTED;
+		points[TEST_LEARNING_LATER_FIRST + 1U].stunt = UNIT_STUNT_PROTECTED;
+		for (legacy_u32 point = TEST_LEARNING_LATER_FIRST + 2U; point < route.count; point++) {
+			points[point].route_index = point <= TEST_LEARNING_LATER_RECEIVER_LAST ? 0 : 2;
+		}
+		data.pieces = calloc(route.verified_count, sizeof(*data.pieces));
+		assert(data.pieces);
+		data.piece_count = route.verified_count;
+		data.pieces[2].speed = 80.0;
+		assert(unit_pilot_learning_begin(&source, &data));
+		unit_pilot_learning_work(&source, TEST_RECEIVER_PENDING_TICKS);
+		assert(unit_pilot_learning_finish());
+		assert(data.pieces[1].speed == 100.0 && data.pieces[3].speed == 0.0);
+		assert(data.pieces[2].speed == 80.0 && speeds[2] == 0.0);
+		assert(unit_pilot_command(&state.opponentstate, 0, &command));
+		struct GAMESTATE before = state;
+		assert(unit_pilot_continue_work(TEST_LEARNING_LIVE_PROGRESS - TEST_RECEIVER_PENDING_TICKS));
+		assert(unit_pilot_state->stats.accepted == 2 && !unit_pilot_state->stats.completed_lap);
+		assert(speeds[3] == 100.0 && data.pieces[3].speed == 0.0);
+		if (save_before_recheck) {
+			unit_pilot_learning_save_progress();
+			assert(data.pieces[3].speed == 100.0 && !data.command_count && !data.best_frames);
+		}
+		assert_live_unchanged(&before);
+		state.playerstate.car_position.lx = state.playerstate.car_position.lz = -64;
+		reject_fast = 1;
+		assert(unit_pilot_recheck_begin(&source, 0, 3));
+		/* Recheck initialization also saves genuine earlier progress before
+		 * permanently clearing this preview's portable-lap eligibility. */
+		assert(data.pieces[3].speed == 100.0 && !unit_pilot_state->learning_full_start);
+		for (legacy_u32 chunk = 0; chunk < 3; chunk++) {
+			unit_pilot_work(64);
+		}
+		assert(unit_pilot_recheck_status(32) == 1 && speeds[3] == 99.0);
+		unit_pilot_learning_save_progress();
+		assert(data.pieces[3].speed == 100.0 && data.pieces[2].speed == 80.0);
+		assert(!data.command_count && !data.best_frames);
+		unit_pilot_stop();
+		release_learning(&data);
+	}
+}
+
 legacy_int main(void)
 {
 	test_append_and_isolation();
@@ -599,5 +784,9 @@ legacy_int main(void)
 	test_ramp_window_deadline_resume();
 	test_secondary_ramp_window_search();
 	test_recheck_handoff_continuation();
+	test_learning_incumbent_and_revalidation();
+	test_learning_partial_and_native_continuation();
+	test_learning_recheck_suffix_is_not_a_lap();
+	test_learning_interrupted_continuation_progress();
 	return 0;
 }

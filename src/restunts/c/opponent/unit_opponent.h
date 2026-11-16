@@ -15,6 +15,14 @@ legacy_int unit_opponent_prepare_end(void);
 void unit_opponent_stop(void);
 void unit_opponent_tick(void);
 
+/* Diagnostics for persisted planning; playback never updates these counters. */
+struct UNIT_LEARNING_STATS {
+	legacy_u64 loaded_samples, loaded_native_samples, search_samples, native_samples;
+	legacy_u32 best_frames;
+	legacy_u8 enabled, loaded, saved;
+};
+void unit_opponent_learning_stats(struct UNIT_LEARNING_STATS *stats);
+
 struct UNIT_ROUTE;
 struct UNIT_PLANNER;
 struct UNIT_PLANNER_STATS;
@@ -27,6 +35,10 @@ legacy_u64 unit_opponent_worker_commands(void);
 const struct UNIT_ROUTE *unit_opponent_pilot_route(void);
 legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *planner, legacy_u32 frame,
 									legacy_s16 override_piece, legacy_f64 override_speed);
+/* Revalidate a stored learning candidate through native physics. The caller
+ * owns the isolated preview snapshot and clock/checkpoint advancement. */
+legacy_s16 unit_opponent_pilot_replay_step(legacy_u32 frame,
+										   const struct CSRPL_OPPONENT_COMMAND *command);
 /* Output of the most recent preview step, without recording replay history. */
 void unit_opponent_pilot_last_command(struct CSRPL_OPPONENT_COMMAND *command);
 /* Forecast the exact pending-recheck brake/steering command without recording. */

@@ -172,7 +172,7 @@
         <p>Saves stay in this tab. Export them before closing, then import the saved file before starting next time.
             You can also import tracks and replays.</p>
         <label for="import">Import saves, tracks, or replays</label>
-        <input id="import" type="file" accept=".json,.trk,.cstrk,.rpl,.csrpl,.cshig,.hig,.cfg" multiple disabled>
+        <input id="import" type="file" accept=".json,.trk,.cstrk,.rpl,.csrpl,.cshig,.hig,.cfg,.ulc" multiple disabled>
         </div>
         <details>
             <summary>Game log</summary>
@@ -293,8 +293,9 @@
         // Include the shape and compressed audio alternatives used by the native loaders.
         const GAME_EXTENSIONS = new Set(['3sh', 'cfg', 'cod', 'dif', 'drv', 'esh', 'fnt', 'h3d', 'hdr', 'hig',
             'kms', 'lmp', 'p3s', 'pes', 'pkm', 'plb', 'pre', 'psf', 'pvc', 'pvs', 'res', 'rpl',
-            'sfx', 'trk', 'cstrk', 'csrpl', 'cshig', 'vce', 'vsh', 'xvs']);
-        const SAVE_EXTENSIONS = new Set(['cfg', 'hig', 'cshig', 'rpl', 'csrpl', 'trk', 'cstrk']);
+            'sfx', 'trk', 'cstrk', 'csrpl', 'cshig', 'ulc', 'vce', 'vsh', 'xvs']);
+        const SAVE_EXTENSIONS = new Set(['cfg', 'hig', 'cshig', 'rpl', 'csrpl', 'trk', 'cstrk', 'ulc']);
+        const LEARNING_FILENAME = /^U[0-9a-f]{32}\.ulc$/i;
         const TEMP_EXTENSIONS = new Set(['tmp']);
         const MAX_LOG_LINES = 100;
         const DOWNLOAD_RELEASE_DELAY_MS = 1000;
@@ -314,6 +315,7 @@
 
         function validFilename(name, extensions) {
             if (typeof name !== 'string') return false;
+            if (extensions.has('ulc') && LEARNING_FILENAME.test(name)) return true;
             const separator = name.lastIndexOf('.');
             if (separator < 1 || separator > DOS_BASENAME_MAX_LENGTH) return false;
             if (!extensions.has(name.slice(separator + 1).toLowerCase())) return false;
@@ -478,10 +480,11 @@
             },
             async persistFile(path, removed) {
                 if (!directoryHandle) return;
+                const name = path.slice(path.lastIndexOf('/') + 1);
+                const quiet = LEARNING_FILENAME.test(name);
                 let writable;
                 try {
                     const parent = Module.FS.lookupPath(path, { parent: true }).path;
-                    const name = path.slice(path.lastIndexOf('/') + 1);
                     if (parent !== DATA_DIRECTORY || (!validFilename(name, GAME_EXTENSIONS) && !validFilename(name, TEMP_EXTENSIONS))) {
                         throw new Error('Invalid save path: ' + path);
                     }
@@ -500,7 +503,7 @@
                         diskNames.delete(key);
                     } else {
                         const bytes = Module.FS.readFile(absolute);
-                        status.textContent = 'Saving ' + diskName + '…';
+                        if (!quiet) status.textContent = 'Saving ' + diskName + '…';
                         const handle = await directoryHandle.getFileHandle(diskName, { create: true });
                         writable = await handle.createWritable();
                         await writable.write(bytes);
@@ -508,12 +511,14 @@
                         writable = null;
                         diskNames.set(key, diskName);
                     }
-                    status.textContent = removed ? 'Deleted ' + diskName + '.' : 'Saved ' + diskName + ' to your game folder.';
+                    if (!quiet) status.textContent = removed ? 'Deleted ' + diskName + '.' : 'Saved ' + diskName + ' to your game folder.';
                 } catch (error) {
                     if (writable) await writable.abort().catch(() => {});
-                    saveControls.hidden = false;
-                    exporter.disabled = false;
-                    status.textContent = 'Direct saving failed: ' + error.message + '. Export saves to keep your changes.';
+                    if (!quiet) {
+                        saveControls.hidden = false;
+                        exporter.disabled = false;
+                        status.textContent = 'Direct saving failed: ' + error.message + '. Export saves to keep your changes.';
+                    }
                     throw error;
                 }
             },

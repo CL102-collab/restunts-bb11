@@ -8,6 +8,7 @@
 struct CARSTATE;
 struct UNIT_PILOT_PULSE_DIAGNOSTIC;
 struct CSRPL_OPPONENT_COMMAND;
+struct UNIT_LEARNING_DATA;
 struct UNIT_PILOT_STATS {
 	legacy_u32 native_ticks, trials, accepted, failed_trials, last_failure_frame;
 	legacy_u32 matched_commands, rejected_matches, first_mismatch_frame;
@@ -27,6 +28,15 @@ void unit_pilot_work(legacy_u32 maximum_ticks);
 /* Borrowed frozen seed remains valid until stop; adopt before first live plan. */
 struct UNIT_PLANNER *unit_pilot_finish(void);
 void unit_pilot_stop(void);
+/* The caller retains portable knowledge through live rechecks. Startup first
+ * revalidates its incumbent from fresh physics, then tries independent native
+ * profiles without replacing a clean faster incumbent with partial work. */
+legacy_int unit_pilot_learning_begin(struct UNIT_PLANNER *source, struct UNIT_LEARNING_DATA *data);
+void unit_pilot_learning_work(struct UNIT_PLANNER *source, legacy_u32 maximum_ticks);
+struct UNIT_PLANNER *unit_pilot_learning_finish(void);
+/* Retain accepted original-preview hints when a race ends before its native
+ * continuation finishes. Live traffic forecasts never update portable hints. */
+void unit_pilot_learning_save_progress(void);
 /* Continue a native preview only behind exact cached controls. Startup work
  * is armed by finish; a live recheck is armed by its first exact handoff.
  * The caller pauses its pure planner worker for at most two 64-tick/4ms

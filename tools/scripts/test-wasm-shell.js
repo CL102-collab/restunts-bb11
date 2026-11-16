@@ -934,6 +934,36 @@ async function exerciseExtendedHighscoreSaving(browser, url, temporary) {
         assert.equal(result.scratchNeedsPersistence, false, 'Atomic-save temporary files must remain in MEMFS');
         assert.deepEqual(result.removals, ['MiXeD.CsHiG', 'NEW.CSHIG']);
         assert.deepEqual(result.legacyScore, [1, 2, 3], 'A matching legacy HIG file must remain unchanged');
+        const learning = await page.evaluate(async bytes => {
+            const name = 'U0123456789abcdef0123456789abcdef.ULC';
+            const destination = '/stunts/' + name;
+            const initialStatus = status.textContent;
+            const initialControls = saveControls.hidden;
+            Module.FS.writeFile(destination, Uint8Array.from(bytes));
+            await Module.persistFile(destination, false);
+            const afterWrite = status.textContent;
+            const saves = saveFiles();
+            const originalHandle = directoryHandle.getFileHandle;
+            directoryHandle.getFileHandle = async () => { throw new Error('cache is read-only'); };
+            let rejected = false;
+            try {
+                await Module.persistFile(destination, false);
+            } catch (error) {
+                rejected = true;
+            } finally {
+                directoryHandle.getFileHandle = originalHandle;
+            }
+            return { name, initialStatus, afterWrite, afterFailure: status.textContent,
+                initialControls, finalControls: saveControls.hidden, saves, rejected,
+                lastWrite: testLoadingFixture.diskWrites.at(-1) };
+        }, scoreBytes);
+        assert.deepEqual(learning.lastWrite, { name: learning.name, bytes: scoreBytes },
+            'UNIT caches must support complete content-key filenames');
+        assert.ok(learning.saves.includes(learning.name), 'Learning caches must survive save exports');
+        assert.equal(learning.afterWrite, learning.initialStatus, 'Cache writes must keep game status quiet');
+        assert.equal(learning.afterFailure, learning.initialStatus, 'Optional cache failures must stay quiet');
+        assert.equal(learning.finalControls, learning.initialControls);
+        assert.equal(learning.rejected, true, 'Failed persistence must still report failure to native code');
     } finally {
         await direct.close();
     }
@@ -1651,7 +1681,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

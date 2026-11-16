@@ -72,7 +72,44 @@ struct UNIT_PLANNER_STATS {
 	legacy_u8 opening_ready, route_ready;
 };
 
+/* Portable learning values. Serialize fields explicitly, never raw struct bytes.
+ * The transient clearance-passing permission is deliberately excluded. */
+struct UNIT_PLANNER_PROFILE {
+	legacy_f64 lane, apex, lookahead;
+};
+
+struct UNIT_PLANNER_LEARNING {
+	legacy_f64 lane, apex, lookahead, score;
+	legacy_u64 next_sample, completed_samples;
+	legacy_u32 seed;
+	legacy_u8 ready;
+};
+
 struct UNIT_PLANNER;
+
+/* Snapshot the best geometric proposal and resumable deterministic search.
+ * next_sample counts issued random candidates, including canceled partial work;
+ * completed_samples counts those whose geometric evaluation completed.
+ * With ready=0 no proposal exists; finite proposal fields are ignored on import. */
+legacy_int unit_planner_export_learning(struct UNIT_PLANNER *planner,
+										struct UNIT_PLANNER_LEARNING *state);
+/* Main-thread only, during startup before any live request or native preview.
+ * Stops bounded worker jobs, restores search/proposal, then resumes workers.
+ * The caller must match geometry, car, rules and learning-format generation. */
+legacy_int unit_planner_import_learning(struct UNIT_PLANNER *planner,
+										const struct UNIT_PLANNER_LEARNING *state);
+/* The active profile may be a separately native-validated incumbent rather than
+ * the best geometric proposal. Reading it never changes either search. */
+legacy_int unit_planner_export_profile(struct UNIT_PLANNER *planner,
+									   struct UNIT_PLANNER_PROFILE *profile);
+/* Independent native-preview branches leave the active/validated source intact.
+ * An explicit profile reproduces an incumbent; an indexed candidate explores a
+ * fresh deterministic profile even when the geometric best no longer improves. */
+struct UNIT_PLANNER *unit_planner_clone_profile(struct UNIT_PLANNER *planner,
+												const struct UNIT_PLANNER_PROFILE *profile);
+struct UNIT_PLANNER *unit_planner_clone_learning(struct UNIT_PLANNER *planner,
+												 const struct UNIT_PLANNER_LEARNING *state);
+struct UNIT_PLANNER *unit_planner_clone_candidate(struct UNIT_PLANNER *planner, legacy_u64 sample);
 
 /* Creation establishes an immediately usable conservative guide. Every startup
  * candidate evaluates the complete route before its profile can be published.

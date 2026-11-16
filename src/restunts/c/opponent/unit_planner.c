@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #endif
 #include "unit_planner_internal.h"
+#include "unit_shortcut.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -31,12 +32,12 @@
 #define UNIT_SYNC_CANDIDATE_STRIDE 5U
 #define UNIT_BROWSER_WORKERS 7U
 #define UNIT_NO_PLAYER_POSITION 1000000000.0
+#define UNIT_SEARCH_SAMPLE_MAXIMUM ((legacy_u64) - 1)
 
 struct UNIT_WORKER {
 	struct UNIT_PLANNER *planner;
 	struct UNIT_EVALUATION evaluation;
-	legacy_u32 seed, candidates;
-	legacy_u8 evaluating;
+	legacy_u8 warmed, sampled, evaluating;
 #ifdef UNIT_PLANNER_THREADS
 	SDL_Thread *thread;
 #endif
@@ -45,13 +46,14 @@ struct UNIT_WORKER {
 struct UNIT_PLANNER {
 	struct UNIT_ROUTE_POINT *points;
 	struct UNIT_CAR_LIMITS limits;
-	struct UNIT_PROFILE route_profile;
+	struct UNIT_PROFILE route_profile, search_profile;
 	struct UNIT_PLANNER_STATS stats;
 	struct UNIT_REQUEST request, published_request;
 	struct UNIT_ROLLOUT published;
 	struct UNIT_WORKER synchronous, *workers;
 	legacy_f64 route_score;
-	legacy_u64 geometry_generation;
+	legacy_u64 geometry_generation, next_sample, completed_samples;
+	legacy_u32 search_seed;
 	legacy_u32 count, worker_count, request_serial, published_serial;
 	legacy_u32 sync_candidate;
 	legacy_s32 requested_workers;
@@ -125,33 +127,45 @@ static void startup_step(struct UNIT_WORKER *worker)
 {
 	struct UNIT_PLANNER *planner = worker->planner;
 	if (!worker->evaluating) {
-		struct UNIT_PROFILE profile;
 		planner_lock(planner);
-		profile = planner->route_profile;
-		planner_unlock(planner);
-		if (worker->candidates) {
-			unit_planner_profile(&worker->seed, &profile);
+		struct UNIT_PROFILE profile = planner->search_profile;
+		worker->sampled = worker->warmed;
+		if (worker->sampled) {
+			if (planner->next_sample == UNIT_SEARCH_SAMPLE_MAXIMUM) {
+				planner_unlock(planner);
+				return;
+			}
+			/* One serialized RNG stream survives worker-count and race changes.
+			 * A claimed sample is consumed even if its bounded job is canceled. */
+			unit_planner_profile(&planner->search_seed, &profile);
+			planner->next_sample++;
 		}
 		unit_planner_evaluation_begin(&worker->evaluation, planner->count, &profile);
 		worker->evaluating = 1U;
+		planner_unlock(planner);
 	}
 	if (!unit_planner_evaluation_step(&worker->evaluation, planner->points, &planner->limits,
 									  planner->owoot)) {
 		return;
 	}
 	planner_lock(planner);
-	planner->stats.route_candidates++;
+	if (planner->stats.route_candidates < UNIT_SEARCH_SAMPLE_MAXIMUM) {
+		planner->stats.route_candidates++;
+	}
+	if (worker->sampled) {
+		planner->completed_samples++;
+	}
 	if (worker->evaluation.score < planner->route_score) {
 		planner->route_score = worker->evaluation.score;
+		planner->search_profile = worker->evaluation.profile;
 		planner->route_profile = worker->evaluation.profile;
 	}
-	/* The first usable opening is now the same verified geometric proposal
-	 * as the complete route. Retain these counters for diagnostic clients. */
+	/* Every startup proposal evaluates the complete immutable geometry. */
 	planner->stats.opening_candidates = planner->stats.route_candidates;
 	planner->stats.opening_ready = planner->stats.route_ready = 1U;
-	planner_unlock(planner);
 	worker->evaluating = 0U;
-	worker->candidates++;
+	worker->warmed = 1U;
+	planner_unlock(planner);
 }
 
 static void publish_rollout(struct UNIT_PLANNER *planner, const struct UNIT_REQUEST *request,
@@ -245,7 +259,6 @@ static void start_workers(struct UNIT_PLANNER *planner, legacy_u32 count)
 	for (legacy_u32 index = 0; index < count; index++) {
 		struct UNIT_WORKER *worker = &planner->workers[index];
 		worker->planner = planner;
-		worker->seed = UNIT_WORKER_SEED + index * UNIT_WORKER_SEED_STEP;
 		if (planner->startup) {
 			worker->evaluation.speeds = malloc(planner->count * sizeof(*worker->evaluation.speeds));
 			if (!worker->evaluation.speeds) {
@@ -358,6 +371,8 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 	planner->requested_workers = requested_workers;
 	planner->route_score = HUGE_VAL;
 	planner->route_profile.lookahead = UNIT_DEFAULT_PROFILE_LOOKAHEAD;
+	planner->search_profile = planner->route_profile;
+	planner->search_seed = UNIT_WORKER_SEED;
 	if (seed) {
 		legacy_u8 same_route = count == seed->count;
 		for (legacy_u32 index = 0U; same_route && index < count; index++) {
@@ -365,6 +380,10 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 		}
 		planner_lock(seed);
 		planner->route_profile = seed->route_profile;
+		planner->search_profile = seed->search_profile;
+		planner->search_seed = seed->search_seed;
+		planner->next_sample = seed->next_sample;
+		planner->completed_samples = seed->completed_samples;
 		if (same_route && seed->stats.route_ready) {
 			planner->stats.opening_ready = planner->stats.route_ready = 1U;
 			planner->stats.opening_candidates = seed->stats.opening_candidates;
@@ -374,7 +393,6 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 		planner_unlock(seed);
 	}
 	planner->synchronous.planner = planner;
-	planner->synchronous.seed = UNIT_WORKER_SEED;
 	legacy_u32 workers = 0U;
 #ifdef UNIT_PLANNER_THREADS
 	planner->mutex = SDL_CreateMutex();
@@ -428,12 +446,138 @@ struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner)
 	planner_lock(planner);
 	clone->geometry_generation = planner->geometry_generation;
 	clone->route_profile = planner->route_profile;
+	clone->search_profile = planner->search_profile;
+	clone->route_score = planner->route_score;
+	clone->search_seed = planner->search_seed;
+	clone->next_sample = planner->next_sample;
+	clone->completed_samples = planner->completed_samples;
 	clone->stats.opening_ready = planner->stats.opening_ready;
 	clone->stats.route_ready = planner->stats.route_ready;
 	planner_unlock(planner);
 	clone->startup = 0U;
 	clone->native_preview = 1U;
 	return clone;
+}
+
+static legacy_int valid_learning_profile(const struct UNIT_PLANNER_PROFILE *profile)
+{
+	return profile && isfinite(profile->lane) && isfinite(profile->apex) &&
+		   isfinite(profile->lookahead) && profile->lookahead > 0.0 &&
+		   fabs(profile->lane) <= UNIT_SHORTCUT_MAX_LANE_FRACTION &&
+		   fabs(profile->apex) <= UNIT_SHORTCUT_MAX_LANE_FRACTION;
+}
+
+static legacy_int valid_learning(const struct UNIT_PLANNER_LEARNING *state)
+{
+	if (!state) {
+		return 0;
+	}
+	struct UNIT_PLANNER_PROFILE profile = {state->lane, state->apex, state->lookahead};
+	return isfinite(state->lane) && isfinite(state->apex) && isfinite(state->lookahead) &&
+		   (!state->ready || valid_learning_profile(&profile)) && isfinite(state->score) &&
+		   state->score >= 0.0 && state->ready <= 1U &&
+		   state->completed_samples <= state->next_sample;
+}
+
+legacy_int unit_planner_export_learning(struct UNIT_PLANNER *planner,
+										struct UNIT_PLANNER_LEARNING *state)
+{
+	if (!planner || !state) {
+		return 0;
+	}
+	planner_lock(planner);
+	legacy_u8 ready = isfinite(planner->route_score) && planner->route_score >= 0.0;
+	*state = (struct UNIT_PLANNER_LEARNING){
+		.lane = planner->search_profile.lane,
+		.apex = planner->search_profile.apex,
+		.lookahead = planner->search_profile.lookahead,
+		.score = ready ? planner->route_score : 0.0,
+		.next_sample = planner->next_sample,
+		.completed_samples = planner->completed_samples,
+		.seed = planner->search_seed,
+		.ready = ready,
+	};
+	planner_unlock(planner);
+	return 1;
+}
+
+legacy_int unit_planner_import_learning(struct UNIT_PLANNER *planner,
+										const struct UNIT_PLANNER_LEARNING *state)
+{
+	if (!planner || !valid_learning(state) || !planner->startup || planner->native_preview ||
+		planner->have_request) {
+		return 0;
+	}
+	legacy_u32 workers = planner->worker_count;
+	stop_workers(planner);
+	planner_lock(planner);
+	planner->route_profile =
+		state->ready ? (struct UNIT_PROFILE){state->lane, state->apex, state->lookahead, 0U}
+					 : (struct UNIT_PROFILE){0.0, 0.0, UNIT_DEFAULT_PROFILE_LOOKAHEAD, 0U};
+	planner->search_profile = planner->route_profile;
+	planner->route_score = state->ready ? state->score : HUGE_VAL;
+	planner->search_seed = state->seed;
+	planner->next_sample = state->next_sample;
+	planner->completed_samples = state->completed_samples;
+	planner->stats.route_candidates = planner->stats.opening_candidates = state->completed_samples;
+	planner->stats.route_ready = planner->stats.opening_ready = state->ready;
+	planner->synchronous.warmed = planner->synchronous.sampled = planner->synchronous.evaluating =
+		0U;
+	planner_unlock(planner);
+	start_workers(planner, workers);
+	return 1;
+}
+
+legacy_int unit_planner_export_profile(struct UNIT_PLANNER *planner,
+									   struct UNIT_PLANNER_PROFILE *profile)
+{
+	if (!planner || !profile) {
+		return 0;
+	}
+	planner_lock(planner);
+	*profile = (struct UNIT_PLANNER_PROFILE){
+		planner->route_profile.lane, planner->route_profile.apex, planner->route_profile.lookahead};
+	planner_unlock(planner);
+	return 1;
+}
+
+struct UNIT_PLANNER *unit_planner_clone_profile(struct UNIT_PLANNER *planner,
+												const struct UNIT_PLANNER_PROFILE *profile)
+{
+	if (!valid_learning_profile(profile)) {
+		return NULL;
+	}
+	struct UNIT_PLANNER *clone = unit_planner_clone_sync(planner);
+	if (clone) {
+		clone->route_profile =
+			(struct UNIT_PROFILE){profile->lane, profile->apex, profile->lookahead, 0U};
+	}
+	return clone;
+}
+
+struct UNIT_PLANNER *unit_planner_clone_learning(struct UNIT_PLANNER *planner,
+												 const struct UNIT_PLANNER_LEARNING *state)
+{
+	if (!valid_learning(state)) {
+		return NULL;
+	}
+	if (!state->ready) {
+		return unit_planner_clone_sync(planner);
+	}
+	struct UNIT_PLANNER_PROFILE profile = {state->lane, state->apex, state->lookahead};
+	return unit_planner_clone_profile(planner, &profile);
+}
+
+struct UNIT_PLANNER *unit_planner_clone_candidate(struct UNIT_PLANNER *planner, legacy_u64 sample)
+{
+	/* Indexed native exploration is independent of geometric-best publication
+	 * and worker scheduling. Both index halves contribute to the stable seed. */
+	legacy_u32 seed = UNIT_WORKER_SEED + (legacy_u32)sample * UNIT_WORKER_SEED_STEP;
+	seed ^= (legacy_u32)(sample >> LEGACY_DWORD_BITS) * UNIT_WORKER_SEED;
+	struct UNIT_PROFILE selected;
+	unit_planner_profile(&seed, &selected);
+	struct UNIT_PLANNER_PROFILE profile = {selected.lane, selected.apex, selected.lookahead};
+	return unit_planner_clone_profile(planner, &profile);
 }
 
 struct UNIT_PLANNER *unit_planner_clone_continuation(struct UNIT_PLANNER *planner)
@@ -467,6 +611,11 @@ legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
 	/* Both owners are paused. Clone identity proves geometry/car/rule equality
 	 * without rescanning an entire large track inside the native tick budget. */
 	destination->route_profile = source->route_profile;
+	destination->search_profile = source->search_profile;
+	destination->route_score = source->route_score;
+	destination->search_seed = source->search_seed;
+	destination->next_sample = source->next_sample;
+	destination->completed_samples = source->completed_samples;
 	destination->sync_candidate = source->sync_candidate;
 	destination->request = source->request;
 	destination->published_request = source->published_request;

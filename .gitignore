@@ -42,3 +42,6 @@ tools/.watcom-install.*/
 src/restunts/**/build/watcom/
 __pycache__/
 src/restunts/**/*.err
+
+# Persistent UNIT learning is local game data.
+*.[uU][lL][cC]

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <SDL3/SDL_timer.h>
 #include "../c/opponent/unit_pilot.h"
+#include "../c/opponent/unit_learning_cache.h"
 #include "../c/opponent/unit_opponent.h"
 #include "../c/opponent/unit_opponent_internal.h"
 #include "../c/extended/extended_physics_snapshot.h"
@@ -23,6 +24,7 @@
  * replay tests separately exercise real physics/audio isolation. */
 struct UNIT_PLANNER {
 	legacy_u32 calls;
+	struct UNIT_PLANNER_PROFILE profile;
 };
 struct GAMESTATE state;
 struct GAMEINFO gameconfig;
@@ -56,6 +58,8 @@ static legacy_int reject_secondary, reject_receiver;
 static legacy_s16 observed_owner;
 static legacy_int native_road_support;
 static struct CSRPL_OPPONENT_COMMAND last_command;
+static legacy_int learning_motion;
+static legacy_u32 replayed_commands, rejected_replay_frame;
 
 Uint64 SDLCALL SDL_GetTicksNS(void)
 {
@@ -135,7 +139,35 @@ const struct UNIT_ROUTE *unit_opponent_pilot_route(void)
 }
 struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *source)
 {
-	return source ? calloc(1, sizeof(*source)) : NULL;
+	struct UNIT_PLANNER *clone = source ? calloc(1, sizeof(*source)) : NULL;
+	if (clone) {
+		clone->profile = source->profile;
+	}
+	return clone;
+}
+legacy_int unit_planner_export_profile(struct UNIT_PLANNER *source,
+									   struct UNIT_PLANNER_PROFILE *profile)
+{
+	*profile = source->profile;
+	profile->lookahead = 1.0;
+	return 1;
+}
+struct UNIT_PLANNER *unit_planner_clone_profile(struct UNIT_PLANNER *source,
+												const struct UNIT_PLANNER_PROFILE *profile)
+{
+	struct UNIT_PLANNER *clone = unit_planner_clone_sync(source);
+	if (clone) {
+		clone->profile = *profile;
+	}
+	return clone;
+}
+struct UNIT_PLANNER *unit_planner_clone_candidate(struct UNIT_PLANNER *source, legacy_u64 sample)
+{
+	struct UNIT_PLANNER *clone = unit_planner_clone_sync(source);
+	if (clone) {
+		clone->profile.lane = sample == 0 ? 1.0 : (sample == 1 ? -1.0 : 0.0);
+	}
+	return clone;
 }
 struct UNIT_PLANNER *unit_planner_clone_continuation(struct UNIT_PLANNER *source)
 {
@@ -246,6 +278,10 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *p, legacy_u32 frame, le
 	last_command.route_index = 1;
 	last_command.route_point = (legacy_u16)frame;
 	state.opponentstate.car_reserved_route_word1++;
+	if (learning_motion && p->profile.lane > 0.0) {
+		state.opponentstate.car_reserved_route_word1++;
+		last_command.input = 1;
+	}
 	legacy_u32 cursor = (legacy_u16)state.opponentstate.car_reserved_route_word1;
 	state.opponentstate.car_route_index =
 		points[cursor < route.count ? cursor : route.count - 1U].route_index;
@@ -258,7 +294,8 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *p, legacy_u32 frame, le
 	}
 	gState_frame = 123;
 	extended_race_stats.frame = 123;
-	if ((fail_ordinary_at && piece < 0 && cursor >= fail_ordinary_at) ||
+	if ((learning_motion && p->profile.lane < 0.0) ||
+		(fail_ordinary_at && piece < 0 && cursor >= fail_ordinary_at) ||
 		(reject_everything && piece >= 0) || (reject_fast && piece >= 0 && speed > 99.0) ||
 		(reject_ramp_approach && piece >= 0 &&
 		 (preview_ramp_approaches[piece] != required_ramp_approach || speed > 99.0)) ||
@@ -293,6 +330,19 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *p, legacy_u32 frame, le
 		state.opponentstate.car_crashBmpFlag = CRASH_EVENT_FINISH;
 	}
 	return state.opponentstate.car_crashBmpFlag;
+}
+legacy_s16 unit_opponent_pilot_replay_step(legacy_u32 frame,
+										   const struct CSRPL_OPPONENT_COMMAND *command)
+{
+	struct UNIT_PLANNER planner = {.calls = frame};
+	planner.profile.lane = command->input ? 1.0 : 0.0;
+	replayed_commands++;
+	legacy_s16 event = unit_opponent_pilot_step(&planner, frame, ROUTE_INDEX_NONE, 0.0);
+	if (rejected_replay_frame && replayed_commands == rejected_replay_frame) {
+		state.opponentstate.car_crashBmpFlag = CRASH_EVENT_COLLISION;
+		return CRASH_EVENT_COLLISION;
+	}
+	return event;
 }
 static void reset_fixture(legacy_int stunt)
 {
@@ -350,6 +400,8 @@ static void reset_fixture(legacy_int stunt)
 	reject_secondary = reject_receiver = 0;
 	observed_owner = -1;
 	native_road_support = (1U << CARSTATE_WHEEL_COUNT) - 1U;
+	learning_motion = 0;
+	replayed_commands = rejected_replay_frame = 0;
 }
 static void assert_live_unchanged(const struct GAMESTATE *before)
 {

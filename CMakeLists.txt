@@ -239,6 +239,7 @@ set(common_sources
     trkutil.c track/trackres.c headless/headless_data.c headless/headless_trackdata.c
     state.c race/race_route.c physics/physics_grip.c opponent/opponent.c
     opponent/unit_opponent.c opponent/unit_launch.c opponent/unit_profiles.c
+    opponent/unit_learning_cache.c opponent/unit_learning_key.c
     extended/extended_unit_route.c
     opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
@@ -631,6 +632,12 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-unit-profiles PRIVATE -UNDEBUG)
     target_link_libraries(test-unit-profiles PRIVATE m)
     add_test(NAME unit-profiles COMMAND test-unit-profiles)
+    add_executable(test-unit-learning-cache src/restunts/tests/test-unit-learning-cache.c
+        ${core}/opponent/unit_learning_cache.c)
+    target_compile_definitions(test-unit-learning-cache PRIVATE RESTUNTS_SDL3 RESTUNTS_HEADLESS)
+    target_compile_options(test-unit-learning-cache PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-learning-cache PRIVATE m)
+    add_test(NAME unit-learning-cache COMMAND test-unit-learning-cache)
     add_executable(test-unit-pilot-controls src/restunts/tests/test-unit-pilot-controls.c
         ${core}/opponent/unit_pilot_controls.c)
     target_compile_options(test-unit-pilot-controls PRIVATE -UNDEBUG)
@@ -1238,6 +1245,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
             --frames 180 --human "${unit_human}" --verify-replay --require-clean)
     endforeach()
+    list(APPEND unit_race_tests unit-learning-persistence)
+    add_test(NAME unit-learning-persistence COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-learning.py"
+        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${unit_race_fixture}"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/branches.cstrk"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk")
+    set_tests_properties(unit-learning-persistence PROPERTIES RUN_SERIAL TRUE)
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT 180
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(UNIX)

@@ -48,6 +48,9 @@ struct UNIT_PILOT {
 	struct UNIT_PILOT_ENTRY *entries;
 	struct UNIT_PILOT_STEP *steps;
 	legacy_u32 step_count, step_capacity, committed_steps, approach_steps, next_step;
+	legacy_u32 learned_replay_count;
+	/* Only fresh preparation previews can produce a portable complete lap. */
+	legacy_u8 learning_full_start;
 	legacy_u32 last_live_frame, run_start_frame, penalty_baseline;
 	legacy_u32 wait_remaining, handoff_frame, resume_candidate;
 	legacy_s8 recheck_status;

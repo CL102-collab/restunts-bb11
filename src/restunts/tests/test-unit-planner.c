@@ -113,6 +113,109 @@ static void test_preparation_and_copy(void)
 	unit_planner_destroy(planner);
 }
 
+static void learning_samples(struct UNIT_PLANNER *planner, legacy_u64 count,
+							 struct UNIT_PLANNER_LEARNING *state)
+{
+	for (legacy_u32 work = 0U; work < TEST_POINT_COUNT * TEST_POINT_COUNT; work++) {
+		assert(unit_planner_export_learning(planner, state));
+		if (state->completed_samples >= count) {
+			return;
+		}
+		unit_planner_work(planner, 1U);
+	}
+	assert(0 && "bounded learning did not complete its samples");
+}
+
+static void assert_learning_equal(const struct UNIT_PLANNER_LEARNING *a,
+								  const struct UNIT_PLANNER_LEARNING *b)
+{
+	assert(a->lane == b->lane && a->apex == b->apex && a->lookahead == b->lookahead);
+	assert(a->score == b->score && a->ready == b->ready && a->seed == b->seed);
+	assert(a->next_sample == b->next_sample && a->completed_samples == b->completed_samples);
+}
+
+static void test_learning_resume_and_native_profiles(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	corner(points, 1U);
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_PLANNER *first = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(first);
+	struct UNIT_PLANNER_LEARNING saved, continued, resumed;
+	learning_samples(first, 7U, &saved);
+	assert(saved.ready && saved.completed_samples == 7U && saved.next_sample == 7U);
+	struct UNIT_PLANNER *second = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(second && unit_planner_import_learning(second, &saved));
+	learning_samples(first, 12U, &continued);
+	learning_samples(second, 12U, &resumed);
+	/* An independent race resumes the next RNG sample rather than repeating
+	 * the beginning. Re-evaluating its warm incumbent cannot reset progress. */
+	assert_learning_equal(&continued, &resumed);
+	assert(continued.score <= saved.score);
+	struct UNIT_PLANNER_PROFILE active, same, sampled, other;
+	assert(unit_planner_export_profile(first, &active));
+	struct UNIT_PLANNER *candidate = unit_planner_clone_candidate(first, 41U);
+	struct UNIT_PLANNER *repeat = unit_planner_clone_candidate(first, 41U);
+	struct UNIT_PLANNER *next = unit_planner_clone_candidate(first, 42U);
+	assert(candidate && repeat && next);
+	assert(unit_planner_export_profile(candidate, &sampled));
+	assert(unit_planner_export_profile(repeat, &same));
+	assert(unit_planner_export_profile(next, &other));
+	assert(sampled.lane == same.lane && sampled.apex == same.apex &&
+		   sampled.lookahead == same.lookahead);
+	assert(sampled.lane != other.lane || sampled.apex != other.apex);
+	assert(unit_planner_export_profile(first, &same));
+	assert(active.lane == same.lane && active.apex == same.apex);
+	/* Selecting an explicitly native-validated incumbent must not overwrite
+	 * the separately retained best geometric proposal or search position. */
+	assert(unit_planner_adopt_profiles(second, candidate));
+	assert(unit_planner_export_learning(second, &resumed));
+	assert_learning_equal(&continued, &resumed);
+	assert(unit_planner_export_profile(second, &same));
+	assert(sampled.lane == same.lane && sampled.apex == same.apex);
+	/* A native incumbent may have been cloned before geometric startup
+	 * completed. Adopting its active readiness cannot erase learned search. */
+	struct UNIT_PLANNER *early = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(early && unit_planner_adopt_profiles(second, early));
+	assert(unit_planner_export_learning(second, &resumed));
+	assert_learning_equal(&continued, &resumed);
+	unit_planner_destroy(early);
+	assert(!unit_planner_import_learning(second, &saved));
+	struct UNIT_PLANNER_LEARNING invalid = saved;
+	invalid.score = NAN;
+	assert(!unit_planner_import_learning(first, &invalid));
+	assert(unit_planner_clone_learning(first, &invalid) == NULL);
+	invalid = saved;
+	invalid.completed_samples = invalid.next_sample + 1U;
+	assert(!unit_planner_import_learning(first, &invalid));
+	invalid = saved;
+	invalid.lane = 1.0;
+	assert(!unit_planner_import_learning(first, &invalid));
+	struct UNIT_PLANNER_PROFILE invalid_profile = {0.0, 0.0, 0.0};
+	assert(unit_planner_clone_profile(first, &invalid_profile) == NULL);
+	assert(!unit_planner_export_learning(NULL, &saved));
+	assert(!unit_planner_export_profile(first, NULL));
+	/* An unready snapshot has no geometric proposal, but still resumes its
+	 * RNG/counters without discarding a separately stored native incumbent. */
+	struct UNIT_PLANNER_LEARNING pending = {0};
+	pending.seed = continued.seed;
+	pending.next_sample = continued.next_sample;
+	pending.completed_samples = continued.completed_samples;
+	assert(unit_planner_import_learning(first, &pending));
+	assert(unit_planner_export_learning(first, &resumed));
+	assert(!resumed.ready && resumed.lane == 0.0 && resumed.apex == 0.0 &&
+		   resumed.lookahead == 1.0 && resumed.score == 0.0);
+	assert(resumed.seed == pending.seed && resumed.next_sample == pending.next_sample &&
+		   resumed.completed_samples == pending.completed_samples);
+	pending.lane = NAN;
+	assert(!unit_planner_import_learning(first, &pending));
+	unit_planner_destroy(candidate);
+	unit_planner_destroy(repeat);
+	unit_planner_destroy(next);
+	unit_planner_destroy(first);
+	unit_planner_destroy(second);
+}
+
 static void test_interrupted_preparation(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -985,6 +1088,35 @@ static legacy_f64 crest_speed(legacy_u8 unspecified)
 }
 
 #ifndef RESTUNTS_UNIT_SYNC_ONLY
+static void test_learning_worker_snapshots(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_PLANNER *planner = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, 2);
+	assert(planner);
+	struct UNIT_PLANNER_LEARNING saved, current;
+	legacy_u64 deadline = SDL_GetTicks() + TEST_WAIT_LIMIT_MS;
+	do {
+		unit_planner_work(planner, 2U);
+		assert(unit_planner_export_learning(planner, &saved));
+		assert(saved.completed_samples <= saved.next_sample);
+		if (saved.ready && saved.completed_samples >= 8U) {
+			break;
+		}
+		SDL_Delay(1U);
+	} while (SDL_GetTicks() < deadline);
+	assert(saved.ready && saved.completed_samples >= 8U);
+	/* Import joins bounded in-flight jobs before restoring a coherent RNG
+	 * snapshot, then restarts the worker pool at the saved next sample. */
+	assert(unit_planner_import_learning(planner, &saved));
+	assert(unit_planner_export_learning(planner, &current));
+	assert(current.ready && current.next_sample >= saved.next_sample);
+	assert(current.completed_samples >= saved.completed_samples);
+	assert(current.completed_samples <= current.next_sample && current.score <= saved.score);
+	unit_planner_destroy(planner);
+}
+
 static void test_worker_lifecycle(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -1067,6 +1199,7 @@ static void test_worker_lifecycle(void)
 legacy_int main(void)
 {
 	test_preparation_and_copy();
+	test_learning_resume_and_native_profiles();
 	test_interrupted_preparation();
 	test_curvature_and_ice();
 	test_banked_corner_speed();
@@ -1091,6 +1224,7 @@ legacy_int main(void)
 	test_swept_stunt_collision();
 	assert(crest_speed(0U) < crest_speed(1U) * 0.8);
 #ifndef RESTUNTS_UNIT_SYNC_ONLY
+	test_learning_worker_snapshots();
 	test_worker_lifecycle();
 #endif
 	puts("UNIT planner tests passed");

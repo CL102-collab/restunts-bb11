@@ -16,6 +16,7 @@
 #include "../c/opponent/opponent.h"
 #include "../c/opponent/unit_opponent.h"
 #include "../c/opponent/unit_pilot.h"
+#include "../c/opponent/unit_learning_cache.h"
 #include "../c/opponent/unit_pilot_pulses.h"
 #include "../c/opponent/unit_opponent_internal.h"
 #include "../c/extended/extended_track.h"
@@ -383,7 +384,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			"[--manual] [--frame-rate 10|20] [--require-finish] "
 			"[--require-clean] [--require-no-stalls] [--human "
 			"stationary|accelerating|crossing|grid|grid-then-park] "
-			"[--human-drive-frames N] "
+			"[--human-drive-frames N] [--unit-cache-dir DIR] "
 			"[--owoot:on]\n");
 		return 1;
 	}
@@ -460,6 +461,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		} else if (strcmp((legacy_char *)argv[index], "--human-drive-frames") == 0 &&
 				   index + 1 < argc) {
 			human_drive_frames = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
+		} else if (strcmp((legacy_char *)argv[index], "--unit-cache-dir") == 0 &&
+				   index + 1 < argc) {
+			assert(unit_learning_cache_set_directory(argv[++index]));
 		} else if (strcmp((legacy_char *)argv[index], "--car") == 0 && index + 1 < argc) {
 			car_id = (legacy_char *)argv[++index];
 			assert(strlen(car_id) == CSRPL_CAR_ID_SIZE);
@@ -799,6 +803,18 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	}
 	free(hashes);
 	unit_opponent_stop();
+	if (opponent == OPPONENT_UNIT && unit_learning_cache_enabled()) {
+		struct UNIT_LEARNING_STATS learning;
+		unit_opponent_learning_stats(&learning);
+		printf("learning_enabled=%u learning_loaded=%u learning_saved=%u "
+			   "learning_loaded_samples=%" LEGACY_PRIu64
+			   " learning_loaded_native_samples=%" LEGACY_PRIu64
+			   " learning_search_samples=%" LEGACY_PRIu64 " learning_native_samples=%" LEGACY_PRIu64
+			   " learning_best_frames=%u\n",
+			   learning.enabled, learning.loaded, learning.saved, learning.loaded_samples,
+			   learning.loaded_native_samples, learning.search_samples, learning.native_samples,
+			   learning.best_frames);
+	}
 	legacy_int failed_human =
 		human != UNIT_BENCHMARK_HUMAN_PARKED &&
 		(!passed_human || human_event != CRASH_EVENT_NONE || shadow_penalty_frames != 0 ||
