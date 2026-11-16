@@ -168,8 +168,10 @@ photographic HyperVision replacement.
 
 The opponent menu retains the full supplied biography. **Up** and **Down** page
 through the background while the name, age, experience, expertise and problems
-remain visible. The original six opponents and non-SDL3 builds retain their
-existing resources and selection range.
+remain visible. The name spacing and four-space hanging indent match the
+original opponents; background lines wrap within the available width and page
+above the navigation label. The original six opponents and non-SDL3 builds
+retain their existing resources and selection range.
 
 UNIT's race-result dialogue selects from three openings, four middle lines,
 and three closings for each outcome. Its winning middle lines distinguish

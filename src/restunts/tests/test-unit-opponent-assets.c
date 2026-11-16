@@ -15,13 +15,17 @@
 #define TEST_TEXT_CAPACITY 128U
 #define TEST_BIO_CAPACITY 1024U
 #define TEST_GLYPH_WIDTH 4U
+#define TEST_WIDE_SPACE_WIDTH 5U
 #define TEST_GLYPH_HEIGHT 8
 #define TEST_BIO_LEFT 12
 #define TEST_BIO_WIDTH 180
-#define TEST_BIO_BACKGROUND_TOP 101
+#define TEST_BIO_BACKGROUND_TOP 105
 #define TEST_BIO_PAGE_TOP 166
 #define TEST_BIO_METADATA_COUNT 5U
-#define TEST_BIO_MAX_LINES 8U
+#define TEST_BIO_MAX_LINES ((TEST_BIO_PAGE_TOP - TEST_BIO_BACKGROUND_TOP) / TEST_GLYPH_HEIGHT)
+#define TEST_BIO_INDENT_SPACES 4U
+#define TEST_BIO_NORMAL_PAGES 2U
+#define TEST_BIO_WIDE_SPACE_PAGES 3U
 #define TEST_PORTRAIT_DIGIT_COLOR 39U
 
 struct TEST_DRAW {
@@ -36,6 +40,7 @@ static legacy_u16 allocation_count;
 static legacy_u16 release_count;
 static struct TEST_DRAW draws[TEST_DRAW_CAPACITY];
 static legacy_u16 draw_count;
+static legacy_u16 test_space_width = TEST_GLYPH_WIDTH;
 legacy_s16 font_glyph_height = TEST_GLYPH_HEIGHT;
 
 void *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size)
@@ -65,7 +70,11 @@ void mmgr_release(void *pointer)
 
 legacy_s16 font_text_width(const legacy_s8 *text)
 {
-	return (legacy_s16)(strlen((const legacy_char *)text) * TEST_GLYPH_WIDTH);
+	legacy_u16 width = 0;
+	while (*text != 0) {
+		width += *text++ == ' ' ? test_space_width : TEST_GLYPH_WIDTH;
+	}
+	return (legacy_s16)width;
 }
 
 void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
@@ -165,12 +174,12 @@ static void test_portrait_ownership(void)
 	assert(release_count == allocation_count && allocation == NULL);
 }
 
-static void test_biography(void)
+static legacy_u16 assert_biography_layout(void)
 {
 	static const legacy_char *metadata[] = {"Unitree Humanoid Bot", "Age: 1 Height: 6'0",
 											"Years Experience: 97", "Expertise: All",
 											"Problems: None"};
-	static const legacy_s16 metadata_y[] = {33, 51, 59, 67, 83};
+	static const legacy_s16 metadata_y[] = {33, 57, 65, 73, 89};
 	static const legacy_char expected_background[] =
 		"Background: When the last human who has ever played Stunts has died at the age of 67 "
 		"in 2055 after being hit by a car with full self driving enabled, no-one played Stunts "
@@ -179,6 +188,7 @@ static void test_biography(void)
 		"shared between each other, it isn't really a competition anymore, but a distributed "
 		"system for optimizing parameters to approximate a function that maps inputs to outputs.";
 	assert(strcmp((const legacy_char *)unit_opponent_background(), expected_background) == 0);
+	draw_count = 0;
 	legacy_u16 pages = unit_opponent_draw_biography(0);
 	assert(pages > 1);
 	legacy_char reconstructed[TEST_BIO_CAPACITY] = {0};
@@ -187,18 +197,30 @@ static void test_biography(void)
 		assert(unit_opponent_draw_biography(page) == pages);
 		assert(draw_count > TEST_BIO_METADATA_COUNT + 1U);
 		assert(draw_count <= TEST_BIO_METADATA_COUNT + TEST_BIO_MAX_LINES + 1U);
+		struct TEST_DRAW previous_draws[TEST_DRAW_CAPACITY];
+		legacy_u16 previous_count = draw_count;
+		memcpy(previous_draws, draws, draw_count * sizeof(draws[0]));
+		draw_count = 0;
+		assert(unit_opponent_draw_biography(page) == pages);
+		assert(draw_count == previous_count);
+		assert(memcmp(previous_draws, draws, draw_count * sizeof(draws[0])) == 0);
 		for (legacy_u16 index = 0; index < TEST_BIO_METADATA_COUNT; index++) {
 			assert(strcmp((const legacy_char *)draws[index].text, metadata[index]) == 0);
 			assert(draws[index].y == metadata_y[index]);
+			assert(draws[index].x == TEST_BIO_LEFT);
 		}
 		for (legacy_u16 index = 0; index < draw_count; index++) {
-			assert(draws[index].x == TEST_BIO_LEFT);
-			assert(font_text_width(draws[index].text) <= TEST_BIO_WIDTH);
+			assert(draws[index].x - TEST_BIO_LEFT + font_text_width(draws[index].text) <=
+				   TEST_BIO_WIDTH);
 		}
 		for (legacy_u16 index = TEST_BIO_METADATA_COUNT; index + 1U < draw_count; index++) {
 			const legacy_char *line = (const legacy_char *)draws[index].text;
 			size_t length = strlen(line);
 			assert(length > 0 && line[0] != ' ' && line[length - 1U] != ' ');
+			legacy_s16 margin = page == 0 && index == TEST_BIO_METADATA_COUNT
+									? 0
+									: (legacy_s16)(TEST_BIO_INDENT_SPACES * test_space_width);
+			assert(draws[index].x == TEST_BIO_LEFT + margin);
 			assert(draws[index].y ==
 				   TEST_BIO_BACKGROUND_TOP +
 					   (legacy_s16)(index - TEST_BIO_METADATA_COUNT) * font_glyph_height);
@@ -214,8 +236,19 @@ static void test_biography(void)
 				 (legacy_uint)pages);
 		assert(strcmp((const legacy_char *)draws[draw_count - 1U].text, label) == 0);
 		assert(draws[draw_count - 1U].y == TEST_BIO_PAGE_TOP);
+		assert(draws[draw_count - 1U].x == TEST_BIO_LEFT);
 	}
 	assert(strcmp(reconstructed, expected_background) == 0);
+	return pages;
+}
+
+static void test_biography(void)
+{
+	assert(assert_biography_layout() == TEST_BIO_NORMAL_PAGES);
+	/* Indentation must measure spaces, including with a proportional font. */
+	test_space_width = TEST_WIDE_SPACE_WIDTH;
+	assert(assert_biography_layout() == TEST_BIO_WIDE_SPACE_PAGES);
+	test_space_width = TEST_GLYPH_WIDTH;
 }
 
 legacy_int main(void)

@@ -8,13 +8,13 @@
 
 #define UNIT_BIO_LEFT 12
 #define UNIT_BIO_TITLE_TOP 33
-#define UNIT_BIO_AGE_TOP 51
-#define UNIT_BIO_EXPERIENCE_TOP 59
-#define UNIT_BIO_EXPERTISE_TOP 67
-#define UNIT_BIO_PROBLEMS_TOP 83
-#define UNIT_BIO_BACKGROUND_TOP 101
+#define UNIT_BIO_AGE_TOP 57
+#define UNIT_BIO_EXPERIENCE_TOP 65
+#define UNIT_BIO_EXPERTISE_TOP 73
+#define UNIT_BIO_PROBLEMS_TOP 89
+#define UNIT_BIO_BACKGROUND_TOP 105
 #define UNIT_BIO_LINE_WIDTH 180
-#define UNIT_BIO_LINES_PER_PAGE 8U
+#define UNIT_BIO_CONTINUATION_INDENT "    "
 #define UNIT_BIO_LINE_CAPACITY 80U
 #define UNIT_BIO_PAGE_TOP 166
 
@@ -80,7 +80,7 @@ const legacy_s8 *unit_opponent_background(void)
 	return unit_background;
 }
 
-static void unit_bio_next_line(const legacy_s8 **source, legacy_s8 *line)
+static void unit_bio_next_line(const legacy_s8 **source, legacy_s8 *line, legacy_s16 width)
 {
 	const legacy_s8 *start = *source;
 	legacy_u16 length = 0;
@@ -88,7 +88,7 @@ static void unit_bio_next_line(const legacy_s8 **source, legacy_s8 *line)
 	while (start[length] != 0 && length + 1U < UNIT_BIO_LINE_CAPACITY) {
 		line[length] = start[length];
 		line[length + 1U] = 0;
-		if (font_text_width(line) > UNIT_BIO_LINE_WIDTH) {
+		if (font_text_width(line) > width) {
 			break;
 		}
 		if (start[length] == ' ') {
@@ -120,17 +120,23 @@ legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
 	font_draw_text("Problems: None", UNIT_BIO_LEFT, UNIT_BIO_PROBLEMS_TOP);
 	const legacy_s8 *source = unit_background;
 	legacy_s8 line[UNIT_BIO_LINE_CAPACITY];
+	legacy_s16 continuation_indent = font_text_width(UNIT_BIO_CONTINUATION_INDENT);
+	legacy_u16 lines_per_page = (UNIT_BIO_PAGE_TOP - UNIT_BIO_BACKGROUND_TOP) / font_glyph_height;
+	if (lines_per_page == 0) {
+		lines_per_page = 1;
+	}
 	legacy_u16 index = 0;
 	while (*source != 0) {
-		unit_bio_next_line(&source, line);
-		if (index / UNIT_BIO_LINES_PER_PAGE == page) {
-			font_draw_text(line, UNIT_BIO_LEFT,
+		legacy_s16 indent = index == 0 ? 0 : continuation_indent;
+		unit_bio_next_line(&source, line, UNIT_BIO_LINE_WIDTH - indent);
+		if (index / lines_per_page == page) {
+			font_draw_text(line, UNIT_BIO_LEFT + indent,
 						   UNIT_BIO_BACKGROUND_TOP +
-							   (legacy_s16)(index % UNIT_BIO_LINES_PER_PAGE) * font_glyph_height);
+							   (legacy_s16)(index % lines_per_page) * font_glyph_height);
 		}
 		index++;
 	}
-	legacy_u16 pages = (index + UNIT_BIO_LINES_PER_PAGE - 1U) / UNIT_BIO_LINES_PER_PAGE;
+	legacy_u16 pages = (index + lines_per_page - 1U) / lines_per_page;
 	legacy_s8 label[] = "Bio 0/0  Up/Down";
 	label[4] = (legacy_s8)('0' + page + 1U);
 	label[6] = (legacy_s8)('0' + pages);
