@@ -51,7 +51,7 @@
 
 enum UNIT_PREPARATION_PHASE {
 	UNIT_PREPARATION_NONE,
-	UNIT_PREPARATION_OPENING,
+	UNIT_PREPARATION_PLANNING,
 	UNIT_PREPARATION_COMPLETE,
 	UNIT_PREPARATION_FAILED
 };
@@ -94,13 +94,13 @@ void unit_opponent_stop(void)
 legacy_int unit_opponent_prepare_begin_with_workers(legacy_s32 requested_workers)
 {
 	unit_opponent_stop();
-	if (!unit_opponent_is_selected() || !unit_route_build_opening(&unit_route)) {
+	if (!unit_opponent_is_selected() || !unit_route_build(&unit_route)) {
 		return 0;
 	}
 	owoot_load_opponent_wheels();
 	unit_planner = unit_planner_create(unit_route.points, unit_route.count, &unit_route.limits,
 									   owoot_enabled != 0, requested_workers);
-	unit_preparation = unit_planner ? UNIT_PREPARATION_OPENING : UNIT_PREPARATION_FAILED;
+	unit_preparation = unit_planner ? UNIT_PREPARATION_PLANNING : UNIT_PREPARATION_FAILED;
 	return unit_planner != NULL;
 }
 
@@ -115,34 +115,22 @@ void unit_opponent_prepare_work(void)
 		return;
 	}
 	unit_planner_work(unit_planner, UNIT_PREPARATION_WORK_UNITS);
-	if (unit_preparation != UNIT_PREPARATION_OPENING) {
+	if (unit_preparation != UNIT_PREPARATION_PLANNING) {
 		unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
 		return;
 	}
 	struct UNIT_PLANNER_STATS stats;
 	unit_planner_stats(unit_planner, &stats);
-	if (!stats.opening_ready) {
+	if (!stats.route_ready) {
 		return;
 	}
-	/* Only after the short opening has a usable plan do we select a complete
-	 * checkpoint-aware route. Workers retain the opening as their seed. */
-	struct UNIT_ROUTE complete = {0};
-	if (unit_route_build(&complete)) {
-		struct UNIT_PLANNER *replacement =
-			unit_planner_rebuild(unit_planner, complete.points, complete.count);
-		if (replacement) {
-			unit_planner = replacement;
-			unit_route_free(&unit_route);
-			unit_route = complete;
-			unit_preparation = UNIT_PREPARATION_COMPLETE;
-			(void)unit_pilot_begin(unit_planner);
-			return;
-		}
+	/* The first search covers the complete checkpoint-aware lap. Native
+	 * previews then refine the same route throughout the remaining wait. */
+	if (unit_pilot_begin(unit_planner)) {
+		unit_preparation = UNIT_PREPARATION_COMPLETE;
+	} else {
+		unit_preparation = UNIT_PREPARATION_FAILED;
 	}
-	unit_route_free(&complete);
-	unit_planner_destroy(unit_planner);
-	unit_planner = NULL;
-	unit_preparation = UNIT_PREPARATION_FAILED;
 }
 
 legacy_int unit_opponent_prepare_end(void)
@@ -579,7 +567,11 @@ static legacy_int unit_cached_path_blocked(const struct UNIT_VEHICLE *unit,
 	for (legacy_u32 index = 1; index <= ticks; index++) {
 		struct CARSTATE expected;
 		if (!unit_pilot_future_car(index, &expected)) {
-			return index == 1U;
+			struct UNIT_PILOT_STATS stats;
+			unit_pilot_stats(&stats);
+			/* A failed preview proves no safe continuation beyond this prefix.
+			 * Replan while braking distance remains, before its last safe tick. */
+			return index == 1U || (stats.exhausted && !stats.completed_lap);
 		}
 		struct UNIT_VEHICLE next;
 		unit_vehicle_snapshot(&expected, &simd_opponent, &next);
@@ -636,6 +628,10 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		unit_recheck_lead = 0.0;
 		if (continuing) {
 			(void)unit_planner_pause_live(unit_planner);
+			unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS);
+			if (!unit_pilot_continuation_pending()) {
+				(void)unit_planner_resume_live(unit_planner);
+			}
 		} else {
 			(void)unit_planner_resume_live(unit_planner);
 		}
@@ -649,11 +645,6 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 			unit_pilot_continuation_cancel();
 			(void)unit_planner_resume_live(unit_planner);
 			unit_make_command(unit_planner, frame, ROUTE_INDEX_NONE, 0.0, command);
-		} else if (continuing) {
-			unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS);
-			if (!unit_pilot_continuation_pending()) {
-				(void)unit_planner_resume_live(unit_planner);
-			}
 		}
 		return 1;
 	}
@@ -696,6 +687,33 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		unit_recheck_pending = unit_recheck_settled = 0;
 		unit_recheck_retry = 0;
 		unit_recheck_lead = stopping;
+		/* Rebuild from this exact rolling state while ordinary road remains
+		 * ahead. Its verified prefix gives native search time to check the
+		 * stunt without stopping before an unrelated corner or checkpoint. */
+		(void)unit_planner_pause_live(unit_planner);
+		if (!owoot_enabled && unit_pilot_recheck_rolling_begin(unit_planner, frame, piece)) {
+			unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
+			if (unit_pilot_recheck_status(frame) > 0 && unit_pilot_command(car, frame, command)) {
+				unit_recheck_piece = ROUTE_INDEX_NONE;
+				unit_recheck_lead = 0.0;
+				if (unit_pilot_continuation_pending()) {
+					unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS);
+				}
+				if (!unit_pilot_continuation_pending()) {
+					(void)unit_planner_resume_live(unit_planner);
+				}
+				if (unit_collision_brake(&unit, &player) ||
+					unit_landing_brake(cursor, &unit, &player) ||
+					unit_cached_path_blocked(&unit, &player)) {
+					unit_pilot_continuation_cancel();
+					(void)unit_planner_resume_live(unit_planner);
+					unit_make_command(unit_planner, frame, ROUTE_INDEX_NONE, 0.0, command);
+				}
+				return 1;
+			}
+			unit_pilot_recheck_cancel();
+		}
+		(void)unit_planner_resume_live(unit_planner);
 	}
 	if (unit_recheck_pending) {
 		legacy_u64 begin = SDL_GetTicksNS();

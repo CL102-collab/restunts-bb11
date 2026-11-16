@@ -27,6 +27,17 @@ static legacy_int unit_launch_road_contact(const struct CARSTATE *car)
 	return 1;
 }
 
+static legacy_int unit_launch_receiver_contact(const struct CARSTATE *car)
+{
+	for (legacy_u32 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		if (car->car_surfaceWhl[wheel] >= CAR_SURFACE_PAVED &&
+			car->car_surfaceWhl[wheel] <= CAR_SURFACE_ICE) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static legacy_int unit_launch_landed(const struct CARSTATE *car)
 {
 	return unit_launch_road_contact(car) &&
@@ -204,7 +215,7 @@ legacy_int unit_launch_guidance_policy(const struct UNIT_ROUTE *route, legacy_u3
 		legacy_f64 along = (x - entry->x) * dx + (z - entry->z) * dz;
 		legacy_f64 arrival = (landing->x - entry->x) * dx + (landing->z - entry->z) * dz;
 		if (along < -approach_limit || along > arrival + TRACK_TILE_SIZE ||
-			(along > arrival && (entry->stunt == UNIT_STUNT_RAMP ? car->car_sumSurfAllWheels
+			(along > arrival && (entry->stunt == UNIT_STUNT_RAMP ? unit_launch_receiver_contact(car)
 																 : unit_launch_landed(car)))) {
 			first = last;
 			continue;

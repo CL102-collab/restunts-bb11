@@ -3,7 +3,6 @@
 
 #include "unit_planner.h"
 
-#define UNIT_PLANNER_OPENING_PIECES 4U
 #define UNIT_PLANNER_ROUTE_LIMIT 262144U
 #define UNIT_PLANNER_CHUNK_POINTS 64U
 #define UNIT_PLANNER_LOCAL_POINTS 96U
@@ -27,6 +26,7 @@ struct UNIT_EVALUATION {
 struct UNIT_REQUEST {
 	struct UNIT_VEHICLE unit, player;
 	legacy_u32 cursor, generation;
+	legacy_u8 native_preview;
 };
 
 struct UNIT_ROLLOUT {

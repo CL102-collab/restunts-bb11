@@ -50,6 +50,9 @@
 #define UNIT_BENCHMARK_NS_PER_MICROSECOND 1000.0
 #define UNIT_BENCHMARK_NS_PER_MILLISECOND 1000000.0
 #define UNIT_BENCHMARK_MAX_PLANNER_YIELD_MS 50U
+#define UNIT_BENCHMARK_STALL_SPEED 3.0
+#define UNIT_BENCHMARK_STALL_START_SECONDS 2U
+#define UNIT_BENCHMARK_STALL_SECONDS 1U
 
 enum UNIT_BENCHMARK_HUMAN {
 	UNIT_BENCHMARK_HUMAN_PARKED,
@@ -329,7 +332,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			"[--planner-yield-ms N] [--planner-sync] [--require-worker] "
 			"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
 			"[--manual] [--frame-rate 10|20] [--require-finish] "
-			"[--require-clean] [--human "
+			"[--require-clean] [--require-no-stalls] [--human "
 			"stationary|accelerating|crossing|grid|grid-then-park] "
 			"[--owoot:on]\n");
 		return 1;
@@ -345,6 +348,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_int pilot_debug = 0;
 	legacy_int require_finish = 0;
 	legacy_int require_clean = 0;
+	legacy_int require_no_stalls = 0;
 	legacy_int require_worker = 0;
 	legacy_int planner_sync = 0;
 	legacy_int manual = 0;
@@ -413,6 +417,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			require_worker = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--require-clean") == 0) {
 			require_clean = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--require-no-stalls") == 0) {
+			require_no_stalls = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--require-finish") == 0) {
 			require_finish = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--prepare-until-plan") == 0) {
@@ -557,6 +563,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_int passed_human = 0;
 	legacy_u64 step_sum_ns = 0, step_max_ns = 0, pacing_ns = 0;
 	legacy_u32 deadline_misses = 0;
+	legacy_u32 stall_frames = 0, max_stall_frames = 0;
 	legacy_u64 started = SDL_GetTicksNS();
 	for (; frames < frame_limit; frames++) {
 		legacy_u8 human_input = INPUT_NONE;
@@ -590,12 +597,24 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		}
 		const struct CARSTATE *car = &state.opponentstate;
 		legacy_f64 speed = car->car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE;
+		legacy_f64 human_dx =
+			(car->car_position.lx - state.playerstate.car_position.lx) / UNIT_BENCHMARK_WORLD_SCALE;
+		legacy_f64 human_dz =
+			(car->car_position.lz - state.playerstate.car_position.lz) / UNIT_BENCHMARK_WORLD_SCALE;
+		legacy_f64 human_distance = hypot(human_dx, human_dz);
+		/* A nearby human may require a legitimate collision-avoidance wait.
+		 * Count unexplained low-speed intervals only after the initial launch. */
+		if (frames >= UNIT_BENCHMARK_STALL_START_SECONDS * frame_rate &&
+			speed < UNIT_BENCHMARK_STALL_SPEED && human_distance >= TRACK_TILE_SIZE) {
+			stall_frames++;
+			if (stall_frames > max_stall_frames) {
+				max_stall_frames = stall_frames;
+			}
+		} else {
+			stall_frames = 0;
+		}
 		if (human != UNIT_BENCHMARK_HUMAN_PARKED) {
-			legacy_f64 dx = (car->car_position.lx - state.playerstate.car_position.lx) /
-							UNIT_BENCHMARK_WORLD_SCALE;
-			legacy_f64 dz = (car->car_position.lz - state.playerstate.car_position.lz) /
-							UNIT_BENCHMARK_WORLD_SCALE;
-			closest_human = fmin(closest_human, sqrt(dx * dx + dz * dz));
+			closest_human = fmin(closest_human, human_distance);
 			if ((car->car_position.lx / UNIT_BENCHMARK_WORLD_SCALE - human_start_x) * forward_x +
 					(car->car_position.lz / UNIT_BENCHMARK_WORLD_SCALE - human_start_z) *
 						forward_z >
@@ -656,7 +675,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	printf("opponent=%u frames=%u seconds=%.2f frame_rate=%u owoot=%u event=%u finished=%u "
 		   "mean_mph=%.3f corner_mph=%.3f peak_mph=%.3f simulation_ms=%.3f "
 		   "penalty_frames=%u preparation_ms=%.0f mean_step_us=%.3f max_step_us=%.3f "
-		   "deadline_misses=%u pacing_ms=%.3f\n",
+		   "deadline_misses=%u pacing_ms=%.3f max_stall_frames=%u\n",
 		   opponent, frames, frames / (legacy_f64)frame_rate, frame_rate, owoot_enabled != 0, event,
 		   event == CRASH_EVENT_FINISH, frames ? speed_sum / frames : 0,
 		   corner_frames ? corner_speed_sum / corner_frames : 0, peak_speed,
@@ -664,7 +683,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		   (legacy_f64)preparation_elapsed,
 		   frames ? step_sum_ns / UNIT_BENCHMARK_NS_PER_MICROSECOND / frames : 0,
 		   step_max_ns / UNIT_BENCHMARK_NS_PER_MICROSECOND, deadline_misses,
-		   pacing_ns / UNIT_BENCHMARK_NS_PER_MILLISECOND);
+		   pacing_ns / UNIT_BENCHMARK_NS_PER_MILLISECOND, max_stall_frames);
 	if (opponent == OPPONENT_UNIT) {
 		printf("planner_workers=%u opening_candidates=%.0f route_candidates=%.0f "
 			   "live_candidates=%.0f worker_accepted=%.0f worker_commands_applied=%.0f\n",
@@ -730,6 +749,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		 (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH));
 	return (require_finish && event != CRASH_EVENT_FINISH) ||
 				   (require_clean && shadow_penalty_frames != 0) ||
+				   (require_no_stalls &&
+					max_stall_frames >= UNIT_BENCHMARK_STALL_SECONDS * frame_rate) ||
 				   (require_worker && (!worker_commands || planner_stats.workers > 1U)) ||
 				   failed_human
 			   ? 1

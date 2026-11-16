@@ -102,7 +102,91 @@ static void test_bounded_work_and_cleanup(void)
 	reset_fixture(0);
 	assert(unit_pilot_begin(&source));
 	unit_pilot_work(8);
+	assert(unit_pilot_finish() && unit_pilot_continuation_pending());
+	unit_pilot_stop();
+}
+
+static void test_ordinary_prefix(void)
+{
+	reset_fixture(0);
+	assert(unit_pilot_begin(&source));
+	unit_pilot_work(8);
+	assert(unit_pilot_state->committed_steps == 8);
+	assert(unit_pilot_finish() && unit_pilot_continuation_pending());
+	struct CSRPL_OPPONENT_COMMAND command;
+	assert(unit_pilot_command(&state.opponentstate, 100, &command));
+	struct GAMESTATE before = state;
+	assert(unit_pilot_continue_work(1));
+	assert(unit_pilot_state->committed_steps == 9);
+	assert_live_unchanged(&before);
+	/* A late ordinary failure must retain all earlier safe commands, while
+	 * excluding the command that caused the crash from the usable prefix. */
+	reset_fixture(0);
+	fail_ordinary_at = 12;
+	assert(unit_pilot_begin(&source));
+	unit_pilot_work(64);
+	assert(unit_pilot_state->stats.exhausted && unit_pilot_state->committed_steps == 11);
 	assert(unit_pilot_finish() && !unit_pilot_continuation_pending());
+	assert(unit_pilot_command(&state.opponentstate, 100, &command));
+	struct CARSTATE future;
+	assert(unit_pilot_future_car(10, &future));
+	assert(!unit_pilot_future_car(11, &future));
+	unit_pilot_stop();
+}
+
+static void test_rolling_recheck(void)
+{
+	reset_fixture(1);
+	state.opponentstate.car_actual_speed =
+		(legacy_u16)(UNIT_PILOT_MINIMUM_SPEED * UNIT_SPEED_SCALE);
+	state.playerstate.car_position.lx = state.playerstate.car_position.lz = -64;
+	assert(unit_pilot_begin(&source));
+	source.calls = 100;
+	assert(unit_pilot_recheck_rolling_begin(&source, 100, 1));
+	assert(!unit_pilot_state->wait_remaining && unit_pilot_state->approach_cursor > 0);
+	unit_pilot_work(8);
+	assert(unit_pilot_recheck_status(100) == 1 && unit_pilot_state->committed_steps == 8);
+	assert(!waited_frames && !unit_pilot_state->trial);
+	struct CSRPL_OPPONENT_COMMAND command;
+	assert(!unit_pilot_command(&state.opponentstate, 101, &command));
+	assert(unit_pilot_command(&state.opponentstate, 100, &command));
+	assert(command.route_point == 100 && unit_pilot_continuation_pending());
+	assert(unit_pilot_continue_work(1));
+	assert(unit_pilot_state->committed_steps == 9);
+	/* A missed moving handoff cannot reuse a search from an old car pose. */
+	unit_pilot_state->resume_pending = 1;
+	source.calls = 200;
+	assert(unit_pilot_recheck_rolling_begin(&source, 200, 1));
+	assert(!unit_pilot_state->resume_pending);
+	unit_pilot_work(8);
+	assert(unit_pilot_recheck_status(201) == -1 && !unit_pilot_state->resume_pending);
+	/* Already entering a stunt supplies no certified ordinary prefix. */
+	state.opponentstate.car_reserved_route_word1 = 40;
+	state.opponentstate.car_position.lz = 4000 * 64;
+	source.calls = 300;
+	assert(unit_pilot_recheck_rolling_begin(&source, 300, 1));
+	unit_pilot_work(1);
+	assert(unit_pilot_state->trial && !unit_pilot_state->committed_steps);
+	assert(unit_pilot_recheck_status(300) == 0);
+	assert(!unit_pilot_command(&state.opponentstate, 300, &command));
+	unit_pilot_stop();
+	source.calls = 0;
+}
+
+static void test_receiving_road_geometry(void)
+{
+	reset_fixture(1);
+	native_road_support = 0;
+	assert(unit_pilot_begin(&source));
+	unit_pilot_work(55);
+	/* Surface flags and horizontal provenance can still refer to a different
+	 * deck. Road support must also overlap actual native road geometry. */
+	assert(!unit_pilot_state->stats.accepted && unit_pilot_state->trial);
+	/* Match OWOOT: one geometric overlap plus all four native road contacts
+	 * permits legitimate banked and graded landings. */
+	native_road_support = 1;
+	unit_pilot_work(4);
+	assert(unit_pilot_state->stats.accepted == 1);
 	unit_pilot_stop();
 }
 
@@ -289,7 +373,7 @@ static void test_ramp_runup_and_group_boundaries(void)
 	assert(unit_pilot_state->approach_steps >= unit_pilot_state->committed_steps);
 	reject_everything = 1;
 	unit_pilot_work(1);
-	assert(unit_pilot_state->step_count == 10 && unit_pilot_state->committed_steps == 0);
+	assert(unit_pilot_state->step_count == 10 && unit_pilot_state->committed_steps == 10);
 	unit_pilot_stop();
 }
 
@@ -437,6 +521,9 @@ legacy_int main(void)
 	test_append_and_isolation();
 	test_cancel_divergence();
 	test_bounded_work_and_cleanup();
+	test_ordinary_prefix();
+	test_rolling_recheck();
+	test_receiving_road_geometry();
 	test_two_chunk_frame_budget();
 	test_pulse_retry_and_expired_handoff();
 	test_ramp_runup_and_group_boundaries();

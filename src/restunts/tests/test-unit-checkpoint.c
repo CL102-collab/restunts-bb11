@@ -23,6 +23,10 @@
 #define TEST_MISSED_LATERAL 250
 #define TEST_REPLAY_OPPONENT 7
 #define TEST_NORMAL_SPEED_SCALE 256U
+#define TEST_ROAD_HALF_WIDTH 256.0
+#define TEST_ALIGN_APPROACH 800
+#define TEST_OBLIQUE_HALF_WIDTH 40.0
+#define TEST_OBLIQUE_HALF_LENGTH 90.0
 
 struct GAMESTATE state;
 struct GAMEINFO gameconfig;
@@ -159,6 +163,7 @@ static void reset(legacy_u8 rotation, legacy_u16 gate_id)
 		points[index].x = sample.lx / UNIT_POSITION_SCALE;
 		points[index].y = sample.ly / UNIT_POSITION_SCALE - TEST_BODY_HEIGHT;
 		points[index].z = sample.lz / UNIT_POSITION_SCALE;
+		points[index].half_width = TEST_ROAD_HALF_WIDTH;
 		points[index].route_index = index == 0 ? 0 : index == TEST_POINT_COUNT - 1U ? 2 : 1;
 		points[index].route_point = index == 2U ? 1 : 0;
 	}
@@ -300,11 +305,102 @@ static void test_offset_passage_preserved(void)
 	}
 }
 
+static void test_gate_route_alignment(void)
+{
+	reset(0, CSTRK_BLUE_CHECKPOINT_ID);
+	unit_checkpoint_align_route(&route);
+	assert(!points[0].align_center);
+	assert(points[0].half_width == TEST_ROAD_HALF_WIDTH);
+	for (legacy_u32 index = 1; index < TEST_POINT_COUNT - 1U; index++) {
+		assert(points[index].align_center & UNIT_ALIGN_GATE);
+		assert(points[index].half_width == CHECKPOINT_GATE_INNER_HALF_WIDTH);
+	}
+	assert(!points[TEST_POINT_COUNT - 1U].align_center);
+	track_active = 0;
+	memset(points, 0, sizeof(points));
+	unit_checkpoint_align_route(&route);
+	assert(!points[0].align_center && !points[1].align_center);
+	unit_checkpoint_align_route(NULL);
+}
+
+static void test_alignment_keeps_moving_forward(void)
+{
+	for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
+		reset(rotation, CSTRK_BLUE_CHECKPOINT_ID);
+		state.opponentstate.car_position = position(TEST_MISSED_LATERAL, -TEST_ALIGN_APPROACH);
+		struct VECTORLONG destination = position(TEST_MISSED_LATERAL, -TEST_ALIGN_APPROACH / 2);
+		struct UNIT_PLAN guidance = plan();
+		guidance.target_x = destination.lx / UNIT_POSITION_SCALE;
+		guidance.target_y = destination.ly / UNIT_POSITION_SCALE - TEST_BODY_HEIGHT;
+		guidance.target_z = destination.lz / UNIT_POSITION_SCALE;
+		assert(unit_checkpoint_guide(&route, 1, &state.opponentstate, &guidance));
+		legacy_f64 yaw = -state.opponentstate.car_rotate.x * UNIT_ANGLE_RADIANS;
+		legacy_f64 dx =
+			guidance.target_x - state.opponentstate.car_position.lx / UNIT_POSITION_SCALE;
+		legacy_f64 dz =
+			guidance.target_z - state.opponentstate.car_position.lz / UNIT_POSITION_SCALE;
+		assert(dx * sin(yaw) + dz * cos(yaw) > 0.0);
+		assert(guidance.target_speed <= 40);
+	}
+}
+
+static void test_safe_approach_preserved(void)
+{
+	for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
+		reset(rotation, CSTRK_BLUE_CHECKPOINT_ID);
+		state.opponentstate.car_position = position(60, -TEST_ALIGN_APPROACH);
+		struct VECTORLONG destination = position(60, -TEST_ALIGN_APPROACH / 2);
+		struct UNIT_PLAN guidance = plan();
+		guidance.target_x = destination.lx / UNIT_POSITION_SCALE;
+		guidance.target_y = destination.ly / UNIT_POSITION_SCALE - TEST_BODY_HEIGHT;
+		guidance.target_z = destination.lz / UNIT_POSITION_SCALE;
+		struct UNIT_PLAN saved = guidance;
+		assert(!unit_checkpoint_guide(&route, 1, &state.opponentstate, &guidance));
+		assert(guidance.target_x == saved.target_x && guidance.target_z == saved.target_z);
+		/* A long car lining up with the gate is bounded by its corner radius,
+		 * even if a linear angular-error estimate exceeds the whole opening. */
+		route.limits.half_width = TEST_OBLIQUE_HALF_WIDTH;
+		route.limits.half_length = TEST_OBLIQUE_HALF_LENGTH;
+		state.opponentstate.car_position = position(0, -TEST_ALIGN_APPROACH);
+		state.opponentstate.car_rotate.x =
+			LEGACY_S16_WRAP_ADD(state.opponentstate.car_rotate.x, ANGLE_QUARTER_TURN / 3);
+		destination = position(0, TEST_ALIGN_APPROACH);
+		guidance.target_x = destination.lx / UNIT_POSITION_SCALE;
+		guidance.target_y = destination.ly / UNIT_POSITION_SCALE - TEST_BODY_HEIGHT;
+		guidance.target_z = destination.lz / UNIT_POSITION_SCALE;
+		assert(!unit_checkpoint_guide(&route, 1, &state.opponentstate, &guidance));
+	}
+}
+
+static void test_centered_reverse_approach_turns(void)
+{
+	for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
+		reset(rotation, CSTRK_BLUE_CHECKPOINT_ID);
+		state.opponentstate.car_position = position(0, TEST_APPROACH);
+		struct VECTORLONG destination = position(0, -TEST_APPROACH);
+		struct UNIT_PLAN guidance = plan();
+		guidance.target_x = destination.lx / UNIT_POSITION_SCALE;
+		guidance.target_y = destination.ly / UNIT_POSITION_SCALE - TEST_BODY_HEIGHT;
+		guidance.target_z = destination.lz / UNIT_POSITION_SCALE;
+		assert(unit_checkpoint_guide(&route, 2, &state.opponentstate, &guidance));
+		legacy_f64 yaw = -state.opponentstate.car_rotate.x * UNIT_ANGLE_RADIANS;
+		legacy_f64 dx =
+			guidance.target_x - state.opponentstate.car_position.lx / UNIT_POSITION_SCALE;
+		legacy_f64 dz =
+			guidance.target_z - state.opponentstate.car_position.lz / UNIT_POSITION_SCALE;
+		assert(fabs(dx * cos(yaw) - dz * sin(yaw)) > 1.0);
+	}
+}
+
 legacy_int main(void)
 {
 	test_physical_crossing();
 	test_missed_gate_recovery();
 	test_approach_and_fallback();
 	test_offset_passage_preserved();
+	test_gate_route_alignment();
+	test_alignment_keeps_moving_forward();
+	test_safe_approach_preserved();
+	test_centered_reverse_approach_turns();
 	return 0;
 }

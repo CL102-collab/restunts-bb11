@@ -40,6 +40,8 @@
 #define UNIT_STUNT_CORKSCREW_SPEED 105.0
 #define UNIT_STUNT_OTHER_SPEED 105.0
 #define UNIT_STUNT_PIPE_SPEED 105.0
+#define UNIT_BANKED_ROAD_SPEED 80.0
+#define UNIT_ELEVATED_CORNER_SPEED 80.0
 #define UNIT_STUNT_CORKSCREW_FLOOR 70.0
 #define UNIT_STUNT_OTHER_FLOOR 90.0
 #define UNIT_BARREL_DEFAULT_SPEED 100.0
@@ -233,6 +235,18 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 								 ? UNIT_STUNT_CORKSCREW_FLOOR
 								 : UNIT_STUNT_OTHER_FLOOR;
 	}
+	if (model >= PHYSICAL_MODEL_BANKED_ENTRANCE_B && model <= PHYSICAL_MODEL_BANKED_CORNER) {
+		/* Fresh live guidance reserves a centered, slower banked approach.
+		 * Complete native previews retain the original speed envelope and
+		 * prove their actual receiving contact before caching controls. */
+		point->fallback_speed_limit = fmin(point->speed_limit, UNIT_BANKED_ROAD_SPEED);
+		point->align_center |= UNIT_ALIGN_FALLBACK;
+	}
+	if (model == PHYSICAL_MODEL_ELEVATED_CORNER) {
+		/* Reserve live steering and braking time before an elevated bend,
+		 * while native-validated trajectories keep their proven speeds. */
+		point->fallback_speed_limit = fmin(point->speed_limit, UNIT_ELEVATED_CORNER_SPEED);
+	}
 	if (model == PHYSICAL_MODEL_SLALOM) {
 		/* Keep the native alternating pole-avoidance line. The narrow center
 		 * gap leaves too little tolerance for steering lag or a banked landing. */
@@ -281,7 +295,7 @@ static void unit_route_align_approaches(struct UNIT_ROUTE *route)
 		if (!point->stunt && trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM) {
 			continue;
 		}
-		point->align_center = 1;
+		point->align_center = UNIT_ALIGN_MANEUVER;
 		if (index && route->points[index - 1U].route_index == point->route_index) {
 			continue;
 		}
@@ -292,7 +306,7 @@ static void unit_route_align_approaches(struct UNIT_ROUTE *route)
 				++pieces > UNIT_STUNT_ALIGNMENT_PIECES) {
 				break;
 			}
-			route->points[previous].align_center = 1;
+			route->points[previous].align_center = UNIT_ALIGN_MANEUVER;
 		}
 	}
 }
@@ -396,6 +410,7 @@ legacy_int unit_route_build_opening(struct UNIT_ROUTE *route)
 	route->finish_begin = route->count;
 	unit_route_slalom_approaches(route);
 	unit_route_align_approaches(route);
+	unit_checkpoint_align_route(route);
 	unit_shortcut_mark_route(route->points, route->count, &route->limits, owoot_enabled != 0);
 	return route->count >= 2U;
 }
@@ -464,6 +479,7 @@ legacy_int unit_route_build(struct UNIT_ROUTE *route)
 			unit_route_ramp_jumps(route);
 			unit_route_slalom_approaches(route);
 			unit_route_align_approaches(route);
+			unit_checkpoint_align_route(route);
 			unit_shortcut_mark_route(route->points, route->count, &route->limits,
 									 owoot_enabled != 0);
 			return 1;

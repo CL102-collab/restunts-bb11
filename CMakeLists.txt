@@ -1160,6 +1160,20 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         --prepare-ms 10000 --planner-yield-ms 2 --frames 18000 --human grid-then-park --owoot:on
         --verify-replay --require-finish --require-clean --require-worker)
     set_tests_properties(unit-race-glacier-owoot-human PROPERTIES RUN_SERIAL TRUE)
+    foreach(unit_regression_track branches keukenhof ninhbinh default)
+        if(unit_regression_track STREQUAL "default")
+            set(unit_regression_fixture "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK")
+        else()
+            set(unit_regression_fixture
+                "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/${unit_regression_track}.cstrk")
+        endif()
+        list(APPEND unit_race_tests unit-race-${unit_regression_track}-no-stalls)
+        add_test(NAME unit-race-${unit_regression_track}-no-stalls COMMAND test-unit-race
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_regression_fixture}" 7
+            --prepare-ms 10000 --planner-yield-ms 2 --human grid-then-park
+            --verify-replay --require-finish --require-clean --require-no-stalls)
+        set_tests_properties(unit-race-${unit_regression_track}-no-stalls PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
     add_test(NAME unit-race-prepared-worker COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
         --prepare-ms 10000 --planner-yield-ms 2 --frames 180 --human accelerating

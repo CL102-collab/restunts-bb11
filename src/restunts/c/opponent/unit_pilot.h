@@ -58,6 +58,12 @@ legacy_int unit_pilot_next_stunt_with_lead(const struct CARSTATE *car, legacy_s1
  * a new native wait forecast; cached commands never translate or move the car. */
 legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 frame,
 									legacy_s16 piece);
+/* Start from the moving live state and release only an exact, already verified
+ * ordinary prefix at this same frame. Its native continuation validates the
+ * upcoming maneuver while those cached commands are driven. No waiting state
+ * or unfinished search from a different moving snapshot is reused. */
+legacy_int unit_pilot_recheck_rolling_begin(struct UNIT_PLANNER *source, legacy_u32 frame,
+											legacy_s16 piece);
 legacy_int unit_pilot_recheck_status(legacy_u32 frame);
 void unit_pilot_recheck_cancel(void);
 

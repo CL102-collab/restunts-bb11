@@ -150,9 +150,19 @@ static void route_window(const struct UNIT_ROUTE_POINT *points, legacy_u32 count
 	}
 }
 
+static legacy_u8 route_alignment(const struct UNIT_ROUTE_POINT *point, legacy_u8 original_policy)
+{
+	legacy_u8 mask = UNIT_ALIGN_MANEUVER | UNIT_ALIGN_GATE;
+	if (!original_policy) {
+		mask |= UNIT_ALIGN_FALLBACK;
+	}
+	return point->align_center & mask;
+}
+
 static void route_position(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 						   legacy_u32 index, const struct UNIT_CAR_LIMITS *limits, legacy_u8 owoot,
-						   const struct UNIT_PROFILE *profile, legacy_f64 *x, legacy_f64 *z)
+						   const struct UNIT_PROFILE *profile, legacy_u8 original_policy,
+						   legacy_f64 *x, legacy_f64 *z)
 {
 	legacy_u32 before, after;
 	route_window(points, count, index, limits, &before, &after);
@@ -168,7 +178,8 @@ static void route_position(const struct UNIT_ROUTE_POINT *points, legacy_u32 cou
 	legacy_f64 lane =
 		unit_planner_clamp(profile->lane + apex * profile->apex, -UNIT_SHORTCUT_MAX_LANE_FRACTION,
 						   UNIT_SHORTCUT_MAX_LANE_FRACTION);
-	if (points[index].stunt != UNIT_STUNT_NONE || points[index].align_center) {
+	if (points[index].stunt != UNIT_STUNT_NONE ||
+		route_alignment(&points[index], original_policy)) {
 		lane = 0.0;
 	}
 	legacy_f64 offset = available_width(&points[index], limits, owoot) * lane;
@@ -192,7 +203,8 @@ static legacy_f64 line_grip(const struct UNIT_ROUTE_POINT *point,
 
 static legacy_f64 route_limit(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 							  legacy_u32 index, const struct UNIT_CAR_LIMITS *limits,
-							  legacy_u8 owoot, const struct UNIT_PROFILE *profile)
+							  legacy_u8 owoot, const struct UNIT_PROFILE *profile,
+							  legacy_u8 original_policy)
 {
 	legacy_f64 result = limits->max_speed;
 	legacy_u32 before, after;
@@ -200,12 +212,15 @@ static legacy_f64 route_limit(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 	if (points[index].speed_limit > 0.0) {
 		result = fmin(result, points[index].speed_limit);
 	}
+	if (!original_policy && points[index].fallback_speed_limit > 0.0) {
+		result = fmin(result, points[index].fallback_speed_limit);
+	}
 	if (before < index && after > index && points[before].stunt == UNIT_STUNT_NONE &&
 		points[index].stunt == UNIT_STUNT_NONE && points[after].stunt == UNIT_STUNT_NONE) {
 		legacy_f64 ax, az, bx, bz, cx, cz;
-		route_position(points, count, before, limits, owoot, profile, &ax, &az);
-		route_position(points, count, index, limits, owoot, profile, &bx, &bz);
-		route_position(points, count, after, limits, owoot, profile, &cx, &cz);
+		route_position(points, count, before, limits, owoot, profile, original_policy, &ax, &az);
+		route_position(points, count, index, limits, owoot, profile, original_policy, &bx, &bz);
+		route_position(points, count, after, limits, owoot, profile, original_policy, &cx, &cz);
 		legacy_f64 first = distance(bx - ax, bz - az);
 		legacy_f64 second = distance(cx - bx, cz - bz);
 		legacy_f64 chord = distance(cx - ax, cz - az);
@@ -252,8 +267,8 @@ static legacy_f64 route_distance(const struct UNIT_ROUTE_POINT *points, legacy_u
 	if (!index) {
 		return 0.0;
 	}
-	route_position(points, count, index - 1U, limits, owoot, profile, &ax, &az);
-	route_position(points, count, index, limits, owoot, profile, &bx, &bz);
+	route_position(points, count, index - 1U, limits, owoot, profile, 1U, &ax, &az);
+	route_position(points, count, index, limits, owoot, profile, 1U, &bx, &bz);
 	return distance(bx - ax, bz - az);
 }
 
@@ -274,8 +289,8 @@ legacy_int unit_planner_evaluation_step(struct UNIT_EVALUATION *evaluation,
 	for (legacy_u32 work = 0; work < UNIT_PLANNER_CHUNK_POINTS; work++) {
 		legacy_u32 index = evaluation->cursor;
 		if (evaluation->phase == 0U) {
-			evaluation->speeds[index] =
-				route_limit(points, evaluation->count, index, limits, owoot, &evaluation->profile);
+			evaluation->speeds[index] = route_limit(points, evaluation->count, index, limits, owoot,
+													&evaluation->profile, 1U);
 			if (++evaluation->cursor == evaluation->count) {
 				evaluation->phase = 1U;
 				evaluation->cursor = evaluation->count - 1U;
@@ -320,6 +335,7 @@ legacy_int unit_planner_evaluation_step(struct UNIT_EVALUATION *evaluation,
 static legacy_u32 local_route(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 							  const struct UNIT_CAR_LIMITS *limits, legacy_u8 owoot,
 							  const struct UNIT_PROFILE *profile, legacy_u32 cursor,
+							  legacy_u8 original_policy,
 							  struct UNIT_LOCAL_POINT local[UNIT_PLANNER_LOCAL_POINTS])
 {
 	legacy_u32 first = cursor ? cursor - 1U : 0U;
@@ -332,6 +348,10 @@ static legacy_u32 local_route(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 		legacy_u8 boundary =
 			source == first || source == cursor || source + 1U == count ||
 			points[source].stunt != UNIT_STUNT_NONE ||
+			(!original_policy && source &&
+			 points[source].fallback_speed_limit != points[source - 1U].fallback_speed_limit) ||
+			(!original_policy && source + 1U < count &&
+			 points[source].fallback_speed_limit != points[source + 1U].fallback_speed_limit) ||
 			(source && points[source].route_index != points[source - 1U].route_index) ||
 			(source + 1U < count && points[source].route_index != points[source + 1U].route_index);
 		if (!boundary &&
@@ -339,8 +359,8 @@ static legacy_u32 local_route(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 			continue;
 		}
 		legacy_u32 index = length++;
-		route_position(points, count, source, limits, owoot, profile, &local[index].x,
-					   &local[index].z);
+		route_position(points, count, source, limits, owoot, profile, original_policy,
+					   &local[index].x, &local[index].z);
 		local[index].y = points[source].y;
 		local[index].road_x = points[source].x;
 		local[index].road_z = points[source].z;
@@ -349,7 +369,8 @@ static legacy_u32 local_route(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 		local[index].height_unspecified = points[source].height_unspecified;
 		local[index].width = available_width(&points[source], limits, owoot);
 		local[index].ordinary_width = available_width(&points[source], limits, 1U);
-		local[index].speed = route_limit(points, count, source, limits, owoot, profile);
+		local[index].speed =
+			route_limit(points, count, source, limits, owoot, profile, original_policy);
 		local[index].minimum_speed = fmin(limits->max_speed, points[source].speed_floor);
 		local[index].distance =
 			index ? local[index - 1U].distance + distance(local[index].x - local[index - 1U].x,
@@ -587,6 +608,10 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 								struct UNIT_ROLLOUT *result)
 {
 	const struct UNIT_ROUTE_POINT *current = &points[request->cursor];
+	/* Unrestricted live guidance uses conservative fallback assumptions.
+	 * Native previews prove their own trajectory; OWOOT retains its existing
+	 * wheel/jump policy rather than adopting unvalidated launch changes. */
+	legacy_u8 original_policy = request->native_preview || owoot;
 	owoot = owoot || request->unit.shortcuts_forbidden;
 	if (current->stunt != UNIT_STUNT_NONE) {
 		/* Loops and rolled launches overlap themselves in a ground projection.
@@ -604,6 +629,11 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 			fmin(limits->max_speed,
 				 fmax(current->speed_floor,
 					  current->speed_limit > 0.0 ? current->speed_limit : limits->max_speed));
+		if (!original_policy && current->fallback_speed_limit > 0.0) {
+			result->plan.target_speed =
+				fmax(current->speed_floor,
+					 fmin(result->plan.target_speed, current->fallback_speed_limit));
+		}
 		result->plan.route_cursor = request->cursor;
 		result->plan.generation = request->generation;
 		result->plan.valid = 1U;
@@ -636,13 +666,19 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		speed_scale = variant == 0U ? 1.0 : variant == 1U ? 0.8 : variant == 2U ? 0.5 : 0.0;
 	}
 	struct UNIT_LOCAL_POINT local[UNIT_PLANNER_LOCAL_POINTS];
-	if (request->unit.recovering || current->align_center) {
+	legacy_u8 alignment = route_alignment(current, original_policy);
+	if (request->unit.recovering || (alignment & (UNIT_ALIGN_MANEUVER | UNIT_ALIGN_FALLBACK))) {
 		selected.lane = 0.0;
 		selected.apex = 0.0;
 		selected.lookahead = 1.0;
+	} else if (alignment) {
+		/* Gate alignment belongs to each route sample. Maneuver approaches
+		 * still need the complete centered horizon above, while a gate may
+		 * preserve passing candidates on its open approach and exit. */
+		selected.lookahead = 1.0;
 	}
-	legacy_u32 local_count =
-		local_route(points, count, limits, owoot, &selected, request->cursor, local);
+	legacy_u32 local_count = local_route(points, count, limits, owoot, &selected, request->cursor,
+										 original_policy, local);
 	if (local_count < 2U) {
 		return 0;
 	}
@@ -660,7 +696,7 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 	struct UNIT_PLAN floor = {0};
 	target_at(local, local_count, progress, &floor);
 	legacy_f64 ride_height = request->unit.y - floor.target_y;
-	legacy_f64 cost = fabs(selected.lane) * UNIT_LANE_COST;
+	legacy_f64 cost = alignment ? 0.0 : fabs(selected.lane) * UNIT_LANE_COST;
 	legacy_f64 first_collision = UNIT_ROLLOUT_SECONDS + UNIT_ROLLOUT_STEP;
 	legacy_u8 margin_escape = player_overlap(request, x, request->unit.y, z, yaw, 0.0) &&
 							  !player_margin_overlap(request, x, request->unit.y, z, yaw, 0.0, 0.0);

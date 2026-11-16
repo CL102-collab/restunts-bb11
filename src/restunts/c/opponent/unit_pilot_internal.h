@@ -51,7 +51,7 @@ struct UNIT_PILOT {
 	legacy_u32 last_live_frame, run_start_frame, penalty_baseline;
 	legacy_u32 wait_remaining, handoff_frame, resume_candidate;
 	legacy_s8 recheck_status;
-	legacy_u8 recheck, continuation, continuation_matched, continuation_has_frame;
+	legacy_u8 recheck, recheck_rolling, continuation, continuation_matched, continuation_has_frame;
 	legacy_u32 continuation_frame;
 	const struct UNIT_ROUTE *route;
 	struct UNIT_PLANNER *seed, *planner, *approach_planner;

@@ -36,7 +36,7 @@ struct UNIT_WORKER {
 	struct UNIT_PLANNER *planner;
 	struct UNIT_EVALUATION evaluation;
 	legacy_u32 seed, candidates;
-	legacy_u8 evaluating, opening;
+	legacy_u8 evaluating;
 #ifdef UNIT_PLANNER_THREADS
 	SDL_Thread *thread;
 #endif
@@ -45,17 +45,17 @@ struct UNIT_WORKER {
 struct UNIT_PLANNER {
 	struct UNIT_ROUTE_POINT *points;
 	struct UNIT_CAR_LIMITS limits;
-	struct UNIT_PROFILE opening_profile, route_profile;
+	struct UNIT_PROFILE route_profile;
 	struct UNIT_PLANNER_STATS stats;
 	struct UNIT_REQUEST request, published_request;
 	struct UNIT_ROLLOUT published;
 	struct UNIT_WORKER synchronous, *workers;
-	legacy_f64 opening_score, route_score;
+	legacy_f64 route_score;
 	legacy_u64 geometry_generation;
-	legacy_u32 count, opening_count, worker_count, request_serial, published_serial;
+	legacy_u32 count, worker_count, request_serial, published_serial;
 	legacy_u32 sync_candidate;
 	legacy_s32 requested_workers;
-	legacy_u8 owoot, startup, stopping, have_request, allow_threads;
+	legacy_u8 owoot, startup, stopping, have_request, allow_threads, native_preview;
 #ifdef UNIT_PLANNER_THREADS
 	SDL_Mutex *mutex;
 	SDL_Condition *condition;
@@ -119,18 +119,6 @@ static legacy_int finite_vehicle(const struct UNIT_VEHICLE *vehicle)
 		   isfinite(vehicle->vy);
 }
 
-static legacy_u32 opening_count(const struct UNIT_ROUTE_POINT *points, legacy_u32 count)
-{
-	legacy_u32 pieces = 1U;
-	for (legacy_u32 index = 1U; index < count; index++) {
-		if (points[index].route_index != points[index - 1U].route_index &&
-			++pieces > UNIT_PLANNER_OPENING_PIECES) {
-			return index > 2U ? index : 2U;
-		}
-	}
-	return count;
-}
-
 /* Work is deliberately resumable: a browser pump, stop request or startup
  * deadline never has to wait for a complete large track to be evaluated. */
 static void startup_step(struct UNIT_WORKER *worker)
@@ -139,15 +127,12 @@ static void startup_step(struct UNIT_WORKER *worker)
 	if (!worker->evaluating) {
 		struct UNIT_PROFILE profile;
 		planner_lock(planner);
-		worker->opening = !planner->stats.opening_ready;
-		profile = worker->opening ? planner->opening_profile : planner->route_profile;
+		profile = planner->route_profile;
 		planner_unlock(planner);
 		if (worker->candidates) {
 			unit_planner_profile(&worker->seed, &profile);
 		}
-		unit_planner_evaluation_begin(&worker->evaluation,
-									  worker->opening ? planner->opening_count : planner->count,
-									  &profile);
+		unit_planner_evaluation_begin(&worker->evaluation, planner->count, &profile);
 		worker->evaluating = 1U;
 	}
 	if (!unit_planner_evaluation_step(&worker->evaluation, planner->points, &planner->limits,
@@ -155,24 +140,15 @@ static void startup_step(struct UNIT_WORKER *worker)
 		return;
 	}
 	planner_lock(planner);
-	if (worker->opening) {
-		planner->stats.opening_candidates++;
-		if (worker->evaluation.score < planner->opening_score) {
-			planner->opening_score = worker->evaluation.score;
-			planner->opening_profile = worker->evaluation.profile;
-			if (!planner->stats.route_ready) {
-				planner->route_profile = planner->opening_profile;
-			}
-		}
-		planner->stats.opening_ready = 1U;
-	} else {
-		planner->stats.route_candidates++;
-		if (worker->evaluation.score < planner->route_score) {
-			planner->route_score = worker->evaluation.score;
-			planner->route_profile = worker->evaluation.profile;
-		}
-		planner->stats.route_ready = 1U;
+	planner->stats.route_candidates++;
+	if (worker->evaluation.score < planner->route_score) {
+		planner->route_score = worker->evaluation.score;
+		planner->route_profile = worker->evaluation.profile;
 	}
+	/* The first usable opening is now the same verified geometric proposal
+	 * as the complete route. Retain these counters for diagnostic clients. */
+	planner->stats.opening_candidates = planner->stats.route_candidates;
+	planner->stats.opening_ready = planner->stats.route_ready = 1U;
 	planner_unlock(planner);
 	worker->evaluating = 0U;
 	worker->candidates++;
@@ -207,9 +183,7 @@ static legacy_int SDLCALL planner_worker(void *argument)
 		legacy_u8 stopping = planner->stopping;
 		legacy_u8 startup = planner->startup;
 		struct UNIT_REQUEST request = planner->request;
-		struct UNIT_PROFILE profile = request.cursor < planner->opening_count
-										  ? planner->opening_profile
-										  : planner->route_profile;
+		struct UNIT_PROFILE profile = planner->route_profile;
 		legacy_u32 serial = planner->request_serial;
 		planner_unlock(planner);
 		if (stopping) {
@@ -338,8 +312,9 @@ static legacy_int same_route_point(const struct UNIT_ROUTE_POINT *a,
 	return a->x == b->x && a->y == b->y && a->z == b->z && a->route_index == b->route_index &&
 		   a->route_point == b->route_point && a->half_width == b->half_width &&
 		   a->surface == b->surface && a->stunt == b->stunt && a->speed_limit == b->speed_limit &&
-		   a->speed_floor == b->speed_floor && a->shortcut_safe == b->shortcut_safe &&
-		   a->height_unspecified == b->height_unspecified && a->align_center == b->align_center;
+		   a->speed_floor == b->speed_floor && a->fallback_speed_limit == b->fallback_speed_limit &&
+		   a->shortcut_safe == b->shortcut_safe && a->height_unspecified == b->height_unspecified &&
+		   a->align_center == b->align_center;
 }
 
 static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
@@ -354,7 +329,8 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 			!isfinite(points[index].z) || !isfinite(points[index].half_width) ||
 			points[index].half_width < 0.0 || !isfinite(points[index].speed_limit) ||
 			points[index].speed_limit < 0.0 || !isfinite(points[index].speed_floor) ||
-			points[index].speed_floor < 0.0 || points[index].stunt > UNIT_STUNT_MAX) {
+			points[index].speed_floor < 0.0 || !isfinite(points[index].fallback_speed_limit) ||
+			points[index].fallback_speed_limit < 0.0 || points[index].stunt > UNIT_STUNT_MAX) {
 			return NULL;
 		}
 	}
@@ -375,26 +351,23 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 	}
 	planner->limits = *limits;
 	planner->count = count;
-	planner->opening_count = opening_count(points, count);
 	planner->owoot = !!owoot;
 	planner->startup = 1U;
 	planner->requested_workers = requested_workers;
-	planner->opening_score = HUGE_VAL;
 	planner->route_score = HUGE_VAL;
-	planner->opening_profile.lookahead = UNIT_DEFAULT_PROFILE_LOOKAHEAD;
-	planner->route_profile = planner->opening_profile;
+	planner->route_profile.lookahead = UNIT_DEFAULT_PROFILE_LOOKAHEAD;
 	if (seed) {
-		legacy_u8 same_prefix = planner->opening_count == seed->opening_count;
-		for (legacy_u32 index = 0U; same_prefix && index < planner->opening_count; index++) {
-			same_prefix = same_route_point(&planner->points[index], &seed->points[index]);
+		legacy_u8 same_route = count == seed->count;
+		for (legacy_u32 index = 0U; same_route && index < count; index++) {
+			same_route = same_route_point(&planner->points[index], &seed->points[index]);
 		}
 		planner_lock(seed);
-		planner->opening_profile = seed->opening_profile;
-		planner->route_profile = seed->opening_profile;
-		if (same_prefix && seed->stats.opening_ready) {
-			planner->stats.opening_ready = 1U;
+		planner->route_profile = seed->route_profile;
+		if (same_route && seed->stats.route_ready) {
+			planner->stats.opening_ready = planner->stats.route_ready = 1U;
 			planner->stats.opening_candidates = seed->stats.opening_candidates;
-			planner->opening_score = seed->opening_score;
+			planner->stats.route_candidates = seed->stats.route_candidates;
+			planner->route_score = seed->route_score;
 		}
 		planner_unlock(seed);
 	}
@@ -452,12 +425,12 @@ struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner)
 	}
 	planner_lock(planner);
 	clone->geometry_generation = planner->geometry_generation;
-	clone->opening_profile = planner->opening_profile;
 	clone->route_profile = planner->route_profile;
 	clone->stats.opening_ready = planner->stats.opening_ready;
 	clone->stats.route_ready = planner->stats.route_ready;
 	planner_unlock(planner);
 	clone->startup = 0U;
+	clone->native_preview = 1U;
 	return clone;
 }
 
@@ -491,7 +464,6 @@ legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
 	}
 	/* Both owners are paused. Clone identity proves geometry/car/rule equality
 	 * without rescanning an entire large track inside the native tick budget. */
-	destination->opening_profile = source->opening_profile;
 	destination->route_profile = source->route_profile;
 	destination->sync_candidate = source->sync_candidate;
 	destination->request = source->request;
@@ -518,12 +490,11 @@ legacy_int unit_planner_adopt_profiles(struct UNIT_PLANNER *planner, struct UNIT
 	}
 	unit_planner_finish_startup(planner);
 	planner_lock(validated);
-	struct UNIT_PROFILE opening = validated->opening_profile, route = validated->route_profile;
+	struct UNIT_PROFILE route = validated->route_profile;
 	legacy_u8 opening_ready = validated->stats.opening_ready,
 			  route_ready = validated->stats.route_ready;
 	planner_unlock(validated);
 	planner_lock(planner);
-	planner->opening_profile = opening;
 	planner->route_profile = route;
 	planner->stats.opening_ready = opening_ready;
 	planner->stats.route_ready = route_ready;
@@ -624,9 +595,9 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 	}
 	request.cursor = route_cursor;
 	request.generation = generation;
+	request.native_preview = planner->native_preview;
 	planner_lock(planner);
-	struct UNIT_PROFILE profile =
-		route_cursor < planner->opening_count ? planner->opening_profile : planner->route_profile;
+	struct UNIT_PROFILE profile = planner->route_profile;
 	struct UNIT_ROLLOUT published = planner->published;
 	struct UNIT_REQUEST old_request = planner->published_request;
 	legacy_u8 have_published = planner->published_serial != 0U;

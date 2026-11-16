@@ -14,11 +14,24 @@ enum UNIT_ROUTE_STUNT {
 	UNIT_STUNT_MAX = UNIT_STUNT_RAMP
 };
 
+enum UNIT_ROUTE_ALIGNMENT {
+	UNIT_ALIGN_NONE = 0,
+	/* Keep the entire pursuit horizon centered while approaching a maneuver. */
+	UNIT_ALIGN_MANEUVER = 1,
+	/* Fix this gate's samples while leaving neighboring passing lines open. */
+	UNIT_ALIGN_GATE = 2,
+	/* Conservative centering for unrestricted live guidance. */
+	UNIT_ALIGN_FALLBACK = 4
+};
+
 struct UNIT_ROUTE_POINT {
 	legacy_f64 x, y, z, half_width, speed_limit, speed_floor;
 	legacy_s16 route_index;
 	legacy_u16 route_point;
-	legacy_u8 surface, shortcut_safe, height_unspecified, stunt, align_center;
+	legacy_u8 surface, shortcut_safe, height_unspecified, stunt;
+	legacy_u8 align_center; /* UNIT_ROUTE_ALIGNMENT flags. */
+	/* Optional unrestricted-live limit; native previews and OWOOT ignore it. */
+	legacy_f64 fallback_speed_limit;
 };
 
 struct UNIT_VEHICLE {
@@ -56,15 +69,16 @@ struct UNIT_PLANNER_STATS {
 
 struct UNIT_PLANNER;
 
-/* Creation establishes an immediately usable conservative guide. Startup
- * workers first optimize the first four route pieces, then the complete route.
+/* Creation establishes an immediately usable conservative guide. Every startup
+ * candidate evaluates the complete route before its profile can be published.
  * A requested worker count of zero selects all available CPUs; negative forces
  * bounded synchronous operation for tests or platforms without threads. */
 struct UNIT_PLANNER *unit_planner_create(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 										 const struct UNIT_CAR_LIMITS *limits, legacy_u8 owoot,
 										 legacy_s32 requested_workers);
-/* Independent deterministic pilot snapshot: copies the current profiles and
- * geometry, resets request/candidate state, and starts live mode without workers.
+/* Independent deterministic native pilot snapshot: copies the current profiles
+ * and geometry, ignores fallback limits/alignment, resets request/candidate state,
+ * and starts live mode without workers.
  * It does not stop or take ownership of the source planner. */
 struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner);
 /* Branch a paused synchronous pilot at the same native snapshot. Unlike the
@@ -79,9 +93,9 @@ legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
 legacy_int unit_planner_adopt_profiles(struct UNIT_PLANNER *planner,
 									   struct UNIT_PLANNER *validated);
 void unit_planner_destroy(struct UNIT_PLANNER *planner);
-/* Replace a prepared opening prefix with complete route geometry. The old
- * planner is destroyed only on success; NULL leaves it usable. Opening search
- * is seeded from its best profile and repeated if the chosen prefix changed. */
+/* Replace the complete route geometry. The old planner is destroyed only on
+ * success; NULL leaves it usable. Search is seeded from its best profile, but
+ * a changed route must be evaluated again before it is considered ready. */
 struct UNIT_PLANNER *unit_planner_rebuild(struct UNIT_PLANNER *planner,
 										  const struct UNIT_ROUTE_POINT *points, legacy_u32 count);
 /* Stop startup workers and retain exactly one background planner when possible.

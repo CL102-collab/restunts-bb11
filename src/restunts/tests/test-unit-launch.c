@@ -195,6 +195,21 @@ static void check_receiver_contact(legacy_u8 stunt, legacy_u8 heading)
 	assert(phase == UNIT_LAUNCH_NONE);
 	assert(plan.target_speed == original.target_speed && plan.brake == original.brake);
 	assert_target_unchanged(&plan, &original);
+	/* Grass alone does not prove a landing. A real partial road contact must
+	 * release ramps early enough to brake for the next piece; barrels still
+	 * retain neutral roll policy until their full landing is supported. */
+	for (legacy_u32 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		state.opponentstate.car_surfaceWhl[wheel] = CAR_SURFACE_GRASS;
+	}
+	plan = original;
+	assert(unit_launch_guidance(&route, cursor, &plan, ROUTE_INDEX_NONE, 0.0) ==
+		   (stunt == UNIT_STUNT_RAMP ? UNIT_LAUNCH_GUIDED : UNIT_LAUNCH_NEUTRAL));
+	place_car(TEST_RECEIVER_DISTANCE + TEST_AFTER_RECEIVER, 0, 0);
+	state.opponentstate.car_surfaceWhl[0] = CAR_SURFACE_DIRT;
+	plan = original;
+	assert(unit_launch_guidance(&route, cursor, &plan, ROUTE_INDEX_NONE, 0.0) ==
+		   (stunt == UNIT_STUNT_RAMP ? UNIT_LAUNCH_NONE : UNIT_LAUNCH_NEUTRAL));
+	place_car(TEST_RECEIVER_DISTANCE + TEST_AFTER_RECEIVER, 1, ANGLE_EIGHTH_TURN);
 	if (stunt == UNIT_STUNT_BARREL) {
 		state.opponentstate.car_surfaceWhl[0] = CAR_WHEEL_CONTACT_NONE;
 		plan = original;

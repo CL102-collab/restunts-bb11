@@ -93,8 +93,8 @@ static void test_preparation_and_copy(void)
 	struct UNIT_PLANNER_STATS stats;
 	unit_planner_work(planner, 1U);
 	unit_planner_stats(planner, &stats);
-	assert(stats.opening_ready && !stats.route_ready);
-	assert(stats.opening_candidates > 0U && stats.route_candidates == 0U);
+	assert(!stats.opening_ready && !stats.route_ready);
+	assert(!stats.opening_candidates && !stats.route_candidates);
 	finish_sync_preparation(planner);
 	unit_planner_finish_startup(planner);
 	memset(points, 0, sizeof(points));
@@ -123,9 +123,9 @@ static void test_interrupted_preparation(void)
 	unit_planner_work(planner, 1U);
 	struct UNIT_PLANNER_STATS stats;
 	unit_planner_stats(planner, &stats);
-	assert(stats.opening_ready && !stats.route_ready);
-	/* The deadline may interrupt whole-route optimization. Its copied geometry
-	 * and prepared opening still provide immediate bounded live guidance. */
+	assert(!stats.opening_ready && !stats.route_ready);
+	/* A deadline can interrupt the first full-route candidate. The conservative
+	 * guide still provides immediate bounded live guidance everywhere. */
 	unit_planner_finish_startup(planner);
 	struct UNIT_VEHICLE unit = vehicle();
 	unit.z = points[20].z;
@@ -249,12 +249,17 @@ static void test_validation(void)
 	points[1].x = NAN;
 	assert(!unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1));
 	points[1].x = 0.0;
+	points[1].fallback_speed_limit = NAN;
+	assert(!unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1));
+	points[1].fallback_speed_limit = -1.0;
+	assert(!unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1));
+	points[1].fallback_speed_limit = 0.0;
 	limits.braking = 0.0;
 	assert(!unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1));
 	unit_planner_destroy(NULL);
 }
 
-static void test_staged_rebuild(void)
+static void test_complete_route_rebuild(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
 	straight(points);
@@ -271,8 +276,15 @@ static void test_staged_rebuild(void)
 	planner = unit_planner_rebuild(planner, points, TEST_POINT_COUNT);
 	assert(planner);
 	unit_planner_stats(planner, &stats);
-	assert(stats.opening_ready && !stats.route_ready && !stats.workers);
-	points[0].height_unspecified = 1U;
+	assert(!stats.opening_ready && !stats.route_ready && !stats.workers);
+	for (legacy_u32 attempt = 0U; attempt < TEST_POINT_COUNT && !stats.route_ready; attempt++) {
+		unit_planner_work(planner, 1U);
+		unit_planner_stats(planner, &stats);
+	}
+	assert(stats.opening_ready && stats.route_ready);
+	/* A changed late piece invalidates readiness even if the first four pieces
+	 * are identical. Its speed and line constraints must be included anew. */
+	points[TEST_POINT_COUNT - 1U].height_unspecified = 1U;
 	planner = unit_planner_rebuild(planner, points, TEST_POINT_COUNT);
 	assert(planner);
 	unit_planner_stats(planner, &stats);
@@ -443,7 +455,7 @@ static void test_stunt_approach(void)
 	straight(points);
 	for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
 		points[index].surface = 3U;
-		points[index].align_center = 1U;
+		points[index].align_center = UNIT_ALIGN_MANEUVER;
 	}
 	points[10].stunt = UNIT_STUNT_PROTECTED;
 	points[10].half_width = 31.0;
@@ -480,6 +492,132 @@ static void test_stunt_approach(void)
 	assert(stopped.plan.brake == UNIT_PLAN_BRAKE_STOP && stopped.plan.target_speed == 0.0);
 }
 
+static void test_gate_alignment_preserves_open_neighbors(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	points[0].align_center = UNIT_ALIGN_GATE;
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_REQUEST request = {0};
+	request.unit = vehicle();
+	request.unit.speed = 40.0;
+	request.player.x = 1000000000.0;
+	struct UNIT_PROFILE centered = {0.0, 0.0, 1.0}, offset = {0.8, 0.0, 1.0};
+	struct UNIT_ROLLOUT straight_line, open_exit, aligned;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &centered, &request, 0U,
+								&straight_line));
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &offset, &request, 0U,
+								&open_exit));
+	assert(fabs(straight_line.plan.target_x) < 0.01);
+	assert(fabs(open_exit.plan.target_x) > 1.0);
+	/* An overlapping maneuver approach takes precedence over the gate's
+	 * passing allowance and keeps every unmarked neighbor centered too. */
+	points[0].align_center |= UNIT_ALIGN_MANEUVER;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &offset, &request, 0U,
+								&aligned));
+	assert(fabs(aligned.plan.target_x) < 0.01);
+	assert(fabs(aligned.score - straight_line.score) < 0.01);
+	/* With only gate constraints, each marked sample still stays centered. */
+	for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
+		points[index].align_center = UNIT_ALIGN_GATE;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &offset, &request, 0U,
+								&aligned));
+	assert(fabs(aligned.plan.target_x) < 0.01);
+}
+
+static void test_fallback_speed_policy(void)
+{
+	const legacy_f64 fallback_speed = 80.0, approach_speed = 160.0;
+	const legacy_u32 first_limited = 8U, approach = 2U;
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	for (legacy_u32 index = first_limited; index < TEST_POINT_COUNT; index++) {
+		points[index].fallback_speed_limit = fallback_speed;
+	}
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_PLANNER *live = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(live);
+	finish_sync_preparation(live);
+	struct UNIT_PLANNER *native = unit_planner_clone_sync(live);
+	assert(native);
+	struct UNIT_VEHICLE unit = vehicle();
+	unit.z = points[approach].z;
+	unit.speed = approach_speed;
+	struct UNIT_PLAN conservative, verified;
+	assert(!points[approach].fallback_speed_limit);
+	assert(unit_planner_plan(live, &unit, NULL, approach, 1U, &conservative));
+	assert(unit_planner_plan(native, &unit, NULL, approach, 1U, &verified));
+	/* The distant fallback cap must propagate backwards through braking
+	 * distance; a native preview can still prove the faster original policy. */
+	assert(conservative.target_speed > fallback_speed);
+	assert(conservative.target_speed < approach_speed && verified.target_speed > approach_speed);
+	unit.z = points[first_limited].z;
+	assert(unit_planner_plan(live, &unit, NULL, first_limited, 2U, &conservative));
+	assert(conservative.target_speed <= fallback_speed);
+	assert(unit_planner_restore_continuation(native, live));
+	assert(unit_planner_plan(native, &unit, NULL, first_limited, 2U, &verified));
+	assert(verified.target_speed > approach_speed);
+	/* Adopting a proven native line must not turn the live fallback planner
+	 * into a native preview or disable its conservative guide limits. */
+	struct UNIT_PLANNER *adopted = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(adopted && unit_planner_adopt_profiles(adopted, native));
+	assert(unit_planner_plan(adopted, &unit, NULL, first_limited, 1U, &conservative));
+	assert(conservative.target_speed <= fallback_speed);
+	/* OWOOT keeps the original strict driving policy. Temporary no-shortcut
+	 * recovery under ordinary rules must still use the fallback limits. */
+	struct UNIT_PLANNER *strict = unit_planner_create(points, TEST_POINT_COUNT, &limits, 1U, -1);
+	assert(strict);
+	unit_planner_finish_startup(strict);
+	assert(unit_planner_plan(strict, &unit, NULL, first_limited, 1U, &verified));
+	assert(verified.target_speed > approach_speed);
+	unit.shortcuts_forbidden = 1U;
+	assert(unit_planner_plan(live, &unit, NULL, first_limited, 3U, &conservative));
+	assert(conservative.target_speed <= fallback_speed);
+	unit_planner_destroy(strict);
+	unit_planner_destroy(adopted);
+	unit_planner_destroy(native);
+	unit_planner_destroy(live);
+}
+
+static void test_fallback_alignment_policy(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
+		points[index].align_center = UNIT_ALIGN_FALLBACK;
+	}
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_REQUEST request = {0};
+	request.unit = vehicle();
+	request.unit.speed = 40.0;
+	request.player.x = 1000000000.0;
+	struct UNIT_PROFILE offset = {0.8, 0.0, 1.0};
+	struct UNIT_ROLLOUT conservative, native;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &offset, &request, 0U,
+								&conservative));
+	request.native_preview = 1U;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &offset, &request, 0U,
+								&native));
+	assert(fabs(conservative.plan.target_x) < 0.01);
+	assert(fabs(native.plan.target_x) > 1.0);
+	request.native_preview = 0U;
+	struct UNIT_ROLLOUT strict;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &offset, &request, 0U,
+								&strict));
+	assert(fabs(strict.plan.target_x - native.plan.target_x) < 0.01);
+	request.unit.shortcuts_forbidden = 1U;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &offset, &request, 0U,
+								&conservative));
+	assert(fabs(conservative.plan.target_x) < 0.01);
+	request.native_preview = 1U;
+	/* A mandatory maneuver retains its centered approach in either mode. */
+	points[0].align_center |= UNIT_ALIGN_MANEUVER;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &offset, &request, 0U,
+								&native));
+	assert(fabs(native.plan.target_x) < 0.01);
+}
+
 static void test_recovery_before_stunt(void)
 {
 	struct UNIT_ROUTE_POINT points[8] = {0};
@@ -489,7 +627,7 @@ static void test_recovery_before_stunt(void)
 		points[index].surface = 3U;
 		points[index].route_index = index < 4U ? 0 : 1;
 		points[index].route_point = (legacy_u16)(index % 4U);
-		points[index].align_center = 1U;
+		points[index].align_center = UNIT_ALIGN_MANEUVER;
 		if (index >= 4U) {
 			points[index].stunt = UNIT_STUNT_PROTECTED;
 			points[index].speed_floor = 70.0;
@@ -769,12 +907,15 @@ legacy_int main(void)
 	test_player_forecasts();
 	test_separating_player_margin();
 	test_validation();
-	test_staged_rebuild();
+	test_complete_route_rebuild();
 	test_pilot_clones();
 	test_physical_corridor();
 	test_dense_graded_geometry();
 	test_descending_player_forecast();
 	test_stunt_approach();
+	test_gate_alignment_preserves_open_neighbors();
+	test_fallback_speed_policy();
+	test_fallback_alignment_policy();
 	test_recovery_before_stunt();
 	test_ordered_stunt_guidance();
 	test_stunt_exit_continuation();

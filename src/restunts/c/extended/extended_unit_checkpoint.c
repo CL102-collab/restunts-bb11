@@ -36,6 +36,24 @@ static const struct CSTRK_OBJECT *unit_checkpoint_object(const struct UNIT_ROUTE
 	return object && cstrk_checkpoint_colors(object->legacy_id) ? object : NULL;
 }
 
+void unit_checkpoint_align_route(struct UNIT_ROUTE *route)
+{
+	if (!route || !route->points) {
+		return;
+	}
+	for (legacy_u32 index = 0; index < route->count; index++) {
+		if (!unit_checkpoint_object(route, index)) {
+			continue;
+		}
+		struct UNIT_ROUTE_POINT *point = &route->points[index];
+		/* The banner opening is narrower than the road below it. Constrain
+		 * the gate itself, leaving adjacent road available to pass traffic.
+		 * Pursuit naturally blends that approach into the centered opening. */
+		point->half_width = fmin(point->half_width, CHECKPOINT_GATE_INNER_HALF_WIDTH);
+		point->align_center |= UNIT_ALIGN_GATE;
+	}
+}
+
 legacy_int unit_checkpoint_can_advance(const struct UNIT_ROUTE *route, legacy_u32 cursor)
 {
 	if (!route || !route->points || cursor >= route->count ||
@@ -97,7 +115,10 @@ static legacy_int unit_checkpoint_plan_crosses(const struct UNIT_ROUTE *route,
 	legacy_f64 z = car->car_position.lz / UNIT_POSITION_SCALE;
 	legacy_f64 depth = (x - center_x) * nx + (z - center_z) * nz;
 	legacy_f64 target_depth = (plan->target_x - center_x) * nx + (plan->target_z - center_z) * nz;
-	if (depth == 0.0 || (depth < 0.0 ? target_depth < 0.0 : target_depth > 0.0)) {
+	/* A shorter pursuit target can still be on the correct gate approach.
+	 * Extrapolate its line to the plane instead of replacing useful guidance
+	 * every time the lookahead target stops on the near side. */
+	if (depth == 0.0 || depth * (target_depth - depth) >= 0.0) {
 		return 0;
 	}
 	legacy_f64 fraction = depth / (depth - target_depth);
@@ -107,12 +128,18 @@ static legacy_int unit_checkpoint_plan_crosses(const struct UNIT_ROUTE *route,
 	legacy_f64 yaw = -car->car_rotate.x * UNIT_ANGLE_RADIANS;
 	legacy_f64 line_yaw = atan2(plan->target_x - x, plan->target_z - z);
 	legacy_f64 angle = atan2(sin(line_yaw - yaw), cos(line_yaw - yaw));
+	/* A target behind the car has zero pursuit curvature when perfectly
+	 * centered. Retain the explicit turning guide for that recovery. */
+	if (cos(angle) < 0.0) {
+		return 0;
+	}
 	legacy_f64 half_width = route->limits.half_width, half_length = route->limits.half_length;
 	legacy_f64 width = half_width * fabs(nz * cos(yaw) + nx * sin(yaw)) +
 					   half_length * fabs(nz * sin(yaw) - nx * cos(yaw));
 	/* The rectangle's angular support changes at most by its corner radius
 	 * per radian. This also bounds intermediate headings while lining up. */
-	width += hypot(half_width, half_length) * fabs(angle);
+	legacy_f64 radius = hypot(half_width, half_length);
+	width = fmin(radius, width + radius * fabs(angle));
 	legacy_f64 roll = fabs(sin(car->car_rotate.z * UNIT_ANGLE_RADIANS));
 	legacy_f64 pitch = fabs(sin(car->car_rotate.y * UNIT_ANGLE_RADIANS));
 	legacy_f64 roof = fabs((legacy_f64)simd_opponent.collide_points[0].py);
@@ -194,7 +221,10 @@ legacy_int unit_checkpoint_guide(const struct UNIT_ROUTE *route, legacy_u32 curs
 			z + lookahead * (-sign * forward_x + forward_z * UNIT_GATE_TURN_FORWARD_FRACTION);
 		target_speed = fmin(target_speed, UNIT_GATE_TURN_SPEED);
 	} else if (fabs(lateral) > clearance * UNIT_GATE_ALIGN_FRACTION) {
-		legacy_f64 approach = fmax(fabs(depth), UNIT_GATE_RUNOUT);
+		/* Keep progressing toward a near-side alignment target. A point at
+		 * the car's current depth demands an abrupt sideways turn and can
+		 * leave pursuit circling beside the gate indefinitely. */
+		legacy_f64 approach = fmin(fabs(depth) * UNIT_GATE_ALIGN_FRACTION, UNIT_GATE_RUNOUT);
 		target_x = center_x + side * nx * approach;
 		target_z = center_z + side * nz * approach;
 		target_speed = fmin(target_speed, UNIT_GATE_ALIGN_SPEED);

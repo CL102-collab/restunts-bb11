@@ -16,6 +16,8 @@
 #include "../c/replay/replay.h"
 #include "../c/race/race_stats.h"
 #include "../c/track/trackdata_layout.h"
+#include "../c/owoot/owoot.h"
+#include "../c/owoot/owoot_road.h"
 
 /* Trial scheduling uses a deterministic native-step fixture. Full-engine
  * replay tests separately exercise real physics/audio isolation. */
@@ -46,12 +48,13 @@ static legacy_int reject_barrel_local;
 static legacy_u8 preview_input_mask, preview_input_value;
 static legacy_u8 ramp_approaches[4], preview_ramp_approaches[4], required_ramp_approach;
 static legacy_int reject_ramp_approach, reject_secondary_ramp;
-static legacy_u32 waited_frames;
+static legacy_u32 waited_frames, fail_ordinary_at;
 static legacy_u64 fake_time, clock_step;
 static legacy_u32 injected_penalty, accepts, resets;
 static legacy_int reject_fast, reject_everything, finish_event, reject_group, hold_launch;
 static legacy_int reject_secondary, reject_receiver;
 static legacy_s16 observed_owner;
+static legacy_int native_road_support;
 static struct CSRPL_OPPONENT_COMMAND last_command;
 
 Uint64 SDLCALL SDL_GetTicksNS(void)
@@ -92,6 +95,20 @@ void extended_checkpoint_end_step(void)
 		extended_replay_clocks.unit_penalty.initialized = 1;
 		extended_replay_clocks.unit_penalty.route.previous_route = observed_owner;
 	}
+}
+legacy_u16 owoot_wheel_footprint(const struct CARSTATE *car, legacy_u16 wheel,
+								 struct VECTOR output[OWOOT_WHEEL_VERTEX_COUNT])
+{
+	(void)car;
+	memset(output, 0, sizeof(struct VECTOR) * OWOOT_WHEEL_VERTEX_COUNT);
+	output[0].x = (legacy_s16)wheel;
+	return OWOOT_WHEEL_VERTEX_COUNT;
+}
+legacy_s16 track_road_overlaps_wheel(const struct VECTOR *vertices, legacy_u16 ring_count,
+									 legacy_s16 road_contact)
+{
+	assert(ring_count == OWOOT_WHEEL_RING_COUNT && road_contact);
+	return (legacy_s16)((native_road_support & (1U << vertices[0].x)) != 0);
 }
 legacy_u16 extended_owoot_barrel_progress(const struct CARSTATE *car, legacy_s16 source)
 {
@@ -241,7 +258,8 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *p, legacy_u32 frame, le
 	}
 	gState_frame = 123;
 	extended_race_stats.frame = 123;
-	if ((reject_everything && piece >= 0) || (reject_fast && piece >= 0 && speed > 99.0) ||
+	if ((fail_ordinary_at && piece < 0 && cursor >= fail_ordinary_at) ||
+		(reject_everything && piece >= 0) || (reject_fast && piece >= 0 && speed > 99.0) ||
 		(reject_ramp_approach && piece >= 0 &&
 		 (preview_ramp_approaches[piece] != required_ramp_approach || speed > 99.0)) ||
 		(reject_secondary_ramp && state.opponentstate.car_reserved_route_word1 >= 50 &&
@@ -300,7 +318,7 @@ static void reset_fixture(legacy_int stunt)
 	reject_barrel_local = 0;
 	required_exit_fraction = 0.875;
 	required_exit_ratio = 0.90;
-	waited_frames = 0;
+	waited_frames = fail_ordinary_at = 0;
 	preview_input_mask = preview_input_value = 0;
 	preview_exit_fraction = preview_secondary_speed = 0.0;
 	memset(&route, 0, sizeof(route));
@@ -331,6 +349,7 @@ static void reset_fixture(legacy_int stunt)
 	reject_fast = reject_everything = finish_event = reject_group = hold_launch = 0;
 	reject_secondary = reject_receiver = 0;
 	observed_owner = -1;
+	native_road_support = (1U << CARSTATE_WHEEL_COUNT) - 1U;
 }
 static void assert_live_unchanged(const struct GAMESTATE *before)
 {

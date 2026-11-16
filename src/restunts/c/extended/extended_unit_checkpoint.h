@@ -7,6 +7,9 @@ struct UNIT_ROUTE;
 struct CARSTATE;
 struct UNIT_PLAN;
 
+/* Include narrow gate apertures in planned route lines. */
+void unit_checkpoint_align_route(struct UNIT_ROUTE *route);
+
 /* Every gate on the selected route must be physically crossed before leaving
  * its final sample. The native checkpoint observer owns the visited state, so
  * recording and playback derive the same route provenance after a rewind. */

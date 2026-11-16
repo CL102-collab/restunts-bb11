@@ -14,6 +14,7 @@
 #include "../race/race_stats.h"
 #include "../track/trackdata_layout.h"
 #include "../owoot/owoot.h"
+#include "../owoot/owoot_road.h"
 #include "../extended/extended_physics_snapshot.h"
 #include "../extended/extended_owoot_internal.h"
 #include "../extended/extended_owoot_route.h"
@@ -304,15 +305,20 @@ static legacy_int unit_pilot_reached_receiver(legacy_u32 cursor)
 static legacy_int unit_pilot_grounded(void)
 {
 	const struct CARSTATE *car = &state.opponentstate;
+	struct VECTOR footprint[OWOOT_WHEEL_VERTEX_COUNT];
+	legacy_int supported = 0;
 	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 		if (car->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
 			car->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
 			return 0;
 		}
+		legacy_u16 count = owoot_wheel_footprint(car, wheel, footprint);
+		supported |= track_road_overlaps_wheel(footprint, count / OWOOT_WHEEL_RIM_COUNT, 1);
 	}
 	/* Sloped landings legitimately have nonzero pitch. Native road contacts
 	 * and cleared OWOOT jump state validate support without a flat-pose rule. */
-	return !owoot_enabled || car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0;
+	return supported &&
+		   (!owoot_enabled || car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
 }
 
 static void unit_pilot_accept_trial(void)
@@ -530,6 +536,12 @@ static void unit_pilot_tick(void)
 		unit_pilot_fail_trial(event);
 		return;
 	}
+	/* Ordinary driving is already verified by this exact native step. Keep its
+	 * safe prefix when preparation expires or a later maneuver fails; stunt
+	 * controls remain speculative until their complete landing is accepted. */
+	if (!unit_pilot_state->trial && !extended_unit_penalty_recovery_required()) {
+		unit_pilot_state->committed_steps = unit_pilot_state->step_count;
+	}
 	cursor = unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
 	if (unit_pilot_state->trial && cursor > unit_pilot_state->last &&
 		cursor < unit_pilot_state->route->count &&
@@ -699,12 +711,13 @@ legacy_int unit_pilot_next_stunt(const struct CARSTATE *car, legacy_s16 *piece,
 	return unit_pilot_next_stunt_with_lead(car, piece, distance, 0.0);
 }
 
-legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 frame, legacy_s16 piece)
+static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u32 frame,
+										   legacy_s16 piece, legacy_u8 rolling)
 {
 	if (!source || (!unit_pilot_state && !unit_pilot_begin(source))) {
 		return 0;
 	}
-	if (unit_pilot_state->stats.last_piece != piece) {
+	if (rolling || unit_pilot_state->stats.last_piece != piece) {
 		unit_pilot_state->resume_pending = 0;
 	}
 	legacy_u32 first = 0;
@@ -721,6 +734,7 @@ legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 fram
 	}
 	unit_pilot_state->continuation = unit_pilot_state->continuation_matched = 0;
 	unit_pilot_state->recheck = 1;
+	unit_pilot_state->recheck_rolling = rolling;
 	unit_pilot_state->recheck_status = 0;
 	unit_pilot_state->stats.active = 1;
 	unit_pilot_state->stats.exhausted = 0;
@@ -728,13 +742,15 @@ legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 fram
 	unit_pilot_state->trial = 0;
 	unit_pilot_state->next_search = first;
 	unit_pilot_find_stunt();
-	unit_pilot_state->approach_cursor =
-		unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
+	if (!rolling) {
+		unit_pilot_state->approach_cursor =
+			unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
+	}
 	unit_pilot_state->step_count = unit_pilot_state->committed_steps = unit_pilot_state->next_step =
 		0;
 	unit_pilot_state->last_live_frame = frame;
-	unit_pilot_state->wait_remaining = UNIT_PILOT_WAIT_TICKS;
-	unit_pilot_state->handoff_frame = frame + UNIT_PILOT_WAIT_TICKS;
+	unit_pilot_state->wait_remaining = rolling ? 0U : UNIT_PILOT_WAIT_TICKS;
+	unit_pilot_state->handoff_frame = frame + unit_pilot_state->wait_remaining;
 	unit_pilot_state->penalty_baseline = extended_unit_penalty_total();
 	unit_pilot_save_live();
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
@@ -747,6 +763,17 @@ legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 fram
 	extended_physics_capture(&unit_pilot_state->run);
 	unit_pilot_restore_live();
 	return 1;
+}
+
+legacy_int unit_pilot_recheck_begin(struct UNIT_PLANNER *source, legacy_u32 frame, legacy_s16 piece)
+{
+	return unit_pilot_recheck_start(source, frame, piece, 0);
+}
+
+legacy_int unit_pilot_recheck_rolling_begin(struct UNIT_PLANNER *source, legacy_u32 frame,
+											legacy_s16 piece)
+{
+	return unit_pilot_recheck_start(source, frame, piece, 1);
 }
 
 void unit_pilot_recheck_cancel(void)
@@ -772,6 +799,11 @@ legacy_int unit_pilot_recheck_status(legacy_u32 frame)
 		return -1;
 	}
 	if (frame > unit_pilot_state->handoff_frame && !unit_pilot_state->next_step) {
+		if (unit_pilot_state->recheck_rolling) {
+			unit_pilot_state->resume_pending = unit_pilot_state->stats.active = 0;
+			unit_pilot_state->recheck_status = -1;
+			return -1;
+		}
 		unit_pilot_state->resume_pulses = unit_pilot_pulses_active(unit_pilot_state->pulses);
 		unit_pilot_state->resume_pending =
 			(unit_pilot_state->recheck_status <= 0 || unit_pilot_state->resume_pulses) &&
@@ -789,6 +821,9 @@ legacy_int unit_pilot_recheck_status(legacy_u32 frame)
 		unit_pilot_state->stats.active = 0;
 		unit_pilot_state->recheck_status = -1;
 		return -1;
+	}
+	if (unit_pilot_state->recheck_rolling && unit_pilot_state->committed_steps) {
+		unit_pilot_state->recheck_status = 1;
 	}
 	if (unit_pilot_state->recheck_status > 0 && frame < unit_pilot_state->handoff_frame) {
 		return 0;

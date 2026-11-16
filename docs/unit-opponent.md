@@ -14,9 +14,11 @@ has a centered blue bar, 30 percent of the output width and 100 output pixels
 high, which fills according to elapsed time. Window and browser events remain
 responsive.
 
-Startup workers optimize the first four route pieces before the full lap. Native
-builds use available CPUs within an allocation budget. At the deadline, startup
-workers stop and at most one worker remains for live planning. Single-threaded
+Preparation builds the complete checkpoint-aware route immediately. Every startup
+candidate evaluates the full lap, including later braking and maneuver constraints;
+its line profile is used consistently from the start. Native builds use available
+CPUs within an allocation budget. At the deadline, startup workers stop and at
+most one worker remains for live planning. Single-threaded
 Web builds perform bounded, resumable work in the event loop. Threaded Web
 builds reuse idle rendering slots during preparation and reserve a separate slot
 for the live planner when rendering resumes.
@@ -30,6 +32,14 @@ Native previews also run the shared ghost-generator physics snapshot engine in
 main-thread chunks of at most 64 simulation ticks, checking a four-millisecond
 budget between ticks. They test approaches and landings with the selected car,
 reject crashes and new penalties, and restore all live state before returning.
+Receiving-road checks also verify tire overlap with the actual road geometry,
+so surface flags alone cannot validate contact below an elevated road. Under
+normal rules, fresh unverified guidance uses a centered banked-road line and
+conservative bank and elevated-corner speed limits, including braking before those pieces. Native
+previews and verified cached commands retain their physics-validated speeds.
+OWOOT keeps its existing strict-road speed and line policy.
+Ramp guidance releases on genuine partial road contact so ordinary braking can
+resume; grass alone does not release it.
 Stunts with overlapping approaches are validated together through the final
 landing. Entry and exit speeds can differ when a slow technical section leads
 into a fast jump. Ramps first try a two-tile acceleration approach, then three
@@ -43,23 +53,32 @@ position within the car's limits. These candidates must satisfy the existing
 OWOOT roll milestones and receiving-road checks before they are accepted.
 
 A bounded cache retains the controls and expected car states of verified route
-segments. If preparation ends mid-preview, unfinished search continues ahead of
-the car with at most two native chunks per simulation frame, checking an
-eight-millisecond budget between chunks. The planner worker pauses during this
-continuation; only newly verified segments are appended to the cache. A changed
+segments. Ordinary road controls are retained as soon as their native steps pass,
+even if a later maneuver fails or preparation ends. After a failed preview,
+fresh guidance takes over before the cached prefix runs out. Stunt controls stay
+speculative until their landing is accepted. If preparation ends mid-preview,
+unfinished search continues ahead of the car with at most two native chunks per
+simulation frame, checking an eight-millisecond budget between chunks. The
+planner worker pauses during this continuation; only newly verified segments are appended to the cache. A changed
 approach or the human player's predicted path cancels speculative work and
 invalidates the affected segment. Current avoidance checks follow the cached
 trajectory itself with swept car bounds; when necessary, fresh steering and
 pedal commands take over.
 
-Live rechecks reserve braking distance ahead of the required run-up, forecast a short waiting period, and validate the exact car
-state at a fixed future start time. They pause the planner worker, check a
-30-millisecond frame budget between chunks, and run at most eight chunks per
-frame. After an exact recheck handoff, previews continue from the verified
-rolling exit so the following maneuver can be planned while UNIT drives. Native
+Live rechecks reserve braking distance ahead of the required run-up. Under
+normal rules they first start from the exact moving car state. A verified ordinary prefix lets UNIT keep
+driving while native previews validate the upcoming stunt. If no safe prefix is
+available, UNIT stops and uses a fixed future-state recheck as a fallback. OWOOT
+uses settled, stopped rechecks to preserve its wheel and jump checks. These
+stopped rechecks pause the planner worker, check a 30-millisecond frame budget
+between chunks, and run at most eight chunks per frame. After an exact recheck
+handoff, previews continue from the verified rolling exit so the following
+maneuver can be planned while UNIT drives. Native
 simulation never runs concurrently with live gameplay.
 
-Route selection preserves a complete checkpoint color set. With OWOOT off, UNIT
+Route selection preserves a complete checkpoint color set. Gate aperture widths
+and centered crossings are included in both startup and live planning; corrective
+checkpoint targets keep advancing toward the gate. With OWOOT off, UNIT
 may widen its line within a proven, flat, unobstructed route-piece footprint
 without skipping a route gate. OWOOT disables those corner cuts and applies the
 same wheel and jump checks used for the player. Independent native penalty and
@@ -77,8 +96,10 @@ consume recorded commands without rerunning the planner. See
 The native tests include complete Glacier laps with normal rules and OWOOT using
 the synchronous fallback, full laps under both rule modes after a human starts
 from the real grid and brakes to a stop, car and transmission variants,
-checkpoint rules, and planning
-isolation. The benchmark compares actual PMIN physics and checks recorded states
+checkpoint rules, and planning isolation. Full-lap regressions for Branches,
+Keukenhof, Ninh Binh, and DEFAULT start the human from the real grid, then brake
+it to a stop. They require clean finishes, deterministic replays, and no prolonged
+low-speed waits away from the human. The benchmark compares actual PMIN physics and checks recorded states
 and random seeds against playback:
 
 ```sh
