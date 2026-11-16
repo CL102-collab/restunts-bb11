@@ -103,9 +103,9 @@ static void unit_bio_next_line(const legacy_s8 **source, legacy_s8 *line)
 
 legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
 {
-	font_draw_text("Unitree Humanoid Robot", UNIT_BIO_LEFT, UNIT_BIO_TITLE_TOP);
+	font_draw_text("Unitree Humanoid Bot", UNIT_BIO_LEFT, UNIT_BIO_TITLE_TOP);
 	font_draw_text("Age: 1 Height: 6'0", UNIT_BIO_LEFT, UNIT_BIO_AGE_TOP);
-	font_draw_text("Years Experience: 287", UNIT_BIO_LEFT, UNIT_BIO_EXPERIENCE_TOP);
+	font_draw_text("Years Experience: 97", UNIT_BIO_LEFT, UNIT_BIO_EXPERIENCE_TOP);
 	font_draw_text("Expertise: All", UNIT_BIO_LEFT, UNIT_BIO_EXPERTISE_TOP);
 	font_draw_text("Problems: None", UNIT_BIO_LEFT, UNIT_BIO_PROBLEMS_TOP);
 	const legacy_s8 *source = unit_background;

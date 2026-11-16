@@ -1032,6 +1032,68 @@ static void request_page_repaint(legacy_u32 event_type)
 	sdl3_platform_pump();
 }
 
+enum {
+	PLANNING_TEST_WINDOW_WIDTH = 960,
+	PLANNING_TEST_WINDOW_HEIGHT = 720,
+	PLANNING_TEST_RESIZED_WIDTH = 640,
+	PLANNING_TEST_RESIZED_HEIGHT = 480,
+	PLANNING_TEST_WIDTH_PERCENT = 30,
+	PLANNING_TEST_PERCENT_SCALE = 100,
+	PLANNING_TEST_BAR_HEIGHT = 100,
+	PLANNING_TEST_DURATION_MS = 1000,
+	PLANNING_TEST_BLUE = 170,
+	PLANNING_TEST_QUARTERS = 4
+};
+
+static void assert_planning_bar(legacy_u32 elapsed_ms)
+{
+	legacy_int output_width, output_height;
+	assert(SDL_GetCurrentRenderOutputSize(SDL_GetRenderer(sdl3_video_window()), &output_width,
+										  &output_height));
+	legacy_s32 width = output_width * PLANNING_TEST_WIDTH_PERCENT / PLANNING_TEST_PERCENT_SCALE;
+	legacy_s32 left = (output_width - width) / 2;
+	legacy_s32 top = (output_height - PLANNING_TEST_BAR_HEIGHT) / 2;
+	legacy_s32 right = left + width - 1;
+	legacy_s32 bottom = top + PLANNING_TEST_BAR_HEIGHT - 1;
+	legacy_s32 middle_y = (top + bottom) / 2;
+	assert_presented_color(left, middle_y, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(right, middle_y, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(left + width / 2, top, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(left + width / 2, bottom, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(left, top, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(right, bottom, LEGACY_U8_MAX, LEGACY_U8_MAX, 0);
+	assert_presented_color(left - 1, middle_y, 0, 0, 0);
+	assert_presented_color(right + 1, middle_y, 0, 0, 0);
+	assert_presented_color(left + width / PLANNING_TEST_QUARTERS, middle_y, 0, 0,
+						   elapsed_ms != 0 ? PLANNING_TEST_BLUE : 0);
+	assert_presented_color(right - width / PLANNING_TEST_QUARTERS, middle_y, 0, 0,
+						   elapsed_ms >= PLANNING_TEST_DURATION_MS ? PLANNING_TEST_BLUE : 0);
+}
+
+static void test_planning_progress(void)
+{
+	assert(SDL_SetWindowSize(sdl3_video_window(), PLANNING_TEST_WINDOW_WIDTH,
+							 PLANNING_TEST_WINDOW_HEIGHT));
+	assert(SDL_SyncWindow(sdl3_video_window()));
+	SDL_PumpEvents();
+	const legacy_u32 progress[] = {0, PLANNING_TEST_DURATION_MS / 2, PLANNING_TEST_DURATION_MS,
+								   PLANNING_TEST_DURATION_MS * 2};
+	for (legacy_u32 index = 0; index < sizeof(progress) / sizeof(progress[0]); index++) {
+		sdl3_video_planning_progress(progress[index], PLANNING_TEST_DURATION_MS);
+		assert_planning_bar(progress[index]);
+	}
+	sdl3_video_planning_progress(PLANNING_TEST_DURATION_MS / 2, PLANNING_TEST_DURATION_MS);
+	request_page_repaint(SDL_EVENT_WINDOW_EXPOSED);
+	assert_planning_bar(PLANNING_TEST_DURATION_MS / 2);
+	assert(SDL_SetWindowSize(sdl3_video_window(), PLANNING_TEST_RESIZED_WIDTH,
+							 PLANNING_TEST_RESIZED_HEIGHT));
+	assert(SDL_SyncWindow(sdl3_video_window()));
+	request_page_repaint(SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED);
+	assert_planning_bar(PLANNING_TEST_DURATION_MS / 2);
+	sdl3_video_planning_progress(0, 0);
+	sdl3_video_present();
+}
+
 static void test_completed_video_pages(void)
 {
 	hires_shutdown();
@@ -2975,6 +3037,7 @@ legacy_int main(void)
 	test_video_borderless();
 	test_video_startup_fullscreen();
 	test_video_and_mouse();
+	test_planning_progress();
 	test_touch_focus_and_background();
 	test_touch_shortcut_keys();
 	test_remote_shifts();

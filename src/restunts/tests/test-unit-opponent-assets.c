@@ -135,8 +135,8 @@ static void test_portrait_ownership(void)
 
 static void test_biography(void)
 {
-	static const legacy_char *metadata[] = {"Unitree Humanoid Robot", "Age: 1 Height: 6'0",
-											"Years Experience: 287", "Expertise: All",
+	static const legacy_char *metadata[] = {"Unitree Humanoid Bot", "Age: 1 Height: 6'0",
+											"Years Experience: 97", "Expertise: All",
 											"Problems: None"};
 	static const legacy_s16 metadata_y[] = {33, 51, 59, 67, 83};
 	static const legacy_char expected_background[] =

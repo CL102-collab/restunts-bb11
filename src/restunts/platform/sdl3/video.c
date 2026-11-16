@@ -34,6 +34,7 @@
 #define PLANNING_BAR_WIDTH_PERCENT 30
 #define PLANNING_BAR_PERCENT_SCALE 100
 #define PLANNING_BAR_HEIGHT 100
+#define PLANNING_BAR_FRAME_WIDTH 2
 #define PLANNING_BAR_BLUE 170
 
 struct PRESENTATION_PAGE {
@@ -81,10 +82,17 @@ void sdl3_video_planning_progress(legacy_u32 elapsed_ms, legacy_u32 duration_ms)
 		}
 		legacy_int width = surface->w * PLANNING_BAR_WIDTH_PERCENT / PLANNING_BAR_PERCENT_SCALE;
 		legacy_int height = SDL_min(surface->h, PLANNING_BAR_HEIGHT);
-		SDL_Rect fill = {(surface->w - width) / 2, (surface->h - height) / 2,
-						 (legacy_int)((legacy_u64)width * planning_elapsed_ms / duration_ms),
-						 height};
-		SDL_FillSurfaceRect(surface, NULL, SDL_MapSurfaceRGB(surface, 0, 0, 0));
+		SDL_Rect frame = {(surface->w - width) / 2, (surface->h - height) / 2, width, height};
+		SDL_Rect interior = {frame.x + PLANNING_BAR_FRAME_WIDTH, frame.y + PLANNING_BAR_FRAME_WIDTH,
+							 SDL_max(0, width - 2 * PLANNING_BAR_FRAME_WIDTH),
+							 SDL_max(0, height - 2 * PLANNING_BAR_FRAME_WIDTH)};
+		SDL_Rect fill = interior;
+		fill.w = (legacy_int)((legacy_u64)interior.w * planning_elapsed_ms / duration_ms);
+		legacy_u32 black = SDL_MapSurfaceRGB(surface, 0, 0, 0);
+		SDL_FillSurfaceRect(surface, NULL, black);
+		SDL_FillSurfaceRect(surface, &frame,
+							SDL_MapSurfaceRGB(surface, LEGACY_U8_MAX, LEGACY_U8_MAX, 0));
+		SDL_FillSurfaceRect(surface, &interior, black);
 		SDL_FillSurfaceRect(surface, &fill, SDL_MapSurfaceRGB(surface, 0, 0, PLANNING_BAR_BLUE));
 		SDL_UpdateWindowSurface(window);
 	} else if (renderer != NULL) {
@@ -111,11 +119,20 @@ void sdl3_video_planning_progress(legacy_u32 elapsed_ms, legacy_u32 duration_ms)
 			legacy_f32 width =
 				(legacy_f32)output_w * PLANNING_BAR_WIDTH_PERCENT / PLANNING_BAR_PERCENT_SCALE;
 			legacy_f32 height = (legacy_f32)SDL_min(output_h, PLANNING_BAR_HEIGHT);
-			SDL_FRect fill = {
-				((legacy_f32)output_w - width) / 2, ((legacy_f32)output_h - height) / 2,
-				width * (legacy_f32)planning_elapsed_ms / (legacy_f32)duration_ms, height};
+			SDL_FRect frame = {((legacy_f32)output_w - width) / 2,
+							   ((legacy_f32)output_h - height) / 2, width, height};
+			SDL_FRect interior = {frame.x + PLANNING_BAR_FRAME_WIDTH,
+								  frame.y + PLANNING_BAR_FRAME_WIDTH,
+								  SDL_max(0.0f, width - 2 * PLANNING_BAR_FRAME_WIDTH),
+								  SDL_max(0.0f, height - 2 * PLANNING_BAR_FRAME_WIDTH)};
+			SDL_FRect fill = interior;
+			fill.w *= (legacy_f32)planning_elapsed_ms / (legacy_f32)duration_ms;
 			SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 			SDL_RenderClear(renderer);
+			SDL_SetRenderDrawColor(renderer, LEGACY_U8_MAX, LEGACY_U8_MAX, 0, SDL_ALPHA_OPAQUE);
+			SDL_RenderFillRect(renderer, &frame);
+			SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+			SDL_RenderFillRect(renderer, &interior);
 			SDL_SetRenderDrawColor(renderer, 0, 0, PLANNING_BAR_BLUE, SDL_ALPHA_OPAQUE);
 			SDL_RenderFillRect(renderer, &fill);
 			SDL_RenderPresent(renderer);
