@@ -33,8 +33,27 @@ main-thread chunks of at most 64 simulation ticks, checking a four-millisecond
 budget between ticks. They test approaches and landings with the selected car,
 reject crashes and new penalties, and restore all live state before returning.
 Receiving-road checks also verify tire overlap with the actual road geometry,
-so surface flags alone cannot validate contact below an elevated road. Under
-normal rules, fresh unverified guidance uses a centered banked-road line and
+so surface flags alone cannot validate contact below an elevated road.
+Classic TRK races also certify connected ramps, hill roads, and tunnels:
+their horizontal guides cannot predict a crest launch, a missed elevated corner,
+or a tunnel roof strike. These maneuvers have no sustaining-speed floor.
+They retain ordinary corner planning and braking; a validated entry speed is a
+ceiling. Their usual centered line can yield to bounded passing candidates when
+another car obstructs the forecast corridor. A parked player near a crest therefore
+does not force every preview onto the same blocked centerline. Mandatory jumps,
+loops, and checkpoints keep their required alignment.
+Banked corners also receive native checks, with the planner accounting
+for the game's roll-based steering assistance. Slaloms retain their ordered
+weaving guide while native trials check faster entry speeds against the poles.
+Classic sustaining maneuvers try faster native candidates before the original
+recipes; CSTRK retains its established geometry and sustaining-search policy.
+Clearance checks inside an existing jump approach share that validation, and
+connecting road checks do not merge otherwise separate stunt searches.
+An airborne crossing of a native, height-unspecified finish uses the same timing
+plane as the original opponents; explicitly placed custom-track finishes retain
+their height check.
+
+Under normal rules, fresh unverified guidance uses a centered banked-road line and
 conservative bank and elevated-corner speed limits, including braking before those pieces. Native
 previews and verified cached commands retain their physics-validated speeds.
 OWOOT keeps its existing strict-road speed and line policy.
@@ -99,8 +118,16 @@ from the real grid and brakes to a stop, car and transmission variants,
 checkpoint rules, and planning isolation. Full-lap regressions for Branches,
 Keukenhof, Ninh Binh, and DEFAULT start the human from the real grid, then brake
 it to a stop. They require clean finishes, deterministic replays, and no prolonged
-low-speed waits away from the human. The benchmark compares actual PMIN physics and checks recorded states
-and random seeds against playback:
+low-speed waits away from the human. The preserved HELENS, JOES, and SKIDS tracks
+also exercise manual PMIN driving with OWOOT off. Their regressions require clean
+finishes and deterministic replays; SKIDS additionally compares UNIT's time with
+Skid's native lap and requires UNIT to be faster.
+Additional SKIDS regressions start the player on the real grid, accelerate for
+0.1 seconds, then brake to a stop. Both planner modes must finish cleanly with
+verified replays after passing the parked player near the finishing hill.
+
+The benchmark compares actual PMIN physics and checks recorded states and random
+seeds against playback:
 
 ```sh
 python3 tools/scripts/test-unit-opponent.py out/sdl3-linux-x64/test-unit-race stunts src/restunts/tests/fixtures/unit/glacier.cstrk stunts/DEFAULT.TRK

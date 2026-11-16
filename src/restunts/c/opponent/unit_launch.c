@@ -187,15 +187,20 @@ legacy_int unit_launch_guidance_policy(const struct UNIT_ROUTE *route, legacy_u3
 		}
 		if (entry->stunt != UNIT_STUNT_BARREL && entry->stunt != UNIT_STUNT_RAMP) {
 			if (cursor <= last) {
-				if (plan->brake == UNIT_PLAN_BRAKE_STOP) {
+				/* Clearance-only crests and obstacles impose a speed ceiling.
+				 * Preserve normal corner braking rather than forcing that speed
+				 * through the whole approach like a sustaining-speed stunt. */
+				legacy_int ceiling = entry->clearance_only;
+				if (!ceiling && plan->brake == UNIT_PLAN_BRAKE_STOP) {
 					plan->brake = UNIT_PLAN_BRAKE_NONE;
 				}
-				plan->target_speed = verified;
+				legacy_f64 speed = verified;
 				if (exit && exit->fraction > 0.0 && exit->fraction < 1.0 && exit->speed > 0.0 &&
 					unit_launch_progress(route, first, cursor, car) >=
 						ceil((last - first) * exit->fraction)) {
-					plan->target_speed = fmin(exit->speed, route->limits.max_speed);
+					speed = fmin(exit->speed, route->limits.max_speed);
 				}
+				plan->target_speed = ceiling ? fmin(plan->target_speed, speed) : speed;
 				return 0;
 			}
 			first = last;

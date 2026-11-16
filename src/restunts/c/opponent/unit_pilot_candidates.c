@@ -150,6 +150,12 @@ static struct UNIT_EXIT_PROFILE unit_pilot_current_barrel_profile(legacy_f64 *of
 
 legacy_u32 unit_pilot_candidate_limit(void)
 {
+	if (unit_pilot_state->trial && unit_pilot_state->route->classic_track &&
+		unit_pilot_state->first < unit_pilot_state->route->count &&
+		unit_pilot_state->route->points[unit_pilot_state->first].stunt == UNIT_STUNT_PROTECTED &&
+		unit_pilot_state->route->points[unit_pilot_state->first].speed_floor > 0.0) {
+		return UNIT_PILOT_CANDIDATES * 2U;
+	}
 	if (!unit_pilot_state->trial || unit_pilot_state->first >= unit_pilot_state->route->count ||
 		unit_pilot_state->route->points[unit_pilot_state->first].stunt != UNIT_STUNT_BARREL ||
 		unit_pilot_state->barrel_best_progress < UNIT_PILOT_NEAR_ROTATION) {
@@ -231,27 +237,50 @@ void unit_pilot_start_trial(void)
 	 * contact and penalty checks decide whether a whole approach is usable. */
 	static const legacy_f64 refinement[UNIT_PILOT_REFINEMENT_COUNT] = {-0.005, 0.005, -0.01, 0.01,
 																	   -0.02,  0.02,  -0.04, 0.04};
+	const struct UNIT_ROUTE_POINT *entry =
+		&unit_pilot_state->route->points[unit_pilot_state->first];
+	legacy_s16 piece = entry->route_index;
+	legacy_int sustaining = unit_pilot_state->route->classic_track &&
+							entry->stunt == UNIT_STUNT_PROTECTED && entry->speed_floor > 0.0;
+	legacy_u32 speed_candidate = sustaining && unit_pilot_state->candidate >= UNIT_PILOT_CANDIDATES
+									 ? unit_pilot_state->candidate - UNIT_PILOT_CANDIDATES
+									 : unit_pilot_state->candidate;
 	legacy_f64 adjustment = 0.0;
-	if (unit_pilot_state->candidate < UNIT_PILOT_CANDIDATES) {
-		adjustment = unit_pilot_speed_offsets[unit_pilot_state->candidate];
-	} else if (unit_pilot_state->candidate < UNIT_PILOT_LOCAL_TRIM_FIRST) {
-		adjustment = refinement[unit_pilot_state->candidate - UNIT_PILOT_CANDIDATES];
+	if (speed_candidate < UNIT_PILOT_CANDIDATES) {
+		adjustment = unit_pilot_speed_offsets[speed_candidate];
+	} else if (speed_candidate < UNIT_PILOT_LOCAL_TRIM_FIRST) {
+		adjustment = refinement[speed_candidate - UNIT_PILOT_CANDIDATES];
 	}
-	legacy_s16 piece = unit_pilot_state->route->points[unit_pilot_state->first].route_index;
-	legacy_f64 baseline = unit_pilot_state->route->points[unit_pilot_state->first].speed_limit;
+	legacy_f64 baseline = sustaining && unit_pilot_state->candidate < UNIT_PILOT_CANDIDATES
+							  ? unit_pilot_state->route->limits.max_speed
+							  : entry->speed_limit;
+	if (entry->stunt == UNIT_STUNT_PROTECTED && entry->speed_floor <= 0.0 &&
+		entry->fallback_speed_limit > 0.0 && unit_pilot_state->candidate < UNIT_PILOT_CANDIDATES) {
+		/* Search unconstrained receiving-road maneuvers from fast to slow. A
+		 * successful native trial certifies speed; the live fallback stays low. */
+		adjustment = -(legacy_f64)unit_pilot_state->candidate / UNIT_PILOT_CANDIDATES;
+	}
 	/* A stale handoff can require another actual-state check after waiting.
 	 * Revalidate the last successful speed first instead of repeating search. */
 	if (piece >= 0 && (legacy_u32)piece < unit_pilot_state->route->verified_count &&
 		unit_pilot_state->route->verified_speeds[piece] > 0.0) {
 		baseline = unit_pilot_state->route->verified_speeds[piece];
 	}
-	if (unit_pilot_state->candidate >= UNIT_PILOT_CANDIDATES) {
+	if (!sustaining && unit_pilot_state->candidate >= UNIT_PILOT_CANDIDATES) {
 		baseline = unit_pilot_state->barrel_best_speed;
 	}
-	unit_pilot_state->speed =
-		unit_bounded(baseline * (1.0 + adjustment),
-					 fmin(UNIT_PILOT_MINIMUM_SPEED, unit_pilot_state->route->limits.max_speed),
-					 unit_pilot_state->route->limits.max_speed);
+	legacy_f64 trial_speed = baseline * (1.0 + adjustment);
+	if (sustaining && unit_pilot_state->candidate < UNIT_PILOT_CANDIDATES) {
+		/* Prove fast entries first, then retain every original guide-centered
+		 * recipe. Native certification remains authoritative below the heuristic
+		 * sustaining floor, just as it is in the original candidate search. */
+		legacy_f64 minimum = UNIT_PILOT_MINIMUM_SPEED;
+		trial_speed = baseline + (minimum - baseline) * unit_pilot_state->candidate /
+									 (UNIT_PILOT_CANDIDATES - 1U);
+	}
+	unit_pilot_state->speed = unit_bounded(
+		trial_speed, fmin(UNIT_PILOT_MINIMUM_SPEED, unit_pilot_state->route->limits.max_speed),
+		unit_pilot_state->route->limits.max_speed);
 	if (unit_pilot_pulses_active(unit_pilot_state->pulses)) {
 		unit_pilot_state->speed = unit_pilot_state->pulse_profile.speed;
 	}
@@ -271,10 +300,19 @@ void unit_pilot_start_trial(void)
 			baseline =
 				unit_pilot_state->route->points[unit_pilot_state->secondary_first].speed_limit;
 		}
-		unit_pilot_state->secondary_speed = unit_bounded(
-			baseline * (1.0 + unit_pilot_speed_offsets[unit_pilot_state->secondary_candidate]),
-			fmin(UNIT_PILOT_MINIMUM_SPEED, unit_pilot_state->route->limits.max_speed),
-			unit_pilot_state->route->limits.max_speed);
+		const struct UNIT_ROUTE_POINT *secondary_entry =
+			&unit_pilot_state->route->points[unit_pilot_state->secondary_first];
+		legacy_f64 secondary_adjustment =
+			unit_pilot_speed_offsets[unit_pilot_state->secondary_candidate];
+		if (secondary_entry->stunt == UNIT_STUNT_PROTECTED && secondary_entry->speed_floor <= 0.0 &&
+			secondary_entry->fallback_speed_limit > 0.0) {
+			secondary_adjustment =
+				-(legacy_f64)unit_pilot_state->secondary_candidate / UNIT_PILOT_CANDIDATES;
+		}
+		unit_pilot_state->secondary_speed =
+			unit_bounded(baseline * (1.0 + secondary_adjustment),
+						 fmin(UNIT_PILOT_MINIMUM_SPEED, unit_pilot_state->route->limits.max_speed),
+						 unit_pilot_state->route->limits.max_speed);
 	}
 	if (unit_pilot_pulses_active(unit_pilot_state->pulses)) {
 		unit_pilot_state->secondary_speed = unit_pilot_state->pulse_profile.secondary_speed;
@@ -323,15 +361,18 @@ void unit_pilot_fail_trial(legacy_s16 failure)
 			unit_pilot_state->barrel_best_speed = unit_pilot_state->speed;
 		}
 		unit_pilot_state->barrel_reached |= unit_pilot_state->trial && unit_pilot_state->has_entry;
-		legacy_int exit_retry = unit_pilot_state->trial &&
-								unit_pilot_state->first_last < unit_pilot_state->last &&
-								unit_pilot_state->route->points[unit_pilot_state->first].stunt ==
-									UNIT_STUNT_PROTECTED &&
-								unit_pilot_state->exit_speed > unit_pilot_state->speed &&
-								unit_pilot_state->exit_variant < UNIT_PILOT_EXIT_VARIANTS &&
-								(unit_pilot_state->exit_variant ||
-								 unit_route_cursor(unit_pilot_state->route, &state.opponentstate) >
-									 unit_pilot_state->first_last);
+		legacy_int exit_retry =
+			unit_pilot_state->trial && unit_pilot_state->first_last < unit_pilot_state->last &&
+			unit_pilot_state->route->points[unit_pilot_state->first].stunt ==
+				UNIT_STUNT_PROTECTED &&
+			(unit_pilot_state->route->points[unit_pilot_state->first].speed_floor > 0.0 ||
+			 unit_pilot_state->route->points[unit_pilot_state->first].fallback_speed_limit <=
+				 0.0) &&
+			unit_pilot_state->exit_speed > unit_pilot_state->speed &&
+			unit_pilot_state->exit_variant < UNIT_PILOT_EXIT_VARIANTS &&
+			(unit_pilot_state->exit_variant ||
+			 unit_route_cursor(unit_pilot_state->route, &state.opponentstate) >
+				 unit_pilot_state->first_last);
 		legacy_int secondary_reached =
 			unit_pilot_state->trial && unit_pilot_state->secondary_piece >= 0 &&
 			(unit_pilot_state->secondary_candidate || unit_pilot_state->secondary_ramp_variant ||

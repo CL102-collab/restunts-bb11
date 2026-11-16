@@ -539,6 +539,41 @@ static void check_human_collision_brake(legacy_u8 stunt, legacy_u8 heading)
 	}
 }
 
+static void check_clearance_speed_ceiling(void)
+{
+	reset_fixture(UNIT_STUNT_PROTECTED, 0);
+	place_car(TEST_APPROACH_DISTANCE, 1, 0);
+	points[0].clearance_only = 1U;
+	/* A certified clearance speed must not defeat braking for the next bend. */
+	struct UNIT_PLAN plan = planner_target(UNIT_PLAN_BRAKE_STOP), original = plan;
+	(void)unit_launch_guidance(&route, 1U, &plan, ROUTE_INDEX_NONE, 0.0);
+	assert(plan.target_speed == TEST_PLANNER_SPEED && plan.brake == UNIT_PLAN_BRAKE_STOP);
+	assert_target_unchanged(&plan, &original);
+	plan = planner_target(UNIT_PLAN_BRAKE_COLLISION);
+	plan.target_speed = TEST_EXIT_SPEED;
+	(void)unit_launch_guidance(&route, 1U, &plan, ROUTE_INDEX_NONE, 0.0);
+	assert(plan.target_speed == TEST_VALIDATED_SPEED && plan.brake == UNIT_PLAN_BRAKE_COLLISION);
+	/* A later certified exit may relax the ceiling without overriding a lower
+	 * planner target or retaining the earlier entry ceiling. */
+	route.verified_exits = exits;
+	route.limits.max_speed = TEST_CAR_MAXIMUM_SPEED;
+	exits[0] = (struct UNIT_EXIT_PROFILE){0.50, TEST_EXIT_SPEED};
+	place_car(TEST_LIP_DISTANCE, 1, 0);
+	plan = planner_target(UNIT_PLAN_BRAKE_NONE);
+	plan.target_speed = TEST_CAR_MAXIMUM_SPEED;
+	(void)unit_launch_guidance(&route, 1U, &plan, ROUTE_INDEX_NONE, 0.0);
+	assert(plan.target_speed == TEST_EXIT_SPEED);
+	plan = planner_target(UNIT_PLAN_BRAKE_NONE);
+	(void)unit_launch_guidance(&route, 1U, &plan, ROUTE_INDEX_NONE, 0.0);
+	assert(plan.target_speed == TEST_PLANNER_SPEED);
+	/* Mandatory sustaining-speed guidance retains its established policy. */
+	points[0].clearance_only = 0U;
+	route.verified_exits = NULL;
+	plan = planner_target(UNIT_PLAN_BRAKE_STOP);
+	(void)unit_launch_guidance(&route, 1U, &plan, ROUTE_INDEX_NONE, 0.0);
+	assert(plan.target_speed == TEST_VALIDATED_SPEED && plan.brake == UNIT_PLAN_BRAKE_NONE);
+}
+
 static void reset_staged_fixture(void)
 {
 	reset_fixture(UNIT_STUNT_PROTECTED, 0);
@@ -714,6 +749,7 @@ static void check_human_approach_preserved(legacy_u8 stunt, legacy_u8 heading)
 
 legacy_int main(void)
 {
+	check_clearance_speed_ceiling();
 	check_secondary_override_isolation();
 	check_staged_exit_boundaries();
 	check_staged_override_isolation();

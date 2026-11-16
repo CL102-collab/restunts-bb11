@@ -53,6 +53,55 @@
 #define UNIT_BENCHMARK_STALL_SPEED 3.0
 #define UNIT_BENCHMARK_STALL_START_SECONDS 2U
 #define UNIT_BENCHMARK_STALL_SECONDS 1U
+#define UNIT_BENCHMARK_FINISH_TEST_OFFSET 256.0
+
+static void test_finish_crossing(void)
+{
+	struct UNIT_ROUTE route = {0};
+	assert(unit_route_build(&route));
+	struct UNIT_ROUTE_POINT finish = route.points[route.finish_begin];
+	unit_route_free(&route);
+	route.points = &finish;
+	route.count = 1U;
+	legacy_f64 center_x = (legacy_u8)start_finish_column * TRACK_TILE_SIZE + TRACK_TILE_HALF_SIZE;
+	legacy_f64 center_z =
+		(extended_track_height() - (legacy_u8)start_finish_row - 1) * TRACK_TILE_SIZE +
+		TRACK_TILE_HALF_SIZE;
+	legacy_f64 sine = sin(track_angle * UNIT_ANGLE_RADIANS);
+	legacy_f64 cosine = cos(track_angle * UNIT_ANGLE_RADIANS);
+	struct CARSTATE car = {0};
+	car.car_lap_count = 1;
+	car.car_previous_position.lx = (legacy_s32)llround(
+		(center_x - sine * UNIT_BENCHMARK_FINISH_TEST_OFFSET) * UNIT_POSITION_SCALE);
+	car.car_previous_position.lz = (legacy_s32)llround(
+		(center_z - cosine * UNIT_BENCHMARK_FINISH_TEST_OFFSET) * UNIT_POSITION_SCALE);
+	car.car_position.lx = (legacy_s32)llround(
+		(center_x + sine * UNIT_BENCHMARK_FINISH_TEST_OFFSET) * UNIT_POSITION_SCALE);
+	car.car_position.lz = (legacy_s32)llround(
+		(center_z + cosine * UNIT_BENCHMARK_FINISH_TEST_OFFSET) * UNIT_POSITION_SCALE);
+	car.car_position.ly =
+		(legacy_s32)((finish.y + UNIT_BENCHMARK_FINISH_TEST_OFFSET) * UNIT_POSITION_SCALE);
+	/* Native timing accepts an airborne crossing; an explicitly placed
+	 * finish on a stacked custom track must still reject the wrong level. */
+	finish.height_unspecified = 1U;
+	assert(unit_route_finished(&route, &car));
+	finish.height_unspecified = 0U;
+	assert(!unit_route_finished(&route, &car));
+	car.car_position.ly = (legacy_s32)(finish.y * UNIT_POSITION_SCALE);
+	assert(unit_route_finished(&route, &car));
+	/* Height-independent timing must retain the crossing direction and width. */
+	finish.height_unspecified = 1U;
+	struct VECTORLONG previous = car.car_previous_position;
+	car.car_previous_position = car.car_position;
+	car.car_position = previous;
+	assert(!unit_route_finished(&route, &car));
+	car.car_position = car.car_previous_position;
+	car.car_previous_position = previous;
+	legacy_f64 lateral = finish.half_width + UNIT_BENCHMARK_FINISH_TEST_OFFSET;
+	car.car_position.lx += (legacy_s32)llround(cosine * lateral * UNIT_POSITION_SCALE);
+	car.car_position.lz -= (legacy_s32)llround(sine * lateral * UNIT_POSITION_SCALE);
+	assert(!unit_route_finished(&route, &car));
+}
 
 enum UNIT_BENCHMARK_HUMAN {
 	UNIT_BENCHMARK_HUMAN_PARKED,
@@ -327,18 +376,19 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	if (argc < 3) {
 		fprintf(
 			stderr,
-			"Usage: test-unit-race [--data-dir DIR] TRACK 6|7 "
+			"Usage: test-unit-race [--data-dir DIR] TRACK 1..7 "
 			"[--prepare-ms N] [--prepare-until-plan] [--frames N] [--trace FILE] [--verify-replay] "
 			"[--planner-yield-ms N] [--planner-sync] [--require-worker] "
 			"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
 			"[--manual] [--frame-rate 10|20] [--require-finish] "
 			"[--require-clean] [--require-no-stalls] [--human "
 			"stationary|accelerating|crossing|grid|grid-then-park] "
+			"[--human-drive-frames N] "
 			"[--owoot:on]\n");
 		return 1;
 	}
 	legacy_u8 opponent = (legacy_u8)strtoul((legacy_char *)argv[2], NULL, 10);
-	assert(opponent == OPPONENT_LEGACY_LAST || opponent == OPPONENT_UNIT);
+	assert(opponent >= OPPONENT_FIRST && opponent <= OPPONENT_LAST);
 	legacy_u32 frame_limit = UNIT_BENCHMARK_DEFAULT_FRAMES;
 	legacy_u16 frame_rate = GENGHOST_FRAME_RATE;
 	legacy_u32 preparation_ms = 0;
@@ -354,6 +404,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_int manual = 0;
 	const legacy_char *car_id = "PMIN";
 	legacy_int human = UNIT_BENCHMARK_HUMAN_PARKED;
+	legacy_u32 human_drive_frames = UNIT_BENCHMARK_GRID_DRIVE_FRAMES;
 	legacy_int prepare_until_plan = 0;
 	FILE *trace = NULL;
 	FILE *pilot_trace = NULL;
@@ -406,6 +457,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					: strcmp(mode, "grid-then-park") == 0 ? UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK
 														  : UNIT_BENCHMARK_HUMAN_PARKED;
 			assert(human != UNIT_BENCHMARK_HUMAN_PARKED);
+		} else if (strcmp((legacy_char *)argv[index], "--human-drive-frames") == 0 &&
+				   index + 1 < argc) {
+			human_drive_frames = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
 		} else if (strcmp((legacy_char *)argv[index], "--car") == 0 && index + 1 < argc) {
 			car_id = (legacy_char *)argv[++index];
 			assert(strlen(car_id) == CSRPL_CAR_ID_SIZE);
@@ -452,6 +506,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	assert(genghost_sim_init_track(track, track_size, car_id, TRANSMISSION_AUTOMATIC, argc,
 								   (legacy_char **)argv) == 0);
 	free(track);
+	if (opponent == OPPONENT_UNIT) {
+		test_finish_crossing();
+	}
 	if (route_debug) {
 		struct UNIT_ROUTE route = {0};
 		assert(unit_route_build(&route));
@@ -572,8 +629,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					 frames >= UNIT_BENCHMARK_HUMAN_START_SECONDS * frame_rate)) {
 			human_input = INPUT_ACCELERATE_FLAG;
 		}
-		if (human == UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK &&
-			frames >= UNIT_BENCHMARK_GRID_DRIVE_FRAMES) {
+		if (human == UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK && frames >= human_drive_frames) {
 			/* Park through ordinary recorded controls, so playback requires no
 			 * external teleport or other scripted state mutation. */
 			human_input = INPUT_BRAKE_FLAG;

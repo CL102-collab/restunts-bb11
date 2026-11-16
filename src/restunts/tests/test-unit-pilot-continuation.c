@@ -3,6 +3,16 @@
 
 static struct UNIT_PLANNER source;
 
+#define TEST_GROUP_PRIMARY_FIRST 40U
+#define TEST_GROUP_CONNECTOR_FIRST 56U
+#define TEST_GROUP_CONNECTOR_PIECE 2
+#define TEST_GROUP_NEXT_FIRST 80U
+#define TEST_GROUP_PIECE_SAMPLES 2U
+#define TEST_RECEIVER_CLEARANCE_FIRST 48U
+#define TEST_RECEIVER_PENDING_TICKS 55U
+#define TEST_RECEIVER_OWNER 3
+#define TEST_RECEIVER_STABLE_TICKS 4U
+
 static void begin_prefix(void)
 {
 	reset_fixture(1);
@@ -187,6 +197,33 @@ static void test_receiving_road_geometry(void)
 	native_road_support = 1;
 	unit_pilot_work(4);
 	assert(unit_pilot_state->stats.accepted == 1);
+	unit_pilot_stop();
+}
+
+static void test_clearance_receiving_road(void)
+{
+	for (legacy_u8 clearance = 0; clearance <= 1U; clearance++) {
+		reset_fixture(1);
+		native_road_support = 0;
+		assert(unit_pilot_begin(&source));
+		unit_pilot_work(TEST_RECEIVER_PENDING_TICKS);
+		assert(unit_pilot_state->trial && !unit_pilot_state->stats.accepted);
+		/* The car has advanced onto a separately planned road-clearance
+		 * section while native receiving-contact proof was pending. */
+		for (legacy_u32 point = TEST_RECEIVER_CLEARANCE_FIRST; point < route.finish_begin;
+			 point++) {
+			points[point].stunt = UNIT_STUNT_PROTECTED;
+			points[point].clearance_only = clearance;
+		}
+		observed_owner = TEST_RECEIVER_OWNER;
+		unit_pilot_work(TEST_RECEIVER_STABLE_TICKS);
+		assert(!unit_pilot_state->stats.accepted);
+		/* Clearance classification alone never supplies geometric support.
+		 * A mandatory loop/barrel still cannot serve as the receiving road. */
+		native_road_support = 1;
+		unit_pilot_work(TEST_RECEIVER_STABLE_TICKS);
+		assert(unit_pilot_state->stats.accepted == clearance);
+	}
 	unit_pilot_stop();
 }
 
@@ -377,6 +414,35 @@ static void test_ramp_runup_and_group_boundaries(void)
 	unit_pilot_stop();
 }
 
+static void test_clearance_group_boundaries(void)
+{
+	for (legacy_u8 clearance = 0; clearance <= 1U; clearance++) {
+		configure_runup(TEST_GROUP_NEXT_FIRST, UNIT_STUNT_PROTECTED);
+		for (legacy_u32 index = TEST_GROUP_PRIMARY_FIRST;
+			 index < TEST_GROUP_PRIMARY_FIRST + TEST_GROUP_PIECE_SAMPLES; index++) {
+			points[index].stunt = UNIT_STUNT_RAMP;
+		}
+		for (legacy_u32 index = TEST_GROUP_PRIMARY_FIRST + TEST_GROUP_PIECE_SAMPLES;
+			 index < TEST_GROUP_NEXT_FIRST; index++) {
+			points[index].route_index = 0;
+		}
+		for (legacy_u32 index = TEST_GROUP_CONNECTOR_FIRST;
+			 index < TEST_GROUP_CONNECTOR_FIRST + TEST_GROUP_PIECE_SAMPLES; index++) {
+			points[index].route_index = TEST_GROUP_CONNECTOR_PIECE;
+			points[index].stunt = UNIT_STUNT_PROTECTED;
+			points[index].clearance_only = clearance;
+		}
+		assert(unit_pilot_begin(&source));
+		unit_pilot_work(1);
+		/* The crest remains inside the jump's receiving trial. It must not
+		 * bridge the four-tile span to an otherwise independent later loop.
+		 * A mandatory middle stunt still retains the existing coupled search. */
+		legacy_u32 last = clearance ? TEST_GROUP_CONNECTOR_FIRST : TEST_GROUP_NEXT_FIRST;
+		assert(unit_pilot_state->last == last + TEST_GROUP_PIECE_SAMPLES - 1U);
+	}
+	unit_pilot_stop();
+}
+
 static void test_ramp_window_search(void)
 {
 	static const legacy_u8 cases[][3] = {{0, 3, 27}, {3, 2, 27}, {4, 2, 52}, {0, 2, 2}};
@@ -524,9 +590,11 @@ legacy_int main(void)
 	test_ordinary_prefix();
 	test_rolling_recheck();
 	test_receiving_road_geometry();
+	test_clearance_receiving_road();
 	test_two_chunk_frame_budget();
 	test_pulse_retry_and_expired_handoff();
 	test_ramp_runup_and_group_boundaries();
+	test_clearance_group_boundaries();
 	test_ramp_window_search();
 	test_ramp_window_deadline_resume();
 	test_secondary_ramp_window_search();

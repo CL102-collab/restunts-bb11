@@ -9,6 +9,7 @@
 #include "extended_opponent.h"
 #include "../track/track_objects.h"
 #include "../track/trackdata_layout.h"
+#include "../track/track_setup_internal.h"
 #include "../crash_state.h"
 #include "roll_ramp.h"
 #include "extended_unit_checkpoint.h"
@@ -59,6 +60,7 @@ legacy_f64 unit_bounded(legacy_f64 value, legacy_f64 minimum, legacy_f64 maximum
 
 static void unit_route_car_limits(struct UNIT_ROUTE *route)
 {
+	route->classic_track = !extended_track_active();
 	struct UNIT_CAR_LIMITS *limits = &route->limits;
 	const struct SIMD *car = &simd_opponent;
 	memset(limits, 0, sizeof(*limits));
@@ -216,7 +218,34 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 			point->height_unspecified = 0;
 		}
 	}
-	if (!point->stunt && (model == PHYSICAL_MODEL_PIPE || model == PHYSICAL_MODEL_HALF_PIPE)) {
+	legacy_u8 native_hill = 0;
+	if (!extended_track_active()) {
+		legacy_u16 cell =
+			terrainrows[(legacy_u8)track_route_rows[piece]] + (legacy_u8)track_route_columns[piece];
+		legacy_u8 terrain = (legacy_u8)track_terrain_map[cell];
+		native_hill =
+			terrain >= TRACK_HILLROAD_TERRAIN_FIRST && terrain < TRACK_HILLROAD_TERRAIN_END;
+	}
+	if (!point->stunt && route->classic_track &&
+		(model == PHYSICAL_MODEL_RAMP || model == PHYSICAL_MODEL_SOLID_RAMP || native_hill)) {
+		/* Connected ramps and native hill roads can launch the car into the
+		 * following bend or obstacle. Their unspecified guide heights cannot
+		 * prove safe crest speeds; native trials must certify receiving contact.
+		 * Disconnected jumps are promoted to ramp guidance below. */
+		point->stunt = UNIT_STUNT_PROTECTED;
+		point->clearance_only = 1U;
+		point->speed_limit = route->limits.max_speed;
+		point->fallback_speed_limit = UNIT_STUNT_OTHER_SPEED;
+	} else if (!point->stunt && route->classic_track && model == PHYSICAL_MODEL_TUNNEL) {
+		/* A crest can launch the car into a tunnel roof even with a centered
+		 * horizontal guide. Certify the whole approach with native physics
+		 * and search entry speeds without imposing a sustaining-speed floor. */
+		point->stunt = UNIT_STUNT_PROTECTED;
+		point->clearance_only = 1U;
+		point->speed_limit = route->limits.max_speed;
+		point->fallback_speed_limit = UNIT_STUNT_OTHER_SPEED;
+	} else if (!point->stunt &&
+			   (model == PHYSICAL_MODEL_PIPE || model == PHYSICAL_MODEL_HALF_PIPE)) {
 		/* The native guide can run along a banked pipe wall. Its horizontal
 		 * edge projection is not a flat road corridor or the car's banked
 		 * clearance. Preserve the ordered 3-D guide and native validation;
@@ -239,6 +268,13 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 		/* Fresh live guidance reserves a centered, slower banked approach.
 		 * Complete native previews retain the original speed envelope and
 		 * prove their actual receiving contact before caching controls. */
+		/* The fixed assistance model describes the original bank geometry.
+		 * Custom tracks can compose other grades and banking into this model. */
+		point->banked_corner = model == PHYSICAL_MODEL_BANKED_CORNER && route->classic_track;
+		if (point->banked_corner && !point->stunt) {
+			point->stunt = UNIT_STUNT_PROTECTED;
+			point->clearance_only = 1U;
+		}
 		point->fallback_speed_limit = fmin(point->speed_limit, UNIT_BANKED_ROAD_SPEED);
 		point->align_center |= UNIT_ALIGN_FALLBACK;
 	}
@@ -248,9 +284,14 @@ static legacy_int unit_route_append(struct UNIT_ROUTE *route, legacy_s16 piece,
 		point->fallback_speed_limit = fmin(point->speed_limit, UNIT_ELEVATED_CORNER_SPEED);
 	}
 	if (model == PHYSICAL_MODEL_SLALOM) {
-		/* Keep the native alternating pole-avoidance line. The narrow center
-		 * gap leaves too little tolerance for steering lag or a banked landing. */
+		/* Keep the authored custom-track grade/roll policy. Original native
+		 * tracks can prove faster weaving without changing unverified guidance. */
 		point->speed_limit = UNIT_SLALOM_GUIDANCE_SPEED;
+		if (route->classic_track) {
+			point->stunt = UNIT_STUNT_PROTECTED;
+			point->speed_limit = route->limits.max_speed;
+			point->fallback_speed_limit = UNIT_SLALOM_GUIDANCE_SPEED;
+		}
 	}
 
 	if (point->surface < CAR_SURFACE_PAVED || point->surface > CAR_SURFACE_GRASS) {
@@ -280,8 +321,15 @@ static void unit_route_slalom_approaches(struct UNIT_ROUTE *route)
 				break;
 			}
 			if (route->points[previous].stunt == UNIT_STUNT_NONE) {
-				route->points[previous].speed_limit =
-					fmin(route->points[previous].speed_limit, UNIT_SLALOM_GUIDANCE_SPEED);
+				if (route->classic_track) {
+					legacy_f64 limit = route->points[previous].fallback_speed_limit;
+					route->points[previous].fallback_speed_limit =
+						fmin(limit > 0.0 ? limit : route->points[previous].speed_limit,
+							 UNIT_SLALOM_GUIDANCE_SPEED);
+				} else {
+					route->points[previous].speed_limit =
+						fmin(route->points[previous].speed_limit, UNIT_SLALOM_GUIDANCE_SPEED);
+				}
 			}
 		}
 	}
@@ -295,7 +343,10 @@ static void unit_route_align_approaches(struct UNIT_ROUTE *route)
 		if (!point->stunt && trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM) {
 			continue;
 		}
-		point->align_center = UNIT_ALIGN_MANEUVER;
+		/* A forecast human obstruction may release the clearance preference.
+		 * Mandatory maneuver and checkpoint alignment remain hard constraints. */
+		legacy_u8 alignment = point->clearance_only ? UNIT_ALIGN_CLEARANCE : UNIT_ALIGN_MANEUVER;
+		point->align_center |= alignment;
 		if (index && route->points[index - 1U].route_index == point->route_index) {
 			continue;
 		}
@@ -306,7 +357,7 @@ static void unit_route_align_approaches(struct UNIT_ROUTE *route)
 				++pieces > UNIT_STUNT_ALIGNMENT_PIECES) {
 				break;
 			}
-			route->points[previous].align_center = UNIT_ALIGN_MANEUVER;
+			route->points[previous].align_center |= alignment;
 		}
 	}
 }
@@ -329,11 +380,71 @@ static void unit_route_ramp_jumps(struct UNIT_ROUTE *route)
 				  route->points[last + 1U].z - route->points[last].z) > TRACK_TILE_SIZE) {
 			for (legacy_u32 point = first; point <= last; point++) {
 				route->points[point].stunt = UNIT_STUNT_RAMP;
+				route->points[point].clearance_only = 0;
 				route->points[point].speed_floor = UNIT_RAMP_JUMP_SPEED;
 				route->points[point].speed_limit = UNIT_RAMP_JUMP_SPEED;
 			}
 		}
 		first = last;
+	}
+}
+
+static legacy_int unit_route_connected_crest(const struct UNIT_ROUTE_POINT *point)
+{
+	if (point->stunt != UNIT_STUNT_PROTECTED) {
+		return 0;
+	}
+	legacy_s16 piece = point->route_index;
+	legacy_u8 id = (legacy_u8)track_route_element_ids[piece];
+	legacy_s16 model = trkObjectList[id].ss_physicalModel;
+	if (model == PHYSICAL_MODEL_RAMP || model == PHYSICAL_MODEL_SOLID_RAMP) {
+		return 1;
+	}
+	if (model != PHYSICAL_MODEL_ROAD || extended_track_active()) {
+		return 0;
+	}
+	legacy_u16 cell =
+		terrainrows[(legacy_u8)track_route_rows[piece]] + (legacy_u8)track_route_columns[piece];
+	legacy_u8 terrain = (legacy_u8)track_terrain_map[cell];
+	return terrain >= TRACK_HILLROAD_TERRAIN_FIRST && terrain < TRACK_HILLROAD_TERRAIN_END;
+}
+
+static void unit_route_certified_approaches(struct UNIT_ROUTE *route)
+{
+	for (legacy_u32 first = 0; first < route->finish_begin; first++) {
+		const struct UNIT_ROUTE_POINT *entry = &route->points[first];
+		if (entry->stunt == UNIT_STUNT_NONE || unit_route_connected_crest(entry) ||
+			(first && route->points[first - 1U].route_index == entry->route_index)) {
+			continue;
+		}
+		legacy_f64 limit = (entry->stunt == UNIT_STUNT_RAMP ? UNIT_NATIVE_RAMP_APPROACH_TILES
+															: UNIT_NATIVE_APPROACH_TILES) *
+						   TRACK_TILE_SIZE;
+		legacy_f64 distance = 0.0;
+		for (legacy_u32 cursor = first; cursor > 0;) {
+			cursor--;
+			const struct UNIT_ROUTE_POINT *a = &route->points[cursor];
+			const struct UNIT_ROUTE_POINT *b = &route->points[cursor + 1U];
+			distance += hypot(hypot(b->x - a->x, b->z - a->z), b->y - a->y);
+			if (distance > limit ||
+				(a->stunt != UNIT_STUNT_NONE && !unit_route_connected_crest(a))) {
+				break;
+			}
+			if (!unit_route_connected_crest(a) ||
+				(cursor && route->points[cursor - 1U].route_index == a->route_index)) {
+				continue;
+			}
+			/* The complete crest is already inside this mandatory maneuver's
+			 * native approach. Keep its conservative live limit, but let the
+			 * existing trial prove the approach instead of introducing another
+			 * primary/secondary search across the same launch. */
+			for (legacy_u32 point = cursor;
+				 point < first && route->points[point].route_index == a->route_index; point++) {
+				route->points[point].stunt = UNIT_STUNT_NONE;
+				route->points[point].clearance_only = 0;
+				route->points[point].speed_limit = route->limits.max_speed;
+			}
+		}
 	}
 }
 
@@ -477,6 +588,7 @@ legacy_int unit_route_build(struct UNIT_ROUTE *route)
 			}
 			unit_route_barrel_speeds(route);
 			unit_route_ramp_jumps(route);
+			unit_route_certified_approaches(route);
 			unit_route_slalom_approaches(route);
 			unit_route_align_approaches(route);
 			unit_checkpoint_align_route(route);
@@ -525,8 +637,8 @@ legacy_u32 unit_route_advance(const struct UNIT_ROUTE *route, const struct CARST
 		 * support height must not trap progress behind an airborne car. Only
 		 * ordered loop/corkscrew gates need the third dimension; native penalty,
 		 * OWOOT and checkpoint observers retain authority over actual motion. */
-		legacy_int ordered_height =
-			point->stunt == UNIT_STUNT_PROTECTED && !point->height_unspecified;
+		legacy_int ordered_height = point->stunt == UNIT_STUNT_PROTECTED &&
+									!point->clearance_only && !point->height_unspecified;
 		legacy_f64 dy = ordered_height ? y - point->y : 0.0;
 		if (hypot(dx, dz) < UNIT_REACHED_DISTANCE && fabs(dy) < UNIT_FINISH_HEIGHT_TOLERANCE) {
 			if (!unit_checkpoint_can_advance(route, cursor)) {
@@ -592,9 +704,13 @@ legacy_int unit_route_finished(const struct UNIT_ROUTE *route, const struct CARS
 	legacy_f64 px = car->car_previous_position.lx / UNIT_POSITION_SCALE - center_x;
 	legacy_f64 pz = car->car_previous_position.lz / UNIT_POSITION_SCALE - center_z;
 	legacy_f64 width = route->points[route->finish_begin].half_width;
+	/* Native finish guides have no height: legal airborne crossings still
+	 * finish, as they do for the human and the original opponents. */
+	legacy_int height_valid =
+		route->points[route->finish_begin].height_unspecified ||
+		fabs(car->car_position.ly / UNIT_POSITION_SCALE - route->points[route->finish_begin].y) <
+			UNIT_FINISH_HEIGHT_TOLERANCE;
 	return px * sine + pz * cosine <= 0 && x * sine + z * cosine > 0 &&
-		   fabs(x * cosine - z * sine) <= width &&
-		   fabs(car->car_position.ly / UNIT_POSITION_SCALE - route->points[route->finish_begin].y) <
-			   UNIT_FINISH_HEIGHT_TOLERANCE;
+		   fabs(x * cosine - z * sine) <= width && height_valid;
 }
 #endif

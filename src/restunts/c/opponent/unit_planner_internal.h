@@ -15,6 +15,7 @@
 
 struct UNIT_PROFILE {
 	legacy_f64 lane, apex, lookahead;
+	legacy_u8 clearance_passing;
 };
 
 struct UNIT_EVALUATION {

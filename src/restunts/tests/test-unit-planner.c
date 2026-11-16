@@ -163,6 +163,171 @@ static void test_curvature_and_ice(void)
 	assert(icy < paved * 0.8);
 }
 
+static void test_banked_corner_speed(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	corner(points, 1U);
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	limits.wheelbase = 62.0;
+	limits.lateral_acceleration = 111.5;
+	const legacy_f64 radius_scale = 1400.0 / 600.0;
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].x *= radius_scale;
+		points[index].z *= radius_scale;
+		points[index].fallback_speed_limit = 80.0;
+	}
+	struct UNIT_REQUEST request = {0};
+	request.cursor = 3U;
+	request.unit = vehicle();
+	request.unit.x = points[request.cursor].x;
+	request.unit.z = points[request.cursor].z;
+	request.unit.yaw = 3.0 * TEST_PI / 16.0;
+	request.unit.speed = 150.0;
+	request.player.x = 1000000000.0;
+	request.native_preview = 1U;
+	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
+	struct UNIT_ROLLOUT flat, banked, mirrored, fallback;
+	assert(
+		unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U, &flat));
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].banked_corner = 1U;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&banked));
+	/* The native bank contributes steering before the tires reach their grip
+	 * limit. A flat-road envelope must not cap a certified banked bend. */
+	assert(banked.plan.target_speed > flat.plan.target_speed);
+	assert(banked.plan.target_speed <= limits.max_speed);
+	request.native_preview = 0U;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&fallback));
+	assert(fallback.plan.target_speed <= 80.0);
+	request.native_preview = 1U;
+	request.unit.x = -request.unit.x;
+	request.unit.yaw = -request.unit.yaw;
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].x = -points[index].x;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&mirrored));
+	assert(fabs(banked.plan.target_speed - mirrored.plan.target_speed) < 0.01);
+	assert(fabs(banked.score - mirrored.score) < 0.01);
+}
+
+static void test_clearance_preserves_ordinary_planning(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	corner(points, 1U);
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	limits.wheelbase = 62.0;
+	struct UNIT_REQUEST request = {0};
+	request.cursor = 3U;
+	request.unit = vehicle();
+	request.unit.x = points[request.cursor].x;
+	request.unit.z = points[request.cursor].z;
+	request.unit.yaw = 3.0 * TEST_PI / 16.0;
+	request.unit.speed = 70.0;
+	request.player.x = 1000000000.0;
+	request.native_preview = 1U;
+	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
+	struct UNIT_ROLLOUT ordinary, clearance, maneuver;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&ordinary));
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].stunt = UNIT_STUNT_PROTECTED;
+		points[index].clearance_only = 1U;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&clearance));
+	/* Requiring a native support/roof check does not remove curvature or
+	 * braking constraints, nor truncate the ordinary driving horizon. */
+	assert(fabs(ordinary.plan.target_speed - clearance.plan.target_speed) < 0.01);
+	assert(fabs(ordinary.score - clearance.score) < 0.01);
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].clearance_only = 0U;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&maneuver));
+	assert(maneuver.plan.target_speed > clearance.plan.target_speed);
+}
+
+static void test_clearance_crest_passing(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].y = 450.0;
+		points[index].half_width = 120.0;
+		points[index].height_unspecified = 1U;
+		if (index >= 2U && index < 8U) {
+			points[index].align_center = UNIT_ALIGN_CLEARANCE;
+		}
+		if (index >= 4U && index < 8U) {
+			points[index].stunt = UNIT_STUNT_PROTECTED;
+			points[index].clearance_only = 1U;
+			points[index].fallback_speed_limit = 105.0;
+		}
+	}
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	limits.wheelbase = 62.0;
+	limits.half_width = 19.0;
+	limits.half_length = 56.0;
+	struct UNIT_REQUEST request = {0};
+	request.cursor = 2U;
+	request.unit = vehicle();
+	request.unit.y = request.player.y = points[request.cursor].y + 8.0;
+	request.unit.z = points[request.cursor].z;
+	request.unit.speed = 70.0;
+	request.unit.half_width = request.player.half_width = limits.half_width;
+	request.unit.half_length = request.player.half_length = limits.half_length;
+	request.player.x = -36.0;
+	request.player.z = points[5U].z;
+	request.native_preview = 1U;
+	struct UNIT_PROFILE center = {0.0, 0.0, 1.0};
+	struct UNIT_PROFILE passing = {-0.8, 0.0, 1.0};
+	struct UNIT_ROLLOUT blocked, clear;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &center, &request, 0U,
+								&blocked));
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
+								&clear));
+	/* A parked human ahead of a clearance-only crest blocks the center but
+	 * leaves a physical passing lane. Native certification must be able to
+	 * evaluate that lane instead of retrying a centered stop indefinitely. */
+	assert(blocked.plan.brake == UNIT_PLAN_BRAKE_COLLISION);
+	assert(!clear.plan.brake && clear.plan.target_speed > 0.0);
+	assert(clear.plan.target_x > blocked.plan.target_x);
+	assert(clear.score < blocked.score);
+	/* An absent human preserves the default centered recipe. Permission is
+	 * recomputed per request rather than retained from the preceding rollout. */
+	request.player.x = 1000000000.0;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
+								&clear));
+	assert(fabs(clear.plan.target_x) < 0.01);
+	request.player.x = -36.0;
+	/* A known road on another level does not obstruct this corridor. */
+	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
+		points[index].height_unspecified = 0U;
+	}
+	request.player.y += 500.0;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
+								&clear));
+	assert(fabs(clear.plan.target_x) < 0.01);
+	request.player.y = request.unit.y;
+	/* Genuine maneuver approach centering still takes precedence. */
+	for (legacy_u32 index = 2U; index < 8U; index++) {
+		points[index].align_center |= UNIT_ALIGN_MANEUVER;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
+								&clear));
+	assert(fabs(clear.plan.target_x) < 0.01);
+	for (legacy_u32 index = 2U; index < 8U; index++) {
+		points[index].align_center = UNIT_ALIGN_CLEARANCE | UNIT_ALIGN_GATE;
+	}
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
+								&clear));
+	assert(fabs(clear.plan.target_x) < 0.01);
+}
+
 static void test_player_forecasts(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -904,6 +1069,9 @@ legacy_int main(void)
 	test_preparation_and_copy();
 	test_interrupted_preparation();
 	test_curvature_and_ice();
+	test_banked_corner_speed();
+	test_clearance_preserves_ordinary_planning();
+	test_clearance_crest_passing();
 	test_player_forecasts();
 	test_separating_player_margin();
 	test_validation();

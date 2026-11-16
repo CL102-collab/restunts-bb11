@@ -1174,6 +1174,37 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             --verify-replay --require-finish --require-clean --require-no-stalls)
         set_tests_properties(unit-race-${unit_regression_track}-no-stalls PROPERTIES RUN_SERIAL TRUE)
     endforeach()
+    foreach(unit_classic_track helens joes)
+        list(APPEND unit_race_tests unit-race-${unit_classic_track}-manual)
+        add_test(NAME unit-race-${unit_classic_track}-manual COMMAND test-unit-race
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+            "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/${unit_classic_track}.trk" 7
+            --prepare-ms 10000 --planner-sync --manual
+            --verify-replay --require-finish --require-clean --require-no-stalls)
+        set_tests_properties(unit-race-${unit_classic_track}-manual PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
+    list(APPEND unit_race_tests unit-race-skids-manual-faster)
+    add_test(NAME unit-race-skids-manual-faster COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-opponent.py"
+        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk"
+        --prepare-ms 10000 --planner-sync --manual --require-faster)
+    set_tests_properties(unit-race-skids-manual-faster PROPERTIES RUN_SERIAL TRUE)
+    foreach(unit_skids_planner threaded sync)
+        set(unit_skids_planner_args --planner-yield-ms 2)
+        if(unit_skids_planner STREQUAL "sync")
+            set(unit_skids_planner_args --planner-sync)
+        endif()
+        list(APPEND unit_race_tests unit-race-skids-short-launch-${unit_skids_planner})
+        add_test(NAME unit-race-skids-short-launch-${unit_skids_planner} COMMAND test-unit-race
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts"
+            "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk" 7
+            --prepare-ms 10000 --manual --frame-rate 20 --frames 6000 ${unit_skids_planner_args}
+            --human grid-then-park --human-drive-frames 2
+            --verify-replay --require-finish --require-clean)
+        set_tests_properties(unit-race-skids-short-launch-${unit_skids_planner}
+            PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
     add_test(NAME unit-race-prepared-worker COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
         --prepare-ms 10000 --planner-yield-ms 2 --frames 180 --human accelerating

@@ -21,7 +21,9 @@ enum UNIT_ROUTE_ALIGNMENT {
 	/* Fix this gate's samples while leaving neighboring passing lines open. */
 	UNIT_ALIGN_GATE = 2,
 	/* Conservative centering for unrestricted live guidance. */
-	UNIT_ALIGN_FALLBACK = 4
+	UNIT_ALIGN_FALLBACK = 4,
+	/* Center clearance checks unless a forecast obstruction requires passing. */
+	UNIT_ALIGN_CLEARANCE = 8
 };
 
 struct UNIT_ROUTE_POINT {
@@ -29,6 +31,9 @@ struct UNIT_ROUTE_POINT {
 	legacy_s16 route_index;
 	legacy_u16 route_point;
 	legacy_u8 surface, shortcut_safe, height_unspecified, stunt;
+	legacy_u8 banked_corner; /* Native thirty-degree bank steering assistance. */
+	/* Certify support and obstacles while retaining ordinary planning. */
+	legacy_u8 clearance_only;
 	legacy_u8 align_center; /* UNIT_ROUTE_ALIGNMENT flags. */
 	/* Optional unrestricted-live limit; native previews and OWOOT ignore it. */
 	legacy_f64 fallback_speed_limit;

@@ -66,6 +66,10 @@
 #define UNIT_STUNT_LOOKAHEAD_SCALE 1.3
 #define UNIT_STUNT_LOOKAHEAD_MAXIMUM 260.0
 #define UNIT_STUNT_LOOKAHEAD_SAMPLES 16U
+/* Original banked bends support a thirty-degree tilt. Native player grip adds
+ * bank/5 to the steering response after evaluating tire demand. */
+#define UNIT_BANKED_ROAD_ANGLE 0.52359877559829887308
+#define UNIT_NATIVE_BANK_TILT_DIVISOR 5.0
 
 struct UNIT_LOCAL_POINT {
 	legacy_f64 x, y, z, width, speed, minimum_speed, distance;
@@ -94,6 +98,7 @@ void unit_planner_profile(legacy_u32 *seed, struct UNIT_PROFILE *profile)
 	 * is evaluated only by live rollouts, so it must not randomize an unscored
 	 * actuator horizon and inadvertently change a validated approach. */
 	profile->lookahead = UNIT_PROFILE_LOOKAHEAD;
+	profile->clearance_passing = 0;
 }
 
 static legacy_f64 distance(legacy_f64 x, legacy_f64 z)
@@ -123,6 +128,11 @@ static legacy_f64 available_width(const struct UNIT_ROUTE_POINT *point,
 	return width;
 }
 
+static legacy_int ordered_stunt(const struct UNIT_ROUTE_POINT *point)
+{
+	return point->stunt != UNIT_STUNT_NONE && !point->clearance_only;
+}
+
 static void route_window(const struct UNIT_ROUTE_POINT *points, legacy_u32 count, legacy_u32 index,
 						 const struct UNIT_CAR_LIMITS *limits, legacy_u32 *before,
 						 legacy_u32 *after)
@@ -135,7 +145,7 @@ static void route_window(const struct UNIT_ROUTE_POINT *points, legacy_u32 count
 		(*before)--;
 		legacy_f64 dx = points[index].x - points[*before].x;
 		legacy_f64 dz = points[index].z - points[*before].z;
-		if (dx * dx + dz * dz >= squared || points[*before].stunt != UNIT_STUNT_NONE) {
+		if (dx * dx + dz * dz >= squared || ordered_stunt(&points[*before])) {
 			break;
 		}
 	}
@@ -144,15 +154,19 @@ static void route_window(const struct UNIT_ROUTE_POINT *points, legacy_u32 count
 		(*after)++;
 		legacy_f64 dx = points[*after].x - points[index].x;
 		legacy_f64 dz = points[*after].z - points[index].z;
-		if (dx * dx + dz * dz >= squared || points[*after].stunt != UNIT_STUNT_NONE) {
+		if (dx * dx + dz * dz >= squared || ordered_stunt(&points[*after])) {
 			break;
 		}
 	}
 }
 
-static legacy_u8 route_alignment(const struct UNIT_ROUTE_POINT *point, legacy_u8 original_policy)
+static legacy_u8 route_alignment(const struct UNIT_ROUTE_POINT *point, legacy_u8 original_policy,
+								 legacy_u8 clearance_passing)
 {
 	legacy_u8 mask = UNIT_ALIGN_MANEUVER | UNIT_ALIGN_GATE;
+	if (!clearance_passing) {
+		mask |= UNIT_ALIGN_CLEARANCE;
+	}
 	if (!original_policy) {
 		mask |= UNIT_ALIGN_FALLBACK;
 	}
@@ -178,8 +192,8 @@ static void route_position(const struct UNIT_ROUTE_POINT *points, legacy_u32 cou
 	legacy_f64 lane =
 		unit_planner_clamp(profile->lane + apex * profile->apex, -UNIT_SHORTCUT_MAX_LANE_FRACTION,
 						   UNIT_SHORTCUT_MAX_LANE_FRACTION);
-	if (points[index].stunt != UNIT_STUNT_NONE ||
-		route_alignment(&points[index], original_policy)) {
+	if (ordered_stunt(&points[index]) ||
+		route_alignment(&points[index], original_policy, profile->clearance_passing)) {
 		lane = 0.0;
 	}
 	legacy_f64 offset = available_width(&points[index], limits, owoot) * lane;
@@ -215,8 +229,8 @@ static legacy_f64 route_limit(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 	if (!original_policy && points[index].fallback_speed_limit > 0.0) {
 		result = fmin(result, points[index].fallback_speed_limit);
 	}
-	if (before < index && after > index && points[before].stunt == UNIT_STUNT_NONE &&
-		points[index].stunt == UNIT_STUNT_NONE && points[after].stunt == UNIT_STUNT_NONE) {
+	if (before < index && after > index && !ordered_stunt(&points[before]) &&
+		!ordered_stunt(&points[index]) && !ordered_stunt(&points[after])) {
 		legacy_f64 ax, az, bx, bz, cx, cz;
 		route_position(points, count, before, limits, owoot, profile, original_policy, &ax, &az);
 		route_position(points, count, index, limits, owoot, profile, original_policy, &bx, &bz);
@@ -230,12 +244,21 @@ static legacy_f64 route_limit(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 			legacy_f64 curvature = 2.0 * cross / denominator;
 			legacy_f64 grip =
 				limits->lateral_acceleration * line_grip(&points[index], limits, owoot, bx, bz);
+			if (points[index].banked_corner && original_policy) {
+				legacy_f64 wheelbase =
+					limits->wheelbase > 0.0 ? limits->wheelbase : UNIT_DEFAULT_WHEELBASE;
+				legacy_f64 demand = atan(curvature * wheelbase);
+				demand = fmax(UNIT_NATIVE_ANGLE_RADIANS,
+							  demand - UNIT_BANKED_ROAD_ANGLE / (UNIT_NATIVE_BANK_TILT_DIVISOR *
+																 UNIT_NATIVE_FRONT_STEERING_SCALE));
+				curvature = tan(demand) / wheelbase;
+			}
 			result = fmin(
 				result, sqrt(grip * UNIT_GRIP_RESERVE / (curvature * UNIT_PLANNER_WORLD_PER_MPH)));
 		}
 	}
-	if (before < index && after > index && points[before].stunt == UNIT_STUNT_NONE &&
-		points[index].stunt == UNIT_STUNT_NONE && points[after].stunt == UNIT_STUNT_NONE &&
+	if (before < index && after > index && !ordered_stunt(&points[before]) &&
+		!ordered_stunt(&points[index]) && !ordered_stunt(&points[after]) &&
 		!points[before].height_unspecified && !points[index].height_unspecified &&
 		!points[after].height_unspecified) {
 		legacy_f64 first =
@@ -276,6 +299,7 @@ void unit_planner_evaluation_begin(struct UNIT_EVALUATION *evaluation, legacy_u3
 								   const struct UNIT_PROFILE *profile)
 {
 	evaluation->profile = *profile;
+	evaluation->profile.clearance_passing = 0;
 	evaluation->count = count;
 	evaluation->cursor = 0U;
 	evaluation->phase = 0U;
@@ -377,7 +401,7 @@ static legacy_u32 local_route(const struct UNIT_ROUTE_POINT *points, legacy_u32 
 														  local[index].z - local[index - 1U].z)
 				  : 0.0;
 		previous = source;
-		if (index && points[source].stunt != UNIT_STUNT_NONE) {
+		if (index && ordered_stunt(&points[source])) {
 			break;
 		}
 	}
@@ -508,6 +532,63 @@ static legacy_int player_overlap(const struct UNIT_REQUEST *request, legacy_f64 
 	return player_margin_overlap(request, x, y, z, yaw, time, UNIT_COLLISION_MARGIN);
 }
 
+/* The rollout may release a clearance preference only for a human intersecting
+ * the centered route corridor. Mandatory maneuver/gate alignment stays hard. */
+static legacy_u8 clearance_corridor_blocked(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
+											const struct UNIT_CAR_LIMITS *limits,
+											const struct UNIT_REQUEST *request)
+{
+	legacy_f64 speed =
+		fmax(UNIT_MIN_SPEED,
+			 fmin(limits->max_speed,
+				  request->unit.speed + limits->acceleration * UNIT_ROLLOUT_SECONDS * 0.5));
+	legacy_f64 reach = speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_ROLLOUT_SECONDS +
+					   UNIT_MAX_LOOKAHEAD + request->unit.half_length + request->player.half_length;
+	if (distance(request->unit.x - request->player.x, request->unit.z - request->player.z) >
+		reach) {
+		return 0;
+	}
+	legacy_u32 first = request->cursor ? request->cursor - 1U : 0U;
+	legacy_f64 traveled = 0.0, ride = request->unit.y - points[request->cursor].y;
+	for (legacy_u32 index = first;
+		 index + 1U < count && traveled <= reach && index - first < UNIT_LOCAL_SAMPLE_SCAN_LIMIT;
+		 index++) {
+		const struct UNIT_ROUTE_POINT *a = &points[index], *b = &points[index + 1U];
+		if (ordered_stunt(a) || ordered_stunt(b)) {
+			break;
+		}
+		legacy_f64 dx = b->x - a->x, dz = b->z - a->z, span = distance(dx, dz);
+		if (span <= UNIT_MIN_DISTANCE) {
+			continue;
+		}
+		legacy_f64 time = fmin(UNIT_ROLLOUT_SECONDS,
+							   (traveled + span * 0.5) / (speed * UNIT_PLANNER_WORLD_PER_MPH));
+		legacy_f64 px = request->player.x + request->player.vx * time;
+		legacy_f64 pz = request->player.z + request->player.vz * time;
+		legacy_f64 along = ((px - a->x) * dx + (pz - a->z) * dz) / span;
+		legacy_f64 angle = request->player.yaw - atan2(dx, dz);
+		legacy_f64 length = request->unit.half_length + UNIT_COLLISION_MARGIN +
+							unit_collision_projected_extent(request->player.half_length,
+															request->player.half_width, angle);
+		legacy_f64 width = request->unit.half_width + UNIT_COLLISION_MARGIN +
+						   unit_collision_projected_extent(request->player.half_width,
+														   request->player.half_length, angle);
+		legacy_f64 lateral = fabs((px - a->x) * dz - (pz - a->z) * dx) / span;
+		if (along >= -length && along <= span + length && lateral < width) {
+			legacy_f64 fraction = unit_planner_clamp(along / span, 0.0, 1.0);
+			legacy_f64 height = a->y + (b->y - a->y) * fraction + ride;
+			legacy_f64 player_y = forecast_height(&request->player, time);
+			if (a->height_unspecified || b->height_unspecified ||
+				(height >= fmin(request->player.y, player_y) - UNIT_COLLISION_HEIGHT &&
+				 height <= fmax(request->player.y, player_y) + UNIT_COLLISION_HEIGHT)) {
+				return 1;
+			}
+		}
+		traveled += span;
+	}
+	return 0;
+}
+
 static void protected_target(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 							 const struct UNIT_REQUEST *request, struct UNIT_PLAN *plan)
 {
@@ -613,7 +694,7 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 	 * wheel/jump policy rather than adopting unvalidated launch changes. */
 	legacy_u8 original_policy = request->native_preview || owoot;
 	owoot = owoot || request->unit.shortcuts_forbidden;
-	if (current->stunt != UNIT_STUNT_NONE) {
+	if (ordered_stunt(current)) {
 		/* Loops and rolled launches overlap themselves in a ground projection.
 		 * Preserve the ordered three-dimensional native guide rather than
 		 * interpreting that projection as a hairpin or selecting a later floor. */
@@ -654,6 +735,7 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		return 1;
 	}
 	struct UNIT_PROFILE selected = *profile;
+	selected.clearance_passing = clearance_corridor_blocked(points, count, limits, request);
 	legacy_f64 speed_scale = 1.0;
 	legacy_u8 crawl = candidate == UNIT_PLANNER_CRAWL_CANDIDATE;
 	if (crawl) {
@@ -666,8 +748,9 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		speed_scale = variant == 0U ? 1.0 : variant == 1U ? 0.8 : variant == 2U ? 0.5 : 0.0;
 	}
 	struct UNIT_LOCAL_POINT local[UNIT_PLANNER_LOCAL_POINTS];
-	legacy_u8 alignment = route_alignment(current, original_policy);
-	if (request->unit.recovering || (alignment & (UNIT_ALIGN_MANEUVER | UNIT_ALIGN_FALLBACK))) {
+	legacy_u8 alignment = route_alignment(current, original_policy, selected.clearance_passing);
+	if (request->unit.recovering ||
+		(alignment & (UNIT_ALIGN_MANEUVER | UNIT_ALIGN_FALLBACK | UNIT_ALIGN_CLEARANCE))) {
 		selected.lane = 0.0;
 		selected.apex = 0.0;
 		selected.lookahead = 1.0;
@@ -770,6 +853,20 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 									   response_rate * UNIT_ROLLOUT_STEP);
 		legacy_f64 response =
 			native_grip_response(limits, wheelbase, grip_ratio, steering, &speed, &cost);
+		if (source->banked_corner) {
+			legacy_u32 bank_before, bank_after;
+			route_window(points, count, local[cursor].source, limits, &bank_before, &bank_after);
+			legacy_f64 ax = source->x - points[bank_before].x;
+			legacy_f64 az = source->z - points[bank_before].z;
+			legacy_f64 bx = points[bank_after].x - source->x;
+			legacy_f64 bz = points[bank_after].z - source->z;
+			legacy_f64 cross = ax * bz - az * bx;
+			if (fabs(cross) > UNIT_MIN_DISTANCE) {
+				response -= copysign(UNIT_BANKED_ROAD_ANGLE / (UNIT_NATIVE_BANK_TILT_DIVISOR *
+															   UNIT_NATIVE_FRONT_STEERING_SCALE),
+									 cross);
+			}
+		}
 		legacy_f64 rate = speed * UNIT_PLANNER_WORLD_PER_MPH * tan(response) / wheelbase;
 		yaw += rate * UNIT_ROLLOUT_STEP;
 		x += sin(yaw) * speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_ROLLOUT_STEP;
@@ -801,7 +898,7 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 			first_collision = fmin(first_collision, time);
 			cost += UNIT_COLLISION_COST * (UNIT_ROLLOUT_SECONDS - time + UNIT_ROLLOUT_STEP);
 		}
-		if (points[local[local_count - 1U].source].stunt != UNIT_STUNT_NONE &&
+		if (ordered_stunt(&points[local[local_count - 1U].source]) &&
 			progress >= local[local_count - 1U].distance - UNIT_STUNT_ENTRY_DISTANCE) {
 			const struct UNIT_LOCAL_POINT *entry = &local[local_count - 1U];
 			legacy_f64 remaining = fmax(0.0, entry->distance - progress);

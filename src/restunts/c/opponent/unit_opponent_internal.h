@@ -14,6 +14,8 @@
 #define UNIT_ROUTE_SUBTYPE_MASK 15U
 #define UNIT_ROUTE_INITIAL_CAPACITY 128U
 #define UNIT_ROUTE_MAXIMUM_POINTS (EXTENDED_TRACK_ROUTE_CAPACITY * 128U)
+#define UNIT_NATIVE_APPROACH_TILES 3.0
+#define UNIT_NATIVE_RAMP_APPROACH_TILES 4.0
 
 struct UNIT_EXIT_PROFILE {
 	legacy_f64 fraction, speed;
@@ -30,6 +32,7 @@ struct UNIT_ROUTE {
 	legacy_u32 verified_count;
 	legacy_f64 wheelbase;
 	struct UNIT_CAR_LIMITS limits;
+	legacy_u8 classic_track;
 };
 
 legacy_int unit_route_build(struct UNIT_ROUTE *route);

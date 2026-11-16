@@ -26,8 +26,6 @@
 #define UNIT_PILOT_CHUNK_NS 4000000ULL
 #define UNIT_PILOT_CONTINUATION_CHUNKS 2U
 #define UNIT_PILOT_CONTINUATION_NS 8000000ULL
-#define UNIT_PILOT_APPROACH_TILES 3.0
-#define UNIT_PILOT_RAMP_APPROACH_TILES 4.0
 #define UNIT_PILOT_STABLE_TICKS 4U
 #define UNIT_PILOT_TRIAL_SECONDS 120U
 #define UNIT_PILOT_LAP_SECONDS 1800U
@@ -160,7 +158,8 @@ legacy_int unit_pilot_begin(struct UNIT_PLANNER *source)
 
 static legacy_f64 unit_pilot_approach_distance(legacy_u8 stunt)
 {
-	return (stunt == UNIT_STUNT_RAMP ? UNIT_PILOT_RAMP_APPROACH_TILES : UNIT_PILOT_APPROACH_TILES) *
+	return (stunt == UNIT_STUNT_RAMP ? UNIT_NATIVE_RAMP_APPROACH_TILES
+									 : UNIT_NATIVE_APPROACH_TILES) *
 		   TRACK_TILE_SIZE;
 }
 
@@ -173,17 +172,28 @@ static legacy_u32 unit_pilot_group_end(legacy_u32 last)
 		const struct UNIT_ROUTE_POINT *a = &route->points[next - 1U];
 		const struct UNIT_ROUTE_POINT *b = &route->points[next];
 		gap += hypot(hypot(a->x - b->x, a->z - b->z), a->y - b->y);
-		if (gap > UNIT_PILOT_RAMP_APPROACH_TILES * TRACK_TILE_SIZE) {
+		if (gap > UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE) {
 			break;
 		}
 		if (b->stunt == UNIT_STUNT_NONE || gap > unit_pilot_approach_distance(b->stunt)) {
 			continue;
 		}
 		while (next + 1U < route->count && route->points[next + 1U].route_index == b->route_index) {
+			if (b->clearance_only) {
+				const struct UNIT_ROUTE_POINT *previous = &route->points[next];
+				const struct UNIT_ROUTE_POINT *following = &route->points[next + 1U];
+				gap += hypot(hypot(following->x - previous->x, following->z - previous->z),
+							 following->y - previous->y);
+			}
 			next++;
 		}
 		last = next;
-		gap = 0.0;
+		/* Certify a connected crest with this maneuver's receiving window,
+		 * without letting it bridge otherwise independent later stunts into
+		 * the same coupled launch search. */
+		if (!b->clearance_only) {
+			gap = 0.0;
+		}
 	}
 	return last;
 }
@@ -240,7 +250,7 @@ static void unit_pilot_find_stunt(void)
 		const struct UNIT_ROUTE_POINT *a = &route->points[next - 1U];
 		const struct UNIT_ROUTE_POINT *b = &route->points[next];
 		ahead += hypot(hypot(a->x - b->x, a->z - b->z), a->y - b->y);
-		if (ahead >= UNIT_PILOT_RAMP_APPROACH_TILES * TRACK_TILE_SIZE) {
+		if (ahead >= UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE) {
 			break;
 		}
 		if (b->stunt != UNIT_STUNT_NONE && a->route_index != b->route_index) {
@@ -292,7 +302,7 @@ static legacy_int unit_pilot_reached_receiver(legacy_u32 cursor)
 	}
 	for (legacy_u32 point = unit_pilot_state->last + 1U; point <= cursor && point < route->count;
 		 point++) {
-		if (route->points[point].stunt != UNIT_STUNT_NONE) {
+		if (route->points[point].stunt != UNIT_STUNT_NONE && !route->points[point].clearance_only) {
 			return 0;
 		}
 		if (route->points[point].route_index == observed->route.previous_route) {
@@ -545,8 +555,9 @@ static void unit_pilot_tick(void)
 	cursor = unit_route_cursor(unit_pilot_state->route, &state.opponentstate);
 	if (unit_pilot_state->trial && cursor > unit_pilot_state->last &&
 		cursor < unit_pilot_state->route->count &&
-		unit_pilot_state->route->points[cursor].stunt == UNIT_STUNT_NONE && unit_pilot_grounded() &&
-		unit_pilot_reached_receiver(cursor)) {
+		(unit_pilot_state->route->points[cursor].stunt == UNIT_STUNT_NONE ||
+		 unit_pilot_state->route->points[cursor].clearance_only) &&
+		unit_pilot_grounded() && unit_pilot_reached_receiver(cursor)) {
 		if (++unit_pilot_state->stable_ticks >= UNIT_PILOT_STABLE_TICKS) {
 			unit_pilot_accept_trial();
 		}
@@ -683,7 +694,7 @@ legacy_int unit_pilot_next_stunt_with_lead(const struct CARSTATE *car, legacy_s1
 	 * large track when a cached command no longer matches and no stunt is near. */
 	for (legacy_u32 index = cursor;
 		 index < route->finish_begin &&
-		 approach <= UNIT_PILOT_RAMP_APPROACH_TILES * TRACK_TILE_SIZE + lead;
+		 approach <= UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE + lead;
 		 index++) {
 		if (route->points[index].stunt != UNIT_STUNT_NONE) {
 			if (approach > unit_pilot_approach_distance(route->points[index].stunt) + lead) {
