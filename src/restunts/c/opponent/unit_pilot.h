@@ -4,6 +4,8 @@
 #include "unit_planner.h"
 
 #define UNIT_PILOT_CONTINUATION_TICKS 128U
+/* Fixed future handoff span for a stopped native recheck, in race ticks. */
+#define UNIT_PILOT_WAIT_TICKS 32U
 
 struct CARSTATE;
 struct UNIT_PILOT_PULSE_DIAGNOSTIC;

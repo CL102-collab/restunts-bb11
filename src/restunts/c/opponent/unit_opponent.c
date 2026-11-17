@@ -44,7 +44,6 @@
 #define UNIT_RECHECK_BRAKING_RESERVE 0.5
 #define UNIT_RECHECK_STOP_MARGIN_TILES 0.5
 #define UNIT_RECHECK_MAXIMUM_LEAD_TILES 16.0
-#define UNIT_RECHECK_SETTLED_TICKS 4U
 #define UNIT_RECHECK_RETRY_TICKS 20U
 #define UNIT_RECHECK_CHUNKS 8U
 #define UNIT_RECHECK_TIME_NS 30000000ULL
@@ -68,6 +67,7 @@ static legacy_u32 unit_recheck_retry;
 static legacy_f64 unit_recheck_lead;
 static legacy_u64 unit_applied_worker_commands;
 static legacy_u8 unit_current_from_worker;
+static struct UNIT_PLANNING_HOLD unit_planning_hold = {.piece = ROUTE_INDEX_NONE};
 static struct UNIT_LEARNING_KEY unit_learning_key;
 static struct UNIT_LEARNING_DATA unit_learning_data;
 static struct UNIT_LEARNING_STATS unit_learning_stats;
@@ -125,6 +125,13 @@ void unit_opponent_learning_stats(struct UNIT_LEARNING_STATS *stats)
 	}
 }
 
+void unit_opponent_planning_hold(struct UNIT_PLANNING_HOLD *hold)
+{
+	if (hold) {
+		*hold = unit_planning_hold;
+	}
+}
+
 legacy_int unit_opponent_is_selected(void)
 {
 	return (legacy_u8)gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE;
@@ -147,6 +154,7 @@ void unit_opponent_stop(void)
 	unit_recheck_lead = 0.0;
 	unit_applied_worker_commands = 0;
 	unit_current_from_worker = 0;
+	unit_planning_hold = (struct UNIT_PLANNING_HOLD){.piece = ROUTE_INDEX_NONE};
 	unit_profiles_reset();
 }
 
@@ -747,7 +755,8 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 							car->car_rev_speed == CAR_SPEED_STOPPED && !car->car_changing_gear &&
 							car->car_current_gear <= UNIT_FIRST_GEAR;
 		unit_recheck_settled = stable ? unit_recheck_settled + 1U : 0;
-		if (unit_recheck_settled >= UNIT_RECHECK_SETTLED_TICKS && frame >= unit_recheck_retry) {
+		if (unit_recheck_settled >= UNIT_OPPONENT_RECHECK_SETTLED_TICKS &&
+			frame >= unit_recheck_retry) {
 			(void)unit_planner_pause_live(unit_planner);
 			unit_recheck_pending = unit_pilot_recheck_begin(unit_planner, frame, piece) != 0;
 			unit_recheck_settled = 0;
@@ -762,11 +771,13 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		unit_hold_command(command);
 	}
 	command->input = INPUT_BRAKE_FLAG | unit_controls_manual_shift(car, &simd_opponent);
+	unit_planning_hold = (struct UNIT_PLANNING_HOLD){cursor, piece, 1U};
 	return 1;
 }
 
 void unit_opponent_tick(void)
 {
+	unit_planning_hold = (struct UNIT_PLANNING_HOLD){.piece = ROUTE_INDEX_NONE};
 	legacy_u32 frame =
 		extended_replay_is_active() ? extended_replay_frame() : (legacy_u16)state.game_frame;
 	if (frame) {

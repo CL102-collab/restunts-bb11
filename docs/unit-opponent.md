@@ -180,7 +180,10 @@ from the real grid and brakes to a stop, car and transmission variants,
 checkpoint rules, and planning isolation. Full-lap regressions for Branches,
 Keukenhof, Ninh Binh, and DEFAULT start the human from the real grid, then brake
 it to a stop. They require clean finishes, deterministic replays, and no prolonged
-low-speed waits away from the human. The preserved HELENS, JOES, and SKIDS tracks
+low-speed waits away from the human. Bounded native planning holds receive a
+fixed tick allowance, renewed only after forward route and physical progress.
+Raw stopped time and unexplained stalls are reported separately; repeated holds
+cannot conceal a stall. The preserved HELENS, JOES, and SKIDS tracks
 also exercise manual PMIN driving with OWOOT off. Their regressions require clean
 finishes and deterministic replays; SKIDS additionally compares UNIT's time with
 Skid's native lap and requires UNIT to be faster.

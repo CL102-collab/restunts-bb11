@@ -68,8 +68,136 @@
 #define UNIT_BENCHMARK_STALL_SPEED 3.0
 #define UNIT_BENCHMARK_STALL_START_SECONDS 2U
 #define UNIT_BENCHMARK_STALL_SECONDS 1U
+#define UNIT_BENCHMARK_PLANNING_HOLD_TICKS                                                         \
+	(UNIT_PILOT_WAIT_TICKS + UNIT_OPPONENT_RECHECK_SETTLED_TICKS)
+#define UNIT_BENCHMARK_STALL_PROGRESS_LENGTHS 2.0
+#define UNIT_BENCHMARK_STALL_TEST_DISTANCE 100.0
 #define UNIT_BENCHMARK_FINISH_TEST_OFFSET 256.0
 #define UNIT_BENCHMARK_REPLAY_RULE_ARGUMENTS 8U
+
+struct UNIT_BENCHMARK_STALL {
+	struct VECTORLONG anchor;
+	legacy_u32 credited_cursor, credit_used, planning_frames;
+	legacy_u32 raw_frames, max_raw_frames, unexplained_frames, max_unexplained_frames;
+	legacy_u8 have_credit;
+};
+
+static void benchmark_stall_observe(struct UNIT_BENCHMARK_STALL *stall, legacy_u8 eligible,
+									legacy_u8 stopped, const struct UNIT_PLANNING_HOLD *hold,
+									const struct VECTORLONG *position, legacy_f64 progress_distance)
+{
+	if (!eligible || !stopped) {
+		stall->raw_frames = stall->unexplained_frames = 0;
+		return;
+	}
+	stall->raw_frames++;
+	if (stall->raw_frames > stall->max_raw_frames) {
+		stall->max_raw_frames = stall->raw_frames;
+	}
+	legacy_f64 dx = ((legacy_f64)position->lx - stall->anchor.lx) / UNIT_BENCHMARK_WORLD_SCALE;
+	legacy_f64 dy = ((legacy_f64)position->ly - stall->anchor.ly) / UNIT_BENCHMARK_WORLD_SCALE;
+	legacy_f64 dz = ((legacy_f64)position->lz - stall->anchor.lz) / UNIT_BENCHMARK_WORLD_SCALE;
+	if (hold->active && (!stall->have_credit || (hold->route_cursor > stall->credited_cursor &&
+												 hypot(hypot(dx, dy), dz) >= progress_distance))) {
+		/* Toggling the hold, retrying or changing its target cannot replenish
+		 * the allowance. A later guide cursor also needs actual body travel. */
+		stall->anchor = *position;
+		stall->credited_cursor = hold->route_cursor;
+		stall->credit_used = 0;
+		stall->have_credit = 1;
+	}
+	if (hold->active && stall->credit_used < UNIT_BENCHMARK_PLANNING_HOLD_TICKS) {
+		stall->credit_used++;
+		stall->planning_frames++;
+		/* A legitimate hold pauses, rather than erases, an unexplained stop. */
+		return;
+	}
+	stall->unexplained_frames++;
+	if (stall->unexplained_frames > stall->max_unexplained_frames) {
+		stall->max_unexplained_frames = stall->unexplained_frames;
+	}
+}
+
+static legacy_int benchmark_stall_failed(const struct UNIT_BENCHMARK_STALL *stall,
+										 legacy_u16 frame_rate)
+{
+	return stall->max_unexplained_frames >= UNIT_BENCHMARK_STALL_SECONDS * frame_rate;
+}
+
+static void benchmark_stall_test_ticks(struct UNIT_BENCHMARK_STALL *stall,
+									   const struct UNIT_PLANNING_HOLD *hold,
+									   const struct VECTORLONG *position, legacy_u32 ticks)
+{
+	for (legacy_u32 tick = 0; tick < ticks; tick++) {
+		benchmark_stall_observe(stall, 1, 1, hold, position, UNIT_BENCHMARK_STALL_TEST_DISTANCE);
+	}
+}
+
+static void test_stall_classification(void)
+{
+	for (legacy_u16 frame_rate = GAME_FRAME_RATE_LOW; frame_rate <= GAME_FRAME_RATE_NORMAL;
+		 frame_rate += GAME_FRAME_RATE_LOW) {
+		legacy_u32 limit = UNIT_BENCHMARK_STALL_SECONDS * frame_rate;
+		struct UNIT_BENCHMARK_STALL stall = {0};
+		struct UNIT_PLANNING_HOLD hold = {.piece = 1};
+		struct VECTORLONG position = {0};
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit);
+		assert(benchmark_stall_failed(&stall, frame_rate) && stall.planning_frames == 0);
+
+		stall = (struct UNIT_BENCHMARK_STALL){0};
+		hold.active = 1;
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		assert(!benchmark_stall_failed(&stall, frame_rate));
+		assert(stall.planning_frames == UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		assert(stall.max_raw_frames == UNIT_BENCHMARK_PLANNING_HOLD_TICKS &&
+			   stall.max_unexplained_frames == 0);
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit);
+		assert(benchmark_stall_failed(&stall, frame_rate));
+		assert(stall.max_raw_frames == UNIT_BENCHMARK_PLANNING_HOLD_TICKS + limit &&
+			   stall.max_unexplained_frames == limit);
+
+		/* A retry after apparent motion still shares the spent allowance.
+		 * Neither a new target nor a cursor change at the same position renews it. */
+		stall = (struct UNIT_BENCHMARK_STALL){0};
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		hold.active = 0;
+		benchmark_stall_observe(&stall, 1, 0, &hold, &position, UNIT_BENCHMARK_STALL_TEST_DISTANCE);
+		hold.active = 1;
+		hold.piece++;
+		hold.route_cursor++;
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit);
+		assert(benchmark_stall_failed(&stall, frame_rate));
+		assert(stall.planning_frames == UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+
+		/* Travel without advancing through the immutable guide is insufficient. */
+		stall = (struct UNIT_BENCHMARK_STALL){0};
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		position.ly += UNIT_BENCHMARK_STALL_TEST_DISTANCE * UNIT_BENCHMARK_WORLD_SCALE;
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit);
+		assert(benchmark_stall_failed(&stall, frame_rate));
+
+		/* Real 3-D travel together with forward guide progress permits the
+		 * next bounded recheck, at either supported frame rate. */
+		stall = (struct UNIT_BENCHMARK_STALL){0};
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		position.ly += UNIT_BENCHMARK_STALL_TEST_DISTANCE * UNIT_BENCHMARK_WORLD_SCALE;
+		hold.route_cursor++;
+		benchmark_stall_observe(&stall, 1, 0, &hold, &position, UNIT_BENCHMARK_STALL_TEST_DISTANCE);
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		assert(!benchmark_stall_failed(&stall, frame_rate));
+		assert(stall.planning_frames == 2U * UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+
+		/* Do not let a credited interval erase preceding unexplained ticks. */
+		stall = (struct UNIT_BENCHMARK_STALL){0};
+		hold.active = 0;
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit / 2U);
+		hold.active = 1;
+		benchmark_stall_test_ticks(&stall, &hold, &position, UNIT_BENCHMARK_PLANNING_HOLD_TICKS);
+		hold.active = 0;
+		benchmark_stall_test_ticks(&stall, &hold, &position, limit - limit / 2U);
+		assert(benchmark_stall_failed(&stall, frame_rate));
+	}
+}
 
 static void test_finish_crossing(void)
 {
@@ -720,6 +848,7 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 {
+	test_stall_classification();
 	if (argc < 3) {
 		fprintf(
 			stderr,
@@ -1067,7 +1196,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			  "penalty_recovering,shortcuts_allowed,throttle,brake,human_x,human_y,human_z,"
 			  "human_speed,human_event,human_input,relative_ahead,relative_lateral,rear_clearance,"
 			  "road_lateral,traffic_contact,traffic_blocked_frames,pass_side,side_changes,"
-			  "passed_human,merged_human\n",
+			  "passed_human,merged_human,planning_hold,planning_piece,planning_cursor,"
+			  "stall_frames,raw_stall_frames,planning_hold_frames\n",
 			  trace);
 	}
 	legacy_u32 frames = 0, corner_frames = 0;
@@ -1083,7 +1213,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_u8 traffic_progress = 0;
 	legacy_u64 step_sum_ns = 0, step_max_ns = 0, pacing_ns = 0;
 	legacy_u32 deadline_misses = 0;
-	legacy_u32 stall_frames = 0, max_stall_frames = 0;
+	struct UNIT_BENCHMARK_STALL stall = {0};
 	legacy_u64 started = SDL_GetTicksNS();
 	for (; frames < frame_limit; frames++) {
 		legacy_u8 human_input = INPUT_NONE;
@@ -1136,17 +1266,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		legacy_f64 human_dz =
 			(car->car_position.lz - state.playerstate.car_position.lz) / UNIT_BENCHMARK_WORLD_SCALE;
 		legacy_f64 human_distance = hypot(human_dx, human_dz);
-		/* A nearby human may require a legitimate collision-avoidance wait.
-		 * Count unexplained low-speed intervals only after the initial launch. */
-		if (frames >= UNIT_BENCHMARK_STALL_START_SECONDS * frame_rate &&
-			speed < UNIT_BENCHMARK_STALL_SPEED && human_distance >= TRACK_TILE_SIZE) {
-			stall_frames++;
-			if (stall_frames > max_stall_frames) {
-				max_stall_frames = stall_frames;
-			}
-		} else {
-			stall_frames = 0;
+		/* A nearby human may require a collision-avoidance wait. Intentional
+		 * stunt rechecks receive one bounded allowance per physical progress. */
+		struct UNIT_PLANNING_HOLD planning_hold = {0};
+		if (opponent == OPPONENT_UNIT) {
+			unit_opponent_planning_hold(&planning_hold);
 		}
+		legacy_f64 progress_distance =
+			UNIT_BENCHMARK_STALL_PROGRESS_LENGTHS *
+			benchmark_body_extent(&simd_opponent, car, -car->car_rotate.x * UNIT_ANGLE_RADIANS);
+		benchmark_stall_observe(&stall,
+								frames >= UNIT_BENCHMARK_STALL_START_SECONDS * frame_rate &&
+									human_distance >= TRACK_TILE_SIZE,
+								speed < UNIT_BENCHMARK_STALL_SPEED, &planning_hold,
+								&car->car_position, progress_distance);
 		if (human != UNIT_BENCHMARK_HUMAN_PARKED) {
 			closest_human = fmin(closest_human, human_distance);
 			benchmark_traffic_observe(&traffic, frames + 1U, frame_rate,
@@ -1183,7 +1316,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					extended_unit_penalty_recovery_required(),
 					(!owoot_enabled && extended_unit_penalty_shortcuts_allowed()),
 					car->car_is_accelerating, car->car_is_braking);
-			fprintf(trace, ",%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%d,%u,%d,%u,%u,%u\n",
+			fprintf(trace,
+					",%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%d,%u,%d,%u,%u,%u,"
+					"%u,%d,%u,%u,%u,%u\n",
 					state.playerstate.car_position.lx / UNIT_POSITION_SCALE,
 					state.playerstate.car_position.ly / UNIT_POSITION_SCALE,
 					state.playerstate.car_position.lz / UNIT_POSITION_SCALE,
@@ -1193,7 +1328,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					car->car_collision_latch == CAR_COLLISION_LATCH_SET ||
 						state.playerstate.car_collision_latch == CAR_COLLISION_LATCH_SET,
 					traffic.blocked_frames, traffic.side, traffic.side_changes, traffic.passed,
-					traffic.merged);
+					traffic.merged, planning_hold.active, planning_hold.piece,
+					planning_hold.route_cursor, stall.unexplained_frames, stall.raw_frames,
+					stall.planning_frames);
 		}
 		if (require_overtake &&
 			(traffic.merged || frames + 1U >= UNIT_BENCHMARK_OVERTAKE_SECONDS * frame_rate)) {
@@ -1222,7 +1359,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	printf("opponent=%u frames=%u seconds=%.2f frame_rate=%u owoot=%u event=%u finished=%u "
 		   "mean_mph=%.3f corner_mph=%.3f peak_mph=%.3f simulation_ms=%.3f "
 		   "penalty_frames=%u preparation_ms=%.0f mean_step_us=%.3f max_step_us=%.3f "
-		   "deadline_misses=%u pacing_ms=%.3f max_stall_frames=%u\n",
+		   "deadline_misses=%u pacing_ms=%.3f max_stall_frames=%u "
+		   "max_unexplained_stall_frames=%u planning_hold_frames=%u\n",
 		   opponent, frames, frames / (legacy_f64)frame_rate, frame_rate, owoot_enabled != 0, event,
 		   event == CRASH_EVENT_FINISH, frames ? speed_sum / frames : 0,
 		   corner_frames ? corner_speed_sum / corner_frames : 0, peak_speed,
@@ -1230,7 +1368,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		   (legacy_f64)preparation_elapsed,
 		   frames ? step_sum_ns / UNIT_BENCHMARK_NS_PER_MICROSECOND / frames : 0,
 		   step_max_ns / UNIT_BENCHMARK_NS_PER_MICROSECOND, deadline_misses,
-		   pacing_ns / UNIT_BENCHMARK_NS_PER_MILLISECOND, max_stall_frames);
+		   pacing_ns / UNIT_BENCHMARK_NS_PER_MILLISECOND, stall.max_raw_frames,
+		   stall.max_unexplained_frames, stall.planning_frames);
 	if (opponent == OPPONENT_UNIT) {
 		printf("planner_workers=%u opening_candidates=%.0f route_candidates=%.0f "
 			   "live_candidates=%.0f worker_accepted=%.0f worker_commands_applied=%.0f\n",
@@ -1313,8 +1452,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		 shadow_penalty_frames != 0 || (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH));
 	return (require_finish && event != CRASH_EVENT_FINISH) ||
 				   (require_clean && shadow_penalty_frames != 0) ||
-				   (require_no_stalls &&
-					max_stall_frames >= UNIT_BENCHMARK_STALL_SECONDS * frame_rate) ||
+				   (require_no_stalls && benchmark_stall_failed(&stall, frame_rate)) ||
 				   (require_worker && (!worker_commands || planner_stats.workers > 1U)) ||
 				   (require_overtake && (!traffic.merged || traffic.side_changes ||
 										 traffic.max_blocked_frames >=

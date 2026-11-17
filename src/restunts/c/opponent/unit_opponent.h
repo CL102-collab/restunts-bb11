@@ -15,6 +15,18 @@ legacy_int unit_opponent_prepare_end(void);
 void unit_opponent_stop(void);
 void unit_opponent_tick(void);
 
+/* Settling precedes the fixed native recheck handoff, in race ticks. */
+#define UNIT_OPPONENT_RECHECK_SETTLED_TICKS 4U
+
+struct UNIT_PLANNING_HOLD {
+	legacy_u32 route_cursor;
+	legacy_s16 piece;
+	legacy_u8 active;
+};
+/* Main-thread diagnostic for the most recently issued live command. Preview,
+ * cached driving and replay commands never claim a stopped planning hold. */
+void unit_opponent_planning_hold(struct UNIT_PLANNING_HOLD *hold);
+
 /* Diagnostics for persisted planning; playback never updates these counters. */
 struct UNIT_LEARNING_STATS {
 	legacy_u64 loaded_samples, loaded_native_samples, search_samples, native_samples;
