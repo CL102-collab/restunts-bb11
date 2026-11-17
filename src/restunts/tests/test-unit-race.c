@@ -17,6 +17,7 @@
 #include "../c/track/track_objects.h"
 #include "../c/opponent/opponent.h"
 #include "../c/opponent/unit_opponent.h"
+#include "../c/opponent/unit_collision.h"
 #include "../c/opponent/unit_pilot.h"
 #include "../c/opponent/unit_learning_cache.h"
 #include "../c/opponent/unit_pilot_pulses.h"
@@ -47,7 +48,18 @@
 #define UNIT_BENCHMARK_HUMAN_LATERAL 200.0
 #define UNIT_BENCHMARK_HUMAN_START_SECONDS 2U
 #define UNIT_BENCHMARK_GRID_DRIVE_FRAMES 60U
-#define UNIT_BENCHMARK_PASS_DISTANCE 112.0
+#define UNIT_BENCHMARK_BLOCKED_GAP 128.0
+#define UNIT_BENCHMARK_SLOW_HUMAN_SPEED 20.0
+#define UNIT_BENCHMARK_SLOW_HUMAN_HYSTERESIS 2.0
+#define UNIT_BENCHMARK_PASS_CLEARANCE 16.0
+#define UNIT_BENCHMARK_TRAFFIC_HEIGHT 90.0
+#define UNIT_BENCHMARK_TRAFFIC_STALL_SECONDS 5U
+#define UNIT_BENCHMARK_OVERTAKE_SECONDS 20U
+#define UNIT_BENCHMARK_MERGE_LATERAL 24.0
+#define UNIT_BENCHMARK_MERGE_YAW 0.15
+#define UNIT_BENCHMARK_MERGE_STABLE_DIVISOR 2U
+#define UNIT_BENCHMARK_SIDE_COMMIT_DISTANCE 24.0
+#define UNIT_BENCHMARK_MAX_HUMAN_DISTANCE (4.0 * TRACK_TILE_SIZE)
 #define UNIT_BENCHMARK_NO_HUMAN_DISTANCE 1000000.0
 #define UNIT_BENCHMARK_NS_PER_SECOND UINT64_C(1000000000)
 #define UNIT_BENCHMARK_NS_PER_MICROSECOND 1000.0
@@ -113,8 +125,111 @@ enum UNIT_BENCHMARK_HUMAN {
 	UNIT_BENCHMARK_HUMAN_ACCELERATING,
 	UNIT_BENCHMARK_HUMAN_CROSSING,
 	UNIT_BENCHMARK_HUMAN_GRID,
-	UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK
+	UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK,
+	UNIT_BENCHMARK_HUMAN_BLOCKED,
+	UNIT_BENCHMARK_HUMAN_SLOW
 };
+
+struct UNIT_BENCHMARK_TRAFFIC {
+	legacy_f64 ahead, lateral, rear_clearance, road_lateral;
+	legacy_f64 human_peak_speed, slow_speed_sum;
+	legacy_u32 blocked_frames, max_blocked_frames, contact_frames, side_changes;
+	legacy_u32 pass_frame, merge_frame, merge_stable, slow_frames;
+	legacy_s8 side;
+	legacy_u8 passed, merged;
+};
+
+static legacy_f64 benchmark_body_extent(const struct SIMD *simd, const struct CARSTATE *car,
+										legacy_f64 axis)
+{
+	legacy_f64 width = fabs((legacy_f64)simd->collide_points[0].px);
+	legacy_f64 length = fabs((legacy_f64)simd->collide_points[1].px);
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		width = fmax(width, fabs(simd->wheel_coords[wheel].x / UNIT_POSITION_SCALE));
+		length = fmax(length, fabs(simd->wheel_coords[wheel].z / UNIT_POSITION_SCALE));
+	}
+	return unit_collision_projected_extent(length, width,
+										   -car->car_rotate.x * UNIT_ANGLE_RADIANS - axis);
+}
+
+static legacy_f64 benchmark_number(const legacy_char *text)
+{
+	legacy_char *end = NULL;
+	legacy_f64 value = strtod(text, &end);
+	assert(end != text && *end == '\0' && isfinite(value));
+	return value;
+}
+
+static void benchmark_traffic_observe(struct UNIT_BENCHMARK_TRAFFIC *traffic, legacy_u32 frame,
+									  legacy_u16 frame_rate, legacy_int slow, legacy_f64 axis,
+									  legacy_f64 road_x, legacy_f64 road_z)
+{
+	const struct CARSTATE *unit = &state.opponentstate, *human = &state.playerstate;
+	legacy_f64 forward_x = sin(axis), forward_z = cos(axis);
+	legacy_f64 dx = (unit->car_position.lx - human->car_position.lx) / UNIT_POSITION_SCALE;
+	legacy_f64 dz = (unit->car_position.lz - human->car_position.lz) / UNIT_POSITION_SCALE;
+	legacy_f64 unit_x = unit->car_position.lx / UNIT_POSITION_SCALE;
+	legacy_f64 unit_z = unit->car_position.lz / UNIT_POSITION_SCALE;
+	legacy_f64 human_speed = human->car_actual_speed / UNIT_SPEED_SCALE;
+	legacy_f64 length = benchmark_body_extent(&simd_opponent, unit, axis) +
+						benchmark_body_extent(&simd_player, human, axis);
+	traffic->ahead = dx * forward_x + dz * forward_z;
+	traffic->lateral = dx * forward_z - dz * forward_x;
+	traffic->rear_clearance = traffic->ahead - length;
+	traffic->road_lateral = (unit_x - road_x) * forward_z - (unit_z - road_z) * forward_x;
+	traffic->human_peak_speed = fmax(traffic->human_peak_speed, human_speed);
+	if (slow && frame >= UNIT_BENCHMARK_HUMAN_START_SECONDS * frame_rate) {
+		traffic->slow_speed_sum += human_speed;
+		traffic->slow_frames++;
+	}
+	if (unit->car_collision_latch == CAR_COLLISION_LATCH_SET ||
+		human->car_collision_latch == CAR_COLLISION_LATCH_SET) {
+		traffic->contact_frames++;
+	}
+	legacy_int same_level = fabs((unit->car_position.ly - human->car_position.ly) /
+								 UNIT_POSITION_SCALE) < UNIT_BENCHMARK_TRAFFIC_HEIGHT;
+	if (!traffic->passed && same_level && traffic->rear_clearance > UNIT_BENCHMARK_PASS_CLEARANCE) {
+		traffic->passed = 1;
+		traffic->pass_frame = frame;
+	}
+	if (!traffic->passed && same_level && fabs(traffic->ahead) < TRACK_TILE_SIZE &&
+		fabs(traffic->lateral) > UNIT_BENCHMARK_SIDE_COMMIT_DISTANCE) {
+		legacy_s8 side = traffic->lateral > 0.0 ? 1 : -1;
+		if (traffic->side && side != traffic->side) {
+			traffic->side_changes++;
+		}
+		traffic->side = side;
+	}
+	legacy_f64 moving_speed = hypot(unit->car_position.lx - unit->car_previous_position.lx,
+									unit->car_position.lz - unit->car_previous_position.lz) /
+							  UNIT_POSITION_SCALE * frame_rate / UNIT_WORLD_PER_MPH;
+	if (frame >= UNIT_BENCHMARK_STALL_START_SECONDS * frame_rate && !traffic->passed &&
+		same_level && hypot(dx, dz) < TRACK_TILE_SIZE &&
+		moving_speed < UNIT_BENCHMARK_STALL_SPEED) {
+		traffic->blocked_frames++;
+		if (traffic->blocked_frames > traffic->max_blocked_frames) {
+			traffic->max_blocked_frames = traffic->blocked_frames;
+		}
+	} else {
+		traffic->blocked_frames = 0;
+	}
+	/* Dedicated overtake cases use the initial straight's road axis. A merge
+	 * requires rear-body clearance and a settled return to that road line. */
+	legacy_f64 yaw = remainder(-unit->car_rotate.x * UNIT_ANGLE_RADIANS - axis,
+							   2.0 * ANGLE_HALF_TURN * UNIT_ANGLE_RADIANS);
+	if (traffic->passed && same_level && traffic->rear_clearance > UNIT_BENCHMARK_PASS_CLEARANCE &&
+		fabs(traffic->road_lateral) <= UNIT_BENCHMARK_MERGE_LATERAL &&
+		fabs(yaw) <= UNIT_BENCHMARK_MERGE_YAW) {
+		traffic->merge_stable++;
+	} else {
+		traffic->merge_stable = 0;
+	}
+	if (!traffic->merged &&
+		traffic->merge_stable >= frame_rate / UNIT_BENCHMARK_MERGE_STABLE_DIVISOR) {
+		traffic->merged = 1;
+		traffic->merge_frame = frame;
+	}
+}
 
 static legacy_u64 state_hash(void)
 {
@@ -616,8 +731,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
 			"[--manual] [--frame-rate 10|20] [--require-finish] "
 			"[--require-clean] [--require-no-stalls] [--human "
-			"stationary|accelerating|crossing|grid|grid-then-park] "
-			"[--human-drive-frames N] [--unit-cache-dir DIR] "
+			"stationary|accelerating|crossing|grid|grid-then-park|blocked|slow] "
+			"[--human-drive-frames N] [--human-distance N] [--human-offset N] "
+			"[--require-overtake] [--require-no-contact] [--unit-cache-dir DIR] "
 			"[--owoot:on]\n"
 			"       test-unit-race [--data-dir DIR] --source-replay FILE "
 			"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
@@ -641,6 +757,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_int require_clean = 0;
 	legacy_int require_no_stalls = 0;
 	legacy_int require_worker = 0;
+	legacy_int require_overtake = 0, require_no_contact = 0;
+	legacy_f64 human_distance_option = 0.0, human_offset = 0.0;
+	legacy_u8 human_distance_set = 0, human_offset_set = 0;
 	legacy_int planner_sync = 0;
 	legacy_int manual = 0;
 	const legacy_char *car_id = "PMIN";
@@ -702,8 +821,24 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					: strcmp(mode, "crossing") == 0		  ? UNIT_BENCHMARK_HUMAN_CROSSING
 					: strcmp(mode, "grid") == 0			  ? UNIT_BENCHMARK_HUMAN_GRID
 					: strcmp(mode, "grid-then-park") == 0 ? UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK
+					: strcmp(mode, "blocked") == 0		  ? UNIT_BENCHMARK_HUMAN_BLOCKED
+					: strcmp(mode, "slow") == 0			  ? UNIT_BENCHMARK_HUMAN_SLOW
 														  : UNIT_BENCHMARK_HUMAN_PARKED;
 			assert(human != UNIT_BENCHMARK_HUMAN_PARKED);
+		} else if (strcmp((legacy_char *)argv[index], "--human-distance") == 0 &&
+				   index + 1 < argc) {
+			human_distance_option = benchmark_number((legacy_char *)argv[++index]);
+			assert(human_distance_option > 0.0 &&
+				   human_distance_option <= UNIT_BENCHMARK_MAX_HUMAN_DISTANCE);
+			human_distance_set = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--human-offset") == 0 && index + 1 < argc) {
+			human_offset = benchmark_number((legacy_char *)argv[++index]);
+			assert(fabs(human_offset) <= TRACK_TILE_HALF_SIZE);
+			human_offset_set = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--require-overtake") == 0) {
+			require_overtake = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--require-no-contact") == 0) {
+			require_no_contact = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--human-drive-frames") == 0 &&
 				   index + 1 < argc) {
 			human_drive_frames = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
@@ -740,6 +875,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 				  stderr);
 			return 1;
 		}
+		if (require_overtake || require_no_contact || human_distance_set || human_offset_set ||
+			human == UNIT_BENCHMARK_HUMAN_BLOCKED || human == UNIT_BENCHMARK_HUMAN_SLOW) {
+			fputs("--source-replay does not support scripted overtake options\n", stderr);
+			return 1;
+		}
 		struct UNIT_SOURCE_REPLAY_OPTIONS options = {
 			source_replay,	branch_frame,		frame_limit,
 			preparation_ms, planner_yield_ms,	replay_only,
@@ -749,6 +889,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		return source_replay_benchmark(&options, (legacy_char *)argv[0]);
 	}
 	assert(!replay_only && branch_frame == LEGACY_U32_MAX);
+	assert((!require_overtake && !require_no_contact && !human_distance_set && !human_offset_set) ||
+		   human != UNIT_BENCHMARK_HUMAN_PARKED);
+	assert(!require_overtake || opponent == OPPONENT_UNIT);
 	legacy_uint track_size;
 	legacy_u8 *track = read_track((legacy_char *)argv[1], &track_size);
 	struct CSRPL_METADATA metadata = {0};
@@ -811,6 +954,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	 * scenarios place the human explicitly. UNIT keeps its native state. */
 	legacy_int grid =
 		human == UNIT_BENCHMARK_HUMAN_GRID || human == UNIT_BENCHMARK_HUMAN_GRID_THEN_PARK;
+	assert(!grid || (!human_distance_set && !human_offset_set));
 	if (!grid) {
 		state.playerstate.car_position.lx =
 			UNIT_BENCHMARK_PARK_POSITION * UNIT_BENCHMARK_PARK_SCALE;
@@ -820,20 +964,68 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	}
 	legacy_f64 forward_x = -sin(state.opponentstate.car_rotate.x * UNIT_ANGLE_RADIANS);
 	legacy_f64 forward_z = cos(state.opponentstate.car_rotate.x * UNIT_ANGLE_RADIANS);
-	legacy_f64 human_start_x = state.opponentstate.car_position.lx / UNIT_BENCHMARK_WORLD_SCALE +
-							   forward_x * UNIT_BENCHMARK_HUMAN_DISTANCE;
-	legacy_f64 human_start_z = state.opponentstate.car_position.lz / UNIT_BENCHMARK_WORLD_SCALE +
-							   forward_z * UNIT_BENCHMARK_HUMAN_DISTANCE;
-	if (grid) {
-		human_start_x = state.playerstate.car_position.lx / UNIT_BENCHMARK_WORLD_SCALE;
-		human_start_z = state.playerstate.car_position.lz / UNIT_BENCHMARK_WORLD_SCALE;
-	} else if (human != UNIT_BENCHMARK_HUMAN_PARKED) {
+	legacy_f64 road_x = state.opponentstate.car_position.lx / UNIT_POSITION_SCALE;
+	legacy_f64 road_z = state.opponentstate.car_position.lz / UNIT_POSITION_SCALE;
+	legacy_f64 road_axis = atan2(forward_x, forward_z);
+	legacy_int dedicated_traffic =
+		human == UNIT_BENCHMARK_HUMAN_BLOCKED || human == UNIT_BENCHMARK_HUMAN_SLOW;
+	if (dedicated_traffic || require_overtake) {
+		struct UNIT_ROUTE route = {0};
+		assert(unit_route_build(&route));
+		const struct UNIT_ROUTE_POINT *point =
+			&route.points[unit_route_cursor(&route, &state.opponentstate)];
+		legacy_f64 lateral = (road_x - point->x) * forward_z - (road_z - point->z) * forward_x;
+		road_x -= forward_z * lateral;
+		road_z += forward_x * lateral;
+		if (human == UNIT_BENCHMARK_HUMAN_BLOCKED) {
+			/* Place a stopped road obstruction beyond the starting gantry,
+			 * whose posts are a separate restriction on available passing room. */
+			legacy_u32 sample = 0;
+			for (; sample < route.finish_begin; sample++) {
+				legacy_u8 id = (legacy_u8)track_route_element_ids[route.points[sample].route_index];
+				if (trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
+					break;
+				}
+			}
+			assert(sample < route.finish_begin);
+			road_x = route.points[sample].x;
+			road_z = route.points[sample].z;
+			unit_route_store(&route, sample, &state.opponentstate);
+		}
+		unit_route_free(&route);
+	}
+	if (dedicated_traffic) {
+		/* Begin stopped directly behind the centered human rather than on
+		 * the native parallel grid. The captured replay includes this pose. */
+		assert(state.opponentstate.car_actual_speed == CAR_SPEED_STOPPED);
+		state.opponentstate.car_position.lx = (legacy_s32)llround(road_x * UNIT_POSITION_SCALE);
+		state.opponentstate.car_position.lz = (legacy_s32)llround(road_z * UNIT_POSITION_SCALE);
+		state.opponentstate.car_previous_position = state.opponentstate.car_position;
+	}
+	legacy_f64 placement_distance = UNIT_BENCHMARK_HUMAN_DISTANCE;
+	if (human == UNIT_BENCHMARK_HUMAN_BLOCKED) {
+		placement_distance =
+			benchmark_body_extent(&simd_opponent, &state.opponentstate, road_axis) +
+			benchmark_body_extent(&simd_player, &state.playerstate, road_axis) +
+			UNIT_BENCHMARK_BLOCKED_GAP;
+	}
+	if (human_distance_set) {
+		placement_distance = human_distance_option;
+	}
+	if (!grid && human != UNIT_BENCHMARK_HUMAN_PARKED) {
+		legacy_f64 origin_x =
+			dedicated_traffic ? road_x : state.opponentstate.car_position.lx / UNIT_POSITION_SCALE;
+		legacy_f64 origin_z =
+			dedicated_traffic ? road_z : state.opponentstate.car_position.lz / UNIT_POSITION_SCALE;
 		legacy_f64 lateral =
-			human == UNIT_BENCHMARK_HUMAN_CROSSING ? UNIT_BENCHMARK_HUMAN_LATERAL : 0.0;
+			human_offset +
+			(human == UNIT_BENCHMARK_HUMAN_CROSSING ? UNIT_BENCHMARK_HUMAN_LATERAL : 0.0);
 		state.playerstate.car_position.lx =
-			(legacy_s32)((human_start_x + forward_z * lateral) * UNIT_BENCHMARK_WORLD_SCALE);
+			(legacy_s32)llround((origin_x + forward_x * placement_distance + forward_z * lateral) *
+								UNIT_POSITION_SCALE);
 		state.playerstate.car_position.lz =
-			(legacy_s32)((human_start_z - forward_x * lateral) * UNIT_BENCHMARK_WORLD_SCALE);
+			(legacy_s32)llround((origin_z + forward_z * placement_distance - forward_x * lateral) *
+								UNIT_POSITION_SCALE);
 		state.playerstate.car_position.ly = state.opponentstate.car_position.ly;
 		state.playerstate.car_previous_position = state.playerstate.car_position;
 		state.playerstate.car_rotate = state.opponentstate.car_rotate;
@@ -876,13 +1068,23 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	if (trace != NULL) {
 		fputs("frame,time,x,y,z,speed,steering,route,point,event,grip,demanded,yaw,pitch,roll,"
 			  "contact,penalty_frames,penalty_status,penalty_confirmations,penalty_last_skipped,"
-			  "penalty_recovering,shortcuts_allowed,throttle,brake\n",
+			  "penalty_recovering,shortcuts_allowed,throttle,brake,human_x,human_y,human_z,"
+			  "human_speed,human_event,human_input,relative_ahead,relative_lateral,rear_clearance,"
+			  "road_lateral,traffic_contact,traffic_blocked_frames,pass_side,side_changes,"
+			  "passed_human,merged_human\n",
 			  trace);
 	}
 	legacy_u32 frames = 0, corner_frames = 0;
 	legacy_f64 corner_speed_sum = 0, speed_sum = 0, peak_speed = 0;
 	legacy_f64 closest_human = UNIT_BENCHMARK_NO_HUMAN_DISTANCE;
-	legacy_int passed_human = 0;
+	struct UNIT_BENCHMARK_TRAFFIC traffic = {0};
+	legacy_f64 human_start_x = state.playerstate.car_position.lx / UNIT_POSITION_SCALE;
+	legacy_f64 human_start_z = state.playerstate.car_position.lz / UNIT_POSITION_SCALE;
+	legacy_f64 progress_clearance =
+		benchmark_body_extent(&simd_opponent, &state.opponentstate, road_axis) +
+		benchmark_body_extent(&simd_player, &state.playerstate, road_axis) +
+		UNIT_BENCHMARK_PASS_CLEARANCE;
+	legacy_u8 traffic_progress = 0;
 	legacy_u64 step_sum_ns = 0, step_max_ns = 0, pacing_ns = 0;
 	legacy_u32 deadline_misses = 0;
 	legacy_u32 stall_frames = 0, max_stall_frames = 0;
@@ -898,6 +1100,17 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			/* Park through ordinary recorded controls, so playback requires no
 			 * external teleport or other scripted state mutation. */
 			human_input = INPUT_BRAKE_FLAG;
+		}
+		if (human == UNIT_BENCHMARK_HUMAN_BLOCKED) {
+			human_input = INPUT_BRAKE_FLAG;
+		} else if (human == UNIT_BENCHMARK_HUMAN_SLOW) {
+			legacy_f64 human_speed = state.playerstate.car_actual_speed / UNIT_SPEED_SCALE;
+			if (human_speed < UNIT_BENCHMARK_SLOW_HUMAN_SPEED) {
+				human_input = INPUT_ACCELERATE_FLAG;
+			} else if (human_speed >
+					   UNIT_BENCHMARK_SLOW_HUMAN_SPEED + UNIT_BENCHMARK_SLOW_HUMAN_HYSTERESIS) {
+				human_input = INPUT_BRAKE_FLAG;
+			}
 		}
 		legacy_u64 step_started = SDL_GetTicksNS();
 		assert(genghost_sim_step(human_input) >= 0);
@@ -918,6 +1131,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		}
 		const struct CARSTATE *car = &state.opponentstate;
 		legacy_f64 speed = car->car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE;
+		traffic_progress |=
+			(car->car_position.lx / UNIT_POSITION_SCALE - human_start_x) * forward_x +
+				(car->car_position.lz / UNIT_POSITION_SCALE - human_start_z) * forward_z >
+			progress_clearance;
 		legacy_f64 human_dx =
 			(car->car_position.lx - state.playerstate.car_position.lx) / UNIT_BENCHMARK_WORLD_SCALE;
 		legacy_f64 human_dz =
@@ -936,12 +1153,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		}
 		if (human != UNIT_BENCHMARK_HUMAN_PARKED) {
 			closest_human = fmin(closest_human, human_distance);
-			if ((car->car_position.lx / UNIT_BENCHMARK_WORLD_SCALE - human_start_x) * forward_x +
-					(car->car_position.lz / UNIT_BENCHMARK_WORLD_SCALE - human_start_z) *
-						forward_z >
-				UNIT_BENCHMARK_PASS_DISTANCE) {
-				passed_human = 1;
-			}
+			benchmark_traffic_observe(&traffic, frames + 1U, frame_rate,
+									  human == UNIT_BENCHMARK_HUMAN_SLOW, road_axis, road_x,
+									  road_z);
 		}
 		speed_sum += speed;
 		if (speed > peak_speed) {
@@ -958,7 +1172,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		if (trace != NULL) {
 			fprintf(trace,
 					"%u,%.2f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%u,%u,%d,%d,%d,%d,%u,%d,%d,%d,%d,%d,%"
-					"d,%d\n",
+					"d,%d",
 					frames + 1U, (frames + 1U) / (legacy_f64)frame_rate,
 					car->car_position.lx / UNIT_BENCHMARK_WORLD_SCALE,
 					car->car_position.ly / UNIT_BENCHMARK_WORLD_SCALE,
@@ -973,6 +1187,22 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 					extended_unit_penalty_recovery_required(),
 					(!owoot_enabled && extended_unit_penalty_shortcuts_allowed()),
 					car->car_is_accelerating, car->car_is_braking);
+			fprintf(trace, ",%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%d,%u,%d,%u,%u,%u\n",
+					state.playerstate.car_position.lx / UNIT_POSITION_SCALE,
+					state.playerstate.car_position.ly / UNIT_POSITION_SCALE,
+					state.playerstate.car_position.lz / UNIT_POSITION_SCALE,
+					state.playerstate.car_actual_speed / UNIT_SPEED_SCALE,
+					state.playerstate.car_crashBmpFlag, human_input, traffic.ahead, traffic.lateral,
+					traffic.rear_clearance, traffic.road_lateral,
+					car->car_collision_latch == CAR_COLLISION_LATCH_SET ||
+						state.playerstate.car_collision_latch == CAR_COLLISION_LATCH_SET,
+					traffic.blocked_frames, traffic.side, traffic.side_changes, traffic.passed,
+					traffic.merged);
+		}
+		if (require_overtake &&
+			(traffic.merged || frames + 1U >= UNIT_BENCHMARK_OVERTAKE_SECONDS * frame_rate)) {
+			frames++;
+			break;
 		}
 		if (car->car_crashBmpFlag != CRASH_EVENT_NONE) {
 			frames++;
@@ -1032,10 +1262,19 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			   (!owoot_enabled && extended_unit_penalty_shortcuts_allowed()));
 	}
 	if (human != UNIT_BENCHMARK_HUMAN_PARKED) {
-		printf("human=%d human_event=%u passed_human=%d closest_human=%.3f "
-			   "human_speed_mph=%.3f\n",
-			   human, human_event, passed_human, closest_human,
-			   state.playerstate.car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE);
+		printf("traffic_progress=%u\n", traffic_progress);
+		printf("human=%d human_event=%u passed_human=%u closest_human=%.3f "
+			   "human_speed_mph=%.3f merged_human=%u pass_frame=%u merge_frame=%u "
+			   "relative_ahead=%.3f rear_clearance=%.3f road_lateral=%.3f "
+			   "traffic_max_blocked_frames=%u traffic_contact_frames=%u pass_side=%d "
+			   "pass_side_changes=%u human_peak_mph=%.3f human_slow_frames=%u "
+			   "human_slow_mean_mph=%.3f\n",
+			   human, human_event, traffic.passed, closest_human,
+			   state.playerstate.car_actual_speed / UNIT_BENCHMARK_SPEED_SCALE, traffic.merged,
+			   traffic.pass_frame, traffic.merge_frame, traffic.ahead, traffic.rear_clearance,
+			   traffic.road_lateral, traffic.max_blocked_frames, traffic.contact_frames,
+			   traffic.side, traffic.side_changes, traffic.human_peak_speed, traffic.slow_frames,
+			   traffic.slow_frames ? traffic.slow_speed_sum / traffic.slow_frames : 0.0);
 	}
 	if (trace != NULL) {
 		assert(fclose(trace) == 0);
@@ -1067,16 +1306,24 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	if (opponent == OPPONENT_UNIT) {
 		print_learning_stats();
 	}
+	/* Accelerating leaders may remain ahead. Preserve the old encounter's
+	 * forward-progress requirement without reporting a pass at their vacated
+	 * starting position. Stopped/slow cases require actual rear clearance. */
+	legacy_u8 moving_leader =
+		human == UNIT_BENCHMARK_HUMAN_ACCELERATING || human == UNIT_BENCHMARK_HUMAN_GRID;
 	legacy_int failed_human =
 		human != UNIT_BENCHMARK_HUMAN_PARKED &&
-		(!passed_human || human_event != CRASH_EVENT_NONE || shadow_penalty_frames != 0 ||
-		 (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH));
+		((moving_leader ? !traffic_progress : !traffic.passed) || human_event != CRASH_EVENT_NONE ||
+		 shadow_penalty_frames != 0 || (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH));
 	return (require_finish && event != CRASH_EVENT_FINISH) ||
 				   (require_clean && shadow_penalty_frames != 0) ||
 				   (require_no_stalls &&
 					max_stall_frames >= UNIT_BENCHMARK_STALL_SECONDS * frame_rate) ||
 				   (require_worker && (!worker_commands || planner_stats.workers > 1U)) ||
-				   failed_human
+				   (require_overtake && (!traffic.merged || traffic.side_changes ||
+										 traffic.max_blocked_frames >=
+											 UNIT_BENCHMARK_TRAFFIC_STALL_SECONDS * frame_rate)) ||
+				   (require_no_contact && traffic.contact_frames) || failed_human
 			   ? 1
 			   : 0;
 }

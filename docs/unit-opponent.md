@@ -89,6 +89,21 @@ invalidates the affected segment. Current avoidance checks follow the cached
 trajectory itself with swept car bounds; when necessary, fresh steering and
 pedal commands take over.
 
+On ordinary roads, a stopped or slower human ahead starts a committed overtake.
+UNIT chooses the roomier side, holds it until its rear clears the human's front,
+then merges gradually toward its racing line. A distant leader first causes a
+faster approach; the lateral move starts with enough closing distance. From rest,
+UNIT turns its wheels before accelerating. Passing uses the normal paved corridor
+to preserve traction and closing speed. Traffic intent is separate from portable
+route learning, and live passing replaces conflicting cached lap commands or
+stopped stunt rechecks.
+
+Completing a pass takes priority over preserving the usual collision margin.
+UNIT compares forward trajectories on the chosen side, preferring a clean pass
+while retaining emergency braking for an imminent high-speed body impact. Road
+width, grip, checkpoint gates, and mandatory stunt guidance still constrain the
+maneuver. Replay controls record the resulting steering and pedal decisions.
+
 Live rechecks reserve braking distance ahead of the required run-up. Under
 normal rules they first start from the exact moving car state. A verified ordinary prefix lets UNIT keep
 driving while native previews validate the upcoming stunt. If no safe prefix is
@@ -175,6 +190,15 @@ seeds against playback:
 ```sh
 python3 tools/scripts/test-unit-opponent.py out/sdl3-linux-x64/test-unit-race stunts src/restunts/tests/fixtures/unit/glacier.cstrk stunts/DEFAULT.TRK
 ```
+
+Native overtaking regressions cover a stopped blocker on the opening straight,
+left/right offsets, and a human held near 20 mph through recorded pedal inputs.
+They require actual rear clearance, a stable side, a completed merge, bounded
+waiting measured from body displacement, and verified replay states. Roomy passes
+must remain free of contact, including with OWOOT and prepared cached routes under
+both planner modes. Planner tests also cover forward attempts through constrained
+gaps. Accelerating leaders are checked for safe forward progress without counting
+their vacated starting position as a completed pass.
 
 The Ninh Binh bank regression also preserves a recorded McMurtry failure. The
 headless harness can inspect it with `--source-replay FILE --replay-only`, or

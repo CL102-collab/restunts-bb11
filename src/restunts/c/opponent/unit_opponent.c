@@ -1,7 +1,9 @@
 #include "unit_opponent.h"
+#include "unit_traffic.h"
 
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include <math.h>
+#include <stdlib.h>
 #include <SDL3/SDL_timer.h>
 #include <string.h>
 #include "unit_opponent_internal.h"
@@ -33,10 +35,8 @@
 #define UNIT_MINIMUM_LOOKAHEAD_SQUARED 1.0
 #define UNIT_SPEED_HYSTERESIS 0.5
 #define UNIT_STEERING_GRIP_RESERVE 0.96
-#define UNIT_COLLISION_REACTION_SECONDS 0.25
-#define UNIT_COLLISION_HEIGHT_CLEARANCE 90.0
-#define UNIT_COLLISION_MARGIN 20.0
-#define UNIT_MINIMUM_MOVING_SPEED 1.0
+#define UNIT_OVERTAKE_STEERING_SETTLED 1
+#define UNIT_OVERTAKE_PATH_SECONDS 2.4
 #define UNIT_HEADING_VECTOR_LENGTH 1024
 #define UNIT_BARREL_MINIMUM_STEERING_AUTHORITY 0.25
 #define UNIT_PLAYER_STYLE_GRIP_SCALE 512.0
@@ -49,7 +49,6 @@
 #define UNIT_RECHECK_CHUNKS 8U
 #define UNIT_RECHECK_TIME_NS 30000000ULL
 #define UNIT_FIRST_GEAR 1
-#define UNIT_LANDING_GRAVITY (18.0 * 20.0 * 20.0 / UNIT_POSITION_SCALE)
 
 enum UNIT_PREPARATION_PHASE {
 	UNIT_PREPARATION_NONE,
@@ -331,114 +330,6 @@ static legacy_s16 unit_steering(const struct UNIT_PLAN *plan, legacy_int axis_gu
 									fmin(maximum, UNIT_STEERING_MAXIMUM));
 }
 
-static legacy_int unit_collision_brake(const struct UNIT_VEHICLE *unit,
-									   const struct UNIT_VEHICLE *player)
-{
-	if (fabs(unit->y - player->y) > UNIT_COLLISION_HEIGHT_CLEARANCE) {
-		return 0;
-	}
-	legacy_f64 dx = player->x - unit->x, dz = player->z - unit->z;
-	legacy_f64 sine = sin(unit->yaw), cosine = cos(unit->yaw);
-	legacy_f64 ahead = dx * sine + dz * cosine;
-	legacy_f64 lateral = dx * cosine - dz * sine;
-	legacy_f64 relative_yaw = player->yaw - unit->yaw;
-	legacy_f64 player_length = fabs(cos(relative_yaw)) * player->half_length +
-							   fabs(sin(relative_yaw)) * player->half_width;
-	legacy_f64 player_width = fabs(cos(relative_yaw)) * player->half_width +
-							  fabs(sin(relative_yaw)) * player->half_length;
-	legacy_f64 extent = unit->half_length + player_length + UNIT_COLLISION_MARGIN;
-	legacy_f64 width = unit->half_width + player_width + UNIT_COLLISION_MARGIN;
-	legacy_f64 closing = (unit->vx - player->vx) * sine + (unit->vz - player->vz) * cosine;
-	legacy_f64 stopping =
-		closing > 0 ? closing * UNIT_COLLISION_REACTION_SECONDS +
-						  closing * closing / (2.0 * unit_route.limits.braking * UNIT_WORLD_PER_MPH)
-					: 0;
-	return ahead > 0 && ahead < extent + stopping && fabs(lateral) < width;
-}
-
-static legacy_int unit_landing_brake(legacy_u32 cursor, const struct UNIT_VEHICLE *unit,
-									 const struct UNIT_VEHICLE *player)
-{
-	if (unit->airborne || cursor >= unit_route.count) {
-		return 0;
-	}
-	legacy_u32 first = cursor;
-	while (first &&
-		   unit_route.points[first - 1U].route_index == unit_route.points[first].route_index) {
-		first--;
-	}
-	legacy_f64 approach = 0.0;
-	for (; first + 1U < unit_route.count && approach < 2.0 * TRACK_TILE_SIZE; first++) {
-		const struct UNIT_ROUTE_POINT *entry = &unit_route.points[first];
-		if (entry->stunt != UNIT_STUNT_BARREL && entry->stunt != UNIT_STUNT_RAMP) {
-			approach += hypot(unit_route.points[first + 1U].x - entry->x,
-							  unit_route.points[first + 1U].z - entry->z);
-			continue;
-		}
-		legacy_u32 last = first;
-		while (last + 1U < unit_route.count &&
-			   unit_route.points[last + 1U].route_index == entry->route_index) {
-			last++;
-		}
-		if (last + 2U >= unit_route.count) {
-			return 0;
-		}
-		const struct UNIT_ROUTE_POINT *lip = &unit_route.points[last];
-		/* Once committed, the only physical path is the jump. The forecast is
-		 * used while the car can still wait on its approach. */
-		if ((unit->x - entry->x) * (lip->x - entry->x) +
-				(unit->z - entry->z) * (lip->z - entry->z) >=
-			0.0) {
-			return 0;
-		}
-		const struct UNIT_ROUTE_POINT *landing = &unit_route.points[last + 1U];
-		legacy_f64 speed = fmax(UNIT_MINIMUM_MOVING_SPEED,
-								(unit->speed + fmax(entry->speed_floor, entry->speed_limit)) * 0.5);
-		legacy_f64 time =
-			hypot(landing->x - unit->x, landing->z - unit->z) / (speed * UNIT_WORLD_PER_MPH);
-		legacy_f64 predicted_x = player->x + player->vx * time;
-		legacy_f64 predicted_z = player->z + player->vz * time;
-		legacy_f64 minimum_y = player->y, maximum_y = player->y;
-		if (player->airborne) {
-			legacy_f64 predicted_y =
-				player->y + player->vy * time - 0.5 * UNIT_LANDING_GRAVITY * time * time;
-			minimum_y = fmin(minimum_y, predicted_y);
-			maximum_y = fmax(maximum_y, predicted_y);
-			if (player->vy > 0.0) {
-				maximum_y = fmax(maximum_y, player->y + player->vy * player->vy /
-															(2.0 * UNIT_LANDING_GRAVITY));
-			}
-		}
-		legacy_f64 clearance = hypot(unit->half_width, unit->half_length) +
-							   hypot(player->half_width, player->half_length) +
-							   UNIT_COLLISION_MARGIN;
-		legacy_f64 corridor = 0.0;
-		for (legacy_u32 point = last + 1U;
-			 point + 1U < unit_route.count && corridor < 2.0 * TRACK_TILE_SIZE; point++) {
-			const struct UNIT_ROUTE_POINT *a = &unit_route.points[point];
-			const struct UNIT_ROUTE_POINT *b = &unit_route.points[point + 1U];
-			legacy_f64 dx = b->x - a->x, dz = b->z - a->z;
-			legacy_f64 squared = dx * dx + dz * dz;
-			legacy_f64 fraction =
-				squared > 1.0
-					? unit_bounded(((predicted_x - a->x) * dx + (predicted_z - a->z) * dz) /
-									   squared,
-								   0.0, 1.0)
-					: 0.0;
-			legacy_f64 y = a->y + (b->y - a->y) * fraction;
-			if (hypot(predicted_x - a->x - dx * fraction, predicted_z - a->z - dz * fraction) <
-					clearance &&
-				y > minimum_y - UNIT_COLLISION_HEIGHT_CLEARANCE &&
-				y < maximum_y + UNIT_COLLISION_HEIGHT_CLEARANCE) {
-				return 1;
-			}
-			corridor += sqrt(squared);
-		}
-		return 0;
-	}
-	return 0;
-}
-
 static legacy_int unit_make_command(struct UNIT_PLANNER *planner, legacy_u32 frame,
 									legacy_s16 override_piece, legacy_f64 override_speed,
 									struct CSRPL_OPPONENT_COMMAND *command)
@@ -471,8 +362,9 @@ static legacy_int unit_make_command(struct UNIT_PLANNER *planner, legacy_u32 fra
 	}
 	struct UNIT_LAUNCH_POLICY policy;
 	unit_profiles_policy(planner != unit_planner, override_piece, override_speed, &policy);
-	policy.preserve_approach = hypot(unit.x - player.x, unit.z - player.z) < TRACK_TILE_SIZE &&
-							   fabs(unit.y - player.y) < UNIT_COLLISION_HEIGHT_CLEARANCE;
+	policy.preserve_approach =
+		plan.overtaking || (hypot(unit.x - player.x, unit.z - player.z) < TRACK_TILE_SIZE &&
+							fabs(unit.y - player.y) < UNIT_COLLISION_HEIGHT_CLEARANCE);
 	legacy_int launch = unit_launch_guidance_policy(&unit_route, cursor, &plan, &policy);
 	command->steering =
 		launch == UNIT_LAUNCH_NEUTRAL
@@ -491,11 +383,16 @@ static legacy_int unit_make_command(struct UNIT_PLANNER *planner, legacy_u32 fra
 			sqrt(grip * UNIT_PLAYER_STYLE_GRIP_SCALE / demanded_angle) * UNIT_STEERING_GRIP_RESERVE;
 		target_speed = fmin(target_speed, corner_speed);
 	}
-	legacy_int collision = plan.brake == UNIT_PLAN_BRAKE_COLLISION ||
-						   unit_collision_brake(&unit, &player) ||
-						   unit_landing_brake(cursor, &unit, &player);
+	legacy_int collision =
+		plan.brake == UNIT_PLAN_BRAKE_COLLISION ||
+		(!plan.overtaking && unit_collision_brake(&unit_route, &unit, &player)) ||
+		unit_landing_brake(&unit_route, cursor, &unit, &player);
+	legacy_u8 preparing_pass =
+		plan.overtaking && unit.speed < UNIT_MINIMUM_MOVING_SPEED &&
+		abs(command->steering - car->car_steeringAngle) > UNIT_OVERTAKE_STEERING_SETTLED;
 	command->input = INPUT_NONE;
-	if (plan.brake || collision || unit.speed > target_speed + UNIT_SPEED_HYSTERESIS) {
+	if (preparing_pass || plan.brake || collision ||
+		unit.speed > target_speed + UNIT_SPEED_HYSTERESIS) {
 		command->input = INPUT_BRAKE_FLAG;
 	} else if (unit.speed < target_speed - UNIT_SPEED_HYSTERESIS ||
 			   unit.speed < UNIT_MINIMUM_MOVING_SPEED) {
@@ -643,8 +540,14 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *planner, legacy_u32 fra
 static legacy_int unit_cached_path_blocked(const struct UNIT_VEHICLE *unit,
 										   const struct UNIT_VEHICLE *player)
 {
+	legacy_u8 passing = unit_planner_overtaking(unit_planner) != 0;
 	legacy_f64 horizon =
 		UNIT_COLLISION_REACTION_SECONDS + unit->speed / fmax(unit_route.limits.braking, 1.0);
+	if (passing) {
+		/* Turning out from rest needs more preparation than a stopping-only
+		 * forecast. Inspect the same future span used by passing rollouts. */
+		horizon = fmax(horizon, UNIT_OVERTAKE_PATH_SECONDS);
+	}
 	legacy_u32 ticks = (legacy_u32)ceil(horizon * framespersec) + 1U;
 	if (ticks > 160U) {
 		ticks = 160U;
@@ -658,14 +561,14 @@ static legacy_int unit_cached_path_blocked(const struct UNIT_VEHICLE *unit,
 			unit_pilot_stats(&stats);
 			/* A failed preview proves no safe continuation beyond this prefix.
 			 * Replan while braking distance remains, before its last safe tick. */
-			return index == 1U || (stats.exhausted && !stats.completed_lap);
+			return index == 1U || ((passing || stats.exhausted) && !stats.completed_lap);
 		}
 		struct UNIT_VEHICLE next;
 		unit_vehicle_snapshot(&expected, &simd_opponent, &next);
 		legacy_f64 time = index * step;
 		legacy_f64 player_y = player->y + player->vy * time;
 		if (player->airborne) {
-			player_y -= UNIT_LANDING_GRAVITY * time * time * 0.5;
+			player_y -= UNIT_TRAFFIC_LANDING_GRAVITY(UNIT_POSITION_SCALE) * time * time * 0.5;
 		}
 		if (fmax(previous.y, next.y) >=
 				fmin(player_start.y, player_y) - UNIT_COLLISION_HEIGHT_CLEARANCE &&
@@ -726,9 +629,18 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		 * Native continuation and the background worker never run together. */
 		struct UNIT_PLAN current = {0};
 		unit_planner_plan(unit_planner, &unit, &player, cursor, frame, &current);
-		if (current.brake == UNIT_PLAN_BRAKE_COLLISION || unit_collision_brake(&unit, &player) ||
-			unit_landing_brake(cursor, &unit, &player) ||
-			unit_cached_path_blocked(&unit, &player)) {
+		legacy_int obstructed =
+			(!current.overtaking && unit_collision_brake(&unit_route, &unit, &player)) ||
+			unit_landing_brake(&unit_route, cursor, &unit, &player) ||
+			unit_cached_path_blocked(&unit, &player);
+		if (current.overtaking && !obstructed) {
+			/* Preserve a verified line that already clears the human. Replacing
+			 * that path needlessly loses its validated downstream stunt entries. */
+			unit_planner_cancel_overtake(unit_planner);
+			current.overtaking = 0;
+			current.brake = UNIT_PLAN_BRAKE_NONE;
+		}
+		if (current.overtaking || current.brake == UNIT_PLAN_BRAKE_COLLISION || obstructed) {
 			unit_pilot_continuation_cancel();
 			(void)unit_planner_resume_live(unit_planner);
 			unit_make_command(unit_planner, frame, ROUTE_INDEX_NONE, 0.0, command);
@@ -739,8 +651,9 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		unit_pilot_continuation_cancel();
 		(void)unit_planner_resume_live(unit_planner);
 	}
-	/* Preserve the live evasive maneuver while the human is near. */
-	if (nearby) {
+	/* Preserve a committed pass through tail clearance and its merge, even
+	 * after the human has moved out of the nearby following rectangle. */
+	if (nearby || unit_planner_overtaking(unit_planner)) {
 		unit_cancel_recheck();
 		return 0;
 	}
@@ -789,8 +702,8 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 				if (!unit_pilot_continuation_pending()) {
 					(void)unit_planner_resume_live(unit_planner);
 				}
-				if (unit_collision_brake(&unit, &player) ||
-					unit_landing_brake(cursor, &unit, &player) ||
+				if (unit_collision_brake(&unit_route, &unit, &player) ||
+					unit_landing_brake(&unit_route, cursor, &unit, &player) ||
 					unit_cached_path_blocked(&unit, &player)) {
 					unit_pilot_continuation_cancel();
 					(void)unit_planner_resume_live(unit_planner);
@@ -819,8 +732,8 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 			} else {
 				(void)unit_planner_resume_live(unit_planner);
 			}
-			if (unit_collision_brake(&unit, &player) ||
-				unit_landing_brake(cursor, &unit, &player) ||
+			if (unit_collision_brake(&unit_route, &unit, &player) ||
+				unit_landing_brake(&unit_route, cursor, &unit, &player) ||
 				unit_cached_path_blocked(&unit, &player)) {
 				unit_pilot_continuation_cancel();
 				(void)unit_planner_resume_live(unit_planner);

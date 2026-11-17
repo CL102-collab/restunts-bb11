@@ -241,7 +241,9 @@ set(common_sources
     opponent/unit_opponent.c opponent/unit_launch.c opponent/unit_profiles.c
     opponent/unit_learning_cache.c opponent/unit_learning_key.c
     extended/extended_unit_route.c
-    opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_collision.c
+    opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_planner_guidance.c
+    opponent/unit_planner_traffic.c
+    opponent/unit_overtake.c opponent/unit_traffic.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
     extended/extended_unit_checkpoint.c extended/extended_physics_snapshot.c
     extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_banks.c
@@ -697,7 +699,9 @@ if(RESTUNTS_BUILD_TESTS)
     foreach(unit_planner_variant threaded sync)
         add_executable(test-unit-planner-${unit_planner_variant}
             src/restunts/tests/test-unit-planner.c
-            ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_math.c)
+            ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_math.c
+            ${core}/opponent/unit_planner_traffic.c ${core}/opponent/unit_planner_guidance.c
+            ${core}/opponent/unit_overtake.c)
         target_link_libraries(test-unit-planner-${unit_planner_variant} PRIVATE restunts_options)
         target_compile_options(test-unit-planner-${unit_planner_variant} PRIVATE -UNDEBUG)
         if(unit_planner_variant STREQUAL "sync")
@@ -1263,6 +1267,35 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/assets/cars"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/ninhbinh-banked.csrpl")
     set_tests_properties(unit-bank-replay PROPERTIES RUN_SERIAL TRUE)
+    foreach(unit_overtake_case blocked left right slow)
+        set(unit_overtake_test "unit-overtake-${unit_overtake_case}-sync")
+        list(APPEND unit_race_tests "${unit_overtake_test}")
+        add_test(NAME "${unit_overtake_test}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+            "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+            "${unit_race_fixture}" --case "${unit_overtake_case}" --planner sync)
+        set_tests_properties("${unit_overtake_test}" PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
+    foreach(unit_overtake_planner sync threaded)
+        set(unit_overtake_test "unit-overtake-slow-prepared-${unit_overtake_planner}")
+        list(APPEND unit_race_tests "${unit_overtake_test}")
+        add_test(NAME "${unit_overtake_test}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+            "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+            "${unit_race_fixture}" --case slow --planner "${unit_overtake_planner}" --prepared)
+        set_tests_properties("${unit_overtake_test}" PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
+    list(APPEND unit_race_tests unit-overtake-blocked-owoot-sync unit-overtake-blocked-prepared-sync)
+    add_test(NAME unit-overtake-blocked-owoot-sync COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${unit_race_fixture}" --case blocked --planner sync --owoot)
+    add_test(NAME unit-overtake-blocked-prepared-sync COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${unit_race_fixture}" --case blocked --planner sync --prepared)
+    set_tests_properties(unit-overtake-blocked-owoot-sync unit-overtake-blocked-prepared-sync
+        PROPERTIES RUN_SERIAL TRUE)
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT 180
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(UNIX)

@@ -65,7 +65,7 @@ enum UNIT_PLAN_BRAKE {
 struct UNIT_PLAN {
 	legacy_f64 target_x, target_y, target_z, target_speed;
 	legacy_u32 route_cursor, generation;
-	legacy_u8 brake, valid, from_worker;
+	legacy_u8 brake, valid, from_worker, overtaking;
 };
 
 struct UNIT_PLANNER_STATS {
@@ -159,6 +159,10 @@ void unit_planner_work(struct UNIT_PLANNER *planner, legacy_u32 work_units);
 legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEHICLE *unit,
 							 const struct UNIT_VEHICLE *player, legacy_u32 route_cursor,
 							 legacy_u32 generation, struct UNIT_PLAN *plan);
+/* Main-thread intent includes the gradual merge after clearing the human. */
+legacy_int unit_planner_overtaking(const struct UNIT_PLANNER *planner);
+/* A native cached line can already provide a clear passage past traffic. */
+void unit_planner_cancel_overtake(struct UNIT_PLANNER *planner);
 void unit_planner_stats(struct UNIT_PLANNER *planner, struct UNIT_PLANNER_STATS *stats);
 
 #endif

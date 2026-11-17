@@ -17,6 +17,14 @@
 #define TEST_PI 3.14159265358979323846
 #define TEST_WAIT_LIMIT_MS 2000U
 #define TEST_WORLD_PER_MPH (22.0 / 3.0)
+#define TEST_PASS_PLAYER_DISTANCE 600.0
+#define TEST_PASS_LATERAL_BIAS 35.0
+#define TEST_PASS_SLOW_SPEED 12.0
+#define TEST_PASS_HEIGHT_SEPARATION 500.0
+#define TEST_PASS_BODY_MARGIN 6.0
+#define TEST_PASS_MERGE_STEPS 8U
+#define TEST_PASS_APPROACH_DISTANCE 1024.0
+#define TEST_PASS_CLEAR_LATERAL 100.0
 
 static struct UNIT_CAR_LIMITS car_limits(void)
 {
@@ -456,6 +464,221 @@ static void test_player_forecasts(void)
 	assert(unit_planner_plan(planner, &unit, &player, 0U, 3U, &plan));
 	assert(!plan.brake && plan.target_speed > 200.0);
 	unit_planner_destroy(planner);
+}
+
+static struct UNIT_PLANNER *passing_planner(legacy_f64 half_width)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	for (legacy_u32 point = 0; point < TEST_POINT_COUNT; point++) {
+		points[point].half_width = half_width;
+	}
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_PLANNER *planner = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
+	assert(planner);
+	finish_sync_preparation(planner);
+	return planner;
+}
+
+static struct UNIT_PLAN passing_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEHICLE *unit,
+									 const struct UNIT_VEHICLE *player, legacy_u32 frame)
+{
+	legacy_u32 cursor = unit->z > 0.0 ? (legacy_u32)(unit->z / TEST_POINT_SPACING) : 0U;
+	if (cursor >= TEST_POINT_COUNT) {
+		cursor = TEST_POINT_COUNT - 1U;
+	}
+	struct UNIT_PLAN plan;
+	assert(unit_planner_plan(planner, unit, player, cursor, frame, &plan) && plan.valid);
+	assert((plan.overtaking != 0) == (unit_planner_overtaking(planner) != 0));
+	return plan;
+}
+
+static void assert_passing_progress(const struct UNIT_PLAN *plan, const struct UNIT_VEHICLE *unit)
+{
+	assert(plan->overtaking && plan->brake == UNIT_PLAN_BRAKE_NONE);
+	assert(plan->target_speed > 0.0 && plan->target_z > unit->z);
+}
+
+static void test_overtaking_stopped_and_slow_players(void)
+{
+	static const legacy_f64 speeds[] = {0.0, TEST_PASS_SLOW_SPEED};
+	static const legacy_f64 sides[] = {-1.0, 1.0};
+	for (legacy_u32 speed = 0; speed < sizeof(speeds) / sizeof(speeds[0]); speed++) {
+		for (legacy_u32 side = 0; side < sizeof(sides) / sizeof(sides[0]); side++) {
+			struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
+			struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+			unit.speed = player.speed = speeds[speed];
+			unit.vz = player.vz = speeds[speed] * TEST_WORLD_PER_MPH;
+			player.x = sides[side] * TEST_PASS_LATERAL_BIAS;
+			player.z = TEST_PASS_PLAYER_DISTANCE;
+			struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
+			/* The intended road pace, rather than current closing speed, must
+			 * reveal both a stopped blocker and an equally slow moving leader. */
+			assert_passing_progress(&plan, &unit);
+			assert(plan.target_speed > player.speed);
+			assert(plan.target_x * player.x < 0.0);
+			assert(fabs(plan.target_x - player.x) >=
+				   unit.half_width + player.half_width + TEST_PASS_BODY_MARGIN);
+			assert(fabs(plan.target_x) + unit.half_width <= TEST_HALF_WIDTH);
+			unit_planner_destroy(planner);
+		}
+	}
+}
+
+static void test_overtaking_approaches_slow_traffic(void)
+{
+	struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
+	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+	unit.speed = player.speed = TEST_PASS_SLOW_SPEED;
+	unit.vz = player.vz = TEST_PASS_SLOW_SPEED * TEST_WORLD_PER_MPH;
+	player.z = TEST_PASS_APPROACH_DISTANCE;
+	struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
+	assert_passing_progress(&plan, &unit);
+	assert(plan.target_speed > player.speed && plan.target_x == unit.x);
+	/* Commit while the leader is still far away, then turn out once closing
+	 * distance makes the side maneuver useful. Equal current speeds must not
+	 * leave UNIT matching the leader forever outside the activation range. */
+	unit.z += TEST_POINT_SPACING;
+	plan = passing_plan(planner, &unit, &player, 2U);
+	assert_passing_progress(&plan, &unit);
+	assert(fabs(plan.target_x) > 0.0);
+	struct UNIT_PLAN repeated = passing_plan(planner, &unit, &player, 2U);
+	assert(repeated.overtaking && repeated.target_x == plan.target_x);
+	unit_planner_destroy(planner);
+}
+
+static void test_overtaking_side_and_tail_clearance(void)
+{
+	struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
+	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+	unit.speed = player.speed = TEST_PASS_SLOW_SPEED;
+	unit.vz = player.vz = TEST_PASS_SLOW_SPEED * TEST_WORLD_PER_MPH;
+	player.x = 1.0;
+	player.z = TEST_PASS_PLAYER_DISTANCE;
+	struct UNIT_PLANNER_PROFILE original, after;
+	assert(unit_planner_export_profile(planner, &original));
+	legacy_u32 frame = 1U;
+	struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, frame++);
+	assert_passing_progress(&plan, &unit);
+	legacy_f64 chosen_side = plan.target_x > 0.0 ? 1.0 : -1.0;
+	legacy_f64 passing_line = fabs(plan.target_x);
+	static const legacy_f64 drift[] = {-2.0, 3.0, -4.0, 2.0, 0.0};
+	for (legacy_u32 sample = 0; sample < sizeof(drift) / sizeof(drift[0]); sample++) {
+		player.x = drift[sample];
+		plan = passing_plan(planner, &unit, &player, frame++);
+		assert_passing_progress(&plan, &unit);
+		assert(plan.target_x * chosen_side > 0.0);
+	}
+	unit.x = chosen_side * passing_line;
+	unit.z = player.z;
+	plan = passing_plan(planner, &unit, &player, frame++);
+	assert_passing_progress(&plan, &unit);
+	assert(plan.target_x * chosen_side > 0.0);
+	/* Being partly ahead is insufficient: UNIT's rear still overlaps the
+	 * human's front, so merging now would cut across the other car. */
+	unit.z = player.z + player.half_length;
+	plan = passing_plan(planner, &unit, &player, frame++);
+	assert_passing_progress(&plan, &unit);
+	assert(plan.target_x * chosen_side > 0.0);
+	unit.z = player.z + unit.half_length + player.half_length + TEST_POINT_SPACING;
+	plan = passing_plan(planner, &unit, &player, frame++);
+	assert(plan.brake == UNIT_PLAN_BRAKE_NONE && plan.target_speed > 0.0);
+	assert(fabs(plan.target_x) < passing_line);
+	legacy_f64 merge_offset = fabs(plan.target_x);
+	player.z = unit.z - player.half_length;
+	plan = passing_plan(planner, &unit, &player, frame++);
+	assert_passing_progress(&plan, &unit);
+	assert(plan.target_x * chosen_side > 0.0 && fabs(plan.target_x) > merge_offset);
+	player.z = unit.z - unit.half_length - player.half_length - TEST_POINT_SPACING;
+	plan = passing_plan(planner, &unit, &player, frame++);
+	for (legacy_u32 step = 0; plan.overtaking && step < TEST_PASS_MERGE_STEPS; step++) {
+		legacy_f64 previous_offset = fabs(plan.target_x);
+		unit.x = plan.target_x;
+		unit.z += TEST_POINT_SPACING;
+		plan = passing_plan(planner, &unit, &player, frame++);
+		assert(fabs(plan.target_x) <= previous_offset);
+	}
+	assert(!plan.overtaking && !unit_planner_overtaking(planner));
+	assert(unit_planner_export_profile(planner, &after));
+	assert(original.lane == after.lane && original.apex == after.apex &&
+		   original.lookahead == after.lookahead);
+	unit_planner_destroy(planner);
+}
+
+enum TEST_PASS_NONBLOCKER {
+	TEST_PASS_CROSSING,
+	TEST_PASS_DIFFERENT_LEVEL,
+	TEST_PASS_OFF_CORRIDOR,
+	TEST_PASS_BEHIND,
+	TEST_PASS_FAST_LEADER,
+	TEST_PASS_DISTANT,
+	TEST_PASS_NO_PLAYER,
+	TEST_PASS_PARALLEL_CLEAR,
+	TEST_PASS_NONBLOCKERS
+};
+
+static void test_overtaking_ignores_nonblockers(void)
+{
+	for (legacy_u8 scenario = 0; scenario < TEST_PASS_NONBLOCKERS; scenario++) {
+		struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
+		struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+		unit.speed = TEST_PASS_SLOW_SPEED;
+		unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+		player.z = TEST_PASS_PLAYER_DISTANCE;
+		const struct UNIT_VEHICLE *observed = &player;
+		switch (scenario) {
+			case TEST_PASS_CROSSING:
+				player.yaw = TEST_PI * 0.5;
+				player.speed = TEST_PASS_SLOW_SPEED;
+				player.vx = player.speed * TEST_WORLD_PER_MPH;
+				break;
+			case TEST_PASS_DIFFERENT_LEVEL:
+				player.y = TEST_PASS_HEIGHT_SEPARATION;
+				break;
+			case TEST_PASS_OFF_CORRIDOR:
+				player.x = TEST_HALF_WIDTH * 4.0;
+				break;
+			case TEST_PASS_BEHIND:
+				player.z = -TEST_PASS_PLAYER_DISTANCE;
+				break;
+			case TEST_PASS_FAST_LEADER:
+				player.speed = TEST_MAX_SPEED;
+				player.vz = player.speed * TEST_WORLD_PER_MPH;
+				break;
+			case TEST_PASS_DISTANT:
+				player.z = TEST_POINT_COUNT * TEST_POINT_SPACING;
+				break;
+			case TEST_PASS_NO_PLAYER:
+				observed = NULL;
+				break;
+			case TEST_PASS_PARALLEL_CLEAR:
+				unit.x = -TEST_PASS_CLEAR_LATERAL;
+				break;
+			default:
+				assert(0);
+		}
+		struct UNIT_PLAN plan = passing_plan(planner, &unit, observed, 1U);
+		assert(!plan.overtaking && !unit_planner_overtaking(planner));
+		unit_planner_destroy(planner);
+	}
+}
+
+static void test_overtaking_progress_through_constrained_gaps(void)
+{
+	static const legacy_f64 half_widths[] = {110.0, 90.0, 70.0};
+	for (legacy_u32 gap = 0; gap < sizeof(half_widths) / sizeof(half_widths[0]); gap++) {
+		struct UNIT_PLANNER *planner = passing_planner(half_widths[gap]);
+		struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+		player.z = TEST_PASS_PLAYER_DISTANCE;
+		struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
+		/* Even when two bodies cannot fit comfortably side by side, pass
+		 * intent must keep a forward attempt instead of selecting a stationary
+		 * collision-free rollout forever. Keep the chosen line on the road. */
+		assert_passing_progress(&plan, &unit);
+		assert(fabs(plan.target_x) > 0.0);
+		assert(fabs(plan.target_x) + unit.half_width <= half_widths[gap]);
+		unit_planner_destroy(planner);
+	}
 }
 
 static void test_separating_player_margin(void)
@@ -1206,6 +1429,11 @@ legacy_int main(void)
 	test_clearance_preserves_ordinary_planning();
 	test_clearance_crest_passing();
 	test_player_forecasts();
+	test_overtaking_stopped_and_slow_players();
+	test_overtaking_approaches_slow_traffic();
+	test_overtaking_side_and_tail_clearance();
+	test_overtaking_ignores_nonblockers();
+	test_overtaking_progress_through_constrained_gaps();
 	test_separating_player_margin();
 	test_validation();
 	test_complete_route_rebuild();
