@@ -83,7 +83,7 @@ static const legacy_s8 far *end_hiscore_result_text(legacy_s8 far *opponent_reso
 #ifdef RESTUNTS_SDL3
 	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
 		if (outcome == END_SCREEN_OUTCOME_NONE) {
-			return "UNIT";
+			return "Neither of us finished. The finish line remains an untested hypothesis.";
 		}
 		const struct UNIT_RESULT_TEXT *text =
 			outcome == END_SCREEN_OUTCOME_WIN ? &unit_win_text : &unit_loss_text;

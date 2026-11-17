@@ -887,7 +887,8 @@ static void assert_unit_message(legacy_u8 outcome)
 {
 	legacy_s8 expected[FIXTURE_UNIT_TEXT_CAPACITY];
 	if (outcome == END_SCREEN_OUTCOME_NONE) {
-		_strcpy(expected, "UNIT");
+		_strcpy(expected,
+				"Neither of us finished. The finish line remains an untested hypothesis.");
 	} else {
 		legacy_u8 won = outcome == END_SCREEN_OUTCOME_WIN;
 		_strcpy(expected, won ? unit_win_openings[end_opening_variant]
@@ -936,7 +937,7 @@ static void test_unit_dialogue_combinations(void)
 		}
 		end_hiscore_draw_opponent_text(0, END_SCREEN_OUTCOME_NONE, 0, unit_text_animation_x);
 		assert_unit_message(END_SCREEN_OUTCOME_NONE);
-		assert(unit_text_lines == 1U);
+		assert(unit_text_lines > 1U);
 	}
 	unit_text_capture = 0;
 }
