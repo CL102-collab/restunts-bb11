@@ -25,6 +25,9 @@
 #define TEST_PASS_MERGE_STEPS 8U
 #define TEST_PASS_APPROACH_DISTANCE 1024.0
 #define TEST_PASS_CLEAR_LATERAL 100.0
+#define TEST_WORKER_UNIT_SPEED 70.0
+#define TEST_WORKER_PLAYER_DISTANCE 900.0
+#define TEST_WORKER_CROSSING_SPEED 64.0
 
 static struct UNIT_CAR_LIMITS car_limits(void)
 {
@@ -1340,6 +1343,21 @@ static void test_learning_worker_snapshots(void)
 	unit_planner_destroy(planner);
 }
 
+static void wait_for_worker_batch(struct UNIT_PLANNER *planner, legacy_u64 previous_candidates)
+{
+	struct UNIT_PLANNER_STATS stats;
+	legacy_u64 deadline = SDL_GetTicks() + TEST_WAIT_LIMIT_MS;
+	do {
+		unit_planner_stats(planner, &stats);
+		assert(stats.workers == 1U);
+		if (stats.live_candidates - previous_candidates >= UNIT_PLANNER_LIVE_CANDIDATES) {
+			return;
+		}
+		SDL_Delay(1U);
+	} while (SDL_GetTicks() < deadline);
+	assert(0 && "live worker did not finish its candidate batch");
+}
+
 static void test_worker_lifecycle(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -1378,29 +1396,30 @@ static void test_worker_lifecycle(void)
 	struct UNIT_VEHICLE unit = vehicle();
 	struct UNIT_PLAN plan;
 	assert(unit_planner_plan(planner, &unit, NULL, 0U, 1U, &plan));
-	deadline = SDL_GetTicks() + TEST_WAIT_LIMIT_MS;
-	do {
-		unit_planner_stats(planner, &stats);
-		if (stats.live_candidates) {
-			break;
-		}
-		SDL_Delay(1U);
-	} while (SDL_GetTicks() < deadline);
+	wait_for_worker_batch(planner, stats.live_candidates);
+	unit_planner_stats(planner, &stats);
 	assert(stats.live_candidates && stats.workers == 1U);
 	struct UNIT_VEHICLE player = vehicle();
-	unit.speed = 70.0;
-	player.z = 900.0;
+	unit.speed = TEST_WORKER_UNIT_SPEED;
+	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+	player.z = TEST_WORKER_PLAYER_DISTANCE;
+	player.vx = TEST_WORKER_CROSSING_SPEED;
+	player.speed = player.vx / TEST_WORLD_PER_MPH;
+	player.yaw = TEST_PI * 0.5;
 	legacy_u32 frame = 2U;
-	deadline = SDL_GetTicks() + TEST_WAIT_LIMIT_MS;
-	do {
-		assert(unit_planner_plan(planner, &unit, &player, 0U, frame++, &plan));
-		unit_planner_stats(planner, &stats);
-		if (stats.worker_accepted) {
-			break;
-		}
-		SDL_Delay(1U);
-	} while (SDL_GetTicks() < deadline);
+	legacy_u64 previous_candidates = stats.live_candidates;
+	assert(unit_planner_plan(planner, &unit, &player, 0U, frame++, &plan));
+	assert(!plan.overtaking);
+	/* Keep this request current until all proposals have been evaluated.
+	 * Republishing every millisecond can cancel each instrumented batch at
+	 * candidate zero, which cannot improve on the same main-thread rollout.
+	 * Crossing traffic leaves passing intent inactive and gives the worker
+	 * a genuinely better avoidance response to apply on the next frame. */
+	wait_for_worker_batch(planner, previous_candidates);
+	assert(unit_planner_plan(planner, &unit, &player, 0U, frame++, &plan));
+	unit_planner_stats(planner, &stats);
 	assert(stats.worker_accepted && plan.from_worker);
+	assert(!plan.overtaking && plan.target_speed < unit.speed);
 	/* Revalidate a winning avoidance proposal against the current player,
 	 * so an earlier blocked road cannot keep braking once the player leaves. */
 	player.x = 1000000000.0;
