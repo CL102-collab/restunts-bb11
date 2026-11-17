@@ -3,6 +3,12 @@
 
 #include "unit_planner.h"
 
+/* Instrumented regression builds can normalize CPU time guards while keeping
+ * native tick quotas and exact race-frame handoffs unchanged. */
+#ifndef RESTUNTS_UNIT_WORK_TIME_MULTIPLIER
+#define RESTUNTS_UNIT_WORK_TIME_MULTIPLIER 1U
+#endif
+
 #define UNIT_PILOT_CONTINUATION_TICKS 128U
 /* Fixed future handoff span for a stopped native recheck, in race ticks. */
 #define UNIT_PILOT_WAIT_TICKS 32U

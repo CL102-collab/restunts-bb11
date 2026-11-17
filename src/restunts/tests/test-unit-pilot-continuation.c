@@ -29,6 +29,13 @@ static struct UNIT_PLANNER source;
 #define TEST_LEARNING_SUFFIX_FRAME 17U
 #define TEST_LEARNING_BANK_FIRST_FAILURE 60U
 #define TEST_LEARNING_BANK_SECOND_FAILURE 64U
+#define TEST_WORK_REQUEST_TICKS 1000U
+#define TEST_WORK_SLOW_CLOCK_NS 100000ULL
+#define TEST_WORK_SLOW_CHUNK_TICKS 40U
+#define TEST_WORK_NATIVE_CHUNK_TICKS 64U
+#define TEST_WORK_CONTINUATION_CHUNKS 2U
+#define TEST_WORK_NATIVE_DEADLINE_NS 4000000ULL
+#define TEST_WORK_CONTINUATION_CLOCK_NS 2000000ULL
 
 static void begin_prefix(void)
 {
@@ -113,8 +120,8 @@ static void test_bounded_work_and_cleanup(void)
 	struct CSRPL_OPPONENT_COMMAND command;
 	struct UNIT_PILOT_STATS stats;
 	assert(unit_pilot_command(&state.opponentstate, 100, &command));
-	clock_step = 4000000;
-	assert(unit_pilot_continue_work(1000));
+	clock_step = TEST_WORK_NATIVE_DEADLINE_NS * RESTUNTS_UNIT_WORK_TIME_MULTIPLIER;
+	assert(unit_pilot_continue_work(TEST_WORK_REQUEST_TICKS));
 	unit_pilot_stats(&stats);
 	assert(stats.native_ticks == 56);
 	unit_pilot_stop();
@@ -131,6 +138,43 @@ static void test_bounded_work_and_cleanup(void)
 	unit_pilot_work(8);
 	assert(unit_pilot_finish() && unit_pilot_continuation_pending());
 	unit_pilot_stop();
+}
+
+static void test_scaled_work_progress_and_horizons(void)
+{
+	static const legacy_u64 charges[] = {0ULL, TEST_WORK_SLOW_CLOCK_NS};
+	static const legacy_u32 expected[] = {TEST_WORK_NATIVE_CHUNK_TICKS, TEST_WORK_SLOW_CHUNK_TICKS};
+	for (legacy_u32 scenario = 0; scenario < sizeof(charges) / sizeof(charges[0]); scenario++) {
+		reset_fixture(0);
+		clock_step = charges[scenario] * RESTUNTS_UNIT_WORK_TIME_MULTIPLIER;
+		struct GAMESTATE before = state;
+		assert(unit_pilot_begin(&source));
+		unit_pilot_work(TEST_WORK_REQUEST_TICKS);
+		struct UNIT_PILOT_STATS stats;
+		unit_pilot_stats(&stats);
+		assert(stats.native_ticks == expected[scenario]);
+		assert(unit_pilot_state->committed_steps == expected[scenario]);
+		assert_live_unchanged(&before);
+		assert(unit_pilot_finish() && unit_pilot_continuation_pending());
+		struct CSRPL_OPPONENT_COMMAND command;
+		assert(unit_pilot_command(&state.opponentstate, 100U, &command));
+		assert(command.route_point == 0);
+		/* A dilated clock must admit the same actual native prefix. Without
+		 * inner scaling, slow builds stop after one tick; without outer
+		 * scaling, the continuation cannot begin its second chunk. A free
+		 * clock must still respect both fixed simulated-work quotas. */
+		assert(unit_pilot_continue_work(TEST_WORK_REQUEST_TICKS));
+		legacy_u32 total = expected[scenario] * (1U + TEST_WORK_CONTINUATION_CHUNKS);
+		unit_pilot_stats(&stats);
+		assert(stats.native_ticks == total && stats.matched_commands == 1U);
+		assert(unit_pilot_state->committed_steps == total);
+		struct CARSTATE last;
+		assert(unit_pilot_future_car(total - 1U, &last));
+		assert((legacy_u16)last.car_reserved_route_word1 == total - 1U);
+		assert(!unit_pilot_future_car(total, &last));
+		assert_live_unchanged(&before);
+		unit_pilot_stop();
+	}
 }
 
 static void test_ordinary_prefix(void)
@@ -398,7 +442,7 @@ static void test_two_chunk_frame_budget(void)
 	/* Each clock read charges 2ms. The first inner chunk stops at 4ms;
 	 * envelope and scheduling overhead bring total elapsed time to 8ms,
 	 * so a second native chunk must not start. */
-	clock_step = 2000000;
+	clock_step = TEST_WORK_CONTINUATION_CLOCK_NS * RESTUNTS_UNIT_WORK_TIME_MULTIPLIER;
 	assert(unit_pilot_continue_work(UNIT_PILOT_CONTINUATION_TICKS));
 	unit_pilot_stats(&stats);
 	assert(stats.native_ticks == 57);
@@ -1032,6 +1076,7 @@ legacy_int main(void)
 	test_append_and_isolation();
 	test_cancel_divergence();
 	test_bounded_work_and_cleanup();
+	test_scaled_work_progress_and_horizons();
 	test_ordinary_prefix();
 	test_rolling_recheck();
 	test_receiving_road_geometry();

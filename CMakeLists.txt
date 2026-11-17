@@ -693,12 +693,22 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/opponent/unit_pilot_trace.c
         ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
         ${core}/extended/extended_barrel_search.c)
-    target_compile_definitions(test-unit-pilot-continuation PRIVATE RESTUNTS_SDL3)
-    target_include_directories(test-unit-pilot-continuation PRIVATE
-        $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
-    target_compile_options(test-unit-pilot-continuation PRIVATE -UNDEBUG)
-    target_link_libraries(test-unit-pilot-continuation PRIVATE m)
-    add_test(NAME unit-pilot-continuation COMMAND test-unit-pilot-continuation)
+    get_target_property(unit_pilot_continuation_sources test-unit-pilot-continuation SOURCES)
+    add_executable(test-unit-pilot-continuation-slow-clock ${unit_pilot_continuation_sources})
+    # Exercise instrumented CPU guards against a proportionally slower fixture clock.
+    set(restunts_unit_slow_clock_multiplier 40)
+    target_compile_definitions(test-unit-pilot-continuation-slow-clock PRIVATE
+        RESTUNTS_UNIT_WORK_TIME_MULTIPLIER=${restunts_unit_slow_clock_multiplier})
+    foreach(unit_continuation_target test-unit-pilot-continuation
+            test-unit-pilot-continuation-slow-clock)
+        target_compile_definitions(${unit_continuation_target} PRIVATE RESTUNTS_SDL3)
+        target_include_directories(${unit_continuation_target} PRIVATE
+            $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
+        target_compile_options(${unit_continuation_target} PRIVATE -UNDEBUG)
+        target_link_libraries(${unit_continuation_target} PRIVATE m)
+        string(REGEX REPLACE "^test-" "" unit_continuation_test "${unit_continuation_target}")
+        add_test(NAME ${unit_continuation_test} COMMAND ${unit_continuation_target})
+    endforeach()
     foreach(unit_planner_variant threaded sync)
         add_executable(test-unit-planner-${unit_planner_variant}
             src/restunts/tests/test-unit-planner.c
@@ -1135,6 +1145,12 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/tests/test-unit-race.c)
     target_compile_definitions(test-unit-race PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+    if(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GREATER 1)
+        # Restore comparable native work per simulated frame under instrumentation.
+        # Tick quotas and exact-state race-frame handoffs remain unchanged.
+        target_compile_definitions(test-unit-race PRIVATE
+            RESTUNTS_UNIT_WORK_TIME_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER})
+    endif()
     target_compile_options(test-unit-race PRIVATE -UNDEBUG)
     target_link_libraries(test-unit-race PRIVATE restunts_options)
     set(unit_race_fixture "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/flat-rectangle.trk")
