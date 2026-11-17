@@ -1135,43 +1135,51 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_options(test-unit-race PRIVATE -UNDEBUG)
     target_link_libraries(test-unit-race PRIVATE restunts_options)
     set(unit_race_fixture "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/flat-rectangle.trk")
+    math(EXPR restunts_unit_preparation_ms
+        "10000 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
+    set(unit_race_preparation_args --prepare-ms ${restunts_unit_preparation_ms})
+    if(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GREATER 1)
+        # Preserve useful planning work under instrumentation. Stop early when
+        # the native preview completes or exhausts its search.
+        list(APPEND unit_race_preparation_args --prepare-until-plan)
+    endif()
     set(unit_race_tests unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
         unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoint-human
         unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
         unit-race-glacier-human unit-race-glacier-owoot-human)
     add_test(NAME unit-race-prepared COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK" 7
-        --prepare-ms 10000 --planner-yield-ms 2
+        ${unit_race_preparation_args} --planner-yield-ms 2
         --verify-replay --require-finish --require-clean)
     set_tests_properties(unit-race-prepared PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-glacier-sync COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        --prepare-ms 10000 --planner-sync --frames 18000
+        ${unit_race_preparation_args} --planner-sync --frames 18000
         --verify-replay --require-finish --require-clean)
     set_tests_properties(unit-race-glacier-sync PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-glacier-owoot-sync COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        --prepare-ms 10000 --planner-sync --frames 18000 --owoot:on
+        ${unit_race_preparation_args} --planner-sync --frames 18000 --owoot:on
         --verify-replay --require-finish --require-clean)
     set_tests_properties(unit-race-glacier-owoot-sync PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-native-grid COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        --prepare-ms 10000 --planner-yield-ms 2 --frames 60 --human grid --owoot:on
+        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 60 --human grid --owoot:on
         --verify-replay --require-clean)
     set_tests_properties(unit-race-native-grid PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-glacier-human COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        --prepare-ms 10000 --planner-yield-ms 2 --frames 18000 --human grid-then-park
+        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000 --human grid-then-park
         --verify-replay --require-finish --require-clean --require-worker)
     set_tests_properties(unit-race-glacier-human PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-glacier-owoot-human COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        --prepare-ms 10000 --planner-yield-ms 2 --frames 18000 --human grid-then-park --owoot:on
+        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000 --human grid-then-park --owoot:on
         --verify-replay --require-finish --require-clean --require-worker)
     set_tests_properties(unit-race-glacier-owoot-human PROPERTIES RUN_SERIAL TRUE)
     foreach(unit_regression_track branches keukenhof ninhbinh default)
@@ -1184,7 +1192,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         list(APPEND unit_race_tests unit-race-${unit_regression_track}-no-stalls)
         add_test(NAME unit-race-${unit_regression_track}-no-stalls COMMAND test-unit-race
             --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_regression_fixture}" 7
-            --prepare-ms 10000 --planner-yield-ms 2 --human grid-then-park
+            ${unit_race_preparation_args} --planner-yield-ms 2 --human grid-then-park
             --verify-replay --require-finish --require-clean --require-no-stalls)
         set_tests_properties(unit-race-${unit_regression_track}-no-stalls PROPERTIES RUN_SERIAL TRUE)
     endforeach()
@@ -1193,7 +1201,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         add_test(NAME unit-race-${unit_classic_track}-manual COMMAND test-unit-race
             --data-dir "${CMAKE_SOURCE_DIR}/stunts"
             "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/${unit_classic_track}.trk" 7
-            --prepare-ms 10000 --planner-sync --manual
+            ${unit_race_preparation_args} --planner-sync --manual
             --verify-replay --require-finish --require-clean --require-no-stalls)
         set_tests_properties(unit-race-${unit_classic_track}-manual PROPERTIES RUN_SERIAL TRUE)
     endforeach()
@@ -1202,7 +1210,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-opponent.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk"
-        --prepare-ms 10000 --planner-sync --manual --require-faster)
+        ${unit_race_preparation_args} --planner-sync --manual --require-faster)
     set_tests_properties(unit-race-skids-manual-faster PROPERTIES RUN_SERIAL TRUE)
     foreach(unit_skids_planner threaded sync)
         set(unit_skids_planner_args --planner-yield-ms 2)
@@ -1213,7 +1221,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         add_test(NAME unit-race-skids-short-launch-${unit_skids_planner} COMMAND test-unit-race
             --data-dir "${CMAKE_SOURCE_DIR}/stunts"
             "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk" 7
-            --prepare-ms 10000 --manual --frame-rate 20 --frames 6000 ${unit_skids_planner_args}
+            ${unit_race_preparation_args} --manual --frame-rate 20 --frames 6000 ${unit_skids_planner_args}
             --human grid-then-park --human-drive-frames 2
             --verify-replay --require-finish --require-clean)
         set_tests_properties(unit-race-skids-short-launch-${unit_skids_planner}
@@ -1221,7 +1229,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     endforeach()
     add_test(NAME unit-race-prepared-worker COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
-        --prepare-ms 10000 --planner-yield-ms 2 --frames 180 --human accelerating
+        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 180 --human accelerating
         --verify-replay --require-clean --require-worker)
     set_tests_properties(unit-race-prepared-worker PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-checkpoint-human COMMAND test-unit-race

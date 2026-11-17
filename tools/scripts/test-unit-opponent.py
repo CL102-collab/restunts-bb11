@@ -16,6 +16,8 @@ def main():
     parser.add_argument("data", type=Path, help="original Stunts resource directory")
     parser.add_argument("tracks", nargs="+", type=Path)
     parser.add_argument("--prepare-ms", type=int, default=10000)
+    parser.add_argument("--prepare-until-plan", action="store_true",
+                        help="stop when native preview completes or exhausts its search")
     parser.add_argument("--car", default="PMIN", help="four-character car identifier")
     parser.add_argument("--frame-rate", type=int, choices=(10, 20), default=20)
     parser.add_argument("--planner-yield-ms", type=int, default=2,
@@ -40,6 +42,8 @@ def main():
             if opponent == 7:
                 command += ["--prepare-ms", str(args.prepare_ms), "--verify-replay",
                             "--planner-yield-ms", str(args.planner_yield_ms if args.prepare_ms and not args.planner_sync else 0)]
+                if args.prepare_until_plan:
+                    command.append("--prepare-until-plan")
                 if args.require_worker:
                     command.append("--require-worker")
                 if args.planner_sync:
