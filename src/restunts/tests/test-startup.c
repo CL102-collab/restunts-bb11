@@ -60,8 +60,11 @@ static legacy_u32 startup_video_mode_before_video_calls;
 
 void sdl3_video_set_startup_mode(legacy_u8 mode)
 {
-	assert(mode == SDL3_VIDEO_MODE_VGA || mode == SDL3_VIDEO_MODE_EGA ||
-		   mode == SDL3_VIDEO_MODE_CGA);
+	assert(mode == SDL3_VIDEO_MODE_VGA || mode == SDL3_VIDEO_MODE_EGA || mode == SDL3_VIDEO_MODE_CGA
+#ifndef __DJGPP__
+		   || mode == SDL3_VIDEO_MODE_TANDY
+#endif
+	);
 	startup_video_mode = mode;
 	startup_video_mode_before_video_calls = startup_video_calls;
 	++startup_video_mode_set_calls;
@@ -1220,9 +1223,13 @@ static void test_startup_video_mode_options(void)
 		const legacy_s8 *argument;
 		legacy_u8 mode;
 	} cases[] = {
-		{"--videomode:vga", SDL3_VIDEO_MODE_VGA}, {"--videomode:ega", SDL3_VIDEO_MODE_EGA},
-		{"--videomode:cga", SDL3_VIDEO_MODE_CGA}, {"--VIDEOMODE:VgA", SDL3_VIDEO_MODE_VGA},
-		{"--vIdEoMoDe:EgA", SDL3_VIDEO_MODE_EGA}, {"--VideoMode:CgA", SDL3_VIDEO_MODE_CGA}};
+		{"--videomode:vga", SDL3_VIDEO_MODE_VGA},	  {"--videomode:ega", SDL3_VIDEO_MODE_EGA},
+		{"--videomode:cga", SDL3_VIDEO_MODE_CGA},	  {"--VIDEOMODE:VgA", SDL3_VIDEO_MODE_VGA},
+		{"--vIdEoMoDe:EgA", SDL3_VIDEO_MODE_EGA},	  {"--VideoMode:CgA", SDL3_VIDEO_MODE_CGA},
+#ifndef __DJGPP__
+		{"--videomode:tandy", SDL3_VIDEO_MODE_TANDY}, {"--VideoMode:TaNdY", SDL3_VIDEO_MODE_TANDY},
+#endif
+	};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
 		reset_startup_hypervision();
@@ -1258,6 +1265,11 @@ static void test_startup_video_mode_options(void)
 	assert(startup_options.video_mode == SDL3_VIDEO_MODE_VGA);
 	assert(startup_options.video_mode_specified == 0);
 
+#ifdef __DJGPP__
+	legacy_s8 *unsupported_tandy[] = {(legacy_s8 *)"game", (legacy_s8 *)"--videomode:tandy"};
+	expect_startup_option_error(sizeof(unsupported_tandy) / sizeof(unsupported_tandy[0]),
+								unsupported_tandy);
+#endif
 	static const legacy_s8 *invalid[] = {"--videomode:",		"--videomode:auto",
 										 "--videomode:1",		"--videomode:vgax",
 										 "--videomode:cga:ega", "--VIDEOMODE:unknown"};

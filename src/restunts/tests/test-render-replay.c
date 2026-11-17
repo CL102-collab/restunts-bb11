@@ -419,6 +419,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			expected_video_mode = SDL3_VIDEO_MODE_EGA;
 		} else if (strcmp(value, "cga") == 0) {
 			expected_video_mode = SDL3_VIDEO_MODE_CGA;
+		} else if (strcmp(value, "tandy") == 0) {
+			expected_video_mode = SDL3_VIDEO_MODE_TANDY;
 		} else {
 			assert(strcmp(value, "vga") == 0);
 		}

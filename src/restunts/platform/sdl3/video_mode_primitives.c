@@ -7,6 +7,9 @@
 #include "../../c/shape3d/shape3d.h"
 #include "../../c/shape3d/shape3d_pipeline_internal.h"
 
+#define VIDEO_MODE_TANDY_COLOR_MASK 0x000FU
+#define VIDEO_MODE_TANDY_COLOR_REPEAT 0x1111U
+
 enum VIDEO_MODE_MATERIAL_TABLE {
 	VIDEO_MODE_MATERIAL_PRIMARY,
 	VIDEO_MODE_MATERIAL_SECONDARY,
@@ -25,6 +28,7 @@ enum VIDEO_MODE_PRIMITIVE_COLOR {
 struct VIDEO_MODE_MATERIALS {
 	const legacy_u16 *table[VIDEO_MODE_MATERIAL_TABLE_COUNT];
 	legacy_u8 cga;
+	legacy_u8 tandy;
 };
 
 static legacy_u16 video_mode_material_value(const struct VIDEO_MODE_MATERIALS *materials,
@@ -46,7 +50,14 @@ static legacy_u16 video_mode_material_value(const struct VIDEO_MODE_MATERIALS *m
 	if (table >= VIDEO_MODE_MATERIAL_TABLE_COUNT || index >= VIDEO_MODE_MATERIAL_COUNT) {
 		return 0;
 	}
-	return materials->table[table][index];
+	legacy_u16 value = materials->table[table][index];
+	if (materials->tandy &&
+		(table == VIDEO_MODE_MATERIAL_PRIMARY || table == VIDEO_MODE_MATERIAL_SECONDARY)) {
+		/* TDY startup maps exactly these 129 color entries through its
+		 * 0000/1111/.../FFFF palette. Adjacent pattern tables remain raw. */
+		value = (value & VIDEO_MODE_TANDY_COLOR_MASK) * VIDEO_MODE_TANDY_COLOR_REPEAT;
+	}
+	return value;
 }
 
 static void video_mode_draw_primitive(const legacy_u8 *record, struct POINT2D *points,
@@ -82,7 +93,7 @@ static void video_mode_draw_primitive(const legacy_u8 *record, struct POINT2D *p
 		point_color = height == 1U;
 	}
 	sdl3_video_mode_primitive_capture(colors);
-	if (materials->cga && point_color) {
+	if ((materials->cga || materials->tandy) && point_color) {
 		sdl3_video_mode_point_begin();
 	}
 	legacy_u16 color = ghost ? PRERENDER_GHOST_COLOR : SDL3_VIDEO_NATIVE_PRIMARY;
@@ -101,14 +112,20 @@ static void video_mode_draw_primitive(const legacy_u8 *record, struct POINT2D *p
 		} else if (pattern_type == SHAPE3D_PATTERN_SOLID) {
 			preRender_default(color, count, points);
 		} else if (pattern_type == SHAPE3D_PATTERN_MASKED && pattern != 0U) {
-			if (materials->cga) {
-				/* The CGA mask uses its low byte on even rows; the shared
+			if (materials->cga || materials->tandy) {
+				/* The CGA/Tandy mask uses its low byte on even rows; the shared
 				 * byte rasterizer uses the high byte on those rows. */
 				pattern =
 					(legacy_u16)((pattern << LEGACY_BYTE_BITS) | (pattern >> LEGACY_BYTE_BITS));
 			}
 			preRender_patterned(pattern, color, count, points);
 		} else if (pattern_type == SHAPE3D_PATTERN_TWO_COLOR) {
+			if (materials->tandy) {
+				/* TDY uses the same low-byte-first phase for both patterned
+				 * raster families, unlike EGA. Color roles are unchanged. */
+				pattern =
+					(legacy_u16)((pattern << LEGACY_BYTE_BITS) | (pattern >> LEGACY_BYTE_BITS));
+			}
 			preRender_two_color(pattern, SDL3_VIDEO_NATIVE_SECONDARY, color, count, points);
 		}
 	} else if (type == RENDER_PRIMITIVE_LINE) {
@@ -134,7 +151,7 @@ static void video_mode_draw_primitive(const legacy_u8 *record, struct POINT2D *p
 						ghost ? PRERENDER_GHOST_COLOR : SDL3_VIDEO_NATIVE_SECONDARY,
 						ghost ? PRERENDER_GHOST_COLOR : SDL3_VIDEO_NATIVE_TERTIARY);
 	}
-	if (materials->cga && point_color) {
+	if ((materials->cga || materials->tandy) && point_color) {
 		sdl3_video_mode_point_end();
 	}
 }
@@ -143,14 +160,21 @@ void sdl3_video_mode_render_primitive(const legacy_u8 *record, struct POINT2D *p
 {
 	struct VIDEO_MODE_MATERIALS materials;
 	materials.cga = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA;
-	materials.table[VIDEO_MODE_MATERIAL_PRIMARY] =
-		materials.cga ? video_mode_cga_primary : video_mode_ega_primary;
-	materials.table[VIDEO_MODE_MATERIAL_SECONDARY] =
-		materials.cga ? video_mode_cga_secondary : video_mode_ega_secondary;
-	materials.table[VIDEO_MODE_MATERIAL_PATTERN_TYPE] =
-		materials.cga ? video_mode_cga_pattern_types : video_mode_ega_pattern_types;
-	materials.table[VIDEO_MODE_MATERIAL_PATTERN_BITS] =
-		materials.cga ? video_mode_cga_pattern_bits : video_mode_ega_pattern_bits;
+	materials.tandy = sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY;
+	materials.table[VIDEO_MODE_MATERIAL_PRIMARY] = materials.cga	 ? video_mode_cga_primary
+												   : materials.tandy ? video_mode_tandy_primary
+																	 : video_mode_ega_primary;
+	materials.table[VIDEO_MODE_MATERIAL_SECONDARY] = materials.cga	   ? video_mode_cga_secondary
+													 : materials.tandy ? video_mode_tandy_secondary
+																	   : video_mode_ega_secondary;
+	materials.table[VIDEO_MODE_MATERIAL_PATTERN_TYPE] = materials.cga ? video_mode_cga_pattern_types
+														: materials.tandy
+															? video_mode_tandy_pattern_types
+															: video_mode_ega_pattern_types;
+	materials.table[VIDEO_MODE_MATERIAL_PATTERN_BITS] = materials.cga ? video_mode_cga_pattern_bits
+														: materials.tandy
+															? video_mode_tandy_pattern_bits
+															: video_mode_ega_pattern_bits;
 	void (*saved_sprite)(legacy_s16 *, legacy_s16 *, legacy_u16, legacy_u16, legacy_u16) =
 		spritefunc;
 	void (*saved_image)(legacy_u16, legacy_u16, legacy_u16, legacy_u16, legacy_u16) = imagefunc;
@@ -168,6 +192,10 @@ void sdl3_video_mode_material_begin(legacy_u16 material)
 	if (material >= VIDEO_MODE_MATERIAL_COUNT) {
 		material = 0;
 	}
-	sdl3_video_mode_direct_begin(video_mode_ega_primary[material],
-								 video_mode_cga_primary[material]);
+	legacy_u16 color = video_mode_ega_primary[material];
+	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY) {
+		color = (video_mode_tandy_primary[material] & VIDEO_MODE_TANDY_COLOR_MASK) *
+				VIDEO_MODE_TANDY_COLOR_REPEAT;
+	}
+	sdl3_video_mode_direct_begin(color, video_mode_cga_primary[material]);
 }

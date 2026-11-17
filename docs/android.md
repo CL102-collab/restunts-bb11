@@ -117,10 +117,12 @@ driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
 **Amiga Grass** uses the original Amiga grass grip for stock cars. Use the same
 driving rules that were selected when generating a ghost or recording a replay.
 
-**Video mode** selects **VGA** (the default), **EGA**, or **CGA** for classic
-graphics, using the original DOS conversion tables and dithering. HyperVision
-always keeps VGA graphics. The selection is remembered and restored when
-returning to the classic renderer.
+**Video mode** selects **VGA** (the default), **EGA**, **CGA**, or **Tandy** for
+classic graphics. EGA, CGA and Tandy use the original DOS conversion tables
+and dithering. Tandy provides the original 320x200, 16-color option through
+`--videomode:tandy`. HyperVision always keeps VGA graphics. Existing saved
+choices keep their meaning; the classic selection is remembered and restored
+when HyperVision is turned off.
 
 Custom car capabilities are declared by each car's resources and activate
 automatically. For example, a car with the `fand=1` resource uses surface adhesion

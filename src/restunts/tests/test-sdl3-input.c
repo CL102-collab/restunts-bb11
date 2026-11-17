@@ -1207,6 +1207,7 @@ enum {
 	VIDEO_MODE_TEST_VGA_INDEX = 42,
 	VIDEO_MODE_TEST_EGA_RED = 12,
 	VIDEO_MODE_TEST_CGA_CYAN = 0x5555,
+	VIDEO_MODE_TEST_TANDY_RED = 0xCCCC,
 	VIDEO_MODE_DAC_LOW = 21,
 	VIDEO_MODE_DAC_HIGH = 42,
 	VIDEO_MODE_DAC_FULL = 63
@@ -1276,28 +1277,46 @@ static void test_classic_video_modes_and_hypervision(void)
 		assert(framebuffer[offset] == VIDEO_MODE_TEST_VGA_INDEX);
 	}
 
-	/* Both indexed and full-color HyperVision presentations keep VGA colors
-	 * while the configured classic renderer remains CGA. */
-	high_resolution_active = true;
-	hires_set_render_scale(FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE);
-	memset(high_resolution_framebuffer, VIDEO_MODE_TEST_VGA_INDEX,
-		   sizeof(high_resolution_framebuffer));
-	argb_active = false;
-	frame_generation++;
-	sdl3_video_present();
-	assert_presented_page(PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
-	for (size_t offset = 0; offset < SDL_arraysize(argb_framebuffer); offset++) {
-		argb_framebuffer[offset] = PAGE_VIDEO_RED;
+	static const struct {
+		legacy_u8 mode;
+		legacy_u16 material;
+		legacy_u32 expected;
+	} classic[] = {
+		{SDL3_VIDEO_MODE_CGA, VIDEO_MODE_TEST_CGA_CYAN, VIDEO_MODE_TEST_CGA_LOW_CYAN},
+#ifndef __DJGPP__
+		{SDL3_VIDEO_MODE_TANDY, VIDEO_MODE_TEST_TANDY_RED, VIDEO_MODE_TEST_EGA_LIGHT_RED},
+#endif
+	};
+	for (size_t index = 0; index < SDL_arraysize(classic); index++) {
+		sdl3_video_set_startup_mode(classic[index].mode);
+		capture_video_mode_color(classic[index].material);
+		sdl3_video_present();
+		assert_presented_page(classic[index].expected, classic[index].expected);
+		/* Indexed and full-color HyperVision presentations keep VGA colors;
+		 * returning to classic restores its native hardware samples. */
+		high_resolution_active = true;
+		hires_set_render_scale(FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE);
+		memset(high_resolution_framebuffer, VIDEO_MODE_TEST_VGA_INDEX,
+			   sizeof(high_resolution_framebuffer));
+		argb_active = false;
+		frame_generation++;
+		sdl3_video_present();
+		assert_presented_page(PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
+		for (size_t offset = 0; offset < SDL_arraysize(argb_framebuffer); offset++) {
+			argb_framebuffer[offset] = PAGE_VIDEO_RED;
+		}
+		argb_active = true;
+		frame_generation++;
+		sdl3_video_present();
+		assert_presented_page(PAGE_VIDEO_RED, PAGE_VIDEO_RED);
+		assert(sdl3_video_mode_selected == classic[index].mode);
+		hires_shutdown();
+		sdl3_video_present();
+		assert_presented_page(classic[index].expected, classic[index].expected);
+		for (legacy_u32 offset = 0; offset < PAGE_VIDEO_PIXELS; offset++) {
+			assert(framebuffer[offset] == VIDEO_MODE_TEST_VGA_INDEX);
+		}
 	}
-	argb_active = true;
-	frame_generation++;
-	sdl3_video_present();
-	assert_presented_page(PAGE_VIDEO_RED, PAGE_VIDEO_RED);
-	assert(sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA);
-
-	hires_shutdown();
-	sdl3_video_present();
-	assert_presented_page(VIDEO_MODE_TEST_CGA_LOW_CYAN, VIDEO_MODE_TEST_CGA_LOW_CYAN);
 	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_VGA);
 	sdl3_video_present();
 	assert_presented_page(PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);

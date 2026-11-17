@@ -102,7 +102,12 @@ legacy_int main()
 			  "HyperVision selection must reach the game unchanged.");
 	}
 
-	const legacy_char *video_modes[] = {"--videomode:vga", "--videomode:ega", "--videomode:cga"};
+	const legacy_char *video_modes[] = {"--videomode:vga", "--videomode:ega", "--videomode:cga",
+										"--videomode:tandy"};
+	check(LAUNCHER_VIDEO_CGA + 1 == LAUNCHER_VIDEO_TANDY &&
+			  LAUNCHER_VIDEO_TANDY + 1 == LAUNCHER_VIDEO_MODE_COUNT &&
+			  wxString(launcher_video_definitions[LAUNCHER_VIDEO_TANDY].label) == "Tandy",
+		  "Tandy must follow the existing VGA, EGA and CGA video modes.");
 	for (legacy_int video_mode = LAUNCHER_VIDEO_VGA; video_mode < LAUNCHER_VIDEO_MODE_COUNT;
 		 video_mode++) {
 		options.video_mode = video_mode;
@@ -118,7 +123,7 @@ legacy_int main()
 				  "Each video mode must reach the game independently of HyperVision.");
 			if (hypervision > LAUNCHER_HV_OFF) {
 				check(contains(arguments, presets[hypervision - LAUNCHER_HV_AUTO]),
-					  "Selecting EGA or CGA must preserve the HyperVision preset.");
+					  "Selecting classic video must preserve the HyperVision preset.");
 			}
 		}
 	}

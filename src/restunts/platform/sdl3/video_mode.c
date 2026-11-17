@@ -11,7 +11,9 @@
 #define MODE_SCREEN_HEIGHT 200U
 #define MODE_SCREEN_PIXELS (MODE_SCREEN_WIDTH * MODE_SCREEN_HEIGHT)
 #define MODE_PALETTE_COUNT (LEGACY_U8_MAX + 1U)
-#define MODE_EGA_COLOR_COUNT 16U
+#define MODE_16_COLOR_COUNT 16U
+#define MODE_CGA_PIXEL_BITS 2U
+#define MODE_TANDY_PIXEL_BITS 4U
 #define MODE_SOURCE_STACK_CAPACITY 8U
 #define MODE_NATIVE_COLOR_COUNT 3U
 #define MODE_DIRECT_STACK_CAPACITY 8U
@@ -77,7 +79,8 @@ static legacy_u8 mode_xor_pending;
 
 /* Native UI words at DS:505A and DS:505E..5092 in the original DOS drivers.
  * The count at DS:505C is deliberately excluded. Provenance is recorded in
- * tests/fixtures/video-mode-ui-reference.json. */
+ * tests/fixtures/video-mode-ui-reference.json. TDY uses the same UI words
+ * as EGA, as verified from its independently decoded load image. */
 static const legacy_u16 mode_ui_ega[SDL3_VIDEO_UI_COLOR_COUNT] = {
 	0xffffU, 0x5555U, 0xeeeeU, 0x8888U, 0xffffU, 0x8888U, 0xbbbbU, 0x3333U, 0xccccU, 0x4444U,
 	0x9999U, 0x1111U, 0xaaaaU, 0x2222U, 0xddddU, 0x5555U, 0xbbbbU, 0x9999U, 0x1111U, 0xccccU,
@@ -86,6 +89,19 @@ static const legacy_u16 mode_ui_cga[SDL3_VIDEO_UI_COLOR_COUNT] = {
 	0xffffU, 0x5555U, 0xaaaaU, 0xaaaaU, 0xffffU, 0xaaaaU, 0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU,
 	0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU, 0x5555U, 0xaaaaU, 0xffffU, 0xaaaaU, 0x5555U, 0xaaaaU,
 	0x5555U, 0xaaaaU, 0xffffU, 0x5555U, 0xaaaaU, 0x5555U, 0x5555U, 0xaaaaU};
+
+/* The original EGA and Tandy drivers both resolve 16-color samples. */
+static legacy_u8 mode_16_color(void)
+{
+	return sdl3_video_mode_selected == SDL3_VIDEO_MODE_EGA ||
+		   sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY;
+}
+
+static legacy_u8 mode_packed_points(void)
+{
+	return sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA ||
+		   sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY;
+}
 
 static void mode_direct_push(void)
 {
@@ -200,7 +216,7 @@ static void mode_update_nearest(void)
 		legacy_u32 best = LEGACY_U32_MAX;
 		legacy_u8 selected = 0;
 		legacy_u8 count = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA ? sizeof(mode_cga_colors)
-																		  : MODE_EGA_COLOR_COUNT;
+																		  : MODE_16_COLOR_COUNT;
 		for (legacy_u8 candidate = 0; candidate < count; candidate++) {
 			legacy_u8 index = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA
 								  ? mode_cga_colors[candidate]
@@ -251,7 +267,7 @@ static legacy_u8 mode_bitmap_color(legacy_u8 value, legacy_u8 phase, legacy_u8 e
 	}
 	legacy_u8 x = phase & MODE_PHASE_X_MASK;
 	legacy_u8 y = ((phase >> MODE_PHASE_Y_SHIFT) ^ row_phase) & 1U;
-	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_EGA) {
+	if (mode_16_color()) {
 		return (legacy_u8)((table[value] >> (((x ^ y) & 1U) ? 0U : 4U)) & 15U);
 	}
 	legacy_u8 shift = (legacy_u8)((y ? 2U : 6U) - (x & 1U) * 2U);
@@ -271,8 +287,14 @@ static legacy_u16 mode_native_word(legacy_u8 color)
 static legacy_u8 mode_native_color(legacy_u8 color, legacy_u8 phase)
 {
 	legacy_u16 word = mode_native_word(color);
+	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY) {
+		/* TDY's public fills and lines consume a two-pixel packed color.
+		 * Its material initializer expands logical colors to repeated nibbles. */
+		legacy_u8 shift = (phase & 1U) ? 0U : MODE_TANDY_PIXEL_BITS;
+		return (legacy_u8)((word >> shift) & (MODE_16_COLOR_COUNT - 1U));
+	}
 	if (sdl3_video_mode_selected == SDL3_VIDEO_MODE_EGA) {
-		return (legacy_u8)(word & (MODE_EGA_COLOR_COUNT - 1U));
+		return (legacy_u8)(word & (MODE_16_COLOR_COUNT - 1U));
 	}
 	legacy_u8 row = (phase >> MODE_PHASE_Y_SHIFT) & 1U;
 	legacy_u8 packed = (legacy_u8)((mode_line_depth || row) ? word : word >> LEGACY_BYTE_BITS);
@@ -290,27 +312,35 @@ static legacy_u8 mode_cga_logical(legacy_u8 hardware)
 	return 0;
 }
 
-/* CGA's original single-pixel writer ORs the low material byte into its
- * packed four-pixel byte. Higher material bits can therefore affect pixels
- * to the left of the requested point, while VGA memory stays untouched. */
+/* Original CGA and Tandy single-pixel writers OR an unmasked low color byte
+ * into packed memory after clearing the target field. On non-leading pixels,
+ * upper color bits can therefore affect pixels to the left of the point. */
 static void mode_native_point(struct VIDEO_MODE_SURFACE *surface, legacy_u16 offset,
 							  legacy_u8 color)
 {
-	legacy_u8 x = surface->phase[offset] & MODE_PHASE_X_MASK;
+	legacy_u8 bits = sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY ? MODE_TANDY_PIXEL_BITS
+																	   : MODE_CGA_PIXEL_BITS;
+	legacy_u8 last = (legacy_u8)(LEGACY_BYTE_BITS / bits - 1U);
+	legacy_u8 mask = (legacy_u8)((1U << bits) - 1U);
+	legacy_u8 x = surface->phase[offset] & last;
 	legacy_u16 first = (legacy_u16)(offset - x);
 	legacy_u8 packed = 0;
-	for (legacy_u8 pixel = 0; pixel <= MODE_PHASE_X_MASK; pixel++) {
+	for (legacy_u8 pixel = 0; pixel <= last; pixel++) {
 		legacy_u16 at = (legacy_u16)(first + pixel);
 		legacy_u8 hardware = mode_hardware(surface->cells[at], surface->base[at]);
-		legacy_u8 logical = mode_cga_logical(hardware);
-		packed |= (legacy_u8)(logical << (6U - pixel * 2U));
+		legacy_u8 logical = sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA
+								? mode_cga_logical(hardware)
+								: hardware & mask;
+		packed |= (legacy_u8)(logical << (LEGACY_BYTE_BITS - bits - pixel * bits));
 	}
-	legacy_u8 shift = (legacy_u8)(6U - x * 2U);
-	packed = (legacy_u8)((packed & ~(3U << shift)) |
+	legacy_u8 shift = (legacy_u8)(LEGACY_BYTE_BITS - bits - x * bits);
+	packed = (legacy_u8)((packed & ~(mask << shift)) |
 						 ((mode_native_word(color) << shift) & MODE_COLOR_MASK));
 	for (legacy_u8 pixel = 0; pixel <= x; pixel++) {
 		legacy_u16 at = (legacy_u16)(first + pixel);
-		legacy_u8 hardware = mode_cga_colors[(packed >> (6U - pixel * 2U)) & 3U];
+		legacy_u8 logical = (packed >> (LEGACY_BYTE_BITS - bits - pixel * bits)) & mask;
+		legacy_u8 hardware =
+			sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA ? mode_cga_colors[logical] : logical;
 		mode_store(surface, at, surface->base[at], hardware, 0);
 	}
 }
@@ -407,7 +437,7 @@ legacy_u8 sdl3_video_mode_write(const legacy_u8 *base, legacy_u16 offset, legacy
 		return mode_primitive_capture;
 	}
 	if (mode_primitive_capture) {
-		if (mode_point_depth && sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
+		if (mode_point_depth && mode_packed_points()) {
 			mode_native_point(surface, offset, color);
 		} else {
 			mode_store(surface, offset, base[offset],
@@ -435,7 +465,7 @@ legacy_u8 sdl3_video_mode_write(const legacy_u8 *base, legacy_u16 offset, legacy
 	} else if (mode_primitive_freeze) {
 		mode_store(surface, offset, color, mode_hardware(old, base[offset]), 0);
 	} else if (mode_direct.active && !mode_source_depth) {
-		if (mode_point_depth && sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
+		if (mode_point_depth && mode_packed_points()) {
 			mode_native_point(surface, offset, color);
 			mode_store(surface, offset, color, (legacy_u8)surface->cells[offset], 0);
 		} else {
@@ -487,7 +517,7 @@ legacy_u8 sdl3_video_mode_raster(const legacy_u8 *destination, legacy_u16 destin
 			}
 		}
 		if (mode_primitive_capture) {
-			if (mode_point_depth && sdl3_video_mode_selected == SDL3_VIDEO_MODE_CGA) {
+			if (mode_point_depth && mode_packed_points()) {
 				mode_native_point(target, to, value);
 			} else {
 				mode_store(target, to, previous, mode_native_color(value, target->phase[to]), 0);
@@ -675,7 +705,11 @@ void sdl3_video_mode_shutdown(void)
 
 void sdl3_video_set_startup_mode(legacy_u8 mode)
 {
+#ifdef __DJGPP__
 	if (mode > SDL3_VIDEO_MODE_CGA) {
+#else
+	if (mode > SDL3_VIDEO_MODE_TANDY) {
+#endif
 		mode = SDL3_VIDEO_MODE_VGA;
 	}
 	if (mode != sdl3_video_mode_selected) {

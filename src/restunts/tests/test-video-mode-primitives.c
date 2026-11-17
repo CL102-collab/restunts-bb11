@@ -32,8 +32,15 @@ enum {
 	TEST_MASKED_MATERIAL = 24,
 	TEST_TWO_COLOR_MATERIAL = 26,
 	TEST_POLYGON_VERTICES = 4,
-	TEST_SPHERE_SIZE = 16
+	TEST_SPHERE_SIZE = 16,
+	TEST_TANDY_COLOR_REPEAT = 0x1111
 };
+
+#ifdef __DJGPP__
+#define TEST_LAST_VIDEO_MODE SDL3_VIDEO_MODE_CGA
+#else
+#define TEST_LAST_VIDEO_MODE SDL3_VIDEO_MODE_TANDY
+#endif
 
 static legacy_u8 *screen;
 static legacy_u8 rows[TEST_HEIGHT * LEGACY_WORD_BYTES];
@@ -68,7 +75,10 @@ static const legacy_u8 *render(legacy_u8 mode, legacy_u8 background)
 	sprite_select_target(&target);
 	if (mode != SDL3_VIDEO_MODE_VGA) {
 		legacy_u16 colors[3] = {0};
-		colors[0] = background == 0 ? 0 : mode == SDL3_VIDEO_MODE_CGA ? LEGACY_U16_MAX : background;
+		colors[0] = background == 0					? 0
+					: mode == SDL3_VIDEO_MODE_CGA	? LEGACY_U16_MAX
+					: mode == SDL3_VIDEO_MODE_TANDY ? background * TEST_TANDY_COLOR_REPEAT
+													: background;
 		sdl3_video_mode_primitive_begin();
 		sdl3_video_mode_primitive_capture(colors);
 		video_pages_fill_span(screen, 0, TEST_PIXELS, SDL3_VIDEO_NATIVE_PRIMARY);
@@ -117,6 +127,10 @@ static void test_polygons(void)
 	pixels = render_checked(SDL3_VIDEO_MODE_CGA, TEST_BACKGROUND);
 	static const legacy_u8 cga_solid[] = {5, 5, 5, 5, 5, 5, 5, 5};
 	assert_row(pixels, 8, 10, cga_solid);
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	assert_row(pixels, 8, 10, ega_solid);
+#endif
 
 	/* Original material 6 is CGA word 0x1889: the two rows differ. */
 	make_record(RENDER_PRIMITIVE_POLYGON, TEST_DITHER_MATERIAL, rectangle, TEST_POLYGON_VERTICES,
@@ -141,6 +155,12 @@ static void test_polygons(void)
 	static const legacy_u8 cga_mask_odd[] = {7, 5, 5, 5, 7, 5, 5, 5};
 	assert_row(pixels, 8, 10, cga_mask_even);
 	assert_row(pixels, 8, 11, cga_mask_odd);
+	/* Original TDY uses the low mask byte on even Y for both span families. */
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	assert_row(pixels, 8, 10, ega_mask_odd);
+	assert_row(pixels, 8, 11, ega_mask_even);
+#endif
 
 	/* EGA's two-color material 26 uses primary 6, secondary 4, AA55. */
 	make_record(RENDER_PRIMITIVE_POLYGON, TEST_TWO_COLOR_MATERIAL, rectangle, TEST_POLYGON_VERTICES,
@@ -150,18 +170,32 @@ static void test_polygons(void)
 	static const legacy_u8 ega_two_odd[] = {4, 6, 4, 6, 4, 6, 4, 6};
 	assert_row(pixels, 8, 10, ega_two_even);
 	assert_row(pixels, 8, 11, ega_two_odd);
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	assert_row(pixels, 8, 10, ega_two_odd);
+	assert_row(pixels, 8, 11, ega_two_even);
+#endif
 }
 
 static void test_lines_and_round_primitives(void)
 {
 	static const legacy_u8 line_pixels[] = {5, 0, 5, 3, 5, 0, 5, 3};
+#ifndef __DJGPP__
+	static const legacy_u8 tandy_line[] = {6, 6, 6, 6, 6, 6, 6, 6};
+#endif
 	for (legacy_s16 row = 10; row <= 11; row++) {
 		struct POINT2D line[] = {{8, row}, {15, row}};
 		make_record(RENDER_PRIMITIVE_LINE, TEST_DITHER_MATERIAL, line, 2, 0);
 		assert_row(render_checked(SDL3_VIDEO_MODE_CGA, TEST_BACKGROUND), 8, row, line_pixels);
+#ifndef __DJGPP__
+		assert_row(render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND), 8, row, tandy_line);
+#endif
 		/* A degenerate polygon reaches the same original line raster. */
 		make_record(RENDER_PRIMITIVE_POLYGON, TEST_DITHER_MATERIAL, line, 2, 0);
 		assert_row(render_checked(SDL3_VIDEO_MODE_CGA, TEST_BACKGROUND), 8, row, line_pixels);
+#ifndef __DJGPP__
+		assert_row(render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND), 8, row, tandy_line);
+#endif
 	}
 	/* The original CGA point write shifts the low byte without masking it,
 	 * so material 0x1889 can set earlier pixels in the same hardware byte. */
@@ -185,6 +219,11 @@ static void test_lines_and_round_primitives(void)
 	static const legacy_u8 sphere_odd[] = {5, 0, 5, 3, 5, 0, 5, 3};
 	assert_row(pixels, 28, 30, sphere_even);
 	assert_row(pixels, 28, 31, sphere_odd);
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	assert_row(pixels, 28, 30, tandy_line);
+	assert_row(pixels, 28, 31, tandy_line);
+#endif
 }
 
 static void test_wheel_and_ghost(void)
@@ -199,6 +238,16 @@ static void test_wheel_and_ghost(void)
 		}
 	}
 	assert(counts[0] && counts[1] && counts[2]);
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	memset(counts, 0, sizeof(counts));
+	for (legacy_u32 index = 0; index < TEST_PIXELS; index++) {
+		if (pixels[index] >= 6U && pixels[index] <= 8U) {
+			counts[pixels[index] - 6U]++;
+		}
+	}
+	assert(counts[0] && counts[1] && counts[2]);
+#endif
 	(void)render_checked(SDL3_VIDEO_MODE_CGA, TEST_BACKGROUND);
 
 	make_record(RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_BLACK_GRILLE_FLAG,
@@ -209,6 +258,12 @@ static void test_wheel_and_ghost(void)
 	pixels = render_checked(SDL3_VIDEO_MODE_CGA, TEST_BACKGROUND);
 	static const legacy_u8 cga_black_grille[] = {0, 0, 7, 0, 0, 0, 7, 0};
 	assert_row(pixels, 8, 10, cga_black_grille);
+#ifndef __DJGPP__
+	pixels = render_checked(SDL3_VIDEO_MODE_TANDY, TEST_BACKGROUND);
+	static const legacy_u8 tandy_black_grille[] = {0, 0, 15, 0, 0, 0, 15, 0};
+	assert_row(pixels, 8, 10, tandy_black_grille);
+	assert_row(pixels, 8, 11, ega_black_grille);
+#endif
 
 	make_record(RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_GHOST_FLAG, TEST_SOLID_MATERIAL,
 				rectangle, TEST_POLYGON_VERTICES, 0);
@@ -424,6 +479,9 @@ static void test_procedural_materials_and_ui(void)
 		{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
 	static const legacy_u8 cga_graph[TEST_GRAPH_PHASE_COUNT][TEST_GRAPH_PHASE_COUNT] = {
 		{3, 0, 0, 0}, {3, 3, 0, 0}, {3, 3, 3, 0}, {3, 3, 3, 3}};
+	/* TDY packs two nibbles; odd X can affect only its immediate predecessor. */
+	static const legacy_u8 tandy_graph[TEST_GRAPH_PHASE_COUNT][TEST_GRAPH_PHASE_COUNT] = {
+		{1, 0, 0, 0}, {1, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 1, 1}};
 	draw_procedural_scene(SDL3_VIDEO_MODE_VGA, 0, 0);
 	memcpy(reference, screen, sizeof(reference));
 	assert(reference[TEST_WORLD_HORIZON * TEST_WIDTH + TEST_WORLD_LEFT] == TEST_GRASS_VGA_INDEX);
@@ -431,7 +489,7 @@ static void test_procedural_materials_and_ui(void)
 	assert(reference[(TEST_BUTTON_Y + TEST_BUTTON_HEIGHT) * TEST_WIDTH + TEST_BUTTON_SAMPLE_X] ==
 		   button_bottom_color);
 	assert(reference[TEST_FONT_Y * TEST_WIDTH + TEST_FONT_X] == dialog_fnt_colour);
-	for (legacy_u8 mode = SDL3_VIDEO_MODE_VGA; mode <= SDL3_VIDEO_MODE_CGA; mode++) {
+	for (legacy_u8 mode = SDL3_VIDEO_MODE_VGA; mode <= TEST_LAST_VIDEO_MODE; mode++) {
 		draw_procedural_scene(mode, 1, 0);
 		assert(VIDEO_COLOR_VALUE(PRERENDER_GHOST_COLOR) == PRERENDER_GHOST_COLOR);
 		for (legacy_u16 token = SDL3_VIDEO_NATIVE_PRIMARY; token <= SDL3_VIDEO_NATIVE_TERTIARY;
@@ -467,7 +525,9 @@ static void test_procedural_materials_and_ui(void)
 			for (legacy_u16 phase = 0; phase < TEST_GRAPH_PHASE_COUNT; phase++) {
 				assert(memcmp(pixels + (TEST_GRAPH_Y + phase * TEST_GRAPH_ROW_STEP) * TEST_WIDTH +
 								  TEST_GRAPH_X,
-							  cga ? cga_graph[phase] : ega_graph[phase],
+							  cga							  ? cga_graph[phase]
+							  : mode == SDL3_VIDEO_MODE_TANDY ? tandy_graph[phase]
+															  : ega_graph[phase],
 							  TEST_GRAPH_PHASE_COUNT) == 0);
 			}
 		}

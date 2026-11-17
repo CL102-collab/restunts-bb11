@@ -180,7 +180,13 @@ static legacy_u8 startup_parse_video_mode(const legacy_s8 *argument,
 		const legacy_s8 *name;
 		legacy_u8 mode;
 	} modes[] = {
-		{"vga", SDL3_VIDEO_MODE_VGA}, {"ega", SDL3_VIDEO_MODE_EGA}, {"cga", SDL3_VIDEO_MODE_CGA}};
+		{"vga", SDL3_VIDEO_MODE_VGA},
+		{"ega", SDL3_VIDEO_MODE_EGA},
+		{"cga", SDL3_VIDEO_MODE_CGA},
+#ifndef __DJGPP__
+		{"tandy", SDL3_VIDEO_MODE_TANDY},
+#endif
+	};
 	for (legacy_u16 index = 0; index < sizeof(modes) / sizeof(modes[0]); index++) {
 		if (stricmp(value, modes[index].name) == 0) {
 			options->video_mode = modes[index].mode;
@@ -189,7 +195,13 @@ static legacy_u8 startup_parse_video_mode(const legacy_s8 *argument,
 		}
 	}
 	startup_option_error_text(
-		"Invalid video mode; use --videomode:vga, --videomode:ega or --videomode:cga.\n");
+#ifdef __DJGPP__
+		"Invalid video mode; use --videomode:vga, --videomode:ega or --videomode:cga.\n"
+#else
+		"Invalid video mode; use --videomode:vga, --videomode:ega, --videomode:cga or "
+		"--videomode:tandy.\n"
+#endif
+	);
 	dos_process_exit(1);
 	return 1;
 }

@@ -6,7 +6,8 @@
 struct SHAPE2D;
 
 /* Copy the original resource's authored !egN/!cgN tables without altering any
- * VGA bitmap pixels. Parsed resources contain signed-run encoded table data. */
+ * VGA bitmap pixels. Tandy and EGA share the original !egN table family.
+ * Parsed resources contain signed-run encoded table data. */
 void sdl3_video_bitmap_register(const void *resource, legacy_u32 size, legacy_u8 parsed);
 void sdl3_video_bitmap_forget(const void *begin, legacy_u32 size);
 void sdl3_video_bitmap_reset(void);
@@ -19,7 +20,7 @@ legacy_u8 sdl3_video_bitmap_source_phase(const void *source);
 
 /* The returned table belongs to the source resource and changes on palette
  * selection. Capture table[color] in composed samples, not the table pointer.
- * EGA entries are packed nibbles; CGA entries are four packed two-bit samples.
+ * EGA/Tandy entries are packed nibbles; CGA entries are four packed two-bit samples.
  * NULL means an unregistered or tableless source and requires color matching. */
 const legacy_u8 *sdl3_video_bitmap_table(const void *source, legacy_u8 mode);
 

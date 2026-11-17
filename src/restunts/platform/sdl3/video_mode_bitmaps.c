@@ -232,7 +232,9 @@ const legacy_u8 *sdl3_video_bitmap_table(const void *source, legacy_u8 mode)
 	if (!resource) {
 		return NULL;
 	}
-	if (mode == SDL3_VIDEO_MODE_EGA && resource->have_ega) {
+	/* Original TDY table install (decoded image 240ea) only masks/shifts each
+	 * !egN byte. Packed framebuffer storage preserves the authored color nibbles. */
+	if ((mode == SDL3_VIDEO_MODE_EGA || mode == SDL3_VIDEO_MODE_TANDY) && resource->have_ega) {
 		return resource->ega;
 	}
 	if (mode == SDL3_VIDEO_MODE_CGA && resource->have_cga) {
@@ -243,7 +245,7 @@ const legacy_u8 *sdl3_video_bitmap_table(const void *source, legacy_u8 mode)
 
 const legacy_u8 *sdl3_video_bitmap_default_table(legacy_u8 mode)
 {
-	if (mode == SDL3_VIDEO_MODE_EGA && bitmap_have_default_ega) {
+	if ((mode == SDL3_VIDEO_MODE_EGA || mode == SDL3_VIDEO_MODE_TANDY) && bitmap_have_default_ega) {
 		return bitmap_default_ega;
 	}
 	if (mode == SDL3_VIDEO_MODE_CGA && bitmap_have_default_cga) {

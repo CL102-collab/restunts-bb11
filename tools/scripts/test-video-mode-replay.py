@@ -15,7 +15,8 @@ REPLAY_TICK_LIMIT = 60
 REPLAY_TIMEOUT_SECONDS = 60
 RENDER_MODES = (("classic", 0), ("toggled", 2))
 VIDEO_MODES = (("vga", ()), ("ega", ("--videomode:ega",)),
-               ("cga", ("--videomode:cga",)))
+               ("cga", ("--videomode:cga",)),
+               ("tandy", ("--videomode:tandy",)))
 
 
 def assert_identical(actual, expected, label):
@@ -66,7 +67,7 @@ def main():
                     assert_identical(actual, baseline, label)
                 print(f"{label}: {REPLAY_TICK_LIMIT + 1} identical gamestates and RNG seeds",
                       flush=True)
-    print("VGA, EGA and CGA preserve replay physics with classic and toggled HyperVision rendering.",
+    print("VGA, EGA, CGA and Tandy preserve replay physics with classic and toggled HyperVision rendering.",
           flush=True)
 
 

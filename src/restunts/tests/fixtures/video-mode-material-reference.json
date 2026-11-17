@@ -1,8 +1,8 @@
 {
-  "description": "Original Broderbund Stunts 1.1 EGA/CGA numeric 3D material tables and packed bitmap phases",
+  "description": "Original Broderbund Stunts 1.1 EGA/CGA/Tandy numeric 3D material tables and packed bitmap phases",
   "archive_url": "https://zak.stunts.hu/dl/stunts.zip",
   "archive_sha256": "ed375337d3afc5e5a23797c48e925e550cfaac587b4ba19e7e7d5e590574fadf",
-  "procedure": "Decompress EGA.CMN and MODE.COD with the Stunts RLE/VLE codec; for CGA apply its decompressed DIF to common bytes; concatenate common+COD then decode EXEPACK backward RLE. Offsets address the decoded load image without MZ header.",
+  "procedure": "Decompress EGA.CMN and MODE.COD with the Stunts RLE/VLE codec; for CGA or TDY apply its decompressed DIF to common bytes; concatenate common+COD then decode EXEPACK backward RLE. Offsets address the decoded load image without MZ header.",
   "bitmap_phases": {
     "ega": "Each !egN byte selects its high nibble for even logical X+Y and its low nibble for odd X+Y. Conversion seeds row phase from stored shape Y.",
     "cga": "Each !cgN byte is a 2x2 tile: top-left bits7:6, top-right bits5:4, bottom-left bits3:2, bottom-right bits1:0. Conversion seeds row phase from stored shape Y.",
@@ -22,6 +22,12 @@
       "CGA alternate entry0x2c690/0x2c6a2: PVS path0x2c771..0x2c7c7 decompresses/unflips, then returns at0x2c72d without the normal0x2c4b2 conversion helper",
       "EGA alternate entry0x2f8ba/0x2f8cc: PVS path0x2f99b decompresses,0x2f9db unflips, then0x2f9f1 returns at0x2f957 without the normal0x2f75c conversion helper",
       "Reconstruction alternate callers: menu/menu_opponent.c::run_opponent_menu and race/race_resources.c::load_sdgame2_shapes"
+    ],
+    "tandy": "TDY uses the same !egN packed-nibble maps as EGA. Normal conversion preserves source X parity and stored shape Y; relocated/scaled loaded pixels retain their baked colors.",
+    "tandy_evidence_offsets": [
+      "TDY image0x240ea expands !egN bytes into four banks containing each nibble and their swapped order",
+      "Normal converter0x26d18 tests stored shape Y and alternates the source nibble by source X and source row",
+      "Alternate raw/scaled path0x26df5 uses storedY XOR drawX and toggles phase per output row at0x26ec5"
     ]
   },
   "cga_material_phase": "Each packed16-bit material repeats a4x2 tile. Even Y uses the high byte; odd Y uses the low byte. Each byte contains four2-bit pixels, most significant first. Rectangle fill0x23cc5 swaps AL/AH on even Y before storing AL, then alternates bytes by row.",
@@ -120,6 +126,44 @@
           "fnv1a_le32": "0xC71B9085"
         }
       }
+    },
+    "tandy": {
+      "decoded_image_size": 206640,
+      "decoded_image_sha256": "5347013dc4896b4cce83d4b99974d4b57812c289e32298e1b0193b0131b18d9f",
+      "data_segment_base": "0x2cb50",
+      "pointer_block": "0x31fee",
+      "tables": {
+        "primary": {
+          "offset": "0x31be4",
+          "pointer": "0x5094",
+          "sha256": "81e793ab63b0ce5d9a90361f46f224e71165a731622f7bf43cf220ee2c73c2d8",
+          "fnv1a_le32": "0x3C28D83A",
+          "runtime_sha256": "0f8f69dee6d97c7b485a97c119cf984e25ac4db84d5a98bcd4e6ecca9f974411"
+        },
+        "secondary": {
+          "offset": "0x31eea",
+          "pointer": "0x539a",
+          "sha256": "5c23c5484c120e0b900683f4b3ce48c34f42f8fe5b505e4eee5991c285d050cd",
+          "fnv1a_le32": "0xFD250415",
+          "runtime_sha256": "6901ab979702088178f74045d6abd6865bdd54238c30f7992f3439770bb8e992"
+        },
+        "pattern_types": {
+          "offset": "0x31ce6",
+          "pointer": "0x5196",
+          "sha256": "4fbedd865904b2ef9b5f266c4af699a5272a0330dd331ef1dedfc2dd34a293c8",
+          "fnv1a_le32": "0x761895E7"
+        },
+        "pattern_bits": {
+          "offset": "0x31de8",
+          "pointer": "0x5298",
+          "sha256": "d424a659f14d1fecb38abd86a9438e53fa9078fa8ab2f78c9ec7bf89c7649651",
+          "fnv1a_le32": "0x56C5ADC7"
+        }
+      },
+      "bios_video_mode": "0x09",
+      "shares_numeric_tables_with": "ega",
+      "startup_color_expansion": "Before rendering, TDY startup0x2adc3..0x2ae20 expands both logical primary and secondary material tables0..15 into repeated nibble words0000..FFFF. Stored table hashes above describe the decoded pre-initialization image.",
+      "startup_mapping_palette": "0x31ff6"
     }
   },
   "cga_mask_phase": "Masked polygons retain one bit of coverage per logical pixel. The driver expands each mask byte through DS:3a56 by duplicating every bit. Original CGA uses the mask LOW byte on EVEN Y and HIGH byte on ODD Y; the shared VGA raster therefore needs the original CGA mask byte-swapped. Original function0x25a59 was executed in a16-bit x86 emulator to verify this.",
@@ -437,5 +481,8 @@
     }
   ],
   "cga_point_phase": "Actual queued POINT dispatch asmorig/seg006.asm _fill_pixel passes the full material word to putpixel_single_maybe. Original preRender_sphere0x234e8 with half-height zero also passes the full word at0x23515. Original putpixel0x26ab6 reads the LOW byte and shifts it left without masking to2bits; it clears only the target2-bit pixel and ORs the shifted byte into the existing packed4-pixel byte. This can alter up to three preceding pixels within the same byte. Formula: outByte=(oldByte & ~(3 << shift)) | ((colorLow << shift)&255), shift=6-2*(x&3). Original point and size1 sphere were executed independently with identical output atX0..3,Y0..1.",
-  "ega_two_color_phase": "Original preRender0x1f3da stores the pattern at DS:4bae and alternate color at DS:4bb0, then chooses span raster0x23caf. That raster uses the mask HIGH byte on EVEN Y and LOW byte on ODD Y, fills the base color, and overlays the alternate color where mask bits are set. Therefore the shared call preRender_two_color(pattern,secondary,primary) preserves the original material roles without a mask byte swap."
+  "ega_two_color_phase": "Original preRender0x1f3da stores the pattern at DS:4bae and alternate color at DS:4bb0, then chooses span raster0x23caf. That raster uses the mask HIGH byte on EVEN Y and LOW byte on ODD Y, fills the base color, and overlays the alternate color where mask bits are set. Therefore the shared call preRender_two_color(pattern,secondary,primary) preserves the original material roles without a mask byte swap.",
+  "tandy_mask_phase": "TDY patterned span0x25421 consumes the low pattern-mask byte on even Y and high byte on odd Y, opposite EGA.",
+  "tandy_two_color_phase": "TDY two-color span0x236af consumes the low pattern-mask byte on even Y and high byte on odd Y, opposite EGA; numeric material tables are identical.",
+  "tandy_point_phase": "TDY point0x264f1 clears the target nibble then ORs the complete low color byte shifted by4-4*(X&1). Even X retains only the low nibble. Odd X can OR the high color nibble into the preceding pixel within the same two-pixel hardware byte."
 }

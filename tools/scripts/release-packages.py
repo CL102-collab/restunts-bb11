@@ -800,7 +800,9 @@ def readme(target, commit):
                   "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model."]
         if target != "dos32":
             guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
-            lines += ["Sound settings offers No sound, PC Speaker, Tandy, Ad Lib, and MT-32.",
+            lines += ["Video mode offers VGA (the default), EGA, CGA, and Tandy for classic graphics.",
+                      "Use --videomode:tandy for Tandy video; HyperVision keeps VGA graphics.",
+                      "Sound settings offers No sound, PC Speaker, Tandy, Ad Lib, and MT-32.",
                       "OGG music replacement is separate. Tandy uses original TD instruments without ROMs.",
                       "MT-32 requires your own compatible Roland control/PCM ROMs; none are included.",
                       f"See {guide} for ROM-folder detection, model selection and command-line options."]

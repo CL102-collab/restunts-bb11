@@ -17,7 +17,7 @@ const OPTIONS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-m
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
-const VIDEO_MODES = ['vga', 'ega', 'cga'];
+const VIDEO_MODES = ['vga', 'ega', 'cga', 'tandy'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
 const RUNTIME = `<script>
@@ -1482,7 +1482,7 @@ async function main() {
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
         assert.deepEqual(await page.locator('#video-mode option').evaluateAll(options =>
             options.map(option => ({ value: option.value, label: option.label }))),
-        VIDEO_MODES.map(value => ({ value, label: value.toUpperCase() })));
+        VIDEO_MODES.map(value => ({ value, label: value === 'tandy' ? 'Tandy' : value.toUpperCase() })));
         assert.equal(await page.locator('#video-mode').inputValue(), 'vga', 'Classic video mode must default to VGA');
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
         assert.equal(await page.locator('#sound-mode').inputValue(), 'adlib',
@@ -1684,7 +1684,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

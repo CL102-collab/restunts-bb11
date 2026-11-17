@@ -46,7 +46,11 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --nosound        Alias for /ns; overrides sound mode regardless of "
 	"order." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
+#ifdef __DJGPP__
 	"  --videomode:vga|ega|cga  Select classic graphics; default VGA; supply "
+#else
+	"  --videomode:vga|ega|cga|tandy  Select classic graphics; default VGA; supply "
+#endif
 	"once." COMMAND_LINE_NEWLINE
 #ifdef __DJGPP__
 	"  --soundmode:pc-speaker|adlib|mt-32  Select original synthesized audio; default "

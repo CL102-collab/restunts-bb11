@@ -62,7 +62,8 @@ const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT] = 
 const LauncherVideoDefinition launcher_video_definitions[LAUNCHER_VIDEO_MODE_COUNT] = {
 	{"vga", "VGA", "--videomode:vga"},
 	{"ega", "EGA", "--videomode:ega"},
-	{"cga", "CGA", "--videomode:cga"}};
+	{"cga", "CGA", "--videomode:cga"},
+	{"tandy", "Tandy", "--videomode:tandy"}};
 
 LauncherOptions::LauncherOptions()
 	: sound_mode(LAUNCHER_SOUND_ADLIB), hypervision(LAUNCHER_HV_AUTO),

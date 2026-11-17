@@ -105,7 +105,7 @@ public final class LaunchOptionsTest {
         }
         require(LaunchOptions.VIDEO_MODE_KEY.equals("video_mode"),
             "Keep saved classic video mode choices.");
-        String[] videoLabels = {"VGA", "EGA", "CGA"};
+        String[] videoLabels = {"VGA", "EGA", "CGA", "Tandy"};
         LaunchOptions.VideoMode[] videoModes = LaunchOptions.VideoMode.values();
         require(videoModes.length == videoLabels.length, "Unexpected classic video modes.");
         for (int index = 0; index < videoModes.length; index++) {
@@ -130,7 +130,7 @@ public final class LaunchOptionsTest {
                     "Sound changes must preserve the selected classic video mode.");
             }
         }
-        for (String invalid : new String[] {null, "", "ega", "cga", "unknown", "7"}) {
+        for (String invalid : new String[] {null, "", "ega", "cga", "tandy", "unknown", "7"}) {
             require(LaunchOptions.VideoMode.fromStored(invalid) == LaunchOptions.VideoMode.VGA,
                 "Missing or invalid stored video modes must default to VGA.");
         }
@@ -267,12 +267,15 @@ public final class LaunchOptionsTest {
         String romDirectory = "/data/user/0/org.restunts.android/files/mt32-roms";
         String model = "mt32_1_07";
         LaunchOptions mt32 = defaults.withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
-        LaunchOptions cgaMt32 = mt32.withVideoMode(LaunchOptions.VideoMode.CGA);
-        java.util.List<String> expectedCgaMt32 = new java.util.ArrayList<>(
-            Arrays.asList(mt32.arguments(DATA_DIRECTORY)));
-        expectedCgaMt32.set(expectedCgaMt32.indexOf("--videomode:vga"), "--videomode:cga");
-        require(Arrays.asList(cgaMt32.arguments(DATA_DIRECTORY)).equals(expectedCgaMt32),
-            "Video mode changes must preserve the selected MT-32 ROM folder and model.");
+        for (LaunchOptions.VideoMode mode : LaunchOptions.VideoMode.values()) {
+            LaunchOptions selectedVideo = mt32.withVideoMode(mode);
+            java.util.List<String> expectedVideoMt32 = new java.util.ArrayList<>(
+                Arrays.asList(mt32.arguments(DATA_DIRECTORY)));
+            expectedVideoMt32.set(expectedVideoMt32.indexOf("--videomode:vga"),
+                "--videomode:" + mode.name().toLowerCase(java.util.Locale.ROOT));
+            require(Arrays.asList(selectedVideo.arguments(DATA_DIRECTORY)).equals(expectedVideoMt32),
+                "Video mode changes must preserve the selected MT-32 ROM folder and model.");
+        }
         java.util.List<String> mt32Arguments = Arrays.asList(mt32.arguments(DATA_DIRECTORY));
         require(mt32.sound && mt32.soundMode == LaunchOptions.SoundMode.MT32,
             "MT-32 is an enabled sound mode.");

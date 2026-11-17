@@ -20,15 +20,26 @@ enum {
 	TEST_BITMAP_HEIGHT = 2,
 	TEST_BITMAP_COLOR = 42,
 	TEST_BITMAP_OTHER_COLOR = 43,
+	TEST_NEAREST_COLOR = 3,
 	TEST_STORED_ROW = 1,
 	TEST_DRAW_ROW = 6,
 	TEST_NATIVE_EGA_COLOR = 12,
+	TEST_NATIVE_TANDY_WORD = 0xCCCC,
+	TEST_NATIVE_TANDY_TILE = 0x1889,
 	TEST_NATIVE_CGA_WORD = 0x1BE4,
+	TEST_TANDY_POINT_WORD = 0x23,
+	TEST_TANDY_POINT_BACKGROUND = 0x4444,
 	TEST_EGA_PAIR = 0x24,
 	TEST_CGA_TILE = 0x1B,
 	TEST_RED_COMPONENT_SHIFT = 16,
 	TEST_GREEN_COMPONENT_SHIFT = 8
 };
+#ifdef __DJGPP__
+#define TEST_LAST_VIDEO_MODE SDL3_VIDEO_MODE_CGA
+#else
+#define TEST_LAST_VIDEO_MODE SDL3_VIDEO_MODE_TANDY
+#endif
+
 #define TEST_FNV_OFFSET 2166136261U
 #define TEST_FNV_PRIME 16777619U
 
@@ -111,7 +122,7 @@ static void initialize_mode(legacy_u8 mode)
 		palette[index] = 0xFF000000U | ((legacy_u32)index << TEST_RED_COMPONENT_SHIFT) |
 						 ((legacy_u32)index << TEST_GREEN_COMPONENT_SHIFT) | index;
 	}
-	palette[TEST_BITMAP_COLOR] = palette[3];
+	palette[TEST_BITMAP_COLOR] = palette[TEST_NEAREST_COLOR];
 	sdl3_video_mode_palette(palette);
 	select_target(screen);
 }
@@ -176,14 +187,14 @@ static const legacy_u8 bitmap_cga[TEST_BITMAP_HEIGHT][TEST_BITMAP_WIDTH] = {
 
 static void test_bitmap_patterns_and_copies(void)
 {
-	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= SDL3_VIDEO_MODE_CGA; mode++) {
+	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= TEST_LAST_VIDEO_MODE; mode++) {
 		initialize_mode(mode);
 		register_authored_bitmap();
 		legacy_u8 original[TEST_RESOURCE_SIZE];
 		memcpy(original, resource, sizeof(original));
 		draw_authored_bitmap();
 		const legacy_u8(*expected)[TEST_BITMAP_WIDTH] =
-			mode == SDL3_VIDEO_MODE_EGA ? bitmap_ega : bitmap_cga;
+			mode == SDL3_VIDEO_MODE_CGA ? bitmap_cga : bitmap_ega;
 		const legacy_u8 *actual = sdl3_video_mode_framebuffer(screen);
 		for (legacy_u16 y = 0; y < TEST_BITMAP_HEIGHT; y++) {
 			legacy_u16 offset = (TEST_DRAW_ROW + y) * TEST_WIDTH;
@@ -224,7 +235,7 @@ static void test_bitmap_translation_and_scaling(void)
 	const legacy_u16 draw_x = 3;
 	const legacy_u16 scaled_x = 7;
 	const legacy_u16 scaled_y = TEST_DRAW_ROW + 4U;
-	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= SDL3_VIDEO_MODE_CGA; mode++) {
+	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= TEST_LAST_VIDEO_MODE; mode++) {
 		initialize_mode(mode);
 		register_authored_bitmap();
 		sdl3_video_mode_source_begin_at(source_shape, draw_x, TEST_DRAW_ROW);
@@ -236,7 +247,7 @@ static void test_bitmap_translation_and_scaling(void)
 		}
 		sdl3_video_mode_source_end();
 		const legacy_u8(*expected)[TEST_BITMAP_WIDTH] =
-			mode == SDL3_VIDEO_MODE_EGA ? bitmap_ega : bitmap_cga;
+			mode == SDL3_VIDEO_MODE_CGA ? bitmap_cga : bitmap_ega;
 		const legacy_u8 *actual = sdl3_video_mode_framebuffer(screen);
 		for (legacy_u16 y = 0; y < TEST_BITMAP_HEIGHT; y++) {
 			assert(memcmp(actual + (TEST_DRAW_ROW + y) * TEST_WIDTH + draw_x, expected[y],
@@ -257,7 +268,7 @@ static void test_bitmap_translation_and_scaling(void)
 		actual = sdl3_video_mode_framebuffer(screen);
 		for (legacy_u16 y = 0; y < TEST_BITMAP_HEIGHT; y++) {
 			assert(memcmp(actual + (scaled_y + y) * TEST_WIDTH + scaled_x,
-						  mode == SDL3_VIDEO_MODE_EGA ? scaled_ega : scaled_cga,
+						  mode == SDL3_VIDEO_MODE_CGA ? scaled_cga : scaled_ega,
 						  TEST_BITMAP_WIDTH) == 0);
 		}
 	}
@@ -286,24 +297,29 @@ static void test_native_material_phases(void)
 {
 	static const legacy_u8 cga[TEST_BITMAP_HEIGHT][TEST_BITMAP_WIDTH] = {{0, 3, 5, 7, 0, 3, 5, 7},
 																		 {7, 5, 3, 0, 7, 5, 3, 0}};
-	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= SDL3_VIDEO_MODE_CGA; mode++) {
-		draw_native(mode,
-					mode == SDL3_VIDEO_MODE_EGA ? TEST_NATIVE_EGA_COLOR : TEST_NATIVE_CGA_WORD);
+	static const legacy_u8 tandy[TEST_BITMAP_HEIGHT][TEST_BITMAP_WIDTH] = {
+		{8, 9, 8, 9, 8, 9, 8, 9}, {8, 9, 8, 9, 8, 9, 8, 9}};
+	for (legacy_u8 mode = SDL3_VIDEO_MODE_EGA; mode <= TEST_LAST_VIDEO_MODE; mode++) {
+		draw_native(mode, mode == SDL3_VIDEO_MODE_CGA	  ? TEST_NATIVE_CGA_WORD
+						  : mode == SDL3_VIDEO_MODE_TANDY ? TEST_NATIVE_TANDY_TILE
+														  : TEST_NATIVE_EGA_COLOR);
 		const legacy_u8 *actual = sdl3_video_mode_framebuffer(screen);
 		for (legacy_u16 y = 0; y < TEST_BITMAP_HEIGHT; y++) {
 			for (legacy_u16 x = 0; x < TEST_BITMAP_WIDTH; x++) {
 				legacy_u16 offset = y * TEST_WIDTH + x;
-				assert(actual[offset] ==
-					   (mode == SDL3_VIDEO_MODE_EGA ? TEST_NATIVE_EGA_COLOR : cga[y][x]));
+				assert(actual[offset] == (mode == SDL3_VIDEO_MODE_CGA	  ? cga[y][x]
+										  : mode == SDL3_VIDEO_MODE_TANDY ? tandy[y][x]
+																		  : TEST_NATIVE_EGA_COLOR));
 				assert(screen[offset] == TEST_BITMAP_COLOR);
 			}
 		}
 	}
 }
 
-static void test_masks_transparency_and_xor(void)
+static void test_mode_masks_transparency_and_xor(legacy_u8 mode)
 {
-	draw_native(SDL3_VIDEO_MODE_EGA, TEST_NATIVE_EGA_COLOR);
+	draw_native(mode,
+				mode == SDL3_VIDEO_MODE_TANDY ? TEST_NATIVE_TANDY_WORD : TEST_NATIVE_EGA_COLOR);
 	register_authored_bitmap();
 	legacy_u8 mask[] = {LEGACY_U8_MAX, 0, LEGACY_U8_MAX, 0};
 	video_pages_raster_span(screen, 0, mask, 0, sizeof(mask), SHAPE2D_RASTER_AND, NULL);
@@ -346,6 +362,58 @@ static void test_masks_transparency_and_xor(void)
 	assert(sdl3_video_mode_framebuffer(screen)[2] == 3);
 }
 
+static void test_masks_transparency_and_xor(void)
+{
+	test_mode_masks_transparency_and_xor(SDL3_VIDEO_MODE_EGA);
+#ifndef __DJGPP__
+	test_mode_masks_transparency_and_xor(SDL3_VIDEO_MODE_TANDY);
+#endif
+}
+
+#ifndef __DJGPP__
+static void test_tandy_point_nibble_spill(void)
+{
+	/* TDY point0x264f1 ORs the complete low color byte into a packed pair.
+	 * Odd X therefore ORs high nibble2 into its preceding color4, making6. */
+	static const legacy_u8 expected[][4] = {{3, 4, 4, 4}, {6, 3, 4, 4}};
+	for (legacy_u16 phase = 0; phase < 2U; phase++) {
+		draw_native(SDL3_VIDEO_MODE_TANDY, TEST_TANDY_POINT_BACKGROUND);
+		legacy_u16 colors[] = {TEST_TANDY_POINT_WORD, 0, 0};
+		sdl3_video_mode_primitive_begin();
+		sdl3_video_mode_primitive_capture(colors);
+		sdl3_video_mode_point_begin();
+		video_pages_write_pixel(screen, phase, SDL3_VIDEO_NATIVE_PRIMARY);
+		sdl3_video_mode_point_end();
+		sdl3_video_mode_primitive_end();
+		assert(memcmp(sdl3_video_mode_framebuffer(screen), expected[phase],
+					  sizeof(expected[phase])) == 0);
+		for (legacy_u16 x = 0; x < sizeof(expected[phase]); x++) {
+			assert(screen[x] == TEST_BITMAP_COLOR);
+		}
+	}
+}
+
+static void test_mode_switch_invalidates_native_samples(void)
+{
+	draw_native(SDL3_VIDEO_MODE_EGA, TEST_NATIVE_EGA_COLOR);
+	assert(sdl3_video_mode_framebuffer(screen)[0] == TEST_NATIVE_EGA_COLOR);
+	legacy_u32 generation = sdl3_video_mode_generation();
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_TANDY);
+	assert(sdl3_video_mode_selected == SDL3_VIDEO_MODE_TANDY);
+	assert(sdl3_video_mode_generation() != generation);
+	/* A cached EGA material sample cannot survive a Tandy mode switch.
+	 * Palette entry42 was deliberately made identical to hardware color3. */
+	assert(sdl3_video_mode_framebuffer(screen)[0] == TEST_NEAREST_COLOR);
+	assert(screen[0] == TEST_BITMAP_COLOR);
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_VGA);
+	assert(sdl3_video_mode_framebuffer(screen) == screen);
+	assert(screen[0] == TEST_BITMAP_COLOR);
+	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_TANDY);
+	assert(sdl3_video_mode_framebuffer(screen)[0] == TEST_NEAREST_COLOR);
+}
+
+#endif
+
 legacy_int main(void)
 {
 	assert(sdl3_video_mode_selected == SDL3_VIDEO_MODE_VGA);
@@ -355,10 +423,15 @@ legacy_int main(void)
 	test_bitmap_translation_and_scaling();
 	test_native_material_phases();
 	test_masks_transparency_and_xor();
+#ifndef __DJGPP__
+	test_tandy_point_nibble_spill();
+	test_mode_switch_invalidates_native_samples();
+#endif
 	sdl3_video_mode_shutdown();
 	sdl3_video_set_startup_mode(SDL3_VIDEO_MODE_VGA);
 	assert(sdl3_video_mode_framebuffer(screen) == screen);
-	puts("Original VGA/EGA/CGA material facts, bitmap phases, copies, masks and native samples "
+	puts("Original VGA/EGA/CGA/Tandy material facts, bitmap phases, copies, masks and native "
+		 "samples "
 		 "passed.");
 	return 0;
 }

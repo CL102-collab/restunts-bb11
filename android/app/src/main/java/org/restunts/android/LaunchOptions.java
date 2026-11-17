@@ -77,14 +77,22 @@ public final class LaunchOptions {
     }
 
     public enum VideoMode {
-        VGA("--videomode:vga"),
-        EGA("--videomode:ega"),
-        CGA("--videomode:cga");
+        VGA("VGA", "--videomode:vga"),
+        EGA("EGA", "--videomode:ega"),
+        CGA("CGA", "--videomode:cga"),
+        TANDY("Tandy", "--videomode:tandy");
 
+        private final String label;
         private final String argument;
 
-        VideoMode(String argument) {
+        VideoMode(String label, String argument) {
+            this.label = label;
             this.argument = argument;
+        }
+
+        @Override
+        public String toString() {
+            return label;
         }
 
         /** Missing and unrecognized preferences use the original VGA output. */

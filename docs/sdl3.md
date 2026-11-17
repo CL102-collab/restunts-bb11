@@ -409,6 +409,14 @@ Windows uses the corresponding `.exe` names. Dump outputs and saved game data
 are written in the selected data directory, so it must be writable. Keep the
 original game resources and replay/car additions together there.
 
+SDL3 desktop, Android and browser **Video mode** choices are **VGA** (the
+default), **EGA**, **CGA**, and **Tandy**. Use `--videomode:tandy` to select the
+original game's Tandy graphics option for classic rendering. The choice is
+saved independently of HyperVision, and existing preferences keep their
+meaning. HyperVision always uses VGA graphics; disabling it restores the
+selected classic mode. DOS32 retains VGA/EGA/CGA and does not include Tandy
+video; DOS16, Amiga and TempleOS keep their existing video paths.
+
 The bundled **Antarctica** horizon adds snowy mountains and lower ice fields to
 extended tracks. It is included in `bin/horizons/Antarctica.png`; the game finds
 it beside the executable even when `--data-dir` points to a separate game folder.

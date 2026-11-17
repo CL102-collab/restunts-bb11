@@ -21,6 +21,8 @@
 #define TEST_TABLE_SEED_STEP 37U
 #define TEST_TABLE_SEED_BASE 19U
 #define TEST_BITMAP_COLOR 42U
+#define TEST_TANDY_DEFAULT_PAIR 0x5fU
+#define TEST_TANDY_SELECTED_PAIR 0xa3U
 
 struct BITMAP_FIXTURE {
 	legacy_u8 bytes[TEST_RESOURCE_CAPACITY];
@@ -121,8 +123,10 @@ static void test_authored_tables(legacy_u8 parsed)
 	assert(sdl3_video_bitmap_source_phase(other.bytes) == 1);
 	assert(sdl3_video_bitmap_source_phase(NULL) == 0);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_EGA), 0);
+	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY), 0);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_CGA), 2);
 	assert_table(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_EGA), 0);
+	assert_table(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY), 0);
 	assert_table(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_CGA), 2);
 	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_VGA) == NULL);
 
@@ -130,16 +134,22 @@ static void test_authored_tables(legacy_u8 parsed)
 	assert(sdl3_video_bitmap_source_phase(shape) == 0);
 	sdl3_video_bitmap_select(fixture.bytes, 3);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_EGA), 1);
+	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY), 1);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_CGA), 3);
 	assert_table(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_EGA), 1);
+	assert_table(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY), 1);
 	assert_table(sdl3_video_bitmap_table(other.bytes + other.shape_offset, SDL3_VIDEO_MODE_EGA), 0);
+	assert_table(sdl3_video_bitmap_table(other.bytes + other.shape_offset, SDL3_VIDEO_MODE_TANDY),
+				 0);
 	/* Missing numbered tables fall back within their own source resource. */
 	sdl3_video_bitmap_select((void *)shape, 7);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_EGA), 0);
+	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY), 0);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_CGA), 2);
 	sdl3_video_bitmap_select(fixture.bytes, 3);
 	sdl3_video_bitmap_select(fixture.bytes, LEGACY_U8_MAX);
 	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_EGA), 1);
+	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY), 1);
 	assert(memcmp(original, fixture.bytes, sizeof(original)) == 0);
 
 	assert(sdl3_video_bitmap_row_phase((const struct SHAPE2D *)shape, TEST_SOURCE_ROW) == 0);
@@ -149,11 +159,14 @@ static void test_authored_tables(legacy_u8 parsed)
 	/* Partial overlaps must discard the resource and its copied UI default. */
 	sdl3_video_bitmap_forget(shape + SHAPE2D_HEADER_SIZE, 1U);
 	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY) == NULL);
 	assert(sdl3_video_bitmap_source_phase(shape) == 0);
 	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY) == NULL);
 	assert_table(sdl3_video_bitmap_table(other.bytes, SDL3_VIDEO_MODE_CGA), 2);
 	sdl3_video_bitmap_reset();
 	assert(sdl3_video_bitmap_table(other.bytes, SDL3_VIDEO_MODE_CGA) == NULL);
+	assert(sdl3_video_bitmap_table(other.bytes, SDL3_VIDEO_MODE_TANDY) == NULL);
 }
 
 static void test_invalid_maps(void)
@@ -165,6 +178,7 @@ static void test_invalid_maps(void)
 	sdl3_video_bitmap_register(fixture.bytes, fixture.size, 1);
 	sdl3_video_bitmap_select(fixture.bytes, 3);
 	assert_table(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_EGA), 0);
+	assert_table(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_TANDY), 0);
 	assert_table(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_CGA), 3);
 
 	/* A known tableless resource at a reused address must not inherit maps. */
@@ -173,8 +187,10 @@ static void test_invalid_maps(void)
 	}
 	sdl3_video_bitmap_register(fixture.bytes, fixture.size, 1);
 	assert(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_TANDY) == NULL);
 	assert(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_CGA) == NULL);
 	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY) == NULL);
 
 	build_fixture(&fixture, 0, 1);
 	sdl3_video_bitmap_register(fixture.bytes, fixture.size, 0);
@@ -185,9 +201,45 @@ static void test_invalid_maps(void)
 	assert(sdl3_video_bitmap_source_phase(fixture.bytes) == 1);
 	sdl3_video_bitmap_register(fixture.bytes, 1U, 0);
 	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY) == NULL);
 	assert(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_EGA) == NULL);
+	assert(sdl3_video_bitmap_table(fixture.bytes, SDL3_VIDEO_MODE_TANDY) == NULL);
 	assert(sdl3_video_bitmap_source_phase(fixture.bytes) == 0);
 	sdl3_video_bitmap_register(NULL, fixture.size, 0);
+	sdl3_video_bitmap_reset();
+}
+
+static void test_tandy_uses_authored_ega_maps(void)
+{
+	struct BITMAP_FIXTURE fixture;
+	build_fixture(&fixture, 0, 1);
+	/* Original TDY.COD installs !eg0 (full decoded image 240ea) and its bitmap
+	 * converter at 26d18 selects the unchanged high/low nibbles on alternate rows.
+	 * The four-color !cgN family cannot replace these authored color pairs. */
+	legacy_u8 *default_shape = fixture.bytes + fixture.table_offset[0];
+	legacy_u8 *selected_shape = fixture.bytes + fixture.table_offset[1];
+	default_shape[SHAPE2D_HEADER_SIZE + TEST_BITMAP_COLOR] = TEST_TANDY_DEFAULT_PAIR;
+	selected_shape[SHAPE2D_HEADER_SIZE + TEST_BITMAP_COLOR] = TEST_TANDY_SELECTED_PAIR;
+	sdl3_video_bitmap_register(fixture.bytes, fixture.size, 0);
+	const legacy_u8 *shape = fixture.bytes + fixture.shape_offset;
+	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY)[TEST_BITMAP_COLOR] ==
+		   TEST_TANDY_DEFAULT_PAIR);
+	sdl3_video_bitmap_select(fixture.bytes, 3);
+	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY)[TEST_BITMAP_COLOR] ==
+		   TEST_TANDY_SELECTED_PAIR);
+	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY)[TEST_BITMAP_COLOR] ==
+		   TEST_TANDY_SELECTED_PAIR);
+	/* A malformed numbered map falls back to this resource's valid !eg0. */
+	LEGACY_WRITE_U16_LE(selected_shape, 1U);
+	sdl3_video_bitmap_select(fixture.bytes, 3);
+	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY)[TEST_BITMAP_COLOR] ==
+		   TEST_TANDY_DEFAULT_PAIR);
+	/* With both !egN shapes malformed, an intact !cgN must not supply Tandy pixels. */
+	LEGACY_WRITE_U16_LE(default_shape, 1U);
+	sdl3_video_bitmap_select(fixture.bytes, 3);
+	assert(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_TANDY) == NULL);
+	assert(sdl3_video_bitmap_default_table(SDL3_VIDEO_MODE_TANDY) == NULL);
+	assert_table(sdl3_video_bitmap_table(shape, SDL3_VIDEO_MODE_CGA), 3);
 	sdl3_video_bitmap_reset();
 }
 
@@ -196,6 +248,8 @@ legacy_int main(void)
 	test_authored_tables(0);
 	test_authored_tables(1);
 	test_invalid_maps();
-	puts("Authored VGA bitmap maps, numbered selection, parsed runs and resource lifetime passed.");
+	test_tandy_uses_authored_ega_maps();
+	puts("Authored EGA/CGA/Tandy maps, numbered selection, parsed runs and resource lifetime "
+		 "passed.");
 	return 0;
 }

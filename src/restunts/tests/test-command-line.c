@@ -96,7 +96,11 @@ static void test_help_contents(void)
 		"  --nointro",
 		"  --nosound",
 #ifdef RESTUNTS_SDL3
+#ifdef __DJGPP__
 		"  --videomode:vga|ega|cga",
+#else
+		"  --videomode:vga|ega|cga|tandy",
+#endif
 #ifdef __DJGPP__
 		"  --soundmode:pc-speaker|adlib|mt-32",
 #else

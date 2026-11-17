@@ -18,20 +18,28 @@ end checkboxValue
 
 on soundModeValue(controls, desiredValue)
     set soundModes to {"No sound", "PC Speaker", "Tandy", "Ad Lib", "MT-32"}
+    set escapeKeyCode to 53
     tell application "System Events"
         repeat with uiElement in controls
             if role of uiElement is "AXPopUpButton" then
                 -- Cocoa names a choice by its selected value, rather than the adjacent label.
-                if soundModes contains (value of uiElement as text) then
+                set selectedValue to value of uiElement as text
+                if soundModes contains selectedValue then
                     if not enabled of uiElement then error "Sound mode is disabled"
-                    if (value of uiElement as text) is not desiredValue then
-                        click uiElement
-                        click menu item desiredValue of menu 1 of uiElement
+                    click uiElement
+                    -- Tandy is also a video mode; identify the sound menu by its choices.
+                    if exists menu item "Ad Lib" of menu 1 of uiElement then
+                        if selectedValue is not desiredValue then
+                            click menu item desiredValue of menu 1 of uiElement
+                        else
+                            key code escapeKeyCode
+                        end if
+                        if (value of uiElement as text) is not desiredValue then
+                            error "Could not set startup sound mode: " & desiredValue
+                        end if
+                        return
                     end if
-                    if (value of uiElement as text) is not desiredValue then
-                        error "Could not set startup sound mode: " & desiredValue
-                    end if
-                    return
+                    key code escapeKeyCode
                 end if
             end if
         end repeat

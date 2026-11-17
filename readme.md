@@ -237,14 +237,16 @@ original view. Replay pan and zoom controls still work; the next F3 preset uses 
 
 ### Classic video modes
 
-SDL3 builds support **VGA** (the default), **EGA**, and **CGA** in the
-**Video mode** dropdown under **Graphics settings** on desktop, Web, and Android.
-The choice is remembered separately from HyperVision. Command-line launches,
-including 32-bit DOS, use `--videomode:vga`, `--videomode:ega`, or
-`--videomode:cga`; 32-bit DOS has no startup window.
+SDL3 desktop, browser and Android builds support **VGA** (the default), **EGA**,
+**CGA**, and **Tandy** in the **Video mode** dropdown under **Graphics settings**.
+The choice is remembered separately from HyperVision. Command-line launches use
+`--videomode:vga`, `--videomode:ega`, `--videomode:cga`, or `--videomode:tandy`.
+DOS32 keeps its existing VGA/EGA/CGA choices and has no startup window. Tandy
+video is unavailable in DOS32, DOS16, Amiga and TempleOS builds.
 
-EGA and CGA use the original DOS bitmap conversion tables, material colors,
-and dithering patterns. EGA displays sixteen colors; CGA uses the original
+EGA, CGA and Tandy use the original DOS bitmap conversion tables, material
+colors, and dithering patterns. Tandy reproduces the original 320x200, 16-color
+mode. EGA also displays sixteen colors; CGA uses the original
 black, cyan, magenta, and light-gray palette. Custom bitmap resources without
 conversion tables use color matching. HyperVision always retains VGA graphics,
 regardless of the selected classic mode. Switching HyperVision off restores

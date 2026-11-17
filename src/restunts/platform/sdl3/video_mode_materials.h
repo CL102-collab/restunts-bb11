@@ -4,7 +4,7 @@
 #include "../../c/legacy.h"
 
 /* Exact numeric material facts from the original Broderbund Stunts 1.1
- * EGA/CGA drivers, not palette quantization. Extraction offsets, hashes and
+ * EGA/CGA/Tandy drivers, not palette quantization. Extraction offsets, hashes and
  * packed-pixel phases are recorded in tests/fixtures/
  * video-mode-material-reference.json. No original executable code is stored. */
 #define VIDEO_MODE_MATERIAL_COUNT 129U
@@ -89,5 +89,15 @@ static const legacy_u16 video_mode_cga_pattern_bits[VIDEO_MODE_MATERIAL_COUNT] =
 	0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU,
 	0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU, 0x0000U, 0xCC33U,
 	0x33CCU, 0xB66DU, 0x4992U, 0xB66DU, 0x4992U, 0xB66DU, 0x4992U, 0xFFFFU, 0xFFFFU};
+
+/* TDY uses the same four 129-word tables byte for byte. The decoded TDY
+ * image has data base 0x2cb50 and tables at 0x31be4/0x31ce6/0x31de8/0x31eea,
+ * confirmed against EGA by the hashes in the reference fixture above. TDY
+ * startup expands only the primary/secondary colors to repeated nibbles;
+ * video_mode_material_value reproduces that conversion during lookup. */
+#define video_mode_tandy_primary video_mode_ega_primary
+#define video_mode_tandy_secondary video_mode_ega_secondary
+#define video_mode_tandy_pattern_types video_mode_ega_pattern_types
+#define video_mode_tandy_pattern_bits video_mode_ega_pattern_bits
 
 #endif

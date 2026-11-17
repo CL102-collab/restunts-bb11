@@ -8,6 +8,11 @@
     "cga": {
       "sha256": "dcb5096182fdb4b257da67555ef734a517e6827907cdc4d1c2524e9fcad193c1",
       "data_segment_file_offset": "0x2d490"
+    },
+    "tandy": {
+      "sha256": "5347013dc4896b4cce83d4b99974d4b57812c289e32298e1b0193b0131b18d9f",
+      "data_segment_file_offset": "0x2cb50",
+      "comparison": "UI color words at DS:505A and DS:505E..5093 are byte-identical to EGA; DS:505C is a count."
     }
   },
   "colors": [
@@ -16,196 +21,224 @@
       "ds_offset": "0x505a",
       "mcga": "0xf",
       "ega": "0xffff",
-      "cga": "0xffff"
+      "cga": "0xffff",
+      "tandy": "0xffff"
     },
     {
       "symbol": "menu_highlight_second_color",
       "ds_offset": "0x505e",
       "mcga": "0x5",
       "ega": "0x5555",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x5555"
     },
     {
       "symbol": "menu_highlight_first_color",
       "ds_offset": "0x5060",
       "mcga": "0xe",
       "ega": "0xeeee",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0xeeee"
     },
     {
       "symbol": "end_animation_border_shadow_color",
       "ds_offset": "0x5062",
       "mcga": "0x8",
       "ega": "0x8888",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x8888"
     },
     {
       "symbol": "credits_text_color",
       "ds_offset": "0x5064",
       "mcga": "0xf",
       "ega": "0xffff",
-      "cga": "0xffff"
+      "cga": "0xffff",
+      "tandy": "0xffff"
     },
     {
       "symbol": "credits_text_shadow_color",
       "ds_offset": "0x5066",
       "mcga": "0x8",
       "ega": "0x8888",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x8888"
     },
     {
       "symbol": "credits_title_color",
       "ds_offset": "0x5068",
       "mcga": "0xb",
       "ega": "0xbbbb",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0xbbbb"
     },
     {
       "symbol": "credits_title_shadow_color",
       "ds_offset": "0x506a",
       "mcga": "0x3",
       "ega": "0x3333",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x3333"
     },
     {
       "symbol": "credits_design_heading_color",
       "ds_offset": "0x506c",
       "mcga": "0xc",
       "ega": "0xcccc",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0xcccc"
     },
     {
       "symbol": "credits_design_heading_shadow_color",
       "ds_offset": "0x506e",
       "mcga": "0x4",
       "ega": "0x4444",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x4444"
     },
     {
       "symbol": "credits_production_heading_color",
       "ds_offset": "0x5070",
       "mcga": "0x9",
       "ega": "0x9999",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x9999"
     },
     {
       "symbol": "credits_production_heading_shadow_color",
       "ds_offset": "0x5072",
       "mcga": "0x1",
       "ega": "0x1111",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x1111"
     },
     {
       "symbol": "credits_art_heading_color",
       "ds_offset": "0x5074",
       "mcga": "0xa",
       "ega": "0xaaaa",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0xaaaa"
     },
     {
       "symbol": "credits_art_heading_shadow_color",
       "ds_offset": "0x5076",
       "mcga": "0x2",
       "ega": "0x2222",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x2222"
     },
     {
       "symbol": "credits_music_heading_color",
       "ds_offset": "0x5078",
       "mcga": "0xd",
       "ega": "0xdddd",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0xdddd"
     },
     {
       "symbol": "credits_music_heading_shadow_color",
       "ds_offset": "0x507a",
       "mcga": "0x5",
       "ega": "0x5555",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x5555"
     },
     {
       "symbol": "track_editor_frame_outer_color",
       "ds_offset": "0x507c",
       "mcga": "0xb",
       "ega": "0xbbbb",
-      "cga": "0xffff"
+      "cga": "0xffff",
+      "tandy": "0xbbbb"
     },
     {
       "symbol": "track_editor_frame_inner_color",
       "ds_offset": "0x507e",
       "mcga": "0x9",
       "ega": "0x9999",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x9999"
     },
     {
       "symbol": "track_editor_frame_opposite_color",
       "ds_offset": "0x5080",
       "mcga": "0x1",
       "ega": "0x1111",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x1111"
     },
     {
       "symbol": "track_editor_highlight_color",
       "ds_offset": "0x5082",
       "mcga": "0xc",
       "ega": "0xcccc",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0xcccc"
     },
     {
       "symbol": "button_top_color",
       "ds_offset": "0x5084",
       "mcga": "0xf",
       "ega": "0xffff",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0xffff"
     },
     {
       "symbol": "button_bottom_color",
       "ds_offset": "0x5086",
       "mcga": "0x8",
       "ega": "0x8888",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x8888"
     },
     {
       "symbol": "button_fill_color",
       "ds_offset": "0x5088",
       "mcga": "0x7",
       "ega": "0x7777",
-      "cga": "0xffff"
+      "cga": "0xffff",
+      "tandy": "0x7777"
     },
     {
       "symbol": "graphics_menu_background_color",
       "ds_offset": "0x508a",
       "mcga": "0x9",
       "ega": "0x9999",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x9999"
     },
     {
       "symbol": "replay_timeline_background_color",
       "ds_offset": "0x508c",
       "mcga": "0x1",
       "ega": "0x1111",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x1111"
     },
     {
       "symbol": "replay_marker_color",
       "ds_offset": "0x508e",
       "mcga": "0x4",
       "ega": "0x4444",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x4444"
     },
     {
       "symbol": "performGraphColor",
       "ds_offset": "0x5090",
       "mcga": "0x1",
       "ega": "0x1111",
-      "cga": "0x5555"
+      "cga": "0x5555",
+      "tandy": "0x1111"
     },
     {
       "symbol": "dialog_border_color",
       "ds_offset": "0x5092",
       "mcga": "0x4",
       "ega": "0x4444",
-      "cga": "0xaaaa"
+      "cga": "0xaaaa",
+      "tandy": "0x4444"
     }
   ]
 }
