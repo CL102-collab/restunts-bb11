@@ -23,6 +23,12 @@ static struct UNIT_PLANNER source;
 #define TEST_LEARNING_LATER_FIRST 90U
 #define TEST_LEARNING_LATER_RECEIVER_LAST 97U
 #define TEST_LEARNING_LIVE_PROGRESS 100U
+#define TEST_LEARNING_FIRST_FAILURE 24U
+#define TEST_LEARNING_SECOND_FAILURE 8U
+#define TEST_LEARNING_CHUNK_TICKS 64U
+#define TEST_LEARNING_SUFFIX_FRAME 17U
+#define TEST_LEARNING_BANK_FIRST_FAILURE 60U
+#define TEST_LEARNING_BANK_SECOND_FAILURE 64U
 
 static void begin_prefix(void)
 {
@@ -736,13 +742,14 @@ static void test_learning_incumbent_and_revalidation(void)
 	struct GAMESTATE before = state;
 	assert(unit_pilot_learning_begin(&source, &data));
 	unit_pilot_learning_work(&source, 64);
-	assert(!data.command_count && data.native_samples == 1);
+	assert(!data.command_count && data.native_samples == 1 && !unit_pilot_ready());
 	unit_pilot_learning_work(&source, 64);
 	assert(data.best_frames == 127 && data.command_count == 127 && data.native_samples == 2);
+	assert(unit_pilot_ready());
 	unit_pilot_learning_work(&source, 64);
 	assert(data.best_frames == 64 && data.command_count == 64 && data.native_samples == 3);
 	unit_pilot_learning_work(&source, 1);
-	assert(data.best_frames == 64 && data.native_samples == 4);
+	assert(data.best_frames == 64 && data.native_samples == 4 && unit_pilot_ready());
 	unit_pilot_learning_work(&source, 64);
 	unit_pilot_learning_work(&source, 64);
 	assert(data.best_frames == 64 && data.native_samples == 5);
@@ -758,7 +765,7 @@ static void test_learning_incumbent_and_revalidation(void)
 	assert(unit_pilot_learning_begin(&source, &data));
 	unit_pilot_learning_work(&source, 1);
 	assert(unit_pilot_learning_finish());
-	assert(data.best_frames == 64 && !unit_pilot_continuation_pending());
+	assert(data.best_frames == 64 && !unit_pilot_continuation_pending() && !unit_pilot_ready());
 	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
 	assert(!unit_pilot_state->committed_steps);
 	assert_live_unchanged(&before);
@@ -769,8 +776,10 @@ static void test_learning_incumbent_and_revalidation(void)
 	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
 	unit_pilot_learning_work(&source, 1);
 	assert(replayed_commands == 1 && !unit_pilot_command(&state.opponentstate, 0, &command));
+	assert(!unit_pilot_ready());
 	unit_pilot_learning_work(&source, 63);
 	assert(replayed_commands == 64 && data.best_frames == 64 && data.native_samples == 6);
+	assert(unit_pilot_ready());
 	unit_pilot_learning_work(&source, 1);
 	assert(data.best_frames == 64 && data.native_samples == 6);
 	assert(unit_pilot_learning_finish());
@@ -783,9 +792,126 @@ static void test_learning_incumbent_and_revalidation(void)
 	rejected_replay_frame = 2;
 	assert(unit_pilot_learning_begin(&source, &data));
 	unit_pilot_learning_work(&source, 64);
-	assert(replayed_commands == 2 && !data.best_frames && !data.command_count);
+	assert(replayed_commands == 2 && !data.best_frames && !data.command_count &&
+		   !unit_pilot_ready());
 	assert(!unit_pilot_command(&state.opponentstate, 0, &command));
 	unit_pilot_learning_finish();
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_transient_preparation_retains_verified_prefix(void)
+{
+	/* This target deliberately links no cache I/O implementation: native
+	 * preparation and candidate retention must also work with transient data. */
+	for (legacy_u8 candidates = 1; candidates <= 3U; candidates++) {
+		struct UNIT_LEARNING_DATA data = {0};
+		struct CSRPL_OPPONENT_COMMAND command;
+		reset_fixture(0);
+		finish_event = 1;
+		fail_ordinary_at = TEST_LEARNING_FIRST_FAILURE;
+		struct GAMESTATE before = state;
+		assert(unit_pilot_learning_begin(&source, &data));
+		assert(!unit_pilot_ready());
+		unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+		assert(data.native_samples == 2U && !unit_pilot_ready());
+		assert_live_unchanged(&before);
+		if (candidates >= 2U) {
+			fail_ordinary_at = TEST_LEARNING_SECOND_FAILURE;
+			unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+			assert(data.native_samples == 3U && !unit_pilot_ready());
+			assert_live_unchanged(&before);
+		}
+		if (candidates == 3U) {
+			fail_ordinary_at = 0;
+			unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+			unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+			assert(unit_pilot_ready());
+			assert_live_unchanged(&before);
+		}
+		assert(unit_pilot_learning_finish());
+		if (candidates < 3U) {
+			assert(!unit_pilot_ready() && !data.command_count && !data.best_frames);
+			assert(unit_pilot_state->committed_steps == TEST_LEARNING_FIRST_FAILURE - 1U);
+			assert(unit_pilot_state->seed->profile.lane == 0.0);
+		} else {
+			assert(unit_pilot_ready() && unit_pilot_state->stats.completed_lap);
+			assert(unit_pilot_state->committed_steps == route.finish_begin);
+			assert(unit_pilot_state->seed->profile.lane == -1.0);
+		}
+		assert(unit_pilot_command(&state.opponentstate, 0, &command));
+		assert_live_unchanged(&before);
+		unit_pilot_stop();
+		assert(!unit_pilot_ready());
+		release_learning(&data);
+	}
+}
+
+static void test_transient_preparation_keeps_better_active_prefix(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	reset_fixture(0);
+	fail_ordinary_at = TEST_LEARNING_FIRST_FAILURE;
+	struct GAMESTATE before = state;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	assert(data.native_samples == 2U);
+	fail_ordinary_at = 0;
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	/* Preparation can expire while a later candidate is still running.
+	 * Retaining an older fallback must not discard this longer safe prefix. */
+	assert(unit_pilot_learning_finish());
+	assert(!unit_pilot_ready() && unit_pilot_continuation_pending());
+	assert(unit_pilot_state->committed_steps == TEST_LEARNING_CHUNK_TICKS);
+	assert(unit_pilot_state->seed->profile.lane == 1.0);
+	assert_live_unchanged(&before);
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_transient_preparation_excludes_withheld_bank_commands(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	reset_fixture(0);
+	set_ordinary_bank();
+	fail_ordinary_at = TEST_LEARNING_BANK_FIRST_FAILURE;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	assert(data.native_samples == 2U);
+	/* The second candidate travels farther, but its unsupported bank exit
+	 * leaves a shorter admitted prefix. Speculative travel cannot win. */
+	native_road_support = 0;
+	fail_ordinary_at = TEST_LEARNING_BANK_SECOND_FAILURE;
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	assert(data.native_samples == 3U && !unit_pilot_ready());
+	assert(unit_pilot_learning_finish());
+	assert(unit_pilot_state->seed->profile.lane == 0.0);
+	assert(unit_pilot_state->committed_steps == TEST_LEARNING_BANK_FIRST_FAILURE - 1U);
+	struct CARSTATE next;
+	assert(!unit_pilot_future_car(TEST_LEARNING_BANK_FIRST_FAILURE, &next));
+	unit_pilot_stop();
+	release_learning(&data);
+}
+
+static void test_transient_preparation_suffix_is_not_portable(void)
+{
+	struct UNIT_LEARNING_DATA data = {0};
+	reset_fixture(0);
+	finish_event = 1;
+	extended_replay_clocks.frame = native_first_frame = TEST_LEARNING_SUFFIX_FRAME;
+	state.game_frame = TEST_LEARNING_SUFFIX_FRAME;
+	state.opponentstate.car_reserved_route_word1 = TEST_LEARNING_SUFFIX_FRAME;
+	state.opponentstate.car_position.lz = TEST_LEARNING_SUFFIX_FRAME * 100 * 64;
+	struct GAMESTATE before = state;
+	assert(unit_pilot_learning_begin(&source, &data));
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	unit_pilot_learning_work(&source, TEST_LEARNING_CHUNK_TICKS);
+	assert(unit_pilot_ready());
+	assert(unit_pilot_learning_finish());
+	assert(unit_pilot_state->stats.completed_lap && !unit_pilot_state->learning_full_start);
+	assert(!data.best_frames && !data.command_count && !data.commands);
+	assert(memcmp(&state, &before, sizeof(state)) == 0);
+	assert(extended_replay_clocks.frame == TEST_LEARNING_SUFFIX_FRAME);
 	unit_pilot_stop();
 	release_learning(&data);
 }
@@ -922,6 +1048,10 @@ legacy_int main(void)
 	test_secondary_ramp_window_search();
 	test_recheck_handoff_continuation();
 	test_learning_incumbent_and_revalidation();
+	test_transient_preparation_retains_verified_prefix();
+	test_transient_preparation_keeps_better_active_prefix();
+	test_transient_preparation_excludes_withheld_bank_commands();
+	test_transient_preparation_suffix_is_not_portable();
 	test_learning_partial_and_native_continuation();
 	test_learning_recheck_suffix_is_not_a_lap();
 	test_learning_interrupted_continuation_progress();

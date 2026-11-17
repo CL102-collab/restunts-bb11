@@ -246,7 +246,8 @@ set(common_sources
     opponent/unit_overtake.c opponent/unit_traffic.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
     extended/extended_unit_checkpoint.c extended/extended_physics_snapshot.c
-    extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_banks.c
+    extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_learning.c
+    opponent/unit_pilot_banks.c
     opponent/unit_pilot_trace.c
     opponent/unit_pilot_candidates.c opponent/unit_pilot_controls.c opponent/unit_pilot_pulses.c
     extended/extended_barrel_search.c
@@ -675,7 +676,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-unit-checkpoint PRIVATE -UNDEBUG)
     add_test(NAME unit-checkpoint COMMAND test-unit-checkpoint)
     add_executable(test-unit-pilot src/restunts/tests/test-unit-pilot.c
-        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_banks.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_learning.c
+        ${core}/opponent/unit_pilot_banks.c
         ${core}/opponent/unit_pilot_trace.c
         ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
         ${core}/extended/extended_barrel_search.c)
@@ -686,7 +688,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-unit-pilot PRIVATE m)
     add_test(NAME unit-pilot COMMAND test-unit-pilot)
     add_executable(test-unit-pilot-continuation src/restunts/tests/test-unit-pilot-continuation.c
-        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_banks.c
+        ${core}/opponent/unit_pilot.c ${core}/opponent/unit_pilot_learning.c
+        ${core}/opponent/unit_pilot_banks.c
         ${core}/opponent/unit_pilot_trace.c
         ${core}/opponent/unit_pilot_candidates.c ${core}/opponent/unit_pilot_pulses.c
         ${core}/extended/extended_barrel_search.c)
@@ -1139,8 +1142,8 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "10000 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
     set(unit_race_preparation_args --prepare-ms ${restunts_unit_preparation_ms})
     if(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GREATER 1)
-        # Preserve useful planning work under instrumentation. Stop early when
-        # the native preview completes or exhausts its search.
+        # Preserve useful planning work under instrumentation. Stop early once
+        # a complete clean native lap has been validated.
         list(APPEND unit_race_preparation_args --prepare-until-plan)
     endif()
     set(unit_race_tests unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot

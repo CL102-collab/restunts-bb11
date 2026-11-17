@@ -59,7 +59,7 @@ static legacy_s16 observed_owner;
 static legacy_int native_road_support;
 static struct CSRPL_OPPONENT_COMMAND last_command;
 static legacy_int learning_motion;
-static legacy_u32 replayed_commands, rejected_replay_frame;
+static legacy_u32 replayed_commands, rejected_replay_frame, native_first_frame;
 
 Uint64 SDLCALL SDL_GetTicksNS(void)
 {
@@ -272,7 +272,8 @@ legacy_s16 unit_opponent_pilot_step(struct UNIT_PLANNER *p, legacy_u32 frame, le
 	assert(game_replay_mode != REPLAY_MODE_PAUSED);
 	assert(state.game_inputmode == GAME_INPUT_MODE_ACTIVE);
 	assert(state.playerstate.car_position.lx < 0 && state.playerstate.car_position.lz < 0);
-	assert(frame == p->calls++ + waited_frames && extended_replay_clocks.frame == frame + 1U);
+	assert(frame == p->calls++ + waited_frames + native_first_frame &&
+		   extended_replay_clocks.frame == frame + 1U);
 	last_native_speed = speed;
 	memset(&last_command, 0, sizeof(last_command));
 	last_command.route_index = 1;
@@ -401,7 +402,7 @@ static void reset_fixture(legacy_int stunt)
 	observed_owner = -1;
 	native_road_support = (1U << CARSTATE_WHEEL_COUNT) - 1U;
 	learning_motion = 0;
-	replayed_commands = rejected_replay_frame = 0;
+	replayed_commands = rejected_replay_frame = native_first_frame = 0;
 }
 static void assert_live_unchanged(const struct GAMESTATE *before)
 {

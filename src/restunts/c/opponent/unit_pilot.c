@@ -8,7 +8,6 @@
 #include "unit_opponent.h"
 #include "unit_opponent_internal.h"
 #include "unit_pilot_internal.h"
-#include "unit_learning_cache.h"
 #include "../externs.h"
 #include "../crash_state.h"
 #include "../replay/replay.h"
@@ -34,19 +33,12 @@
 #define UNIT_PILOT_PARK_OFFSET (-4L * TRACK_TILE_SIZE)
 #define UNIT_PILOT_FAILURE_PENALTY (-2)
 #define UNIT_PILOT_FAILURE_TIMEOUT (-3)
-#define UNIT_PILOT_TRACE_MAXIMUM 65536U
 #define UNIT_PILOT_WAIT_TICKS 32U
 #define UNIT_PILOT_PULSE_SEED 0x554e4954U
 
 struct UNIT_PILOT *unit_pilot_state;
 
-static struct {
-	struct UNIT_LEARNING_DATA *data;
-	struct UNIT_PILOT *best;
-	legacy_u8 active;
-} unit_pilot_learning;
-
-static void unit_pilot_release(struct UNIT_PILOT *pilot)
+void unit_pilot_release(struct UNIT_PILOT *pilot)
 {
 	if (!pilot) {
 		return;
@@ -112,8 +104,7 @@ static void unit_pilot_restore_live(void)
 void unit_pilot_stop(void)
 {
 	unit_opponent_pilot_input_override(0, 0);
-	unit_pilot_release(unit_pilot_learning.best);
-	memset(&unit_pilot_learning, 0, sizeof(unit_pilot_learning));
+	unit_pilot_learning_stop();
 	if (!unit_pilot_state) {
 		return;
 	}
@@ -125,7 +116,7 @@ void unit_pilot_stop(void)
 	unit_pilot_state = NULL;
 }
 
-static legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
+legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
 {
 	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
 	if (!source || !route || !route->verified_count) {
@@ -137,7 +128,6 @@ static legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
 	}
 	unit_pilot_state->route = route;
 	unit_pilot_bank_reset(unit_route_cursor(route, &state.opponentstate));
-	unit_pilot_state->learning_full_start = unit_pilot_learning.active;
 	unit_pilot_state->pulses = unit_pilot_pulses_create(UNIT_PILOT_PULSE_SEED);
 	unit_pilot_state->entries = calloc(route->verified_count, sizeof(*unit_pilot_state->entries));
 	unit_pilot_state->steps = calloc(UNIT_PILOT_TRACE_MAXIMUM, sizeof(*unit_pilot_state->steps));
@@ -181,122 +171,7 @@ legacy_int unit_pilot_begin(struct UNIT_PLANNER *source)
 	return unit_pilot_start(source);
 }
 
-static void unit_pilot_learning_recipes(const struct UNIT_LEARNING_DATA *data)
-{
-	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
-	legacy_int available = data && data->pieces && data->piece_count == route->verified_count;
-	for (legacy_u32 piece = 0; piece < route->verified_count; piece++) {
-		const struct UNIT_LEARNING_PIECE empty = {0};
-		const struct UNIT_LEARNING_PIECE *recipe = available ? &data->pieces[piece] : &empty;
-		route->verified_speeds[piece] = recipe->speed;
-		route->verified_exits[piece] =
-			(struct UNIT_EXIT_PROFILE){recipe->exit_fraction, recipe->exit_speed};
-		route->verified_barrel_offsets[piece] = recipe->barrel_offset;
-		route->verified_ramp_approaches[piece] = recipe->ramp_approach;
-	}
-}
-
-static legacy_int unit_pilot_learning_capture(legacy_int completed)
-{
-	if (completed && !unit_pilot_state->learning_full_start) {
-		return 0;
-	}
-	struct UNIT_LEARNING_DATA *data = unit_pilot_learning.data;
-	const struct UNIT_ROUTE *route = unit_pilot_state->route;
-	struct UNIT_LEARNING_PIECE *pieces = calloc(route->verified_count, sizeof(*pieces));
-	struct CSRPL_OPPONENT_COMMAND *commands = NULL;
-	struct UNIT_PLANNER_PROFILE profile;
-	if (completed) {
-		commands = calloc(unit_pilot_state->step_count, sizeof(*commands));
-	}
-	if (!pieces || (completed && (!commands || !unit_planner_export_profile(unit_pilot_state->seed,
-																			&profile)))) {
-		free(pieces);
-		free(commands);
-		return 0;
-	}
-	for (legacy_u32 piece = 0; piece < route->verified_count; piece++) {
-		pieces[piece] = (struct UNIT_LEARNING_PIECE){
-			route->verified_speeds[piece], route->verified_exits[piece].fraction,
-			route->verified_exits[piece].speed, route->verified_barrel_offsets[piece],
-			route->verified_ramp_approaches[piece]};
-		/* Finishing preparation removes unseen imported hints from live route
-		 * authority. Keep that earlier knowledge when harvesting later progress. */
-		if (!completed && data->pieces && data->piece_count == route->verified_count &&
-			pieces[piece].speed == 0.0 && pieces[piece].exit_fraction == 0.0 &&
-			pieces[piece].exit_speed == 0.0 && pieces[piece].barrel_offset == 0.0 &&
-			!pieces[piece].ramp_approach) {
-			pieces[piece] = data->pieces[piece];
-		}
-	}
-	if (completed) {
-		for (legacy_u32 frame = 0; frame < unit_pilot_state->step_count; frame++) {
-			commands[frame] = unit_pilot_state->steps[frame].command;
-		}
-		free(data->commands);
-		data->commands = commands;
-		data->command_count = data->best_frames = unit_pilot_state->step_count;
-		data->best_profile = profile;
-	}
-	free(data->pieces);
-	data->pieces = pieces;
-	data->piece_count = route->verified_count;
-	return 1;
-}
-
-static legacy_int unit_pilot_learning_candidate(struct UNIT_PLANNER *source)
-{
-	struct UNIT_LEARNING_DATA *data = unit_pilot_learning.data;
-	struct UNIT_PLANNER *candidate =
-		data->native_samples ? unit_planner_clone_candidate(source, data->native_samples - 1U)
-							 : unit_planner_clone_sync(source);
-	if (!candidate) {
-		return 0;
-	}
-	data->native_samples++;
-	unit_pilot_learning_recipes(data);
-	unit_opponent_pilot_input_override(0, 0);
-	unit_opponent_pilot_exit_override(ROUTE_INDEX_NONE, 0.0, 0.0);
-	unit_opponent_pilot_secondary_override(ROUTE_INDEX_NONE, 0.0);
-	unit_opponent_pilot_barrel_override(ROUTE_INDEX_NONE, 0.0);
-	unit_opponent_pilot_ramp_override(ROUTE_INDEX_NONE, 0);
-	legacy_int started = unit_pilot_start(candidate);
-	unit_planner_destroy(candidate);
-	return started;
-}
-
-legacy_int unit_pilot_learning_begin(struct UNIT_PLANNER *source, struct UNIT_LEARNING_DATA *data)
-{
-	unit_pilot_stop();
-	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
-	if (!source || !data || !route || !route->verified_count) {
-		return 0;
-	}
-	unit_pilot_learning.data = data;
-	unit_pilot_learning.active = 1;
-	if (data->commands && data->command_count && data->command_count <= UNIT_PILOT_TRACE_MAXIMUM &&
-		data->command_count == data->best_frames && data->pieces &&
-		data->piece_count == route->verified_count) {
-		struct UNIT_PLANNER *incumbent = unit_planner_clone_profile(source, &data->best_profile);
-		legacy_int started = incumbent && unit_pilot_start(incumbent);
-		unit_planner_destroy(incumbent);
-		if (started) {
-			unit_pilot_state->learned_replay_count = data->command_count;
-			for (legacy_u32 frame = 0; frame < data->command_count; frame++) {
-				unit_pilot_state->steps[frame].command = data->commands[frame];
-			}
-			return 1;
-		}
-	}
-	free(data->commands);
-	data->commands = NULL;
-	data->command_count = data->best_frames = 0;
-	/* A missing portable lap still retains accepted maneuver hints. Native
-	 * trials recheck each hint from the new candidate's actual approach. */
-	return unit_pilot_learning_candidate(source);
-}
-
-static legacy_f64 unit_pilot_approach_distance(legacy_u8 stunt)
+legacy_f64 unit_pilot_approach_distance(legacy_u8 stunt)
 {
 	return (stunt == UNIT_STUNT_RAMP ? UNIT_NATIVE_RAMP_APPROACH_TILES
 									 : UNIT_NATIVE_APPROACH_TILES) *
@@ -450,25 +325,6 @@ static legacy_int unit_pilot_reached_receiver(legacy_u32 cursor)
 		}
 	}
 	return 0;
-}
-
-legacy_int unit_pilot_grounded(void)
-{
-	const struct CARSTATE *car = &state.opponentstate;
-	struct VECTOR footprint[OWOOT_WHEEL_VERTEX_COUNT];
-	legacy_int supported = 0;
-	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
-		if (car->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
-			car->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
-			return 0;
-		}
-		legacy_u16 count = owoot_wheel_footprint(car, wheel, footprint);
-		supported |= track_road_overlaps_wheel(footprint, count / OWOOT_WHEEL_RIM_COUNT, 1);
-	}
-	/* Sloped landings legitimately have nonzero pitch. Native road contacts
-	 * and cleared OWOOT jump state validate support without a flat-pose rule. */
-	return supported &&
-		   (!owoot_enabled || car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
 }
 
 static void unit_pilot_accept_trial(void)
@@ -716,10 +572,7 @@ static void unit_pilot_tick(void)
 		}
 		unit_pilot_state->stats.completed_lap = 1;
 		unit_pilot_bank_finish();
-		if (!unit_pilot_learning.active && unit_pilot_learning.data &&
-			unit_pilot_state->learning_full_start) {
-			unit_pilot_learning_capture(1);
-		}
+		unit_pilot_learning_completed();
 		if (unit_pilot_state->recheck) {
 			unit_pilot_state->recheck_status = 1;
 		}
@@ -789,91 +642,6 @@ void unit_pilot_work(legacy_u32 maximum_ticks)
 	unit_pilot_restore_live();
 }
 
-void unit_pilot_learning_work(struct UNIT_PLANNER *source, legacy_u32 maximum_ticks)
-{
-	if (!unit_pilot_learning.active || !source || !maximum_ticks) {
-		return;
-	}
-	unit_pilot_work(maximum_ticks);
-	if (unit_pilot_state && unit_pilot_state->stats.active) {
-		return;
-	}
-	struct UNIT_LEARNING_DATA *data = unit_pilot_learning.data;
-	if (unit_pilot_state) {
-		if (unit_pilot_state->learned_replay_count) {
-			if (unit_pilot_state->stats.completed_lap) {
-				unit_pilot_learning_recipes(data);
-				unit_pilot_learning.best = unit_pilot_state;
-				unit_pilot_state = NULL;
-			} else {
-				/* A stale or corrupt command stream never becomes live authority. */
-				free(data->commands);
-				data->commands = NULL;
-				data->command_count = data->best_frames = 0;
-			}
-		} else if (unit_pilot_state->stats.completed_lap &&
-				   (!unit_pilot_learning.best ||
-					unit_pilot_state->step_count < unit_pilot_learning.best->step_count)) {
-			if (unit_pilot_learning_capture(1)) {
-				unit_pilot_release(unit_pilot_learning.best);
-				unit_pilot_learning.best = unit_pilot_state;
-				unit_pilot_state = NULL;
-			} else {
-				unit_pilot_learning.active = 0;
-				return;
-			}
-		} else if (!unit_pilot_learning.best && !data->command_count) {
-			unit_pilot_learning_capture(0);
-		}
-		unit_pilot_release(unit_pilot_state);
-		unit_pilot_state = NULL;
-	}
-	if (!unit_pilot_learning_candidate(source)) {
-		unit_pilot_learning.active = 0;
-	}
-}
-
-struct UNIT_PLANNER *unit_pilot_learning_finish(void)
-{
-	if (unit_pilot_learning.best) {
-		unit_pilot_release(unit_pilot_state);
-		unit_pilot_state = unit_pilot_learning.best;
-		unit_pilot_learning.best = NULL;
-		unit_pilot_learning_recipes(unit_pilot_learning.data);
-	} else if (unit_pilot_state && unit_pilot_state->learned_replay_count) {
-		/* Only a complete native replay can release imported controls. */
-		unit_pilot_state->learned_replay_count = 0;
-		unit_pilot_state->step_count = unit_pilot_state->committed_steps = 0;
-		unit_pilot_state->stats.active = 0;
-		unit_pilot_learning_recipes(NULL);
-	} else if (unit_pilot_state && unit_pilot_learning.data &&
-			   !unit_pilot_learning.data->command_count) {
-		unit_pilot_learning_capture(0);
-		/* Imported recipes are search hints until this preview reaches their
-		 * native receiving road. Keep unseen hints out of live speed policy. */
-		const struct UNIT_ROUTE *route = unit_pilot_state->route;
-		for (legacy_u32 piece = 0; piece < route->verified_count; piece++) {
-			if (!unit_pilot_state->entries[piece].valid) {
-				route->verified_speeds[piece] = 0.0;
-				route->verified_exits[piece] = (struct UNIT_EXIT_PROFILE){0};
-				route->verified_barrel_offsets[piece] = 0.0;
-				route->verified_ramp_approaches[piece] = 0;
-			}
-		}
-	}
-	unit_pilot_learning.active = 0;
-	return unit_pilot_finish();
-}
-
-void unit_pilot_learning_save_progress(void)
-{
-	if (unit_pilot_state && unit_pilot_state->learning_full_start && unit_pilot_learning.data &&
-		!unit_pilot_learning.data->best_frames && !unit_pilot_learning.data->command_count &&
-		!unit_pilot_learning.best) {
-		unit_pilot_learning_capture(0);
-	}
-}
-
 struct UNIT_PLANNER *unit_pilot_finish(void)
 {
 	unit_opponent_pilot_input_override(0, 0);
@@ -941,63 +709,6 @@ void unit_pilot_continuation_cancel(void)
 	unit_opponent_pilot_secondary_override(ROUTE_INDEX_NONE, 0.0);
 	unit_opponent_pilot_barrel_override(ROUTE_INDEX_NONE, 0.0);
 	unit_opponent_pilot_ramp_override(ROUTE_INDEX_NONE, 0);
-}
-
-legacy_int unit_pilot_next_stunt_with_lead(const struct CARSTATE *car, legacy_s16 *piece,
-										   legacy_f64 *distance, legacy_f64 lead)
-{
-	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
-	if (!route || !car) {
-		return 0;
-	}
-	if (!isfinite(lead) || lead < 0.0) {
-		return 0;
-	}
-	legacy_u32 cursor = unit_route_advance(route, car, unit_route_cursor(route, car));
-	legacy_f64 approach = 0.0;
-	if (cursor > 0 && cursor < route->count &&
-		(route->points[cursor].stunt == UNIT_STUNT_NONE ||
-		 route->points[cursor - 1U].route_index != route->points[cursor].route_index)) {
-		const struct UNIT_ROUTE_POINT *point = &route->points[cursor];
-		legacy_f64 dx = point->x - route->points[cursor - 1U].x;
-		legacy_f64 dz = point->z - route->points[cursor - 1U].z;
-		legacy_f64 length = hypot(dx, dz);
-		if (length > 0.0) {
-			approach = fmax(0.0, ((point->x - car->car_position.lx / UNIT_POSITION_SCALE) * dx +
-								  (point->z - car->car_position.lz / UNIT_POSITION_SCALE) * dz) /
-									 length);
-		}
-	}
-	/* The controller only rechecks the nearby approach. Do not scan an entire
-	 * large track when a cached command no longer matches and no stunt is near. */
-	for (legacy_u32 index = cursor;
-		 index < route->finish_begin &&
-		 approach <= UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE + lead;
-		 index++) {
-		if (route->points[index].stunt != UNIT_STUNT_NONE) {
-			if (approach > unit_pilot_approach_distance(route->points[index].stunt) + lead) {
-				return 0;
-			}
-			if (piece) {
-				*piece = route->points[index].route_index;
-			}
-			if (distance) {
-				*distance = approach;
-			}
-			return 1;
-		}
-		if (index + 1U < route->count) {
-			approach += hypot(route->points[index + 1U].x - route->points[index].x,
-							  route->points[index + 1U].z - route->points[index].z);
-		}
-	}
-	return 0;
-}
-
-legacy_int unit_pilot_next_stunt(const struct CARSTATE *car, legacy_s16 *piece,
-								 legacy_f64 *distance)
-{
-	return unit_pilot_next_stunt_with_lead(car, piece, distance, 0.0);
 }
 
 static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u32 frame,

@@ -1938,8 +1938,8 @@ using the same value for the environment and CMake option. These budgets keep
 the complete evaluation counts and replay assertions under instrumentation, and
 also scale UNIT race, subprocess, and native rendering fixture deadlines.
 CMake also scales the planning allowance for its prepared UNIT race commands,
-stopping when native preview completes or exhausts its search. Normal builds
-retain the ten-second preparation window and the same race-frame limits.
+stopping early once a complete clean native lap is ready. Normal builds retain
+the ten-second preparation window and the same race-frame limits.
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need

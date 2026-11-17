@@ -6,6 +6,7 @@
 #include "unit_pilot_pulses.h"
 #include "../extended/extended_physics_snapshot.h"
 
+#define UNIT_PILOT_TRACE_MAXIMUM 65536U
 #define UNIT_PILOT_FAILURE_MEMORY (-4)
 #define UNIT_PILOT_MINIMUM_SPEED 20.0
 #define UNIT_PILOT_CANDIDATES 25U
@@ -93,6 +94,11 @@ struct UNIT_PILOT {
 };
 
 extern struct UNIT_PILOT *unit_pilot_state;
+void unit_pilot_release(struct UNIT_PILOT *pilot);
+legacy_int unit_pilot_start(struct UNIT_PLANNER *source);
+void unit_pilot_learning_stop(void);
+void unit_pilot_learning_completed(void);
+legacy_f64 unit_pilot_approach_distance(legacy_u8 stunt);
 legacy_int unit_pilot_grounded(void);
 void unit_pilot_bank_reset(legacy_u32 cursor);
 void unit_pilot_bank_before_step(legacy_u32 cursor);

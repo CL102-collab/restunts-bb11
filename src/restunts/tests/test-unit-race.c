@@ -637,9 +637,7 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 											options->pilot_entry_trace);
 					}
 					if (options->prepare_until_plan) {
-						struct UNIT_PILOT_STATS preview;
-						unit_pilot_stats(&preview);
-						if (preview.completed_lap || preview.exhausted) {
+						if (unit_pilot_ready()) {
 							break;
 						}
 					}
@@ -1049,9 +1047,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 				debug_pilot_failure(&pilot_failures, pilot_trace, pilot_entry_trace);
 			}
 			if (prepare_until_plan) {
-				struct UNIT_PILOT_STATS preview;
-				unit_pilot_stats(&preview);
-				if (preview.completed_lap || preview.exhausted) {
+				if (unit_pilot_ready()) {
 					break;
 				}
 			}

@@ -1,8 +1,11 @@
 #include "unit_pilot.h"
 
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
+#include <math.h>
 #include <string.h>
 #include "unit_pilot_internal.h"
+#include "unit_opponent.h"
+#include "../track/trackdata_layout.h"
 #include "../externs.h"
 
 void unit_pilot_capture_failure(legacy_s16 failure)
@@ -203,6 +206,63 @@ legacy_int unit_pilot_future_car(legacy_u32 ahead, struct CARSTATE *car)
 	}
 	*car = unit_pilot_state->steps[unit_pilot_state->next_step - 1U + ahead].car;
 	return 1;
+}
+
+legacy_int unit_pilot_next_stunt_with_lead(const struct CARSTATE *car, legacy_s16 *piece,
+										   legacy_f64 *distance, legacy_f64 lead)
+{
+	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
+	if (!route || !car) {
+		return 0;
+	}
+	if (!isfinite(lead) || lead < 0.0) {
+		return 0;
+	}
+	legacy_u32 cursor = unit_route_advance(route, car, unit_route_cursor(route, car));
+	legacy_f64 approach = 0.0;
+	if (cursor > 0 && cursor < route->count &&
+		(route->points[cursor].stunt == UNIT_STUNT_NONE ||
+		 route->points[cursor - 1U].route_index != route->points[cursor].route_index)) {
+		const struct UNIT_ROUTE_POINT *point = &route->points[cursor];
+		legacy_f64 dx = point->x - route->points[cursor - 1U].x;
+		legacy_f64 dz = point->z - route->points[cursor - 1U].z;
+		legacy_f64 length = hypot(dx, dz);
+		if (length > 0.0) {
+			approach = fmax(0.0, ((point->x - car->car_position.lx / UNIT_POSITION_SCALE) * dx +
+								  (point->z - car->car_position.lz / UNIT_POSITION_SCALE) * dz) /
+									 length);
+		}
+	}
+	/* The controller only rechecks the nearby approach. Do not scan an entire
+	 * large track when a cached command no longer matches and no stunt is near. */
+	for (legacy_u32 index = cursor;
+		 index < route->finish_begin &&
+		 approach <= UNIT_NATIVE_RAMP_APPROACH_TILES * TRACK_TILE_SIZE + lead;
+		 index++) {
+		if (route->points[index].stunt != UNIT_STUNT_NONE) {
+			if (approach > unit_pilot_approach_distance(route->points[index].stunt) + lead) {
+				return 0;
+			}
+			if (piece) {
+				*piece = route->points[index].route_index;
+			}
+			if (distance) {
+				*distance = approach;
+			}
+			return 1;
+		}
+		if (index + 1U < route->count) {
+			approach += hypot(route->points[index + 1U].x - route->points[index].x,
+							  route->points[index + 1U].z - route->points[index].z);
+		}
+	}
+	return 0;
+}
+
+legacy_int unit_pilot_next_stunt(const struct CARSTATE *car, legacy_s16 *piece,
+								 legacy_f64 *distance)
+{
+	return unit_pilot_next_stunt_with_lead(car, piece, distance, 0.0);
 }
 
 #endif

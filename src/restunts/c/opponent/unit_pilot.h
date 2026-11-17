@@ -25,6 +25,8 @@ struct UNIT_PILOT_STATS {
  * and presentation before returning to the progress-screen event loop. */
 legacy_int unit_pilot_begin(struct UNIT_PLANNER *source);
 void unit_pilot_work(legacy_u32 maximum_ticks);
+/* Includes a retained clean incumbent; imported commands require native proof. */
+legacy_int unit_pilot_ready(void);
 /* Borrowed frozen seed remains valid until stop; adopt before first live plan. */
 struct UNIT_PLANNER *unit_pilot_finish(void);
 void unit_pilot_stop(void);

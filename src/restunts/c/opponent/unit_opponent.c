@@ -178,11 +178,7 @@ void unit_opponent_prepare_work(void)
 	}
 	unit_planner_work(unit_planner, UNIT_PREPARATION_WORK_UNITS);
 	if (unit_preparation != UNIT_PREPARATION_PLANNING) {
-		if (unit_learning_active) {
-			unit_pilot_learning_work(unit_planner, UNIT_PREPARATION_NATIVE_TICKS);
-		} else {
-			unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
-		}
+		unit_pilot_learning_work(unit_planner, UNIT_PREPARATION_NATIVE_TICKS);
 		return;
 	}
 	struct UNIT_PLANNER_STATS stats;
@@ -192,9 +188,9 @@ void unit_opponent_prepare_work(void)
 	}
 	/* The first search covers the complete checkpoint-aware lap. Native
 	 * previews then refine the same route throughout the remaining wait. */
-	legacy_int started = unit_learning_active
-							 ? unit_pilot_learning_begin(unit_planner, &unit_learning_data)
-							 : unit_pilot_begin(unit_planner);
+	/* Native exploration also runs without a persistent cache. An exhausted
+	 * candidate must not waste the remainder of the preparation allowance. */
+	legacy_int started = unit_pilot_learning_begin(unit_planner, &unit_learning_data);
 	if (started) {
 		unit_preparation = UNIT_PREPARATION_COMPLETE;
 	} else {
@@ -211,8 +207,7 @@ legacy_int unit_opponent_prepare_end(void)
 	if (unit_learning_active) {
 		(void)unit_planner_export_learning(unit_planner, &unit_learning_data.search);
 	}
-	struct UNIT_PLANNER *validated =
-		unit_learning_active ? unit_pilot_learning_finish() : unit_pilot_finish();
+	struct UNIT_PLANNER *validated = unit_pilot_learning_finish();
 	if (validated) {
 		(void)unit_planner_adopt_profiles(unit_planner, validated);
 	}

@@ -17,7 +17,7 @@ def main():
     parser.add_argument("tracks", nargs="+", type=Path)
     parser.add_argument("--prepare-ms", type=int, default=10000)
     parser.add_argument("--prepare-until-plan", action="store_true",
-                        help="stop when native preview completes or exhausts its search")
+                        help="stop once a complete clean native lap is ready")
     parser.add_argument("--car", default="PMIN", help="four-character car identifier")
     parser.add_argument("--frame-rate", type=int, choices=(10, 20), default=20)
     parser.add_argument("--planner-yield-ms", type=int, default=2,

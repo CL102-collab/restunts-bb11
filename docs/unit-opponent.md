@@ -76,6 +76,10 @@ countersteering, and pedal inputs, jointly varying entry speed and lateral
 position within the car's limits. These candidates must satisfy the existing
 OWOOT roll milestones and receiving-road checks before they are accepted.
 
+Preparation continues with fresh candidates after a failed preview, retaining
+the best verified prefix or complete clean lap. This search runs in memory even
+when persistent caches are disabled.
+
 A bounded cache retains the controls and expected car states of verified route
 segments. Ordinary road controls are retained as soon as their native steps pass,
 even if a later maneuver fails or preparation ends. After a failed preview,

@@ -5,8 +5,11 @@
 #include <string.h>
 #include "unit_pilot_internal.h"
 #include "../externs.h"
+#include "../owoot/owoot.h"
+#include "../owoot/owoot_road.h"
 #include "../track/trackdata_layout.h"
 #include "../extended/extended_unit_penalty.h"
+#include "../extended/extended_owoot_internal.h"
 
 #define UNIT_BANK_STABLE_TICKS 4U
 #define UNIT_BANK_BRAKING_RESERVE 0.5
@@ -194,6 +197,25 @@ void unit_pilot_bank_finish(void)
 	 * whole-lap authority and never expose an unfinished bank prefix. */
 	unit_pilot_state->bank.pending = 0;
 	unit_pilot_commit_steps(unit_pilot_state->step_count);
+}
+
+legacy_int unit_pilot_grounded(void)
+{
+	const struct CARSTATE *car = &state.opponentstate;
+	struct VECTOR footprint[OWOOT_WHEEL_VERTEX_COUNT];
+	legacy_int supported = 0;
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		if (car->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+			car->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+			return 0;
+		}
+		legacy_u16 count = owoot_wheel_footprint(car, wheel, footprint);
+		supported |= track_road_overlaps_wheel(footprint, count / OWOOT_WHEEL_RIM_COUNT, 1);
+	}
+	/* Sloped landings legitimately have nonzero pitch. Native road contacts
+	 * and cleared OWOOT jump state validate support without a flat-pose rule. */
+	return supported &&
+		   (!owoot_enabled || car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
 }
 
 #endif
