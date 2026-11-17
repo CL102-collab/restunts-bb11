@@ -264,7 +264,7 @@ jobs:
       TSAN_OPTIONS: halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS: 1200
-      # Sanitizers slow fixed-work native ghost and rendering regressions.
+      # Sanitizers slow fixed-work native ghost, UNIT, and rendering regressions.
       # Apply matching limits in CTest and its Python subprocesses.
       RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.timeout-multiplier }}
       CTEST_TIMEOUT_SECONDS: 3600

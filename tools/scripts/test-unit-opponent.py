@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from regression_timeouts import scaled_timeout
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -47,7 +49,8 @@ def main():
             if args.manual:
                 command.append("--manual")
             completed = subprocess.run(command, env=environment, text=True, capture_output=True,
-                                       timeout=180 + (args.prepare_ms + args.frames * args.planner_yield_ms) / 1000)
+                                       timeout=scaled_timeout(
+                                           180 + (args.prepare_ms + args.frames * args.planner_yield_ms) / 1000))
             assert completed.returncode == 0, (command, completed.stdout, completed.stderr)
             line = next((line for line in completed.stdout.splitlines()
                          if line.startswith("opponent=")), None)

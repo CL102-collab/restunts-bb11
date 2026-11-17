@@ -782,7 +782,7 @@ if(RESTUNTS_BUILD_TESTS)
             ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
     endif()
     set(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER 1 CACHE STRING
-        "Timeout multiplier for native ghost and rendering regressions")
+        "Timeout multiplier for native ghost, UNIT, and rendering regressions")
     if(NOT RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER MATCHES "^[1-9][0-9]*$")
         message(FATAL_ERROR
             "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
@@ -1296,8 +1296,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${unit_race_fixture}" --case blocked --planner sync --prepared)
     set_tests_properties(unit-overtake-blocked-owoot-sync unit-overtake-blocked-prepared-sync
         PROPERTIES RUN_SERIAL TRUE)
-    set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT 180
+    # Instrumentation slows the fixed native workload. Match the ghost tests'
+    # budgets; CTest --timeout cannot override an explicit test TIMEOUT.
+    math(EXPR restunts_unit_test_timeout
+        "180 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
+    set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT ${restunts_unit_test_timeout}
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    set_property(TEST ${unit_race_tests} APPEND PROPERTY ENVIRONMENT
+        "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
     if(UNIX)
         add_executable(test-genghost-ipc src/restunts/tests/test-genghost-ipc.c)
         target_compile_options(test-genghost-ipc PRIVATE

@@ -9,6 +9,8 @@ import struct
 import subprocess
 import tempfile
 
+from regression_timeouts import scaled_timeout
+
 
 PREPARATION_MS = 600
 SINGLE_FRAME_PREPARATION_MS = 150
@@ -56,7 +58,8 @@ def main():
                 command.append("--owoot:on")
             if not short:
                 command.append("--require-finish")
-            result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=60)
+            result = subprocess.run(
+                command, env=env, text=True, capture_output=True, timeout=scaled_timeout(60))
             assert result.returncode == 0, (command, result.stdout, result.stderr)
             fields = {key: float(value) for key, value in
                       re.findall(r"(\w+)=(-?\d+(?:\.\d+)?)", result.stdout)}

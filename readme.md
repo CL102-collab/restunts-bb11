@@ -1936,7 +1936,7 @@ directory for the other sanitizers, and use `CC=gcc` and `CXX=g++` to match CI.
 Set `RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=4` for UBSan or `40` for TSan,
 using the same value for the environment and CMake option. These budgets keep
 the complete evaluation counts and replay assertions under instrumentation, and
-also scale the native rendering fixture deadlines.
+also scale UNIT race, subprocess, and native rendering fixture deadlines.
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need

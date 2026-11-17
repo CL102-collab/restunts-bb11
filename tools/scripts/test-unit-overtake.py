@@ -9,6 +9,8 @@ import re
 import subprocess
 import tempfile
 
+from regression_timeouts import scaled_timeout
+
 
 FRAME_RATE = 20
 FRAME_LIMIT = FRAME_RATE * 20
@@ -60,7 +62,8 @@ def main():
             command += ["--prepare-ms", str(PREPARATION_MS), "--prepare-until-plan"]
         if args.owoot:
             command += ["--owoot:on"]
-        result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=120)
+        result = subprocess.run(
+            command, env=env, text=True, capture_output=True, timeout=scaled_timeout(120))
         assert result.returncode == 0, (command, result.stdout, result.stderr)
         fields = {key: float(value) for key, value in
                   re.findall(r"(\w+)=(-?\d+(?:\.\d+)?)", result.stdout)}

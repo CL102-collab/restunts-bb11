@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import tempfile
 
+from regression_timeouts import scaled_timeout
+
 
 RECORDED_FRAMES = 3811
 APPROACH_FRAME = 3400
@@ -45,7 +47,8 @@ def main():
         for unsupported in ("--require-no-stalls", "--require-worker"):
             command = [str(args.native.resolve()), "--data-dir", str(game),
                        "--source-replay", str(args.replay.resolve()), "--replay-only", unsupported]
-            rejected = subprocess.run(command, env=env, text=True, capture_output=True, timeout=10)
+            rejected = subprocess.run(
+                command, env=env, text=True, capture_output=True, timeout=scaled_timeout(10))
             assert rejected.returncode != 0 and "does not support" in rejected.stderr, rejected
 
         def run(name, *extra):
@@ -53,7 +56,8 @@ def main():
             command = [str(args.native.resolve()), "--data-dir", str(game),
                        "--source-replay", str(args.replay.resolve()), "--trace", str(trace),
                        "--verify-replay", "--unit-cache-dir", str(cache), *extra]
-            result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=120)
+            result = subprocess.run(
+                command, env=env, text=True, capture_output=True, timeout=scaled_timeout(120))
             assert result.returncode == 0, (command, result.stdout, result.stderr)
             fields = {key: float(value) for key, value in
                       re.findall(r"(\w+)=(-?\d+(?:\.\d+)?)", result.stdout)}
