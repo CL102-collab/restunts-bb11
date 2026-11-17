@@ -28,7 +28,8 @@
 #define PILOT_TEST_WAIT_TICKS 32U
 #define PILOT_TEST_COMMAND_ERROR (-1)
 #define PILOT_TEST_NATIVE_CHUNK 64U
-#define PILOT_TEST_PREFIX_CHUNKS 32U
+#define PILOT_TEST_PREFIX_TICKS 2048U
+#define PILOT_TEST_STEP_DELAY_MS 5U
 #define PILOT_TEST_STEERING_SENTINEL 17
 
 enum PILOT_TEST_CONTINUATION_SCENARIO {
@@ -43,6 +44,7 @@ enum PILOT_TEST_CONTINUATION_SCENARIO {
 static legacy_u8 pilot_test_active, pilot_test_leave_input_override, pilot_test_capture_entry;
 static struct CARSTATE pilot_test_entry;
 static legacy_s16 pilot_test_event;
+static legacy_u8 pilot_test_slow_step;
 static legacy_u32 pilot_test_steps, pilot_test_wait_steps, pilot_test_audio_calls;
 
 legacy_s16 __real_unit_opponent_pilot_step(struct UNIT_PLANNER *planner, legacy_u32 frame,
@@ -86,6 +88,11 @@ legacy_s16 __wrap_unit_opponent_pilot_step(struct UNIT_PLANNER *planner, legacy_
 	legacy_s16 result = __real_unit_opponent_pilot_step(planner, frame, piece, speed);
 	if (pilot_test_active) {
 		pilot_test_steps++;
+		/* Force the native pump to yield after one step even on fast hosts.
+		 * Prefix preparation must count completed ticks, not pump calls. */
+		if (pilot_test_slow_step) {
+			SDL_Delay(PILOT_TEST_STEP_DELAY_MS);
+		}
 	}
 	return pilot_test_native_result(result);
 }
@@ -283,8 +290,9 @@ static void pilot_test_prepare_prefix(struct UNIT_PLANNER *seed,
 	assert(unit_pilot_begin(seed));
 	pilot_test_assert_unchanged(expected);
 	struct UNIT_PILOT_STATS stats = {0};
-	for (legacy_u32 chunk = 0; chunk < PILOT_TEST_PREFIX_CHUNKS && !stats.accepted; chunk++) {
-		unit_pilot_work(PILOT_TEST_NATIVE_CHUNK);
+	while (stats.native_ticks < PILOT_TEST_PREFIX_TICKS && !stats.accepted) {
+		legacy_u32 remaining = PILOT_TEST_PREFIX_TICKS - stats.native_ticks;
+		unit_pilot_work(remaining < PILOT_TEST_NATIVE_CHUNK ? remaining : PILOT_TEST_NATIVE_CHUNK);
 		unit_pilot_stats(&stats);
 		pilot_test_assert_unchanged(expected);
 		assert(stats.active && !stats.completed_lap);
@@ -305,8 +313,9 @@ static void pilot_test_prepare_rechecked_prefix(struct UNIT_PLANNER *seed, legac
 	assert(unit_pilot_recheck_begin(seed, PILOT_TEST_RECHECK_FRAME, piece));
 	pilot_test_assert_unchanged(expected);
 	struct UNIT_PILOT_STATS stats = {0};
-	for (legacy_u32 chunk = 0; chunk < PILOT_TEST_PREFIX_CHUNKS && !stats.accepted; chunk++) {
-		unit_pilot_work(PILOT_TEST_NATIVE_CHUNK);
+	while (stats.native_ticks < PILOT_TEST_PREFIX_TICKS && !stats.accepted) {
+		legacy_u32 remaining = PILOT_TEST_PREFIX_TICKS - stats.native_ticks;
+		unit_pilot_work(remaining < PILOT_TEST_NATIVE_CHUNK ? remaining : PILOT_TEST_NATIVE_CHUNK);
 		unit_pilot_stats(&stats);
 		pilot_test_assert_unchanged(expected);
 		assert(!stats.exhausted && !stats.completed_lap);
@@ -342,7 +351,9 @@ static void pilot_test_continuation(struct UNIT_PLANNER *seed, const struct UNIT
 			first = pilot_test_entry;
 			frame = PILOT_TEST_RECHECK_FRAME + PILOT_TEST_WAIT_TICKS;
 		} else {
+			pilot_test_slow_step = scenario == PILOT_TEST_HUMAN_CANCEL;
 			pilot_test_prepare_prefix(seed, expected);
+			pilot_test_slow_step = 0;
 		}
 		struct CSRPL_OPPONENT_COMMAND command;
 		assert(unit_pilot_command(&first, frame, &command));
