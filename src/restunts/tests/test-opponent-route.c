@@ -2,10 +2,14 @@
 #include <string.h>
 
 #include "../c/externs.h"
+#include "../c/car/car_resources.h"
+#include "../c/car/car_speed.h"
+#include "../c/opponent/opponent.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/resource.h"
 #include "../c/fatal.h"
+#include "../c/extended/extended_track.h"
 
 #undef memcpy
 
@@ -18,19 +22,6 @@
 #define TEST_ROUTE_WORDS 8U
 #define TEST_TAIL_SIZE 256U
 
-struct GAMEINFO gameconfig;
-legacy_s8 opponent_resource_name[] = "opp1";
-legacy_s8 opponent_name_text_id[] = "nam";
-legacy_s8 opponent_path_resource_id[] = "path";
-legacy_s8 opponent_speed_resource_id[] = "sped";
-legacy_s8 opponent_highscore_name[3];
-legacy_u8 oppnentSped[OPPONENT_SPEED_COUNT];
-legacy_s16 *track_primary_route_links;
-legacy_s16 *track_alternate_route_links;
-legacy_s8 *track_route_element_ids;
-legacy_s8 *opponent_route_track_indices;
-const legacy_s8 missing_shape_error_format[] = "shape";
-
 static legacy_u8 arena[512];
 static legacy_u8 decompression_tail[TEST_TAIL_SIZE];
 static legacy_s16 primary[TEST_ROUTE_PIECES] = {1, 2, 0, 4, 0};
@@ -39,6 +30,18 @@ static legacy_s8 elements[TEST_ROUTE_PIECES];
 static legacy_u8 selected_route[TEST_ROUTE_WORDS * LEGACY_WORD_BYTES];
 static legacy_u16 resource_loads;
 static legacy_u16 resource_unloads;
+
+#ifdef RESTUNTS_SDL3
+legacy_int extended_track_active(void)
+{
+	return 0;
+}
+
+legacy_uint extended_track_route_capacity(void)
+{
+	return TEST_ROUTE_PIECES + 1U;
+}
+#endif
 
 void far *file_load_resfile_with_tail(const legacy_s8 *name, legacy_u16 tail_bytes)
 {
@@ -155,10 +158,24 @@ static void test_decompression_tail_costs_choose_route(void)
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+static void test_unit_highscore_name_uses_native_storage(void)
+{
+	initialize(0);
+	gameconfig.game_opponenttype = OPPONENT_UNIT;
+	load_opponent_data();
+	assert_selected_route(1, 2);
+	assert(strcmp(opponent_highscore_name, "UNIT") == 0);
+}
+#endif
+
 int main(void)
 {
 	test_allocator_contents_do_not_change_route();
 	test_valid_following_resource_costs_are_preserved();
 	test_decompression_tail_costs_choose_route();
+#ifdef RESTUNTS_SDL3
+	test_unit_highscore_name_uses_native_storage();
+#endif
 	return 0;
 }

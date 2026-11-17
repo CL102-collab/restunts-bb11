@@ -9,7 +9,14 @@ extern legacy_s8 car_resource_name[];
 extern legacy_s8 opponent_resource_name[];
 extern legacy_s8 gnam_string[];
 extern legacy_s8 gsna_string[];
-extern legacy_s8 opponent_highscore_name[];
+/* Legacy resources use two-letter labels. SDL3 also stores UNIT's full name.
+ * This mutable label is separate from the fixed-width on-disk score record. */
+#ifdef RESTUNTS_SDL3
+#define OPPONENT_HIGHSCORE_NAME_BYTES 5U
+#else
+#define OPPONENT_HIGHSCORE_NAME_BYTES 3U
+#endif
+extern legacy_s8 opponent_highscore_name[OPPONENT_HIGHSCORE_NAME_BYTES];
 
 /* Optional `ster` version 1 stores an integer steering-rate multiplier.
  * Missing or invalid settings keep stock input response. SIMD stays unchanged. */

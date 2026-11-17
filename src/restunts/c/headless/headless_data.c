@@ -126,7 +126,7 @@ legacy_s8 opponent_path_resource_id[] = "path";
 legacy_s8 opponent_speed_resource_id[] = "sped";
 legacy_s8 gnam_string[32];
 legacy_s8 gsna_string[32];
-legacy_s8 opponent_highscore_name[3];
+legacy_s8 opponent_highscore_name[OPPONENT_HIGHSCORE_NAME_BYTES];
 
 legacy_s8 textresprefix = 'e';
 const legacy_s8 missing_shape_error_format[] = "locateshape - %-4.4s SHAPE NOT FOUND\r\n";

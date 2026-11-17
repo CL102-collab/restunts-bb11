@@ -553,7 +553,12 @@ run_host_test test-memmgr-cache memmgr.c \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-opponent-route car/carsetup.c \
     "$test_source_dir/resource.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/legacy.c" -Wno-pointer-sign
+    "$test_source_dir/headless/headless_data.c" "$test_source_dir/legacy.c" \
+    -Wno-pointer-sign -Wno-missing-field-initializers
+run_host_test test-opponent-route car/carsetup.c \
+    "$test_source_dir/resource.c" "$test_source_dir/strlib.c" \
+    "$test_source_dir/headless/headless_data.c" "$test_source_dir/legacy.c" \
+    -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-opponent-tick opponent/opponent.c \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/headless/headless_trackdata.c" \
     "$test_source_dir/trkutil.c" "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" \

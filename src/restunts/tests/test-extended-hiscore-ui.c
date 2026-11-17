@@ -28,7 +28,7 @@ legacy_s8 g_path_buf[256];
 legacy_s8 highscore_player_name_input[HIGHSCORE_PLAYER_NAME_BYTES];
 legacy_s8 gnam_string[64];
 legacy_s8 gsna_string[8];
-legacy_s8 opponent_highscore_name[8];
+legacy_s8 opponent_highscore_name[OPPONENT_HIGHSCORE_NAME_BYTES];
 legacy_s8 track_file_extension[] = ".trk";
 legacy_s8 highscore_track_disk_prompt_id[] = "hstd";
 legacy_s8 replay_recording_flags;
