@@ -64,9 +64,11 @@ def prepare(root):
     notices = root / "android/generated-assets/licenses"
     notices.mkdir(parents=True, exist_ok=True)
     sources = [root / "THIRD-PARTY-NOTICES.txt", destination / "LICENSE.txt",
-               root / "third_party/nuked-opl2-lite/LICENSE", root / "third_party/stb/LICENSE"]
+               root / "third_party/nuked-opl2-lite/LICENSE", root / "third_party/stb/LICENSE",
+               root / "third_party/mame-psg/LICENSE"]
     for source, name in zip(sources, ["THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt",
-                                   "Nuked-OPL2-LICENSE.txt", "stb-LICENSE.txt"]):
+                                   "Nuked-OPL2-LICENSE.txt", "stb-LICENSE.txt",
+                                   "MAME-PSG-LICENSE.txt"]):
         shutil.copy2(source, notices / name)
     for source, name in [(vpx / "LICENSE", "libvpx-LICENSE.txt"),
                          (vpx / "PATENTS", "libvpx-PATENTS.txt"),

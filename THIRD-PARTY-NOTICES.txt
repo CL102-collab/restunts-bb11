@@ -41,6 +41,24 @@ complete kit with a redistributed browser package, even though only the HTML is
 needed to run it. The own-use modification and debugging permissions above also
 apply to browser builds.
 
+MAME NCR8496 / PSSJ-3 PSG core
+----------------------------
+Copyright (c) Nicola Salmoria and contributors.
+https://github.com/mamedev/mame
+
+The SDL3 desktop, Android and browser Tandy synthesizer contains a C adaptation
+of MAME's individually BSD-3-Clause-licensed sn76496.cpp and sn76496.h. The
+adaptation includes the NCR8496 and PSSJ-3 variants; upstream revision and local
+changes are recorded in share/restunts/mame-psg/README.md. It does not include
+the MAME framework. The full copyright notice, license conditions and warranty
+disclaimer are in share/licenses/restunts/MAME-PSG-LICENSE (or
+third_party/mame-psg/LICENSE in the source checkout).
+
+Keep these notices and the license with redistributed source and binaries.
+The copyright holders and contributors do not endorse this product. This
+license covers the emulator code; original Stunts game resources retain their
+own terms. DOS32, DOS16, Amiga and TempleOS builds do not include this core.
+
 Munt libmt32emu
 --------------
 Copyright (C) 2003-2026 the Munt contributors.

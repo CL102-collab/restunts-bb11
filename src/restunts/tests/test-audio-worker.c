@@ -17,6 +17,9 @@
 #include "../platform/sdl3/audio_worker.h"
 #include "../platform/sdl3/pc_speaker_audio.h"
 #include "../platform/sdl3/mt32_audio.h"
+#ifdef RESTUNTS_TANDY
+#include "../platform/sdl3/tandy_audio.h"
+#endif
 #include "../platform/sdl3/sdl3.h"
 #ifdef RESTUNTS_MT32
 #include <mt32emu/mt32emu.h>
@@ -59,6 +62,7 @@ struct worker_snapshot {
 	legacy_s16 engine_index;
 	legacy_u8 engine_voice_active;
 	legacy_u8 engine_note;
+	legacy_u16 engine_period;
 	legacy_u8 music_active;
 	legacy_u8 music_channels;
 	legacy_u8 active_timers;
@@ -97,6 +101,11 @@ static void snapshot_on_worker(void *argument)
 	if (test_sound_mode == STARTUP_SOUND_PC_SPEAKER) {
 		snapshot->sample_owned = pc_speaker_audio_driver()->sample_data != NULL;
 	}
+#ifdef RESTUNTS_TANDY
+	if (test_sound_mode == STARTUP_SOUND_TANDY) {
+		snapshot->sample_owned = tandy_audio_driver()->sample.sample_data != NULL;
+	}
+#endif
 #ifdef RESTUNTS_MT32
 	if (test_sound_mode == STARTUP_SOUND_MT32) {
 		snapshot->mt32_partials_active = mt32emu_has_active_partials(mt32_audio_driver()->instance);
@@ -114,6 +123,14 @@ static void snapshot_on_worker(void *argument)
 			assert(driver_channel < PC_SPEAKER_CONTEXT_COUNT);
 			snapshot->engine_note = pc_speaker_audio_driver()->voices[driver_channel].note;
 		}
+#ifdef RESTUNTS_TANDY
+		if (test_sound_mode == STARTUP_SOUND_TANDY) {
+			legacy_u8 driver_channel = dos_audio_contexts[context].driver_channel;
+			assert(driver_channel < TANDY_CONTEXT_COUNT);
+			snapshot->engine_note = tandy_audio_driver()->voices[driver_channel].note;
+			snapshot->engine_period = tandy_audio_driver()->voices[driver_channel].base_period;
+		}
+#endif
 	}
 }
 
@@ -164,7 +181,11 @@ static void copy_resources(const legacy_char *directory, legacy_u8 include_mt32)
 {
 	static const legacy_char *const names[] = {
 		"PCSKIDMS.VCE", "PCENG1.VCE",	"ADSKIDMS.VCE", "ADENG1.VCE", "GEENG.SFX", "SKIDTITL.KMS",
-		"SKIDSLCT.KMS", "SKIDOVER.KMS", "MTSKIDMS.VCE", "MTENG1.VCE", "MT32.PLB"};
+		"SKIDSLCT.KMS", "SKIDOVER.KMS", "MTSKIDMS.VCE", "MTENG1.VCE", "MT32.PLB",
+#ifdef RESTUNTS_TANDY
+		"TDSKIDMS.VCE", "TDENG1.VCE",
+#endif
+	};
 	for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
 		if (!include_mt32 && names[index][0] == 'M' && names[index][1] == 'T') {
 			continue;
@@ -333,6 +354,11 @@ static void check_engine(void)
 	if (test_sound_mode == STARTUP_SOUND_PC_SPEAKER) {
 		assert(before.engine_note == AUDIO_NOTE_USE_DRIVER_VALUE);
 	}
+#ifdef RESTUNTS_TANDY
+	if (test_sound_mode == STARTUP_SOUND_TANDY) {
+		assert(before.engine_period != 0);
+	}
+#endif
 	struct SDL3_AUDIO_WORKER_STATS start, finish;
 	sdl3_audio_worker_get_stats(&start);
 	legacy_u64 start_ms = SDL_GetTicks();
@@ -349,6 +375,11 @@ static void check_engine(void)
 	SDL_Delay(TEST_ENGINE_CHANGE_MS);
 	struct worker_snapshot advanced = snapshot(engine);
 	assert(advanced.engine.current_pitch > held.engine.current_pitch);
+#ifdef RESTUNTS_TANDY
+	if (test_sound_mode == STARTUP_SOUND_TANDY) {
+		assert(advanced.engine_period != 0 && advanced.engine_period < held.engine_period);
+	}
+#endif
 	/* Releasing a source bank must synchronously quiesce its private users. */
 	mmgr_release(effects);
 	memset(effects, TEST_RELEASED_BYTE, effects_bytes);
@@ -363,6 +394,10 @@ static void check_music_and_lifetime(void)
 	static const legacy_s8 *const names[] = {"titl", "slct", "over"};
 	void *voices = load_voice_file("skidms");
 	assert(voices != NULL);
+	size_t voice_bytes = mmgr_get_chunk_size_bytes(voices);
+	legacy_u8 *saved_voices = malloc(voice_bytes);
+	assert(saved_voices != NULL);
+	memcpy(saved_voices, voices, voice_bytes);
 	for (size_t index = 0; index < sizeof(songs) / sizeof(songs[0]); index++) {
 		void *song = load_song_file(songs[index]);
 		assert(song != NULL);
@@ -375,9 +410,11 @@ static void check_music_and_lifetime(void)
 		assert(memcmp(saved, song, bytes) == 0);
 		/* The command has acknowledged an owned copy, not a borrowed bank. */
 		memset(song, TEST_UNPUBLISHED_BYTE, bytes);
+		memset(voices, TEST_UNPUBLISHED_BYTE, voice_bytes);
 		load_audio_finalize(prepared);
 		SDL_Delay(TEST_WARMUP_MS);
 		check_main_stall();
+		memcpy(voices, saved_voices, voice_bytes);
 		if (index == 0) {
 			check_pause_resume();
 			check_engine_command_failures();
@@ -395,6 +432,7 @@ static void check_music_and_lifetime(void)
 		stopped = snapshot(TEST_NO_ENGINE);
 		assert(!stopped.music_active && stopped.active_voices == 0);
 	}
+	free(saved_voices);
 	mmgr_release(voices);
 }
 
@@ -405,6 +443,9 @@ static void check_shutdown_restart(void)
 	sdl3_audio_worker_get_stats(&stopped);
 	assert(!stopped.active && !sdl3_audio_command_active());
 	assert(pc_speaker_audio_driver()->sample_data == NULL);
+#ifdef RESTUNTS_TANDY
+	assert(tandy_audio_driver()->sample.sample_data == NULL);
+#endif
 	assert(SDL_WasInit(SDL_INIT_AUDIO) == 0);
 	SDL_Delay(TEST_STOP_IDLE_MS);
 	sdl3_audio_worker_get_stats(&later);
@@ -428,6 +469,9 @@ static void check_shutdown_restart(void)
 	sdl3_audio_worker_get_stats(&later);
 	assert(!later.active && SDL_WasInit(SDL_INIT_AUDIO) == 0);
 	assert(pc_speaker_audio_driver()->sample_data == NULL);
+#ifdef RESTUNTS_TANDY
+	assert(tandy_audio_driver()->sample.sample_data == NULL);
+#endif
 	mmgr_release(song);
 	mmgr_release(voices);
 }
@@ -443,6 +487,11 @@ static void check_mode(legacy_u8 mode, const legacy_char *rom_directory, const l
 	sdl3_audio_command_enable(1);
 	assert(audio_load_dos_driver("ad15.drv", 0, 0) == 0);
 	assert(sdl3_audio_worker_is_active() && sdl3_audio_command_active());
+#ifdef RESTUNTS_TANDY
+	if (mode == STARTUP_SOUND_TANDY) {
+		assert(sdl3_audio_uses_tandy() && dos_audio_context_count == TANDY_CONTEXT_COUNT);
+	}
+#endif
 	assert(!sdl3_audio_resources_is_execution());
 	assert(strcmp(SDL_GetCurrentAudioDriver(), "dummy") == 0);
 	check_music_and_lifetime();
@@ -452,7 +501,7 @@ static void check_mode(legacy_u8 mode, const legacy_char *rom_directory, const l
 		   (legacy_uint)mode);
 }
 
-/* Usage: test-audio-worker GAME_DIR [ROM_DIR MODEL]. Normal CI uses PC/Ad Lib;
+/* Usage: test-audio-worker GAME_DIR [ROM_DIR MODEL]. Normal CI uses PC/Tandy/Ad Lib;
  * the optional arguments also exercise real Munt with user-provided ROMs. */
 legacy_int main(legacy_int argc, legacy_char **argv)
 {
@@ -463,6 +512,9 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 	main_thread = SDL_GetCurrentThreadID();
 	sdl3_batch_mode = 0;
 	check_mode(STARTUP_SOUND_PC_SPEAKER, NULL, NULL);
+#ifdef RESTUNTS_TANDY
+	check_mode(STARTUP_SOUND_TANDY, NULL, NULL);
+#endif
 	check_mode(STARTUP_SOUND_ADLIB, NULL, NULL);
 	if (argc == TEST_ROM_ARGUMENTS) {
 #ifdef RESTUNTS_MT32

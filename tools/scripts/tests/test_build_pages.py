@@ -43,12 +43,13 @@ class BuildPagesTests(unittest.TestCase):
             "".join(f"{PACKAGES.sha256(FIXTURE_DATA)}  {name}\n"
                     for name in PAGES.TEMPLEOS_DOWNLOAD_FILES), encoding="ascii")
         runtime = self.root / "runtime"
-        car_archives = PACKAGES.build_custom_car_archives()
+        if not hasattr(type(self), "car_archives"):
+            type(self).car_archives = PACKAGES.build_custom_car_archives()
         for name in PACKAGES.required_files("browser") - {PACKAGES.README}:
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
             if PACKAGES.custom_car_archive_members(name) is not None:
-                content = car_archives[path.name]
+                content = self.car_archives[path.name]
             else:
                 source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
                 content = source.read_bytes() if source is not None else FIXTURE_DATA
@@ -92,6 +93,8 @@ class BuildPagesTests(unittest.TestCase):
             self.assertEqual((self.output / name).read_bytes(), FIXTURE_DATA)
         for name in PAGES.HOSTED_GAME_FILES:
             self.assertEqual((self.output / "game" / name).read_bytes(), FIXTURE_DATA)
+        self.assertEqual((self.output / "game/share/licenses/restunts/MAME-PSG-LICENSE").read_bytes(),
+                         FIXTURE_DATA)
         self.assertTrue((self.output / ".nojekyll").is_file())
         self.assertEqual((self.output / "assets/icon.svg").read_bytes(), b"<svg/>")
         self.assertFalse((self.output / "MISC.RES").exists())
@@ -101,6 +104,14 @@ class BuildPagesTests(unittest.TestCase):
                          {*PAGES.TEMPLEOS_DOWNLOAD_FILES, PAGES.TEMPLEOS_CHECKSUM_FILE})
         for name in PAGES.TEMPLEOS_DOWNLOAD_FILES:
             self.assertEqual((published_downloads / name).read_bytes(), FIXTURE_DATA)
+
+    def test_missing_tandy_license_fails_before_writing_output(self):
+        files, modes = PACKAGES.archive_contents(self.archive)
+        del files["share/licenses/restunts/MAME-PSG-LICENSE"]
+        self.rewrite_archive(files, modes)
+        with self.assertRaisesRegex(ValueError, "MAME-PSG-LICENSE"):
+            self.build()
+        self.assertFalse(self.output.exists())
 
     def test_modified_templeos_download_fails_before_writing_output(self):
         downloads = self.site / PAGES.TEMPLEOS_DOWNLOAD_DIRECTORY

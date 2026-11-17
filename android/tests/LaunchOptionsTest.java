@@ -254,7 +254,7 @@ public final class LaunchOptionsTest {
             "Invalid stored modes must preserve the old disabled sound preference.");
         require(LaunchOptions.SoundMode.fromStored("MT32", false) == LaunchOptions.SoundMode.MT32,
             "An explicit mode must supersede the legacy sound preference.");
-        String[] soundLabels = {"No sound", "PC Speaker", "Ad Lib", "MT-32"};
+        String[] soundLabels = {"No sound", "PC Speaker", "Tandy", "Ad Lib", "MT-32"};
         require(LaunchOptions.SoundMode.values().length == soundLabels.length,
             "The sound dropdown must contain exactly the supported modes.");
         for (int index = 0; index < soundLabels.length; index++) {
@@ -286,12 +286,13 @@ public final class LaunchOptionsTest {
             "Pass the exact selected ROM set to native playback.");
         for (LaunchOptions.SoundMode mode : new LaunchOptions.SoundMode[] {
                 LaunchOptions.SoundMode.ADLIB, LaunchOptions.SoundMode.PC_SPEAKER,
+                LaunchOptions.SoundMode.TANDY,
                 LaunchOptions.SoundMode.NONE}) {
             LaunchOptions inactive = mt32.withSoundMode(mode, romDirectory, model);
             java.util.List<String> arguments = Arrays.asList(inactive.arguments(DATA_DIRECTORY));
             require(!arguments.contains("--mt-32-rom-dir") && !arguments.contains("--mt-32-model")
                     && !arguments.contains(romDirectory) && !arguments.contains(model),
-                "Inactive MT-32 settings must never affect Ad Lib, PC Speaker or muted launches.");
+                "Inactive MT-32 settings must never affect Ad Lib, PC Speaker, Tandy or muted launches.");
             require(arguments.contains("--nosound") == (mode == LaunchOptions.SoundMode.NONE),
                 "Only No sound emits --nosound.");
             require(arguments.contains("--ogg:off"), "Keep the OGG selection independent of sound mode.");
@@ -311,6 +312,14 @@ public final class LaunchOptionsTest {
             "Remember PC Speaker without depending on dropdown ordinals.");
         require(LaunchOptions.SoundMode.fromStored("ADLIB", true) == LaunchOptions.SoundMode.ADLIB,
             "Adding a dropdown item must preserve previously saved Ad Lib choices.");
+        LaunchOptions tandy = defaults.withSoundMode(LaunchOptions.SoundMode.TANDY, romDirectory, model);
+        java.util.List<String> tandyArguments = Arrays.asList(tandy.arguments(DATA_DIRECTORY));
+        require(tandy.sound && tandyArguments.contains("--soundmode:tandy")
+                && !tandyArguments.contains("--soundmode:adlib")
+                && !tandyArguments.contains("--nosound") && tandyArguments.contains("--ogg:off"),
+            "Tandy must select its enabled sound mode and preserve the OGG music default.");
+        require(LaunchOptions.SoundMode.fromStored("TANDY", true) == LaunchOptions.SoundMode.TANDY,
+            "Remember Tandy without depending on dropdown ordinals.");
         LaunchOptions oggMt32 = new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF)
             .withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
         require(Arrays.asList(oggMt32.arguments(DATA_DIRECTORY)).contains("--ogg:on"),

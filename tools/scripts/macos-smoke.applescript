@@ -17,7 +17,7 @@ on checkboxValue(controls, labelText, desiredValue)
 end checkboxValue
 
 on soundModeValue(controls, desiredValue)
-    set soundModes to {"No sound", "PC Speaker", "Ad Lib", "MT-32"}
+    set soundModes to {"No sound", "PC Speaker", "Tandy", "Ad Lib", "MT-32"}
     tell application "System Events"
         repeat with uiElement in controls
             if role of uiElement is "AXPopUpButton" then

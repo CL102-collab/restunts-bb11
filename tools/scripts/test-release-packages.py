@@ -1781,6 +1781,30 @@ class ReleasePackageTests(unittest.TestCase):
                     modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
                     PACKAGES.validate_contents(target, files, modes)
 
+    def test_tandy_license_and_source_follow_sdl3_install_paths(self):
+        expected = {"share/licenses/restunts/MAME-PSG-LICENSE",
+                    "share/restunts/mame-psg/mame_psg.c", "share/restunts/mame-psg/mame_psg.h",
+                    "share/restunts/mame-psg/README.md"}
+        for target in sorted(PACKAGES.SDL3_TARGETS - {"dos32"}):
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            with self.subTest(target=target):
+                self.assertTrue(expected <= files.keys())
+                PACKAGES.validate_contents(target, files, modes)
+                for missing in expected:
+                    incomplete = files.copy()
+                    incomplete.pop(missing)
+                    with self.assertRaisesRegex(ValueError, "missing packaged files"):
+                        PACKAGES.validate_contents(target, incomplete, modes)
+        for target in (PACKAGES.TARGETS.keys() - PACKAGES.SDL3_TARGETS) | {"dos32"}:
+            with self.subTest(target=target):
+                self.assertFalse(any("mame-psg" in name.lower()
+                                     for name in PACKAGES.required_files(target)))
+        for target in PACKAGES.ANDROID_TARGETS:
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "missing APK members"):
+                PACKAGES.validate_android_apk(target, self.apk_data(
+                    target, missing=("assets/licenses/MAME-PSG-LICENSE.txt",)))
+
     def test_decoder_files_follow_install_paths(self):
         decoder_files = {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/stb-LICENSE",
                          "share/licenses/restunts/libvpx-LICENSE",

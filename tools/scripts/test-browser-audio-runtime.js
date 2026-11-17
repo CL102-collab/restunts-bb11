@@ -150,6 +150,20 @@ async function workerTests(input) {
     accepted(command(1, [0, 0]), 'reconfigure Ad Lib with changed instrument bytes');
     prepare(input.titl, input.ad, 'titl');
     check(render(100).peak > 0, 'Ad Lib emulator produces actual PCM');
+
+    accepted(command(1, [3, 0]), 'reconfigure Tandy with original TD instrument bytes');
+    accepted(command(30, [0]), 'disable OGG to exercise the Tandy synthesizer');
+    prepare(input.titl, input.td, 'titl');
+    const tandy = render(100);
+    check(tandy.peak > 0 && tandy.energy > 0, 'copied TD banks produce actual PSG PCM');
+    check(tandy.stereoMismatch === 0, 'mono Tandy output expands to stereo');
+    check(tandy.checksum !== pc.checksum, 'Tandy renders its own instrument and chip behavior');
+    accepted(command(1, [3, 0]), 'reconfigure Tandy while private TD banks are playing');
+    accepted(command(30, [0]), 'keep OGG disabled after Tandy reconfiguration');
+    prepare(input.slct, input.td, 'slct');
+    const tandyChanged = render(100);
+    check(tandyChanged.peak > 0 && tandyChanged.checksum !== tandy.checksum,
+        'reconfigured Tandy imports changed song bytes under reused source IDs');
     accepted(command(36), 'shutdown');
     check(runtime._audio_render_tick() === 0, 'shutdown stops PCM ticks');
     accepted(command(36), 'repeated shutdown is safe');
@@ -159,7 +173,7 @@ async function workerTests(input) {
     prepare(input.titl, input.pc, 'titl');
     check(render(20).peak > 0, 'recovered runtime produces PCM');
     accepted(command(36), 'final shutdown');
-    return { checks: checks.length, pc, ogg, changed, logs };
+    return { checks: checks.length, pc, ogg, changed, tandy, tandyChanged, logs };
 }
 
 (async () => {
@@ -168,7 +182,7 @@ async function workerTests(input) {
     const source = await fs.readFile(runtimePath);
     const read = async name => Array.from(await fs.readFile(path.join(game, name)));
     const resources = { titl: await read('SKIDTITL.KMS'), slct: await read('SKIDSLCT.KMS'),
-        pc: await read('PCSKIDMS.VCE'), ad: await read('ADSKIDMS.VCE'),
+        pc: await read('PCSKIDMS.VCE'), td: await read('TDSKIDMS.VCE'), ad: await read('ADSKIDMS.VCE'),
         ogg: Array.from(await fs.readFile(path.join(ROOT, 'src/restunts/tests/fixtures/music/tone-mono.ogg'))) };
     const server = http.createServer((request, response) => {
         response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');

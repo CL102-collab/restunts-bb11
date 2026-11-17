@@ -143,7 +143,7 @@ ANDROID_TRACKS_README = "assets/tracks/README.TXT"
 ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so", "libmt32emu.so")
 ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LICENSE.txt",
                     "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt",
-                    "MT32EMU-COPYING.LESSER.txt", "MT32EMU-COPYING.txt")
+                    "MT32EMU-COPYING.LESSER.txt", "MT32EMU-COPYING.txt", "MAME-PSG-LICENSE.txt")
 ANDROID_DEX_PATTERN = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex")
 ANDROID_SIGNATURE_PATTERN = re.compile(r"META-INF/[A-Za-z0-9_-]+\.(?:SF|RSA|DSA|EC)")
 ANDROID_ASSET_METADATA = {"assets/menus/manifest.json", "assets/opponents/game/manifest.json",
@@ -624,6 +624,9 @@ def required_files(target):
         required |= mt32emu_source_files() | {
             "share/licenses/restunts/MT32EMU-COPYING.LESSER.txt", "share/licenses/restunts/MT32EMU-COPYING.txt"}
         required.add("mt32.md" if target == "browser" else "share/docs/restunts/mt32.md")
+        required |= {"share/licenses/restunts/MAME-PSG-LICENSE",
+                     "share/restunts/mame-psg/mame_psg.c", "share/restunts/mame-psg/mame_psg.h",
+                     "share/restunts/mame-psg/README.md"}
     if target in ANDROID_TARGETS:
         required |= {ANDROID_APK, ANDROID_GENGHOST_APK, "share/docs/restunts/android.md",
                      "share/docs/restunts/genghost.md", "share/docs/restunts/genghost-android.md",
@@ -797,7 +800,8 @@ def readme(target, commit):
                   "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model."]
         if target != "dos32":
             guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
-            lines += ["Sound settings selects Ad Lib, MT-32, or No sound; OGG music replacement is separate.",
+            lines += ["Sound settings offers No sound, PC Speaker, Tandy, Ad Lib, and MT-32.",
+                      "OGG music replacement is separate. Tandy uses original TD instruments without ROMs.",
                       "MT-32 requires your own compatible Roland control/PCM ROMs; none are included.",
                       f"See {guide} for ROM-folder detection, model selection and command-line options."]
     if target in ANDROID_TARGETS:

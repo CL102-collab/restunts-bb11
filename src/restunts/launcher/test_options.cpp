@@ -45,10 +45,11 @@ legacy_int main()
 				  "Show MPH (Ctrl+F9)",
 		  "Show MPH must follow Show FPS and name its in-game shortcut.");
 	check(LAUNCHER_SOUND_NONE + 1 == LAUNCHER_SOUND_PC_SPEAKER &&
-			  LAUNCHER_SOUND_PC_SPEAKER + 1 == LAUNCHER_SOUND_ADLIB &&
+			  LAUNCHER_SOUND_PC_SPEAKER + 1 == LAUNCHER_SOUND_TANDY &&
+			  LAUNCHER_SOUND_TANDY + 1 == LAUNCHER_SOUND_ADLIB &&
 			  LAUNCHER_SOUND_ADLIB + 1 == LAUNCHER_SOUND_MT32 &&
 			  LAUNCHER_SOUND_MT32 + 1 == LAUNCHER_SOUND_MODE_COUNT,
-		  "Sound modes must appear in the order No sound, PC Speaker, Ad Lib, MT-32.");
+		  "Sound modes must appear in the order No sound, PC Speaker, Tandy, Ad Lib, MT-32.");
 	check(wxString(launcher_sound_definitions[LAUNCHER_SOUND_PC_SPEAKER].label) == "PC Speaker",
 		  "The PC Speaker choice must use its public label.");
 	LauncherOptions options;
@@ -159,6 +160,13 @@ legacy_int main()
 	options.enabled[LAUNCHER_NEW_MIDI] = true;
 	check(contains(launcher_game_arguments(game, options), "--ogg:on"),
 		  "PC Speaker must retain an independently enabled replacement music setting.");
+	options.sound_mode = LAUNCHER_SOUND_TANDY;
+	arguments = launcher_game_arguments(game, options);
+	check(contains(arguments, "--soundmode:tandy") && !contains(arguments, "--nosound") &&
+			  !contains(arguments, "--soundmode:adlib") &&
+			  !contains(arguments, "--mt-32-rom-dir") && !contains(arguments, "--mt-32-model") &&
+			  contains(arguments, "--ogg:on"),
+		  "Tandy must select its mode without ROM arguments and preserve replacement music.");
 	options.sound_mode = LAUNCHER_SOUND_MODE_COUNT;
 	check(contains(launcher_game_arguments(game, options), "--soundmode:adlib"),
 		  "An invalid stored sound mode must safely use Ad Lib.");
@@ -290,10 +298,10 @@ legacy_int main()
 		const legacy_char *id;
 		legacy_int expected_mode;
 	};
-	const SavedSoundCase saved_sound_modes[] = {{"none", LAUNCHER_SOUND_NONE},
-												{"adlib", LAUNCHER_SOUND_ADLIB},
-												{"mt-32", LAUNCHER_SOUND_MT32},
-												{"unknown-future-mode", LAUNCHER_SOUND_ADLIB}};
+	const SavedSoundCase saved_sound_modes[] = {
+		{"none", LAUNCHER_SOUND_NONE},	 {"pc-speaker", LAUNCHER_SOUND_PC_SPEAKER},
+		{"tandy", LAUNCHER_SOUND_TANDY}, {"adlib", LAUNCHER_SOUND_ADLIB},
+		{"mt-32", LAUNCHER_SOUND_MT32},	 {"unknown-future-mode", LAUNCHER_SOUND_ADLIB}};
 	for (const SavedSoundCase &test : saved_sound_modes) {
 		{
 			wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,

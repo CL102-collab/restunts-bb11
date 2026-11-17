@@ -141,7 +141,8 @@ class AndroidPreparationTests(unittest.TestCase):
             "FetchContent_Declare(restunts_munt\n URL https://example.test/munt.tar.gz\n"
             f" URL_HASH SHA256={hashlib.sha256(munt).hexdigest()})")
         for path in ("THIRD-PARTY-NOTICES.txt", "third_party/nuked-opl2-lite/LICENSE",
-                     "third_party/stb/LICENSE", "docs/genghost.md", "docs/genghost-android.md"):
+                     "third_party/stb/LICENSE", "third_party/mame-psg/LICENSE",
+                     "docs/genghost.md", "docs/genghost-android.md"):
             destination = self.root / path
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(path + "\n")
@@ -165,6 +166,8 @@ class AndroidPreparationTests(unittest.TestCase):
         self.assertEqual((self.root / "android/generated-assets/licenses/SDL-LICENSE.txt").read_text(),
                          "SDL license\n")
         licenses = self.root / "android/generated-assets/licenses"
+        self.assertEqual((licenses / "MAME-PSG-LICENSE.txt").read_text(),
+                         "third_party/mame-psg/LICENSE\n")
         self.assertEqual((licenses / "MT32EMU-COPYING.LESSER.txt").read_text(), "mt32emu LGPL\n")
         self.assertEqual((licenses / "MT32EMU-COPYING.txt").read_text(), "mt32emu GPL\n")
         with mock.patch.dict(os.environ, {"ANDROID_HOME": str(sdk)}), \

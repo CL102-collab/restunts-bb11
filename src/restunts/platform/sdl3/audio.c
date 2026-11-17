@@ -6,6 +6,9 @@
 #include "music.h"
 #include "mt32_audio.h"
 #include "pc_speaker_audio.h"
+#ifdef RESTUNTS_TANDY
+#include "tandy_audio.h"
+#endif
 #if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
 #include "audio_commands.h"
 #include "audio_worker.h"
@@ -246,6 +249,13 @@ legacy_u8 sdl3_audio_uses_pc_speaker(void)
 	return configured_sound_mode == STARTUP_SOUND_PC_SPEAKER && !configured_sound_disabled;
 }
 
+#ifdef RESTUNTS_TANDY
+legacy_u8 sdl3_audio_uses_tandy(void)
+{
+	return configured_sound_mode == STARTUP_SOUND_TANDY && !configured_sound_disabled;
+}
+#endif
+
 static const legacy_u8 adlib_slots[ADLIB_VOICES] = {0, 1, 2, 8, 9, 10, 16, 17, 18};
 static const legacy_u16 adlib_frequencies[] = {
 	21,	 23,  24,  25,	27,	 29,  30,  32,	34,	 36,  38,  40,	43,	 45,  48,
@@ -326,6 +336,12 @@ static void adlib_write(legacy_u32 reg, legacy_u32 value)
 
 void sdl3_audio_set_music_muted(legacy_s32 muted)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_audio_set_music_muted(muted != 0);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_audio_set_music_muted(muted != 0);
 		return;
@@ -550,6 +566,15 @@ static void adlib_control(legacy_s32 voice, legacy_u32 selector, legacy_u32 valu
 
 legacy_u8 dos_audio_driver_initialize(void)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		if (!tandy_audio_initialize()) {
+			dos_show_startup_error((const legacy_s8 *)tandy_audio_error());
+			return 0;
+		}
+		return TANDY_CONTEXT_COUNT;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		if (!pc_speaker_audio_initialize()) {
 			dos_show_startup_error((const legacy_s8 *)pc_speaker_audio_error());
@@ -646,6 +671,12 @@ legacy_u8 dos_audio_driver_initialize(void)
 void sdl3_audio_update(void)
 {
 	sdl3_music_update();
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_audio_update();
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_audio_update();
 		return;
@@ -674,6 +705,12 @@ void sdl3_audio_update(void)
 void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 									  legacy_u8 *timer, void *resource)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_prepare(tandy_audio_driver(), driver_channel, (struct AUDIO_CHANNEL *)timer);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_prepare(pc_speaker_audio_driver(), driver_channel,
 								  (struct AUDIO_CHANNEL *)timer);
@@ -728,6 +765,12 @@ void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CO
 void dos_audio_driver_set_context_value(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 										legacy_u16 value)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_engine_value(tandy_audio_driver(), driver_channel, context, value);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_engine_value(pc_speaker_audio_driver(), driver_channel, context, value);
 		return;
@@ -762,6 +805,31 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 									   legacy_u8 *timer, legacy_s16 pitch, legacy_u16 parameter,
 									   void *resource)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		const legacy_u8 *sample = NULL;
+		size_t sample_bytes = 0;
+		if (driver_channel == TANDY_SAMPLE_CHANNEL && resource != NULL) {
+			sample =
+				audio_read_far_pointer((const legacy_u8 *)resource + TANDY_SAMPLE_REFERENCE_OFFSET);
+#if defined(RESTUNTS_AUDIO_WORKER) && !defined(__DJGPP__)
+			sample_bytes = sdl3_audio_resources_is_execution()
+							   ? sdl3_audio_resource_remaining(sample)
+							   : mmgr_get_pointer_size_bytes(sample);
+#else
+			sample_bytes = mmgr_get_pointer_size_bytes(sample);
+#endif
+			if (sample_bytes < TANDY_SAMPLE_HEADER_BYTES) {
+				sample = NULL;
+				sample_bytes = 0;
+			}
+		}
+		tandy_driver_activate(tandy_audio_driver(), driver_channel, context,
+							  (struct AUDIO_CHANNEL *)timer, pitch, parameter, resource, sample,
+							  sample_bytes);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		const legacy_u8 *sample = NULL;
 		size_t sample_bytes = 0;
@@ -823,6 +891,12 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 
 void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		/* TD15 lets the portable sequencer complete its release envelope. */
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		/* The original PC driver keeps sounding through the release envelope. */
 		return;
@@ -845,6 +919,12 @@ void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONT
 
 void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_release(tandy_audio_driver(), driver_channel);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_release(pc_speaker_audio_driver(), driver_channel);
 		return;
@@ -870,6 +950,12 @@ void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEX
 
 void dos_audio_driver_release_channel(legacy_s16 driver_channel)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_release(tandy_audio_driver(), driver_channel);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_release(pc_speaker_audio_driver(), driver_channel);
 		return;
@@ -891,6 +977,12 @@ void dos_audio_driver_release_channel(legacy_s16 driver_channel)
 
 void dos_audio_driver_start(void)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_start(tandy_audio_driver());
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_start(pc_speaker_audio_driver());
 		return;
@@ -911,6 +1003,12 @@ void dos_audio_driver_start(void)
 void dos_audio_driver_suspend_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 									  legacy_u16 value, void *resource)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_update_context(tandy_audio_driver(), driver_channel, context, resource);
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_update_context(pc_speaker_audio_driver(), driver_channel, context,
 										 resource);
@@ -967,6 +1065,16 @@ void dos_audio_set_channel_volume(legacy_s16 channel, legacy_s16 volume)
 		return;
 	}
 	audio_channels[channel].volume = (legacy_u8)volume;
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		for (legacy_u16 index = 0; index < TANDY_CONTEXT_COUNT; index++) {
+			if (dos_audio_contexts[index].channel == channel) {
+				tandy_driver_volume(tandy_audio_driver(), index, (legacy_u8)volume);
+			}
+		}
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		for (legacy_u16 index = 0; index < PC_SPEAKER_CONTEXT_COUNT; index++) {
 			if (dos_audio_contexts[index].channel == channel) {
@@ -1001,6 +1109,16 @@ void dos_audio_bind_channel_context(legacy_s16 channel, void *resource)
 		bytes[AUDIO_INSTRUMENT_DIRECT_CHANNEL_OFFSET] < AUDIO_DIRECT_CHANNEL_COUNT
 			? bytes[AUDIO_INSTRUMENT_DIRECT_CHANNEL_OFFSET]
 			: (legacy_u8)((channel & AUDIO_DIRECT_CHANNEL_MASK) + AUDIO_DRIVER_CHANNEL_BASE);
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		for (legacy_u16 index = 0; index < TANDY_CONTEXT_COUNT; index++) {
+			if (dos_audio_contexts[index].channel == channel) {
+				tandy_driver_prepare(tandy_audio_driver(), index, state);
+			}
+		}
+		return;
+	}
+#endif
 #ifdef RESTUNTS_MT32
 	if (sdl3_audio_uses_mt32()) {
 		mt32_driver_prepare(mt32_audio_driver(), state->driver_channel, state, resource);
@@ -1025,6 +1143,16 @@ void dos_audio_bind_channel_context(legacy_s16 channel, void *resource)
 
 void dos_audio_set_context_pitch(legacy_s16 context_index, legacy_s16 pitch)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		if (context_index >= 0 && (legacy_u16)context_index < TANDY_CONTEXT_COUNT) {
+			struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
+			tandy_driver_engine_value(tandy_audio_driver(), context->driver_channel, context,
+									  (legacy_u16)pitch);
+		}
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		if (context_index >= 0 && (legacy_u16)context_index < PC_SPEAKER_CONTEXT_COUNT) {
 			struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
@@ -1055,6 +1183,11 @@ void dos_audio_set_context_pitch(legacy_s16 context_index, legacy_s16 pitch)
 void dos_audio_driver_set_control(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
 								  legacy_u16 control, legacy_u16 value)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		return;
 	}
@@ -1100,6 +1233,11 @@ void dos_audio_driver_reset(void)
  * MT-32, and pitch changes are applied by the per-context 100 Hz update. */
 void dos_audio_driver_load_bank(void *bank)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		return;
 	}
@@ -1122,6 +1260,11 @@ void dos_audio_driver_load_bank(void *bank)
 
 void dos_audio_driver_set_pitch(legacy_u8 *timer, legacy_s16 pitch, legacy_s16 driver_channel)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		return;
 	}
@@ -1141,6 +1284,11 @@ void dos_audio_driver_set_pitch(legacy_u8 *timer, legacy_s16 pitch, legacy_s16 d
 
 void dos_audio_driver_send_data(legacy_u16 length, legacy_u8 *data)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		return;
 	}
@@ -1158,6 +1306,12 @@ void dos_audio_driver_send_data(legacy_u16 length, legacy_u8 *data)
 
 void dos_audio_driver_suspend_all(struct AUDIO_CONTEXT *contexts)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		tandy_driver_mix(tandy_audio_driver());
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_driver_mix(pc_speaker_audio_driver());
 		return;
@@ -1168,6 +1322,11 @@ void dos_audio_driver_suspend_all(struct AUDIO_CONTEXT *contexts)
 
 void dos_audio_driver_set_master_state(legacy_s16 operation, void *state)
 {
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		return;
+	}
+#endif
 	if (sdl3_audio_uses_pc_speaker()) {
 		return;
 	}
@@ -1202,6 +1361,9 @@ void dos_audio_shutdown(void)
 	timer_remove_callback(audio_sequence_timer);
 	dos_audio_driver_start();
 	pc_speaker_audio_shutdown();
+#ifdef RESTUNTS_TANDY
+	tandy_audio_shutdown();
+#endif
 	adlib_ready = 0;
 	adlib_music_muted = 0;
 #ifndef __DJGPP__
@@ -1230,6 +1392,11 @@ void sdl3_audio_clear_queued(void)
 	if (sdl3_audio_uses_pc_speaker()) {
 		pc_speaker_audio_clear_queue();
 	}
+#ifdef RESTUNTS_TANDY
+	else if (sdl3_audio_uses_tandy()) {
+		tandy_audio_clear_queue();
+	}
+#endif
 #ifdef RESTUNTS_MT32
 	else if (sdl3_audio_uses_mt32()) {
 		mt32_audio_clear_queue();
@@ -1247,6 +1414,11 @@ legacy_s32 sdl3_audio_queued_frames(void)
 	if (sdl3_audio_uses_pc_speaker()) {
 		queued = pc_speaker_audio_queued_frames();
 	}
+#ifdef RESTUNTS_TANDY
+	else if (sdl3_audio_uses_tandy()) {
+		queued = tandy_audio_queued_frames();
+	}
+#endif
 #ifdef RESTUNTS_MT32
 	else if (sdl3_audio_uses_mt32()) {
 		queued = mt32_audio_queued_frames();

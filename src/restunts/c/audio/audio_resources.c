@@ -20,6 +20,9 @@
 #include "../../platform/sdl3/music.h"
 #include "../../platform/sdl3/mt32_audio.h"
 #include "../../platform/sdl3/pc_speaker_audio.h"
+#ifdef RESTUNTS_TANDY
+#include "../../platform/sdl3/tandy_audio.h"
+#endif
 #endif
 
 #define AUDIO_DRIVER_PREFIX_LENGTH 14U
@@ -187,6 +190,12 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 	legacy_u8 use_pc_speaker = sdl3_audio_uses_pc_speaker();
 	audio_driver_prefix[0] = use_pc_speaker ? 'p' : use_mt32 ? 'm' : 'a';
 	audio_driver_prefix[1] = use_pc_speaker ? 'c' : use_mt32 ? 't' : 'd';
+#ifdef RESTUNTS_TANDY
+	if (sdl3_audio_uses_tandy()) {
+		audio_driver_prefix[0] = 't';
+		audio_driver_prefix[1] = 'd';
+	}
+#endif
 #else
 	audio_driver_prefix[0] = 'a';
 	audio_driver_prefix[1] = 'd';
@@ -211,6 +220,11 @@ legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, leg
 		dos_audio_context_count = use_mt32		   ? AUDIO_CONTEXT_COUNT
 								  : use_pc_speaker ? PC_SPEAKER_CONTEXT_COUNT
 												   : 10U;
+#ifdef RESTUNTS_TANDY
+		if (sdl3_audio_uses_tandy()) {
+			dos_audio_context_count = TANDY_CONTEXT_COUNT;
+		}
+#endif
 		audio_suspended = AUDIO_STATE_DISABLED;
 		audio_music_enabled = AUDIO_STATE_ENABLED;
 		audio_effects_enabled = AUDIO_STATE_ENABLED;

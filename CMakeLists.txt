@@ -423,6 +423,11 @@ target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    set(restunts_tandy_core third_party/mame-psg/mame_psg.c)
+    set(restunts_tandy_driver ${platform}/tandy_driver.c ${restunts_tandy_core})
+    target_sources(restunts_game PRIVATE ${restunts_tandy_driver} ${platform}/tandy_audio.c)
+    target_compile_definitions(restunts_game PUBLIC RESTUNTS_TANDY)
+    target_include_directories(restunts_game PUBLIC "${CMAKE_SOURCE_DIR}/third_party/mame-psg")
     target_sources(restunts_game PRIVATE ${platform}/audio_worker.c
         ${platform}/audio_commands.c ${platform}/audio_resources_worker.c
         ${platform}/audio_completions.c)
@@ -490,6 +495,14 @@ foreach(component Runtime Tests)
     install(FILES third_party/puff/LICENSE
         DESTINATION share/licenses/restunts RENAME puff-LICENSE
         COMPONENT ${component} ${exclude_from_default})
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        install(FILES third_party/mame-psg/LICENSE
+            DESTINATION share/licenses/restunts RENAME MAME-PSG-LICENSE
+            COMPONENT ${component} ${exclude_from_default})
+        install(FILES third_party/mame-psg/mame_psg.c third_party/mame-psg/mame_psg.h
+            third_party/mame-psg/README.md
+            DESTINATION share/restunts/mame-psg COMPONENT ${component} ${exclude_from_default})
+    endif()
     install(FILES THIRD-PARTY-NOTICES.txt
         DESTINATION . COMPONENT ${component} ${exclude_from_default})
 endforeach()
@@ -770,7 +783,7 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-audio-worker PRIVATE -UNDEBUG)
         file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/audio-worker-test")
         add_test(NAME audio-worker COMMAND test-audio-worker "${CMAKE_SOURCE_DIR}/stunts")
-        set_tests_properties(audio-worker PROPERTIES TIMEOUT 20
+        set_tests_properties(audio-worker PROPERTIES TIMEOUT 30
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/audio-worker-test"
             ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
     endif()
@@ -794,6 +807,34 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(pc-speaker-sequence PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pc-speaker-sequence-test"
         ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        add_executable(test-tandy-psg src/restunts/tests/test-tandy-psg.c ${restunts_tandy_core})
+        target_link_libraries(test-tandy-psg PRIVATE restunts_options)
+        target_compile_options(test-tandy-psg PRIVATE -UNDEBUG)
+        add_test(NAME tandy-psg COMMAND test-tandy-psg)
+        add_executable(test-tandy-driver src/restunts/tests/test-tandy-driver.c
+            ${restunts_tandy_driver} ${platform}/pc_speaker_driver.c)
+        target_link_libraries(test-tandy-driver PRIVATE restunts_options)
+        target_include_directories(test-tandy-driver PRIVATE "${CMAKE_SOURCE_DIR}/third_party/mame-psg")
+        target_compile_options(test-tandy-driver PRIVATE -UNDEBUG)
+        add_test(NAME tandy-driver COMMAND test-tandy-driver)
+        add_executable(test-tandy-audio src/restunts/tests/test-tandy-audio.c
+            ${restunts_tandy_driver} ${platform}/tandy_audio.c ${platform}/pc_speaker_driver.c)
+        target_link_libraries(test-tandy-audio PRIVATE restunts_options)
+        target_include_directories(test-tandy-audio PRIVATE "${CMAKE_SOURCE_DIR}/third_party/mame-psg")
+        target_compile_options(test-tandy-audio PRIVATE -UNDEBUG)
+        add_test(NAME tandy-audio COMMAND test-tandy-audio)
+        add_executable(test-tandy-sequence src/restunts/tests/test-tandy-sequence.c)
+        target_link_libraries(test-tandy-sequence PRIVATE restunts_game)
+        target_compile_options(test-tandy-sequence PRIVATE -UNDEBUG)
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tandy-sequence-test")
+        add_test(NAME tandy-sequence COMMAND test-tandy-sequence
+            "${CMAKE_SOURCE_DIR}/stunts"
+            "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/music/tone-mono.ogg")
+        set_tests_properties(tandy-sequence PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tandy-sequence-test"
+            ENVIRONMENT "RESTUNTS_AUDIO_TRACE=")
+    endif()
     if(TARGET mt32emu)
         add_executable(test-mt32-roms src/restunts/tests/test-mt32-roms.cpp
             ${platform}/mt32_roms.cpp)

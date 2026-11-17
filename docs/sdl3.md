@@ -633,13 +633,20 @@ ghost selection, and rewind behavior.
 ## Sound modes
 
 Desktop, Android and browser launchers list **No sound**, **PC Speaker**,
-**Ad Lib**, **MT-32**, in that order. Ad Lib remains the default and saved
+**Tandy**, **Ad Lib**, **MT-32**, in that order. Ad Lib remains the default and saved
 preferences are preserved. Select `--soundmode:pc-speaker` for original PC Speaker
 music/effects, `--soundmode:adlib` for Ad Lib, or `--soundmode:mt-32` for emulated
 Roland audio. PC Speaker requires the original `PCSKIDMS.VCE` and `PCENG1.VCE`
 instruments, with no ROMs or additional dependencies. On desktop, Android and
 web it generates PCM for the platform audio output; DOS32 drives the
 physical speaker with the same instrument sequencing.
+
+Select `--soundmode:tandy` for the original `TDSKIDMS.VCE` and `TDENG1.VCE`
+instruments. The SDL3 adapter follows TD15's three PSG tone contexts, noise,
+PC speaker bass, and sampled-audio destination. Its PSSJ-3 profile uses MAME's
+NCR noise behavior and the integrated chip's output polarity. No ROMs are
+required. The chip core also supports NCR8496 polarity; game playback selects
+PSSJ-3. DOS32, DOS16, Amiga and TempleOS do not build this emulator.
 
 MT-32 requires a separately supplied compatible control/PCM ROM set and the
 original MT instrument resources; see [MT-32 setup](mt32.md).
@@ -669,9 +676,9 @@ prove an audible underrun. Browser diagnostics are available through
 frames). Native audio regressions deliberately stall the game thread while
 checking independent song/PCM progress, pause behavior and resource reuse.
 
-DOS32 supports PC Speaker and hardware Ad Lib/OPL; MT-32 emulation remains a
-desktop/Android/web feature. Original DOS16 retains its existing driver selection.
-The native PC Speaker and Ad Lib implementations do not execute DOS driver
+DOS32 supports PC Speaker and hardware Ad Lib/OPL; Tandy and MT-32 emulation
+remain desktop/Android/web features. Original DOS16 retains its existing driver
+selection. The native PC Speaker, Tandy and Ad Lib implementations do not execute DOS driver
 binaries. Sound mode is separate from the Ogg replacement-music choice.
 
 ## Optional Ogg Vorbis music
@@ -687,7 +694,7 @@ four songs with files from `assets/music/`:
 | `vict.ogg` | Victory |
 
 Original synthesized music is selected at startup (Ad Lib by default, or
-PC Speaker/MT-32 when requested). Use `--ogg:on` to start with Ogg replacements
+PC Speaker/Tandy/MT-32 when requested). Use `--ogg:on` to start with Ogg replacements
 enabled, or `--ogg:off` to hear the selected synthesizer explicitly. These
 options are case-insensitive; specify at most one. Press **Shift+F10** during the
 intro, menus (including the track editor), or race-end/victory screens to enable
@@ -826,7 +833,13 @@ replaceable shared library, while browser packages include its source alongside
 the application-object relink kit. These licenses cover emulator code, not the
 separately supplied Roland ROM data.
 
-The desktop game's second intro screen acknowledges its audio libraries, and
+The Tandy PSG adaptation is BSD-3-Clause, with the complete copyright notice,
+conditions and disclaimer in `share/licenses/restunts/MAME-PSG-LICENSE`.
+`share/restunts/mame-psg/README.md` records its pinned MAME revision and local
+changes; the adjoining C sources preserve its attribution. Android APKs also
+carry `licenses/MAME-PSG-LICENSE.txt` in their assets.
+
+The desktop game's second intro screen acknowledges its LGPL audio libraries, and
 `restunts --licenses` prints the notice and package locations without needing
 game resources or a display. The package regression verifies relocation and
 replacement with a modified library built solely from the shipped source:

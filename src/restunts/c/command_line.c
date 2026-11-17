@@ -48,7 +48,11 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  --videomode:vga|ega|cga  Select classic graphics; default VGA; supply "
 	"once." COMMAND_LINE_NEWLINE
+#ifdef __DJGPP__
 	"  --soundmode:pc-speaker|adlib|mt-32  Select original synthesized audio; default "
+#else
+	"  --soundmode:pc-speaker|tandy|adlib|mt-32  Select original synthesized audio; default "
+#endif
 	"adlib." COMMAND_LINE_NEWLINE
 #if !defined(__DJGPP__)
 	"  --mt-32-rom-dir DIR  Folder containing user-supplied MT-32 ROM images." COMMAND_LINE_NEWLINE

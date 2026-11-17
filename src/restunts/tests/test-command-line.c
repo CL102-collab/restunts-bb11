@@ -97,7 +97,11 @@ static void test_help_contents(void)
 		"  --nosound",
 #ifdef RESTUNTS_SDL3
 		"  --videomode:vga|ega|cga",
+#ifdef __DJGPP__
 		"  --soundmode:pc-speaker|adlib|mt-32",
+#else
+		"  --soundmode:pc-speaker|tandy|adlib|mt-32",
+#endif
 #ifndef __DJGPP__
 		"  --mt-32-rom-dir DIR",
 		"  --mt-32-model ID",

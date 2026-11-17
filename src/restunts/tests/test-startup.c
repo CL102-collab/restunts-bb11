@@ -1010,6 +1010,33 @@ static void test_startup_sound_options(void)
 		assert(!startup_configured_sound_disabled && startup_ogg_music_enabled);
 		assert(startup_configured_rom_directory == NULL && startup_configured_mt32_model == NULL);
 	}
+#ifndef __DJGPP__
+	static const legacy_s8 *tandy_modes[] = {"--soundmode:tandy", "--SOUNDMODE:TANDY"};
+	for (legacy_u16 index = 0; index < sizeof(tandy_modes) / sizeof(tandy_modes[0]); index++) {
+		legacy_s8 *tandy[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:adlib",
+							  (legacy_s8 *)tandy_modes[index], (legacy_s8 *)"--ogg:on"};
+		reset_startup_hypervision();
+		init_main(sizeof(tandy) / sizeof(tandy[0]), tandy);
+		assert(startup_options.sound_mode == STARTUP_SOUND_TANDY);
+		assert(startup_configured_sound_mode == STARTUP_SOUND_TANDY);
+		assert(!startup_configured_sound_disabled && startup_ogg_music_enabled);
+		assert(startup_configured_rom_directory == NULL && startup_configured_mt32_model == NULL);
+	}
+	for (legacy_u16 position = 1; position < 3; position++) {
+		legacy_s8 *tandy_muted[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:tandy",
+									(legacy_s8 *)"--nosound", (legacy_s8 *)"--ogg:on"};
+		tandy_muted[position] = (legacy_s8 *)"--nosound";
+		tandy_muted[3U - position] = (legacy_s8 *)"--soundmode:tandy";
+		reset_startup_hypervision();
+		init_main(sizeof(tandy_muted) / sizeof(tandy_muted[0]), tandy_muted);
+		assert(startup_configured_sound_mode == STARTUP_SOUND_TANDY);
+		assert(startup_configured_sound_disabled && !startup_ogg_music_enabled);
+	}
+#else
+	legacy_s8 *unsupported_tandy[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:tandy"};
+	expect_startup_option_error(sizeof(unsupported_tandy) / sizeof(unsupported_tandy[0]),
+								unsupported_tandy);
+#endif
 	legacy_s8 *speaker_last[] = {(legacy_s8 *)"game", (legacy_s8 *)"--soundmode:mt-32",
 								 (legacy_s8 *)"--soundmode:adlib",
 								 (legacy_s8 *)"--soundmode:pc-speaker"};

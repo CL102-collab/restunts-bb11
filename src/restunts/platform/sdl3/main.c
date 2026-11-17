@@ -125,6 +125,13 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 			  "Roland ROM images are supplied separately and are not included.\n",
 			  stdout);
 #endif
+#ifdef RESTUNTS_TANDY
+		fputs("\nMAME NCR8496/PSSJ-3 PSG - Copyright (c) Nicola Salmoria and contributors.\n"
+			  "BSD-3-Clause. Provided WITHOUT ANY WARRANTY.\n"
+			  "Complete license: share/licenses/restunts/MAME-PSG-LICENSE\n"
+			  "Adaptation and provenance: share/restunts/mame-psg/README.md\n",
+			  stdout);
+#endif
 		return fflush(stdout) == 0 ? 0 : 1;
 	}
 #endif

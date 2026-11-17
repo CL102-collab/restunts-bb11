@@ -206,9 +206,18 @@ static legacy_u8 startup_parse_sound_option(legacy_s16 argc, legacy_s8 *argv[], 
 			options->sound_mode = STARTUP_SOUND_PC_SPEAKER;
 		} else if (stricmp(mode, "mt-32") == 0) {
 			options->sound_mode = STARTUP_SOUND_MT32;
+#ifndef __DJGPP__
+		} else if (stricmp(mode, "tandy") == 0) {
+			options->sound_mode = STARTUP_SOUND_TANDY;
+#endif
 		} else {
 			startup_option_error_text(
+#ifdef __DJGPP__
 				"Invalid sound mode; use --soundmode:pc-speaker, --soundmode:adlib or "
+#else
+				"Invalid sound mode; use --soundmode:pc-speaker, --soundmode:tandy, "
+				"--soundmode:adlib or "
+#endif
 				"--soundmode:mt-32.\n");
 			dos_process_exit(1);
 		}

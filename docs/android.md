@@ -84,13 +84,14 @@ are removed by clearing app storage or uninstalling.
 
 **Startup options** contains **Skip intro** and **Vibration**. **Sound settings**
 contains **Sound mode** and **OGG music replacement** (formerly **New MIDI**).
-The modes are ordered **No sound**, **PC Speaker**, **Ad Lib**, **MT-32**. Vibration enables phone and controller
-feedback for impacts; Ogg replaces music independently of the selected sound
-mode. MT-32 reveals its ROM-folder and ROM-set controls. Ad Lib and Vibration
+The modes are ordered **No sound**, **PC Speaker**, **Tandy**, **Ad Lib**, **MT-32**.
+Vibration enables phone and controller feedback for impacts; Ogg replaces music
+independently of the selected sound mode. MT-32 reveals its ROM-folder and ROM-set controls. Ad Lib and Vibration
 start enabled and Skip intro starts disabled. These choices are
 remembered without resetting existing preferences. PC Speaker plays the original
 PC music/effects as PCM through the normal audio output; it requires no ROMs
-or extra dependency installation. Selecting No sound passes `--nosound`, and
+or extra dependency installation. Tandy plays the original TD instruments as
+PCM and requires no ROM files. Selecting No sound passes `--nosound`, and
 selecting Skip intro passes `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,

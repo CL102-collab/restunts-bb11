@@ -22,7 +22,8 @@ ASSET_SUFFIXES = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico",
                   ".woff", ".woff2", ".txt", ".md", ".html"}
 HOSTED_GAME_FILES = ("restunts.html", "tracked.html", "THIRD-PARTY-NOTICES.txt",
                      "share/licenses/restunts/SDL-LICENSE.txt",
-                     "share/licenses/restunts/Nuked-OPL2-LICENSE")
+                     "share/licenses/restunts/Nuked-OPL2-LICENSE",
+                     "share/licenses/restunts/MAME-PSG-LICENSE")
 DOWNLOAD_NAME = "browser-runtime.zip"
 SPEC = importlib.util.spec_from_file_location("release_packages", ROOT / "tools/scripts/release-packages.py")
 PACKAGES = importlib.util.module_from_spec(SPEC)

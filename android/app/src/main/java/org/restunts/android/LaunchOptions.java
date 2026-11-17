@@ -46,6 +46,7 @@ public final class LaunchOptions {
     public enum SoundMode {
         NONE("No sound", "--nosound"),
         PC_SPEAKER("PC Speaker", "--soundmode:pc-speaker"),
+        TANDY("Tandy", "--soundmode:tandy"),
         ADLIB("Ad Lib", "--soundmode:adlib"),
         MT32("MT-32", "--soundmode:mt-32");
 
