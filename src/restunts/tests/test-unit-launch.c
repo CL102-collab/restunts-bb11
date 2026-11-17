@@ -724,29 +724,6 @@ static void check_secondary_override_isolation(void)
 	assert(plan.target_speed == TEST_ENTRY_SPEED);
 }
 
-static void check_human_approach_preserved(legacy_u8 stunt, legacy_u8 heading)
-{
-	reset_fixture(stunt, heading);
-	route.limits.half_width = TEST_BARREL_CAR_HALF_WIDTH;
-	legacy_f64 trim = 0.75;
-	struct UNIT_LAUNCH_POLICY policy = {0, ROUTE_INDEX_NONE, TEST_VALIDATED_SPEED, 0.0, NULL, &trim,
-										1};
-	place_car(-TEST_APPROACH_DISTANCE, 1, ANGLE_EIGHTH_TURN);
-	struct UNIT_PLAN plan = planner_target(UNIT_PLAN_BRAKE_STOP), original = plan;
-	assert(unit_launch_guidance_policy(&route, 0, &plan, &policy) == UNIT_LAUNCH_NONE);
-	assert_target_unchanged(&plan, &original);
-	assert(plan.target_speed == original.target_speed);
-	assert(plan.brake == original.brake);
-	/* Once physically committed, the maneuver still keeps its launch controls,
-	 * and a fresh human collision brake cannot be removed. */
-	place_car(TEST_APPROACH_DISTANCE, 1, 0);
-	plan = planner_target(UNIT_PLAN_BRAKE_COLLISION);
-	assert(unit_launch_guidance_policy(&route, 0, &plan, &policy) ==
-		   (stunt == UNIT_STUNT_BARREL ? UNIT_LAUNCH_AXIS : UNIT_LAUNCH_GUIDED));
-	assert(plan.target_speed == TEST_VALIDATED_SPEED);
-	assert(plan.brake == UNIT_PLAN_BRAKE_COLLISION);
-}
-
 legacy_int main(void)
 {
 	check_clearance_speed_ceiling();
@@ -768,8 +745,6 @@ legacy_int main(void)
 		check_barrel_width_following(heading);
 		check_barrel_receiving_heading(heading);
 		check_barrel_exit_profile(heading);
-		check_human_approach_preserved(UNIT_STUNT_RAMP, heading);
-		check_human_approach_preserved(UNIT_STUNT_BARREL, heading);
 		check_human_collision_brake(UNIT_STUNT_RAMP, heading);
 		check_human_collision_brake(UNIT_STUNT_BARREL, heading);
 		check_human_collision_brake(UNIT_STUNT_PROTECTED, heading);

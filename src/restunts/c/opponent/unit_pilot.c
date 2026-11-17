@@ -115,6 +115,18 @@ void unit_pilot_stop(void)
 	unit_pilot_state = NULL;
 }
 
+static void unit_pilot_park_human(void)
+{
+	/* Keep the native human body outside track bounds during route previews;
+	 * valid custom tracks can have roads near the maximum native altitude. */
+	state.playerstate.car_position.lx = UNIT_PILOT_PARK_OFFSET * (legacy_s32)UNIT_POSITION_SCALE;
+	state.playerstate.car_position.lz = UNIT_PILOT_PARK_OFFSET * (legacy_s32)UNIT_POSITION_SCALE;
+	state.playerstate.car_position.ly = UNIT_PILOT_PARK_HEIGHT * (legacy_s32)UNIT_POSITION_SCALE;
+	state.playerstate.car_previous_position = state.playerstate.car_position;
+	state.playerstate.car_actual_speed = CAR_SPEED_STOPPED;
+	state.playerstate.car_rev_speed = CAR_SPEED_STOPPED;
+}
+
 legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
 {
 	const struct UNIT_ROUTE *route = unit_opponent_pilot_route();
@@ -148,14 +160,7 @@ legacy_int unit_pilot_start(struct UNIT_PLANNER *source)
 	unit_pilot_state->stats.active = 1;
 	unit_pilot_save_live();
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
-	/* Keep the native human body and avoidance snapshot outside track bounds;
-	 * valid custom tracks can have roads near the maximum native altitude. */
-	state.playerstate.car_position.lx = UNIT_PILOT_PARK_OFFSET * (legacy_s32)UNIT_POSITION_SCALE;
-	state.playerstate.car_position.lz = UNIT_PILOT_PARK_OFFSET * (legacy_s32)UNIT_POSITION_SCALE;
-	state.playerstate.car_position.ly = UNIT_PILOT_PARK_HEIGHT * (legacy_s32)UNIT_POSITION_SCALE;
-	state.playerstate.car_previous_position = state.playerstate.car_position;
-	state.playerstate.car_actual_speed = CAR_SPEED_STOPPED;
-	state.playerstate.car_rev_speed = CAR_SPEED_STOPPED;
+	unit_pilot_park_human();
 	unit_pilot_state->frame =
 		extended_replay_is_active() ? extended_replay_frame() : (legacy_u16)state.game_frame;
 	unit_pilot_state->run_start_frame = unit_pilot_state->frame;
@@ -719,7 +724,7 @@ static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u
 	}
 	unit_pilot_learning_save_progress();
 	/* This provenance survives the recheck flag being cleared at handoff. A
-	 * moving or stopped traffic forecast is never a complete starting lap. */
+	 * moving or stopped stunt recheck is never a complete starting lap. */
 	unit_pilot_state->learning_full_start = 0;
 	if (rolling || unit_pilot_state->stats.last_piece != piece) {
 		unit_pilot_state->resume_pending = 0;
@@ -760,6 +765,7 @@ static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u
 	unit_pilot_state->penalty_baseline = extended_unit_penalty_total();
 	unit_pilot_save_live();
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	unit_pilot_park_human();
 	state.game_frame = (legacy_s16)(legacy_u16)frame;
 	if (extended_replay_is_active()) {
 		extended_replay_clocks.frame = frame;

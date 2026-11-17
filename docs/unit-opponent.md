@@ -23,25 +23,28 @@ Web builds perform bounded, resumable work in the event loop. Threaded Web
 builds reuse idle rendering slots during preparation and reserve a separate slot
 for the live planner when rendering resumes.
 
-Workers use copied geometry, car limits, and vehicle snapshots. They compare
-lines and speeds against the predicted player position. Stale results are
-discarded or checked against the current state. The game's car physics remains
+Workers use copied geometry, car limits, and UNIT's vehicle snapshot to compare
+route lines and speeds. Stale results are discarded or checked against UNIT's
+current state. UNIT chooses its route and controls independently of the human
+car's position, speed, or predicted path. It does not follow, brake for, or steer
+around the human. Normal car-to-car collision physics remains active, so physical
+contact can slow, deflect, or crash either car. The game's car physics remains
 authoritative; the planner's predictive vehicle model is an approximation.
 
 Native previews also run the shared ghost-generator physics snapshot engine in
 main-thread chunks of at most 64 simulation ticks, checking a four-millisecond
 budget between ticks. They test approaches and landings with the selected car,
 reject crashes and new penalties, and restore all live state before returning.
+Preview snapshots place the human outside the track so its body cannot affect
+route validation; the live race keeps normal collisions between the cars.
 Receiving-road checks also verify tire overlap with the actual road geometry,
 so surface flags alone cannot validate contact below an elevated road.
 Classic TRK races also certify connected ramps, hill roads, and tunnels:
 their horizontal guides cannot predict a crest launch, a missed elevated corner,
 or a tunnel roof strike. These maneuvers have no sustaining-speed floor.
 They retain ordinary corner planning and braking; a validated entry speed is a
-ceiling. Their usual centered line can yield to bounded passing candidates when
-another car obstructs the forecast corridor. A parked player near a crest therefore
-does not force every preview onto the same blocked centerline. Mandatory jumps,
-loops, and checkpoints keep their required alignment.
+ceiling. Their centered guidance follows the track independently of other cars.
+Mandatory jumps, loops, and checkpoints keep their required alignment.
 Banked corners also receive native checks, with the planner accounting
 for the game's roll-based steering assistance. Slaloms retain their ordered
 weaving guide while native trials check faster entry speeds against the poles.
@@ -87,26 +90,13 @@ fresh guidance takes over before the cached prefix runs out. Stunt controls stay
 speculative until their landing is accepted. If preparation ends mid-preview,
 unfinished search continues ahead of the car with at most two native chunks per
 simulation frame, checking an eight-millisecond budget between chunks. The
-planner worker pauses during this continuation; only newly verified segments are appended to the cache. A changed
-approach or the human player's predicted path cancels speculative work and
-invalidates the affected segment. Current avoidance checks follow the cached
-trajectory itself with swept car bounds; when necessary, fresh steering and
-pedal commands take over.
-
-On ordinary roads, a stopped or slower human ahead starts a committed overtake.
-UNIT chooses the roomier side, holds it until its rear clears the human's front,
-then merges gradually toward its racing line. A distant leader first causes a
-faster approach; the lateral move starts with enough closing distance. From rest,
-UNIT turns its wheels before accelerating. Passing uses the normal paved corridor
-to preserve traction and closing speed. Traffic intent is separate from portable
-route learning, and live passing replaces conflicting cached lap commands or
-stopped stunt rechecks.
-
-Completing a pass takes priority over preserving the usual collision margin.
-UNIT compares forward trajectories on the chosen side, preferring a clean pass
-while retaining emergency braking for an imminent high-speed body impact. Road
-width, grip, checkpoint gates, and mandatory stunt guidance still constrain the
-maneuver. Replay controls record the resulting steering and pedal decisions.
+planner worker pauses during this continuation; only newly verified segments
+are appended to the cache. A changed approach cancels speculative work when the
+actual car no longer matches its expected state. A failed native preview also
+returns control to live track guidance before its verified prefix runs out.
+The human's predicted path does not invalidate cached commands. Physical contact
+can change UNIT's state and cause the same exact-state check to reject a cached
+command. Replay controls record the resulting steering and pedal decisions.
 
 Live rechecks reserve braking distance ahead of the required run-up. Under
 normal rules they first start from the exact moving car state. A verified ordinary prefix lets UNIT keep
@@ -144,13 +134,13 @@ physics to rebuild expected car states. They cannot control the live car until
 that validation finishes. Remaining preparation time tests new candidates;
 only a complete, penalty-free, faster native lap replaces the incumbent.
 Failed, slower, or unfinished candidates retain the previous validated lap.
-Live rechecks cannot replace it with traffic-dependent partial controls.
+Live rechecks cannot replace it with partial controls from a later race state.
 An incomplete first preview can still retain accepted maneuver recipes for
 validation on a later start.
 
 Preparation remains ten seconds. Repeated starts accumulate search work and can
-improve the saved best lap, but every start need not improve it. Player traffic
-and avoidance can change the actual race time. The existing racing-line model
+improve the saved best lap, but every start need not improve it. Physical contact
+with the player can change the actual race time. The existing racing-line model
 and mandatory stunt alignment still apply; caching does not add the offline
 ghost generator's per-section optimization.
 
@@ -178,9 +168,10 @@ The native tests include complete Glacier laps with normal rules and OWOOT using
 the synchronous fallback, full laps under both rule modes after a human starts
 from the real grid and brakes to a stop, car and transmission variants,
 checkpoint rules, and planning isolation. Full-lap regressions for Branches,
-Keukenhof, Ninh Binh, and DEFAULT start the human from the real grid, then brake
-it to a stop. They require clean finishes, deterministic replays, and no prolonged
-low-speed waits away from the human. Bounded native planning holds receive a
+Keukenhof, Ninh Binh, and DEFAULT park the human outside the track. These clear-road
+runs require clean finishes, deterministic replays, and no prolonged unexplained
+low-speed waits. Separate human-independence tests retain real car collisions.
+Bounded native planning holds receive a
 fixed tick allowance, renewed only after forward route and physical progress.
 Raw stopped time and unexplained stalls are reported separately; repeated holds
 cannot conceal a stall. The preserved HELENS, JOES, and SKIDS tracks
@@ -189,7 +180,7 @@ finishes and deterministic replays; SKIDS additionally compares UNIT's time with
 Skid's native lap and requires UNIT to be faster.
 Additional SKIDS regressions start the player on the real grid, accelerate for
 0.1 seconds, then brake to a stop. Both planner modes must finish cleanly with
-verified replays after passing the parked player near the finishing hill.
+verified replays while retaining normal car-to-car collision physics.
 
 The benchmark compares actual PMIN physics and checks recorded states and random
 seeds against playback:
@@ -198,14 +189,12 @@ seeds against playback:
 python3 tools/scripts/test-unit-opponent.py out/sdl3-linux-x64/test-unit-race stunts src/restunts/tests/fixtures/unit/glacier.cstrk stunts/DEFAULT.TRK
 ```
 
-Native overtaking regressions cover a stopped blocker on the opening straight,
-left/right offsets, and a human held near 20 mph through recorded pedal inputs.
-They require actual rear clearance, a stable side, a completed merge, bounded
-waiting measured from body displacement, and verified replay states. Roomy passes
-must remain free of contact, including with OWOOT and prepared cached routes under
-both planner modes. Planner tests also cover forward attempts through constrained
-gaps. Accelerating leaders are checked for safe forward progress without counting
-their vacated starting position as a completed pass.
+Human-independence regressions compare UNIT's native controls and car states
+with distant and in-path humans before physical contact, including prepared
+routes and both planner modes. They also verify replay states. Planner tests
+compare decisions for absent, invalid, stopped, slow, crossing, airborne, and
+overlapping human snapshots on straight, curved, clearance, and stunt routes.
+Actual collision effects after contact remain part of the shared physics.
 
 The Ninh Binh bank regression also preserves a recorded McMurtry failure. The
 headless harness can inspect it with `--source-replay FILE --replay-only`, or
@@ -223,8 +212,10 @@ opponents to finish and UNIT to finish sooner. The runner reports crashes
 instead of treating them as completed laps. Prepared runs pace simulation by two
 milliseconds per tick so the live worker receives CPU time; `--require-worker`
 verifies that its proposals were actually applied to the car. Use that assertion
-for interaction scenarios that require replanning; a completely verified lap can
-use its cached commands throughout. The synchronous fallback runs without that
-pacing. Each run reports simulation cost separately from preparation and
+for scenarios that require live replanning; a completely verified lap can
+use its cached commands throughout. The native harness also accepts
+`--require-worker-search`, which requires one live worker and at least one
+accepted proposal while allowing certified cached controls to remain in use.
+The synchronous fallback runs without that pacing. Each run reports simulation cost separately from preparation and
 intentional pacing, and checks UNIT's penalties independently against the native
 route rules.

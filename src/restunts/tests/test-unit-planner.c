@@ -17,17 +17,31 @@
 #define TEST_PI 3.14159265358979323846
 #define TEST_WAIT_LIMIT_MS 2000U
 #define TEST_WORLD_PER_MPH (22.0 / 3.0)
-#define TEST_PASS_PLAYER_DISTANCE 600.0
-#define TEST_PASS_LATERAL_BIAS 35.0
-#define TEST_PASS_SLOW_SPEED 12.0
-#define TEST_PASS_HEIGHT_SEPARATION 500.0
-#define TEST_PASS_BODY_MARGIN 6.0
-#define TEST_PASS_MERGE_STEPS 8U
-#define TEST_PASS_APPROACH_DISTANCE 1024.0
-#define TEST_PASS_CLEAR_LATERAL 100.0
+#define TEST_HUMAN_CASES 8U
+#define TEST_HUMAN_SLOW 2U
+#define TEST_HUMAN_CROSSING 3U
+#define TEST_HUMAN_AIRBORNE 4U
+#define TEST_HUMAN_OVERLAP 5U
+#define TEST_HUMAN_FAR 6U
+#define TEST_HUMAN_INVALID 7U
+#define TEST_HUMAN_GEOMETRIES 6U
+#define TEST_HUMAN_CURVE 1U
+#define TEST_HUMAN_CLEARANCE 2U
+#define TEST_HUMAN_STUNT 3U
+#define TEST_HUMAN_RAMP 4U
+#define TEST_HUMAN_DESCENT 5U
+#define TEST_HUMAN_RAMP_POINTS 2U
+#define TEST_HUMAN_DISTANCE 350.0
+#define TEST_HUMAN_HEIGHT 450.0
+#define TEST_HUMAN_GRADE 50.0
+#define TEST_HUMAN_SLOW_SPEED 12.0
+#define TEST_HUMAN_CROSSING_SPEED 64.0
+#define TEST_HUMAN_FAR_DISTANCE 1000000000.0
 #define TEST_WORKER_UNIT_SPEED 70.0
-#define TEST_WORKER_PLAYER_DISTANCE 900.0
-#define TEST_WORKER_CROSSING_SPEED 64.0
+#define TEST_WORKER_REFRESH_SPEED 130.0
+#define TEST_WORKER_LANE 0.8
+#define TEST_WORKER_CENTER_CANDIDATE 3U
+#define TEST_POSITION_TOLERANCE 0.01
 #define TEST_FIXED_FIRST_WORKERS 2
 #define TEST_FIXED_SECOND_WORKERS 4
 #define TEST_FIXED_WORK_CALLS 8U
@@ -301,7 +315,6 @@ static void test_banked_corner_speed(void)
 	request.unit.z = points[request.cursor].z;
 	request.unit.yaw = 3.0 * TEST_PI / 16.0;
 	request.unit.speed = 150.0;
-	request.player.x = 1000000000.0;
 	request.native_preview = 1U;
 	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
 	struct UNIT_ROLLOUT flat, banked, mirrored, fallback;
@@ -345,7 +358,6 @@ static void test_clearance_preserves_ordinary_planning(void)
 	request.unit.z = points[request.cursor].z;
 	request.unit.yaw = 3.0 * TEST_PI / 16.0;
 	request.unit.speed = 70.0;
-	request.player.x = 1000000000.0;
 	request.native_preview = 1U;
 	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
 	struct UNIT_ROLLOUT ordinary, clearance, maneuver;
@@ -369,373 +381,112 @@ static void test_clearance_preserves_ordinary_planning(void)
 	assert(maneuver.plan.target_speed > clearance.plan.target_speed);
 }
 
-static void test_clearance_crest_passing(void)
+static void assert_plan_equal(const struct UNIT_PLAN *a, const struct UNIT_PLAN *b)
 {
-	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
-	straight(points);
-	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
-		points[index].y = 450.0;
-		points[index].half_width = 120.0;
-		points[index].height_unspecified = 1U;
-		if (index >= 2U && index < 8U) {
-			points[index].align_center = UNIT_ALIGN_CLEARANCE;
-		}
-		if (index >= 4U && index < 8U) {
-			points[index].stunt = UNIT_STUNT_PROTECTED;
-			points[index].clearance_only = 1U;
-			points[index].fallback_speed_limit = 105.0;
-		}
-	}
-	struct UNIT_CAR_LIMITS limits = car_limits();
-	limits.wheelbase = 62.0;
-	limits.half_width = 19.0;
-	limits.half_length = 56.0;
-	struct UNIT_REQUEST request = {0};
-	request.cursor = 2U;
-	request.unit = vehicle();
-	request.unit.y = request.player.y = points[request.cursor].y + 8.0;
-	request.unit.z = points[request.cursor].z;
-	request.unit.speed = 70.0;
-	request.unit.half_width = request.player.half_width = limits.half_width;
-	request.unit.half_length = request.player.half_length = limits.half_length;
-	request.player.x = -36.0;
-	request.player.z = points[5U].z;
-	request.native_preview = 1U;
-	struct UNIT_PROFILE center = {0.0, 0.0, 1.0};
-	struct UNIT_PROFILE passing = {-0.8, 0.0, 1.0};
-	struct UNIT_ROLLOUT blocked, clear;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &center, &request, 0U,
-								&blocked));
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
-								&clear));
-	/* A parked human ahead of a clearance-only crest blocks the center but
-	 * leaves a physical passing lane. Native certification must be able to
-	 * evaluate that lane instead of retrying a centered stop indefinitely. */
-	assert(blocked.plan.brake == UNIT_PLAN_BRAKE_COLLISION);
-	assert(!clear.plan.brake && clear.plan.target_speed > 0.0);
-	assert(clear.plan.target_x > blocked.plan.target_x);
-	assert(clear.score < blocked.score);
-	/* An absent human preserves the default centered recipe. Permission is
-	 * recomputed per request rather than retained from the preceding rollout. */
-	request.player.x = 1000000000.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
-								&clear));
-	assert(fabs(clear.plan.target_x) < 0.01);
-	request.player.x = -36.0;
-	/* A known road on another level does not obstruct this corridor. */
-	for (legacy_u32 index = 0; index < TEST_POINT_COUNT; index++) {
-		points[index].height_unspecified = 0U;
-	}
-	request.player.y += 500.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
-								&clear));
-	assert(fabs(clear.plan.target_x) < 0.01);
-	request.player.y = request.unit.y;
-	/* Genuine maneuver approach centering still takes precedence. */
-	for (legacy_u32 index = 2U; index < 8U; index++) {
-		points[index].align_center |= UNIT_ALIGN_MANEUVER;
-	}
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
-								&clear));
-	assert(fabs(clear.plan.target_x) < 0.01);
-	for (legacy_u32 index = 2U; index < 8U; index++) {
-		points[index].align_center = UNIT_ALIGN_CLEARANCE | UNIT_ALIGN_GATE;
-	}
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &passing, &request, 0U,
-								&clear));
-	assert(fabs(clear.plan.target_x) < 0.01);
+	assert(a->target_x == b->target_x && a->target_y == b->target_y);
+	assert(a->target_z == b->target_z && a->target_speed == b->target_speed);
+	assert(a->route_cursor == b->route_cursor && a->generation == b->generation);
+	assert(a->brake == b->brake && a->valid == b->valid && a->from_worker == b->from_worker);
+	assert(!a->overtaking && !b->overtaking);
 }
 
-static void test_player_forecasts(void)
+static void test_human_independent_plans(void)
 {
-	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
-	straight(points);
-	struct UNIT_CAR_LIMITS limits = car_limits();
-	struct UNIT_PLANNER *planner = unit_planner_create(points, TEST_POINT_COUNT, &limits, 1U, -1);
-	assert(planner);
-	finish_sync_preparation(planner);
-	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-	unit.speed = TEST_MAX_SPEED;
-	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
-	player.z = 350.0;
-	player.speed = TEST_MAX_SPEED;
-	player.vz = unit.vz;
-	struct UNIT_PLAN plan;
-	assert(unit_planner_plan(planner, &unit, &player, 0U, 1U, &plan));
-	assert(!plan.brake && plan.target_speed > 200.0);
-	player.speed = 0.0;
-	player.vz = 0.0;
-	assert(unit_planner_plan(planner, &unit, &player, 0U, 2U, &plan));
-	assert(plan.brake == UNIT_PLAN_BRAKE_COLLISION && plan.target_speed == 0.0);
-	player.y = 500.0;
-	assert(unit_planner_plan(planner, &unit, &player, 0U, 3U, &plan));
-	assert(!plan.brake && plan.target_speed > 200.0);
-	unit_planner_destroy(planner);
-}
-
-static struct UNIT_PLANNER *passing_planner(legacy_f64 half_width)
-{
-	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
-	straight(points);
-	for (legacy_u32 point = 0; point < TEST_POINT_COUNT; point++) {
-		points[point].half_width = half_width;
-	}
-	struct UNIT_CAR_LIMITS limits = car_limits();
-	struct UNIT_PLANNER *planner = unit_planner_create(points, TEST_POINT_COUNT, &limits, 0U, -1);
-	assert(planner);
-	finish_sync_preparation(planner);
-	return planner;
-}
-
-static struct UNIT_PLAN passing_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEHICLE *unit,
-									 const struct UNIT_VEHICLE *player, legacy_u32 frame)
-{
-	legacy_u32 cursor = unit->z > 0.0 ? (legacy_u32)(unit->z / TEST_POINT_SPACING) : 0U;
-	if (cursor >= TEST_POINT_COUNT) {
-		cursor = TEST_POINT_COUNT - 1U;
-	}
-	struct UNIT_PLAN plan;
-	assert(unit_planner_plan(planner, unit, player, cursor, frame, &plan) && plan.valid);
-	assert((plan.overtaking != 0) == (unit_planner_overtaking(planner) != 0));
-	return plan;
-}
-
-static void assert_passing_progress(const struct UNIT_PLAN *plan, const struct UNIT_VEHICLE *unit)
-{
-	assert(plan->overtaking && plan->brake == UNIT_PLAN_BRAKE_NONE);
-	assert(plan->target_speed > 0.0 && plan->target_z > unit->z);
-}
-
-static void test_overtaking_stopped_and_slow_players(void)
-{
-	static const legacy_f64 speeds[] = {0.0, TEST_PASS_SLOW_SPEED};
-	static const legacy_f64 sides[] = {-1.0, 1.0};
-	for (legacy_u32 speed = 0; speed < sizeof(speeds) / sizeof(speeds[0]); speed++) {
-		for (legacy_u32 side = 0; side < sizeof(sides) / sizeof(sides[0]); side++) {
-			struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
-			struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-			unit.speed = player.speed = speeds[speed];
-			unit.vz = player.vz = speeds[speed] * TEST_WORLD_PER_MPH;
-			player.x = sides[side] * TEST_PASS_LATERAL_BIAS;
-			player.z = TEST_PASS_PLAYER_DISTANCE;
-			struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
-			/* The intended road pace, rather than current closing speed, must
-			 * reveal both a stopped blocker and an equally slow moving leader. */
-			assert_passing_progress(&plan, &unit);
-			assert(plan.target_speed > player.speed);
-			assert(plan.target_x * player.x < 0.0);
-			assert(fabs(plan.target_x - player.x) >=
-				   unit.half_width + player.half_width + TEST_PASS_BODY_MARGIN);
-			assert(fabs(plan.target_x) + unit.half_width <= TEST_HALF_WIDTH);
-			unit_planner_destroy(planner);
+	for (legacy_u8 strict = 0U; strict <= 1U; strict++) {
+		for (legacy_u8 geometry = 0U; geometry < TEST_HUMAN_GEOMETRIES; geometry++) {
+			struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+			straight(points);
+			if (geometry == TEST_HUMAN_CURVE) {
+				corner(points, 1U);
+			}
+			for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
+				if (geometry == TEST_HUMAN_CLEARANCE) {
+					points[index].y = TEST_HUMAN_HEIGHT;
+					points[index].height_unspecified = 1U;
+					points[index].align_center = UNIT_ALIGN_CLEARANCE;
+					points[index].stunt = UNIT_STUNT_PROTECTED;
+					points[index].clearance_only = 1U;
+				} else if (geometry == TEST_HUMAN_STUNT) {
+					points[index].stunt = UNIT_STUNT_PROTECTED;
+					points[index].align_center = UNIT_ALIGN_MANEUVER;
+				} else if (geometry == TEST_HUMAN_RAMP && index < TEST_HUMAN_RAMP_POINTS) {
+					points[index].stunt = UNIT_STUNT_RAMP;
+					points[index].height_unspecified = 1U;
+				} else if (geometry == TEST_HUMAN_DESCENT) {
+					points[index].y = fmax(0.0, TEST_HUMAN_HEIGHT - index * TEST_HUMAN_GRADE);
+				}
+			}
+			struct UNIT_CAR_LIMITS limits = car_limits();
+			struct UNIT_PLANNER *absent =
+				unit_planner_create(points, TEST_POINT_COUNT, &limits, strict, -1);
+			struct UNIT_PLANNER *observed =
+				unit_planner_create(points, TEST_POINT_COUNT, &limits, strict, -1);
+			assert(absent && observed);
+			finish_sync_preparation(absent);
+			finish_sync_preparation(observed);
+			struct UNIT_VEHICLE unit = vehicle();
+			unit.y = points[0].y;
+			unit.speed = TEST_WORKER_UNIT_SPEED;
+			unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+			struct UNIT_VEHICLE humans[TEST_HUMAN_CASES];
+			for (legacy_u32 index = 0U; index < TEST_HUMAN_CASES; index++) {
+				humans[index] = vehicle();
+				humans[index].y = unit.y;
+				humans[index].z = TEST_HUMAN_DISTANCE;
+			}
+			humans[TEST_HUMAN_SLOW].speed = TEST_HUMAN_SLOW_SPEED;
+			humans[TEST_HUMAN_SLOW].vz = TEST_HUMAN_SLOW_SPEED * TEST_WORLD_PER_MPH;
+			humans[TEST_HUMAN_CROSSING].yaw = TEST_PI * 0.5;
+			humans[TEST_HUMAN_CROSSING].vx = TEST_HUMAN_CROSSING_SPEED;
+			humans[TEST_HUMAN_AIRBORNE].airborne = 1U;
+			humans[TEST_HUMAN_AIRBORNE].y += TEST_HUMAN_HEIGHT;
+			humans[TEST_HUMAN_AIRBORNE].vy = -TEST_HUMAN_CROSSING_SPEED;
+			humans[TEST_HUMAN_OVERLAP] = unit;
+			humans[TEST_HUMAN_FAR].x = TEST_HUMAN_FAR_DISTANCE;
+			humans[TEST_HUMAN_INVALID].x = humans[TEST_HUMAN_INVALID].y = NAN;
+			humans[TEST_HUMAN_INVALID].z = humans[TEST_HUMAN_INVALID].speed = NAN;
+			humans[TEST_HUMAN_INVALID].half_width = -1.0;
+			for (legacy_u32 index = 0U; index < TEST_HUMAN_CASES; index++) {
+				struct UNIT_PLAN expected, actual;
+				const struct UNIT_VEHICLE *human = index ? &humans[index] : NULL;
+				assert(unit_planner_plan(absent, &unit, NULL, 0U, index + 1U, &expected));
+				assert(unit_planner_plan(observed, &unit, human, 0U, index + 1U, &actual));
+				/* Identical work and UNIT state must produce identical decisions,
+				 * even when the ignored human data overlaps or is nonfinite. */
+				assert_plan_equal(&expected, &actual);
+			}
+			unit_planner_destroy(absent);
+			unit_planner_destroy(observed);
 		}
 	}
 }
 
-static void test_overtaking_approaches_slow_traffic(void)
-{
-	struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
-	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-	unit.speed = player.speed = TEST_PASS_SLOW_SPEED;
-	unit.vz = player.vz = TEST_PASS_SLOW_SPEED * TEST_WORLD_PER_MPH;
-	player.z = TEST_PASS_APPROACH_DISTANCE;
-	struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
-	assert_passing_progress(&plan, &unit);
-	assert(plan.target_speed > player.speed && plan.target_x == unit.x);
-	/* Commit while the leader is still far away, then turn out once closing
-	 * distance makes the side maneuver useful. Equal current speeds must not
-	 * leave UNIT matching the leader forever outside the activation range. */
-	unit.z += TEST_POINT_SPACING;
-	plan = passing_plan(planner, &unit, &player, 2U);
-	assert_passing_progress(&plan, &unit);
-	assert(fabs(plan.target_x) > 0.0);
-	struct UNIT_PLAN repeated = passing_plan(planner, &unit, &player, 2U);
-	assert(repeated.overtaking && repeated.target_x == plan.target_x);
-	unit_planner_destroy(planner);
-}
-
-static void test_overtaking_side_and_tail_clearance(void)
-{
-	struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
-	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-	unit.speed = player.speed = TEST_PASS_SLOW_SPEED;
-	unit.vz = player.vz = TEST_PASS_SLOW_SPEED * TEST_WORLD_PER_MPH;
-	player.x = 1.0;
-	player.z = TEST_PASS_PLAYER_DISTANCE;
-	struct UNIT_PLANNER_PROFILE original, after;
-	assert(unit_planner_export_profile(planner, &original));
-	legacy_u32 frame = 1U;
-	struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, frame++);
-	assert_passing_progress(&plan, &unit);
-	legacy_f64 chosen_side = plan.target_x > 0.0 ? 1.0 : -1.0;
-	legacy_f64 passing_line = fabs(plan.target_x);
-	static const legacy_f64 drift[] = {-2.0, 3.0, -4.0, 2.0, 0.0};
-	for (legacy_u32 sample = 0; sample < sizeof(drift) / sizeof(drift[0]); sample++) {
-		player.x = drift[sample];
-		plan = passing_plan(planner, &unit, &player, frame++);
-		assert_passing_progress(&plan, &unit);
-		assert(plan.target_x * chosen_side > 0.0);
-	}
-	unit.x = chosen_side * passing_line;
-	unit.z = player.z;
-	plan = passing_plan(planner, &unit, &player, frame++);
-	assert_passing_progress(&plan, &unit);
-	assert(plan.target_x * chosen_side > 0.0);
-	/* Being partly ahead is insufficient: UNIT's rear still overlaps the
-	 * human's front, so merging now would cut across the other car. */
-	unit.z = player.z + player.half_length;
-	plan = passing_plan(planner, &unit, &player, frame++);
-	assert_passing_progress(&plan, &unit);
-	assert(plan.target_x * chosen_side > 0.0);
-	unit.z = player.z + unit.half_length + player.half_length + TEST_POINT_SPACING;
-	plan = passing_plan(planner, &unit, &player, frame++);
-	assert(plan.brake == UNIT_PLAN_BRAKE_NONE && plan.target_speed > 0.0);
-	assert(fabs(plan.target_x) < passing_line);
-	legacy_f64 merge_offset = fabs(plan.target_x);
-	player.z = unit.z - player.half_length;
-	plan = passing_plan(planner, &unit, &player, frame++);
-	assert_passing_progress(&plan, &unit);
-	assert(plan.target_x * chosen_side > 0.0 && fabs(plan.target_x) > merge_offset);
-	player.z = unit.z - unit.half_length - player.half_length - TEST_POINT_SPACING;
-	plan = passing_plan(planner, &unit, &player, frame++);
-	for (legacy_u32 step = 0; plan.overtaking && step < TEST_PASS_MERGE_STEPS; step++) {
-		legacy_f64 previous_offset = fabs(plan.target_x);
-		unit.x = plan.target_x;
-		unit.z += TEST_POINT_SPACING;
-		plan = passing_plan(planner, &unit, &player, frame++);
-		assert(fabs(plan.target_x) <= previous_offset);
-	}
-	assert(!plan.overtaking && !unit_planner_overtaking(planner));
-	assert(unit_planner_export_profile(planner, &after));
-	assert(original.lane == after.lane && original.apex == after.apex &&
-		   original.lookahead == after.lookahead);
-	unit_planner_destroy(planner);
-}
-
-enum TEST_PASS_NONBLOCKER {
-	TEST_PASS_CROSSING,
-	TEST_PASS_DIFFERENT_LEVEL,
-	TEST_PASS_OFF_CORRIDOR,
-	TEST_PASS_BEHIND,
-	TEST_PASS_FAST_LEADER,
-	TEST_PASS_DISTANT,
-	TEST_PASS_NO_PLAYER,
-	TEST_PASS_PARALLEL_CLEAR,
-	TEST_PASS_NONBLOCKERS
-};
-
-static void test_overtaking_ignores_nonblockers(void)
-{
-	for (legacy_u8 scenario = 0; scenario < TEST_PASS_NONBLOCKERS; scenario++) {
-		struct UNIT_PLANNER *planner = passing_planner(TEST_HALF_WIDTH);
-		struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-		unit.speed = TEST_PASS_SLOW_SPEED;
-		unit.vz = unit.speed * TEST_WORLD_PER_MPH;
-		player.z = TEST_PASS_PLAYER_DISTANCE;
-		const struct UNIT_VEHICLE *observed = &player;
-		switch (scenario) {
-			case TEST_PASS_CROSSING:
-				player.yaw = TEST_PI * 0.5;
-				player.speed = TEST_PASS_SLOW_SPEED;
-				player.vx = player.speed * TEST_WORLD_PER_MPH;
-				break;
-			case TEST_PASS_DIFFERENT_LEVEL:
-				player.y = TEST_PASS_HEIGHT_SEPARATION;
-				break;
-			case TEST_PASS_OFF_CORRIDOR:
-				player.x = TEST_HALF_WIDTH * 4.0;
-				break;
-			case TEST_PASS_BEHIND:
-				player.z = -TEST_PASS_PLAYER_DISTANCE;
-				break;
-			case TEST_PASS_FAST_LEADER:
-				player.speed = TEST_MAX_SPEED;
-				player.vz = player.speed * TEST_WORLD_PER_MPH;
-				break;
-			case TEST_PASS_DISTANT:
-				player.z = TEST_POINT_COUNT * TEST_POINT_SPACING;
-				break;
-			case TEST_PASS_NO_PLAYER:
-				observed = NULL;
-				break;
-			case TEST_PASS_PARALLEL_CLEAR:
-				unit.x = -TEST_PASS_CLEAR_LATERAL;
-				break;
-			default:
-				assert(0);
-		}
-		struct UNIT_PLAN plan = passing_plan(planner, &unit, observed, 1U);
-		assert(!plan.overtaking && !unit_planner_overtaking(planner));
-		unit_planner_destroy(planner);
-	}
-}
-
-static void test_overtaking_progress_through_constrained_gaps(void)
-{
-	static const legacy_f64 half_widths[] = {110.0, 90.0, 70.0};
-	for (legacy_u32 gap = 0; gap < sizeof(half_widths) / sizeof(half_widths[0]); gap++) {
-		struct UNIT_PLANNER *planner = passing_planner(half_widths[gap]);
-		struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
-		player.z = TEST_PASS_PLAYER_DISTANCE;
-		struct UNIT_PLAN plan = passing_plan(planner, &unit, &player, 1U);
-		/* Even when two bodies cannot fit comfortably side by side, pass
-		 * intent must keep a forward attempt instead of selecting a stationary
-		 * collision-free rollout forever. Keep the chosen line on the road. */
-		assert_passing_progress(&plan, &unit);
-		assert(fabs(plan.target_x) > 0.0);
-		assert(fabs(plan.target_x) + unit.half_width <= half_widths[gap]);
-		unit_planner_destroy(planner);
-	}
-}
-
-static void test_separating_player_margin(void)
+static void test_clearance_alignment(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
 	straight(points);
 	for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
-		points[index].x = -10.703;
-		points[index].z -= 200.0;
-		points[index].half_width = 120.0;
+		points[index].align_center = UNIT_ALIGN_CLEARANCE;
+		points[index].stunt = UNIT_STUNT_PROTECTED;
+		points[index].clearance_only = 1U;
 	}
 	struct UNIT_CAR_LIMITS limits = car_limits();
-	limits.acceleration = 73.0;
-	limits.braking = 40.0;
-	limits.half_width = 19.0;
-	limits.half_length = 56.0;
-	limits.wheelbase = 62.0;
 	struct UNIT_REQUEST request = {0};
-	request.cursor = 1U;
 	request.unit = vehicle();
-	request.unit.half_width = request.player.half_width = 19.0;
-	request.unit.half_length = request.player.half_length = 56.0;
-	request.unit.yaw = -20.0 * TEST_PI / 512.0;
-	request.unit.steering = 20.0 * TEST_PI / 2048.0;
-	request.player.x = -46.703;
-	request.player.z = -103.109;
-	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
-	struct UNIT_ROLLOUT result;
-	/* The real bodies are clear after a pass, but their extra safety margins
-	 * overlap. Moving farther away must not create a permanent brake latch. */
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&result));
-	assert(!result.plan.brake && result.plan.target_speed > 0.0);
-	/* A following human closing into the same margin forbids this escape. */
-	request.player.vz = 200.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&result));
-	assert(result.plan.brake == UNIT_PLAN_BRAKE_COLLISION);
-	request.player.vz = 0.0;
-	/* The same margin in front of the car still forbids approaching it. */
-	request.unit.yaw = request.unit.steering = 0.0;
-	request.player.x = 0.0;
-	request.player.z = 130.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&result));
-	assert(result.plan.brake == UNIT_PLAN_BRAKE_COLLISION);
-	request.player.z = -100.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&result));
-	assert(result.plan.brake == UNIT_PLAN_BRAKE_COLLISION);
+	request.unit.speed = TEST_WORKER_UNIT_SPEED;
+	request.native_preview = 1U;
+	struct UNIT_PROFILE profile = {TEST_WORKER_LANE, 0.0, 1.0};
+	struct UNIT_ROLLOUT centered, reserved;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&centered));
+	assert(fabs(centered.plan.target_x) < TEST_POSITION_TOLERANCE && !centered.plan.brake);
+	/* Legacy reserved traffic fields cannot relax track clearance alignment. */
+	profile.clearance_passing = 1U;
+	profile.overtake_offset = TEST_HUMAN_DISTANCE;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &profile, &request, 0U,
+								&reserved));
+	assert_plan_equal(&centered.plan, &reserved.plan);
+	assert(centered.score == reserved.score);
 }
 
 static void test_validation(void)
@@ -874,7 +625,6 @@ static void test_physical_corridor(void)
 	request.unit.half_width = limits.half_width;
 	request.unit.half_length = limits.half_length;
 	request.unit.speed = 80.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE profile = {-0.8, 0.0, 1.0};
 	struct UNIT_ROLLOUT inside, outside, forbidden;
 	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
@@ -921,32 +671,6 @@ static void test_dense_graded_geometry(void)
 	free(points);
 }
 
-static void test_descending_player_forecast(void)
-{
-	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
-	straight(points);
-	for (legacy_u32 index = 0U; index < TEST_POINT_COUNT; index++) {
-		points[index].y = fmax(0.0, 450.0 - index * 50.0);
-	}
-	struct UNIT_CAR_LIMITS limits = car_limits();
-	struct UNIT_REQUEST request = {0};
-	request.unit = vehicle();
-	request.unit.y = 458.0;
-	request.unit.speed = 150.0;
-	request.player = vehicle();
-	request.player.x = 1000000000.0;
-	request.player.y = 8.0;
-	request.player.z = 2200.0;
-	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
-	struct UNIT_ROLLOUT clear, occupied;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&clear));
-	request.player.x = 0.0;
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&occupied));
-	assert(occupied.score > clear.score + 100000.0);
-}
-
 static void test_stunt_approach(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -966,7 +690,6 @@ static void test_stunt_approach(void)
 	request.unit = vehicle();
 	request.unit.z = 1800.0;
 	request.unit.speed = 60.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE centered = {0.0, 0.0, 1.0}, optimized = {-0.8, 0.4, 0.75};
 	struct UNIT_ROLLOUT moving, stopped, aligned;
 	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &centered, &request, 0U,
@@ -999,7 +722,6 @@ static void test_gate_alignment_preserves_open_neighbors(void)
 	struct UNIT_REQUEST request = {0};
 	request.unit = vehicle();
 	request.unit.speed = 40.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE centered = {0.0, 0.0, 1.0}, offset = {0.8, 0.0, 1.0};
 	struct UNIT_ROLLOUT straight_line, open_exit, aligned;
 	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &centered, &request, 0U,
@@ -1089,7 +811,6 @@ static void test_fallback_alignment_policy(void)
 	struct UNIT_REQUEST request = {0};
 	request.unit = vehicle();
 	request.unit.speed = 40.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE offset = {0.8, 0.0, 1.0};
 	struct UNIT_ROLLOUT conservative, native;
 	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 0U, &offset, &request, 0U,
@@ -1144,7 +865,6 @@ static void test_recovery_before_stunt(void)
 	request.unit.half_width = limits.half_width;
 	request.unit.half_length = limits.half_length;
 	request.unit.recovering = request.unit.shortcuts_forbidden = 1U;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
 	struct UNIT_ROLLOUT crawl, stopped, fast;
 	assert(unit_planner_rollout(points, 8U, &limits, 1U, &profile, &request, 0U, &fast));
@@ -1156,10 +876,6 @@ static void test_recovery_before_stunt(void)
 	 * that maneuver, instead of choosing an indefinite stop outside the line. */
 	assert(stopped.score < fast.score && crawl.score < stopped.score);
 	assert(!crawl.plan.brake && crawl.plan.target_speed > 0.0);
-	request.player = request.unit;
-	assert(unit_planner_rollout(points, 8U, &limits, 1U, &profile, &request,
-								UNIT_PLANNER_CRAWL_CANDIDATE, &crawl));
-	assert(crawl.plan.brake == UNIT_PLAN_BRAKE_COLLISION && crawl.plan.target_speed == 0.0);
 }
 
 static void test_ordered_stunt_guidance(void)
@@ -1216,7 +932,6 @@ static void test_stunt_exit_continuation(void)
 	request.unit.y = 105.0;
 	request.unit.z = 190.0;
 	request.unit.speed = 100.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
 	struct UNIT_ROLLOUT result;
 	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
@@ -1254,7 +969,6 @@ static void test_ramp_exit_lookahead(void)
 	request.unit.y = 400.0;
 	request.unit.z = 500.0;
 	request.unit.speed = 110.0;
-	request.player.x = 1000000000.0;
 	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
 	struct UNIT_ROLLOUT result;
 	for (legacy_u32 step = 0; step < 2U; step++) {
@@ -1267,34 +981,6 @@ static void test_ramp_exit_lookahead(void)
 		assert(result.plan.target_y == request.unit.y && !result.plan.brake);
 		request.unit.z = 630.0;
 	}
-	request.player = request.unit;
-	assert(unit_planner_rollout(points, 4U, &limits, 1U, &profile, &request, 0U, &result));
-	assert(result.plan.brake == UNIT_PLAN_BRAKE_COLLISION && result.plan.target_speed == 0.0);
-}
-
-static void test_swept_stunt_collision(void)
-{
-	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
-	straight(points);
-	points[0].stunt = UNIT_STUNT_PROTECTED;
-	points[0].speed_limit = 125.0;
-	struct UNIT_CAR_LIMITS limits = car_limits();
-	struct UNIT_REQUEST request = {0};
-	request.unit = vehicle();
-	request.unit.speed = 120.0;
-	request.unit.half_width = 19.0;
-	request.unit.half_length = 56.0;
-	request.player = request.unit;
-	request.player.x = 90.0;
-	request.player.z = 100.0;
-	request.player.yaw = TEST_PI * 0.5;
-	struct UNIT_PROFILE profile = {0.0, 0.0, 1.0};
-	struct UNIT_ROLLOUT occupied;
-	/* The player is crossed during the reaction interval but lies behind its
-	 * endpoint. Testing only the endpoint misses this collision entirely. */
-	assert(unit_planner_rollout(points, TEST_POINT_COUNT, &limits, 1U, &profile, &request, 0U,
-								&occupied));
-	assert(occupied.plan.brake == UNIT_PLAN_BRAKE_COLLISION && occupied.plan.target_speed == 0.0);
 }
 
 static legacy_f64 crest_speed(legacy_u8 unspecified)
@@ -1349,6 +1035,37 @@ static void test_learning_worker_snapshots(void)
 }
 
 #endif
+
+static legacy_f64 adopt_worker_test_profile(struct UNIT_PLANNER *planner,
+											const struct UNIT_ROUTE_POINT *points,
+											const struct UNIT_CAR_LIMITS *limits)
+{
+	struct UNIT_PLANNER_PROFILE profile = {TEST_WORKER_LANE, 0.0, 1.0};
+	struct UNIT_PLANNER *candidate = unit_planner_clone_profile(planner, &profile);
+	assert(candidate && unit_planner_adopt_profiles(planner, candidate));
+	unit_planner_destroy(candidate);
+	struct UNIT_REQUEST request = {0};
+	request.unit = vehicle();
+	request.unit.speed = TEST_WORKER_UNIT_SPEED;
+	request.unit.vz = request.unit.speed * TEST_WORLD_PER_MPH;
+	struct UNIT_PROFILE active = {profile.lane, profile.apex, profile.lookahead};
+	struct UNIT_ROLLOUT baseline, centered;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, limits, 1U, &active, &request, 0U,
+								&baseline));
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, limits, 1U, &active, &request,
+								TEST_WORKER_CENTER_CANDIDATE, &centered));
+	assert(centered.score < baseline.score);
+	legacy_f64 offset = baseline.plan.target_x;
+	request.unit.x = offset;
+	request.unit.speed = TEST_WORKER_REFRESH_SPEED;
+	request.unit.vz = request.unit.speed * TEST_WORLD_PER_MPH;
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, limits, 1U, &active, &request, 0U,
+								&baseline));
+	assert(unit_planner_rollout(points, TEST_POINT_COUNT, limits, 1U, &active, &request,
+								TEST_WORKER_CENTER_CANDIDATE, &centered));
+	assert(baseline.score < centered.score);
+	return offset;
+}
 
 static void wait_for_worker_batch(struct UNIT_PLANNER *planner, legacy_u64 previous_candidates)
 {
@@ -1408,30 +1125,29 @@ static void test_fixed_startup_and_real_live_worker(void)
 	unit_planner_stats(first, &first_stats);
 	unit_planner_stats(second, &second_stats);
 	assert(first_stats.workers == 1U && second_stats.workers == 1U);
-	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+	legacy_f64 offset = adopt_worker_test_profile(first, points, &limits);
+	struct UNIT_VEHICLE unit = vehicle();
 	unit.speed = TEST_WORKER_UNIT_SPEED;
 	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
-	player.z = TEST_WORKER_PLAYER_DISTANCE;
-	player.vx = TEST_WORKER_CROSSING_SPEED;
-	player.speed = player.vx / TEST_WORLD_PER_MPH;
-	player.yaw = TEST_PI * 0.5;
 	legacy_u64 previous_candidates = first_stats.live_candidates;
 	struct UNIT_PLAN plan;
-	assert(unit_planner_plan(first, &unit, &player, 0U, 1U, &plan));
-	assert(!plan.overtaking);
+	assert(unit_planner_plan(first, &unit, NULL, 0U, 1U, &plan));
 	wait_for_worker_batch(first, previous_candidates);
-	assert(unit_planner_plan(first, &unit, &player, 0U, 2U, &plan));
+	assert(unit_planner_plan(first, &unit, NULL, 0U, 2U, &plan));
 	unit_planner_stats(first, &first_stats);
 	assert(first_stats.worker_accepted && plan.from_worker);
-	assert(!plan.overtaking && plan.target_speed < unit.speed);
+	assert(!plan.brake && fabs(plan.target_x) < TEST_POSITION_TOLERANCE);
 	assert(unit_planner_pause_live(first));
 	struct UNIT_PLANNER *snapshot = unit_planner_clone_continuation(first);
 	assert(snapshot);
 	legacy_u64 saved_candidates = first_stats.live_candidates;
 	assert(unit_planner_resume_live(first));
-	player.x = UNIT_NO_PLAYER_POSITION;
-	assert(unit_planner_plan(first, &unit, &player, 0U, 3U, &plan));
-	assert(!plan.brake && !plan.from_worker && plan.target_speed > unit.speed);
+	unit.x = offset;
+	unit.speed = TEST_WORKER_REFRESH_SPEED;
+	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+	assert(unit_planner_plan(first, &unit, NULL, 0U, 3U, &plan));
+	assert(!plan.brake && !plan.from_worker);
+	assert(fabs(plan.target_x - unit.x) < TEST_POSITION_TOLERANCE);
 	unit_planner_stats(first, &first_stats);
 	assert(first_stats.live_candidates == saved_candidates + UNIT_PLANNER_LIVE_CANDIDATES);
 	assert(unit_planner_pause_live(first));
@@ -1481,38 +1197,27 @@ static void test_worker_lifecycle(void)
 	unit_planner_finish_startup(planner);
 	unit_planner_stats(planner, &stats);
 	assert(stats.workers == 1U);
+	legacy_f64 offset = adopt_worker_test_profile(planner, points, &limits);
 	struct UNIT_VEHICLE unit = vehicle();
-	struct UNIT_PLAN plan;
-	assert(unit_planner_plan(planner, &unit, NULL, 0U, 1U, &plan));
-	wait_for_worker_batch(planner, stats.live_candidates);
-	unit_planner_stats(planner, &stats);
-	assert(stats.live_candidates && stats.workers == 1U);
-	struct UNIT_VEHICLE player = vehicle();
 	unit.speed = TEST_WORKER_UNIT_SPEED;
 	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
-	player.z = TEST_WORKER_PLAYER_DISTANCE;
-	player.vx = TEST_WORKER_CROSSING_SPEED;
-	player.speed = player.vx / TEST_WORLD_PER_MPH;
-	player.yaw = TEST_PI * 0.5;
-	legacy_u32 frame = 2U;
-	legacy_u64 previous_candidates = stats.live_candidates;
-	assert(unit_planner_plan(planner, &unit, &player, 0U, frame++, &plan));
-	assert(!plan.overtaking);
-	/* Keep this request current until all proposals have been evaluated.
-	 * Republishing every millisecond can cancel each instrumented batch at
-	 * candidate zero, which cannot improve on the same main-thread rollout.
-	 * Crossing traffic leaves passing intent inactive and gives the worker
-	 * a genuinely better avoidance response to apply on the next frame. */
-	wait_for_worker_batch(planner, previous_candidates);
-	assert(unit_planner_plan(planner, &unit, &player, 0U, frame++, &plan));
+	struct UNIT_PLAN plan;
+	assert(unit_planner_plan(planner, &unit, NULL, 0U, 1U, &plan));
+	/* Preserve one current request until the real worker has evaluated every
+	 * line. Its centered proposal beats the adopted offset line at this pose. */
+	wait_for_worker_batch(planner, stats.live_candidates);
+	assert(unit_planner_plan(planner, &unit, NULL, 0U, 2U, &plan));
 	unit_planner_stats(planner, &stats);
 	assert(stats.worker_accepted && plan.from_worker);
-	assert(!plan.overtaking && plan.target_speed < unit.speed);
-	/* Revalidate a winning avoidance proposal against the current player,
-	 * so an earlier blocked road cannot keep braking once the player leaves. */
-	player.x = 1000000000.0;
-	assert(unit_planner_plan(planner, &unit, &player, 0U, frame, &plan));
-	assert(!plan.brake && !plan.from_worker && plan.target_speed > 200.0);
+	assert(!plan.brake && fabs(plan.target_x) < TEST_POSITION_TOLERANCE);
+	/* An old winning proposal must be re-evaluated against the current UNIT
+	 * pose: on its adopted line, steering back to the center is now worse. */
+	unit.x = offset;
+	unit.speed = TEST_WORKER_REFRESH_SPEED;
+	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+	assert(unit_planner_plan(planner, &unit, NULL, 0U, 3U, &plan));
+	assert(!plan.brake && !plan.from_worker);
+	assert(fabs(plan.target_x - unit.x) < TEST_POSITION_TOLERANCE);
 	assert(unit_planner_pause_live(planner) && unit_planner_pause_live(planner));
 	unit_planner_stats(planner, &stats);
 	assert(!stats.workers);
@@ -1535,20 +1240,13 @@ legacy_int main(void)
 	test_curvature_and_ice();
 	test_banked_corner_speed();
 	test_clearance_preserves_ordinary_planning();
-	test_clearance_crest_passing();
-	test_player_forecasts();
-	test_overtaking_stopped_and_slow_players();
-	test_overtaking_approaches_slow_traffic();
-	test_overtaking_side_and_tail_clearance();
-	test_overtaking_ignores_nonblockers();
-	test_overtaking_progress_through_constrained_gaps();
-	test_separating_player_margin();
+	test_clearance_alignment();
+	test_human_independent_plans();
 	test_validation();
 	test_complete_route_rebuild();
 	test_pilot_clones();
 	test_physical_corridor();
 	test_dense_graded_geometry();
-	test_descending_player_forecast();
 	test_stunt_approach();
 	test_gate_alignment_preserves_open_neighbors();
 	test_fallback_speed_policy();
@@ -1557,7 +1255,6 @@ legacy_int main(void)
 	test_ordered_stunt_guidance();
 	test_stunt_exit_continuation();
 	test_ramp_exit_lookahead();
-	test_swept_stunt_collision();
 	assert(crest_speed(0U) < crest_speed(1U) * 0.8);
 #ifndef RESTUNTS_UNIT_SYNC_ONLY
 #if RESTUNTS_UNIT_TEST_FIXED_WORK

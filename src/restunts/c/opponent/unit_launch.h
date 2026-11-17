@@ -16,7 +16,6 @@ struct UNIT_LAUNCH_POLICY {
 	legacy_f64 primary_speed, secondary_speed;
 	const struct UNIT_EXIT_PROFILE *exit;
 	const legacy_f64 *barrel_offset;
-	legacy_u8 preserve_approach;
 	struct UNIT_RAMP_APPROACH ramps[UNIT_RAMP_APPROACH_OVERRIDES];
 };
 

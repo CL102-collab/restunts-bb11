@@ -441,6 +441,8 @@ SDL3 builds also include [UNIT](docs/unit-opponent.md), a seventh opponent with
 its own driving planner, a pixel-art robot portrait, and a paginated biography.
 UNIT uses the selected car. A ten-second planning screen precedes a new race;
 live planning then uses at most one worker, with a bounded synchronous Web fallback.
+UNIT follows its planned route independently of the human car; it does not follow,
+brake for, or steer around the player. Normal car-to-car collisions still apply.
 Races against UNIT record CSRPL, including the `UNIT` identifier and its driving
 commands so playback reproduces the recorded decisions.
 
@@ -1945,20 +1947,21 @@ chunk limits, exact-state handoffs, and race-frame limits remain unchanged.
 Timed-target normal runs retain the ten-second preparation window and original
 CPU guards.
 
-The Glacier OWOOT and four no-stall completion regressions use
+The Glacier OWOOT, four no-stall, and prepared-worker regressions use
 `test-unit-race-fixed-work` in every build configuration. This test-only target
 uses the same 1,024 preparation callbacks, stopping early if a clean native lap
 is ready, and the same bounded native tick quotas under normal builds and
 sanitizers. Startup route evaluation runs synchronously. Each live request waits
 for the previous worker batch; rollouts and physics still run alongside newly
 published work.
-Finish, zero-penalty, no-stall, worker-application, and full replay assertions
-remain required. The preparation watchdog reserves half the scaled CTest limit;
+Track completion, penalties, stalls, worker proposals, and full replay checks
+remain enabled. The prepared-worker case requires an accepted live proposal
+without forcing it to replace cached controls. The preparation watchdog reserves half the scaled CTest limit;
 expiry fails the test instead of selecting a different partial preparation state.
 `unit-fixed-work`, `unit-fixed-work-budget`, and `unit-planner-fixed-work` check
 the logical work policy and reject incomplete preparation budgets.
-The standard timed race target, native-grid, prepared-worker, threaded-planner,
-and desktop tests retain their timer and asynchronous startup coverage.
+The standard timed race target, native-grid, threaded-planner, and desktop tests
+retain their timer and asynchronous startup coverage.
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need

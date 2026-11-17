@@ -45,7 +45,7 @@ legacy_int unit_pilot_learning_begin(struct UNIT_PLANNER *source, struct UNIT_LE
 void unit_pilot_learning_work(struct UNIT_PLANNER *source, legacy_u32 maximum_ticks);
 struct UNIT_PLANNER *unit_pilot_learning_finish(void);
 /* Retain accepted original-preview hints when a race ends before its native
- * continuation finishes. Live traffic forecasts never update portable hints. */
+ * continuation finishes. Later-state rechecks never replace a full starting lap. */
 void unit_pilot_learning_save_progress(void);
 /* Continue a native preview only behind exact cached controls. Startup work
  * is armed by finish; a live recheck is armed by its first exact handoff.
@@ -63,7 +63,7 @@ legacy_int unit_pilot_failure_entry_car(legacy_u32 after, struct CARSTATE *car);
 legacy_int unit_pilot_failure_car(legacy_u32 before, struct CARSTATE *car);
 legacy_int unit_pilot_last_failure(struct CARSTATE *car, legacy_f64 *speed, legacy_s16 *piece);
 
-/* Exact native-state handoff; controller still checks the human before use. */
+/* A cached command requires the exact expected native car state. */
 legacy_int unit_pilot_command(const struct CARSTATE *car, legacy_u32 frame,
 							  struct CSRPL_OPPONENT_COMMAND *command);
 legacy_int unit_pilot_future_car(legacy_u32 ahead, struct CARSTATE *car);

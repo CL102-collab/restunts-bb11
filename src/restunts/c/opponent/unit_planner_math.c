@@ -1,6 +1,5 @@
 #include "unit_planner_internal.h"
 #include "unit_shortcut.h"
-#include "unit_collision.h"
 
 #include <math.h>
 #include <string.h>
@@ -13,7 +12,6 @@
 #define UNIT_LOOKAHEAD_SECONDS 0.30
 #define UNIT_ROLLOUT_STEP 0.05
 #define UNIT_ROLLOUT_STEPS 48U
-#define UNIT_COLLISION_COST 1000000.0
 #define UNIT_CORRIDOR_COST 500.0
 #define UNIT_LANE_COST 12.0
 #define UNIT_SPEED_VARIANTS 5U
@@ -27,7 +25,6 @@
 #define UNIT_MAXIMUM_FRONT_STEERING 0.3681553890925539
 #define UNIT_GRASS_SURFACE 4U
 #define UNIT_GRASS_DRAG_PER_SECOND (20.0 / 64.0)
-#define UNIT_STUNT_REACTION_SECONDS 0.25
 #define UNIT_STEERING_RETURN_MULTIPLIER 4.0
 #define UNIT_STEERING_CENTER_THRESHOLD 0.0015339807878856
 #define UNIT_RECOVERY_SPEED 40.0
@@ -38,7 +35,6 @@
 #define UNIT_LOCAL_SAMPLE_DISTANCE 64.0
 #define UNIT_STUNT_ENTRY_DISTANCE 64.0
 #define UNIT_PROFILE_LOOKAHEAD 1.0
-#define UNIT_STUNT_REACTION_STEPS 5U
 #define UNIT_NATIVE_ANGLE_RADIANS (6.28318530717958647692 / 1024.0)
 #define UNIT_NATIVE_FRONT_STEERING_SCALE 4.0
 #define UNIT_NATIVE_GRIP_CURVATURE_SCALE (3.14159265358979323846 / 4.0)
@@ -141,14 +137,10 @@ static void route_window(const struct UNIT_ROUTE_POINT *points, legacy_u32 count
 	}
 }
 
-static legacy_u8 route_alignment(const struct UNIT_ROUTE_POINT *point, legacy_u8 original_policy,
-								 legacy_u8 clearance_passing, legacy_u8 overtaking)
+static legacy_u8 route_alignment(const struct UNIT_ROUTE_POINT *point, legacy_u8 original_policy)
 {
-	legacy_u8 mask = UNIT_ALIGN_MANEUVER | (overtaking ? 0 : UNIT_ALIGN_GATE);
-	if (!clearance_passing) {
-		mask |= UNIT_ALIGN_CLEARANCE;
-	}
-	if (!original_policy && !overtaking) {
+	legacy_u8 mask = UNIT_ALIGN_MANEUVER | UNIT_ALIGN_GATE | UNIT_ALIGN_CLEARANCE;
+	if (!original_policy) {
 		mask |= UNIT_ALIGN_FALLBACK;
 	}
 	return point->align_center & mask;
@@ -176,17 +168,8 @@ static void route_position(const struct UNIT_ROUTE_POINT *points, legacy_u32 cou
 		unit_planner_clamp(profile->lane + apex * profile->apex, -UNIT_SHORTCUT_MAX_LANE_FRACTION,
 						   UNIT_SHORTCUT_MAX_LANE_FRACTION);
 	legacy_f64 width = available_width(&points[index], limits, owoot);
-	/* A committed pass can use the gate aperture. Leave a reserve inside
-	 * its body-clearance boundary for the native crossing forecast. */
-	if (profile->overtake_offset != 0.0 && (points[index].align_center & UNIT_ALIGN_GATE)) {
-		width = fmax(0.0, width - UNIT_PLANNER_OVERTAKE_COLLISION_MARGIN);
-	}
-	legacy_f64 offset = profile->overtake_offset != 0.0
-							? unit_planner_clamp(profile->overtake_offset, -width, width)
-							: width * lane;
-	if (ordered_stunt(&points[index]) ||
-		route_alignment(&points[index], original_policy, profile->clearance_passing,
-						profile->overtake_offset != 0.0)) {
+	legacy_f64 offset = width * lane;
+	if (ordered_stunt(&points[index]) || route_alignment(&points[index], original_policy)) {
 		offset = 0.0;
 	}
 	*x = points[index].x + (length > UNIT_PLANNER_MIN_DISTANCE ? -dz * offset / length : 0.0);
@@ -492,45 +475,6 @@ static void target_at(const struct UNIT_LOCAL_POINT *local, legacy_u32 count, le
 	plan->route_cursor = b->source;
 }
 
-static legacy_f64 unit_planner_forecast_height(const struct UNIT_VEHICLE *vehicle, legacy_f64 time)
-{
-	return vehicle->y + vehicle->vy * time -
-		   (vehicle->airborne ? 0.5 * UNIT_PLANNER_WORLD_GRAVITY * time * time : 0.0);
-}
-
-static legacy_int unit_planner_player_margin_overlap(const struct UNIT_REQUEST *request,
-													 legacy_f64 x, legacy_f64 y, legacy_f64 z,
-													 legacy_f64 yaw, legacy_f64 time,
-													 legacy_f64 margin)
-{
-	legacy_f64 player_y = unit_planner_forecast_height(&request->player, time);
-	if (y < fmin(request->player.y, player_y) - UNIT_PLANNER_COLLISION_HEIGHT ||
-		y > fmax(request->player.y, player_y) + UNIT_PLANNER_COLLISION_HEIGHT) {
-		return 0;
-	}
-	legacy_f64 dx = request->player.x + request->player.vx * time - x;
-	legacy_f64 dz = request->player.z + request->player.vz * time - z;
-	legacy_f64 forward = fabs(dx * sin(yaw) + dz * cos(yaw));
-	legacy_f64 lateral = fabs(dx * cos(yaw) - dz * sin(yaw));
-	legacy_f64 angle = request->player.yaw - yaw;
-	legacy_f64 player_length = unit_collision_projected_extent(request->player.half_length,
-															   request->player.half_width, angle);
-	legacy_f64 player_width = unit_collision_projected_extent(request->player.half_width,
-															  request->player.half_length, angle);
-	return forward < request->unit.half_length + player_length + margin &&
-		   lateral < request->unit.half_width + player_width + margin;
-}
-
-static legacy_int unit_planner_player_overlap(const struct UNIT_REQUEST *request, legacy_f64 x,
-											  legacy_f64 y, legacy_f64 z, legacy_f64 yaw,
-											  legacy_f64 time)
-{
-	return unit_planner_player_margin_overlap(request, x, y, z, yaw, time,
-											  request->overtaking
-												  ? UNIT_PLANNER_OVERTAKE_COLLISION_MARGIN
-												  : UNIT_PLANNER_COLLISION_MARGIN);
-}
-
 static legacy_f64 native_grip_response(const struct UNIT_CAR_LIMITS *limits, legacy_f64 wheelbase,
 									   legacy_f64 grip_ratio, legacy_f64 steering,
 									   legacy_f64 *speed, legacy_f64 *cost)
@@ -604,27 +548,13 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		result->plan.generation = request->generation;
 		result->plan.valid = 1U;
 		result->score = -result->plan.target_speed;
-		for (legacy_u32 step = 0; step <= UNIT_STUNT_REACTION_STEPS; step++) {
-			legacy_f64 time = step * UNIT_STUNT_REACTION_SECONDS / UNIT_STUNT_REACTION_STEPS;
-			legacy_f64 travel = request->unit.speed * UNIT_PLANNER_WORLD_PER_MPH * time;
-			if (unit_planner_player_overlap(
-					request, request->unit.x + sin(request->unit.yaw) * travel,
-					unit_planner_forecast_height(&request->unit, time),
-					request->unit.z + cos(request->unit.yaw) * travel, request->unit.yaw, time)) {
-				result->plan.brake = UNIT_PLAN_BRAKE_COLLISION;
-				result->plan.target_speed = 0.0;
-				result->score = UNIT_COLLISION_COST;
-				break;
-			}
-		}
 		return 1;
 	}
 	struct UNIT_PROFILE selected = *profile;
-	selected.clearance_passing = request->overtaking || unit_planner_clearance_corridor_blocked(
-															points, count, limits, request);
+	selected.clearance_passing = 0;
 	selected.overtake_offset = 0.0;
 	legacy_f64 speed_scale = 1.0;
-	legacy_u8 crawl = candidate == UNIT_PLANNER_CRAWL_CANDIDATE && !request->overtaking;
+	legacy_u8 crawl = candidate == UNIT_PLANNER_CRAWL_CANDIDATE;
 	if (crawl) {
 		selected.lane = selected.apex = 0.0;
 		selected.lookahead = 1.0;
@@ -634,16 +564,8 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		selected.apex *= 0.5;
 		speed_scale = variant == 0U ? 1.0 : variant == 1U ? 0.8 : variant == 2U ? 0.5 : 0.0;
 	}
-	if (request->overtaking) {
-		/* Intent is independent of the racing-line search. Every candidate
-		 * evaluates the committed side, including a bounded forward escape
-		 * when full collision margins would otherwise favor waiting forever. */
-		selected.lane = selected.apex = 0.0;
-		selected.overtake_offset = request->overtake_offset;
-	}
 	struct UNIT_LOCAL_POINT local[UNIT_PLANNER_LOCAL_POINTS];
-	legacy_u8 alignment =
-		route_alignment(current, original_policy, selected.clearance_passing, request->overtaking);
+	legacy_u8 alignment = route_alignment(current, original_policy);
 	if (request->unit.recovering ||
 		(alignment & (UNIT_ALIGN_MANEUVER | UNIT_ALIGN_FALLBACK | UNIT_ALIGN_CLEARANCE))) {
 		selected.lane = 0.0;
@@ -652,32 +574,13 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 	} else if (alignment) {
 		/* Gate alignment belongs to each route sample. Maneuver approaches
 		 * still need the complete centered horizon above, while a gate may
-		 * preserve passing candidates on its open approach and exit. */
+		 * preserve racing-line candidates on its open approach and exit. */
 		selected.lookahead = 1.0;
 	}
 	legacy_u32 local_count = local_route(points, count, limits, owoot, &selected, request->cursor,
 										 original_policy, local);
 	if (local_count < 2U) {
 		return 0;
-	}
-	if (request->overtaking) {
-		/* A stopped car can be behind the first sampled guide. Keep its pass
-		 * target near the car instead of beyond a blocker before that sample. */
-		legacy_f64 dx = local[1].road_x - local[0].road_x;
-		legacy_f64 dz = local[1].road_z - local[0].road_z;
-		legacy_f64 span = hypot(dx, dz);
-		legacy_f64 behind = span > UNIT_PLANNER_MIN_DISTANCE
-								? ((request->unit.x - local[0].road_x) * dx +
-								   (request->unit.z - local[0].road_z) * dz) /
-									  span
-								: 0.0;
-		if (behind < 0.0) {
-			local[0].x += dx / span * behind;
-			local[0].z += dz / span * behind;
-			local[0].road_x += dx / span * behind;
-			local[0].road_z += dz / span * behind;
-			local[0].distance += behind;
-		}
 	}
 	memset(result, 0, sizeof(*result));
 	result->candidate = candidate;
@@ -690,17 +593,7 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 	legacy_f64 progress = 0.0, initial_error = 0.0;
 	legacy_u32 cursor = closest(local, local_count, 0U, x, z, &progress, &initial_error);
 	legacy_f64 initial_progress = progress;
-	struct UNIT_PLAN floor = {0};
-	target_at(local, local_count, progress, &floor);
-	legacy_f64 ride_height = request->unit.y - floor.target_y;
 	legacy_f64 cost = alignment ? 0.0 : fabs(selected.lane) * UNIT_LANE_COST;
-	legacy_f64 first_collision = UNIT_PLANNER_ROLLOUT_SECONDS + UNIT_ROLLOUT_STEP;
-	legacy_f64 first_physical_collision = first_collision;
-	legacy_u8 margin_escape =
-		unit_planner_player_overlap(request, x, request->unit.y, z, yaw, 0.0) &&
-		!unit_planner_player_margin_overlap(request, x, request->unit.y, z, yaw, 0.0, 0.0);
-	legacy_f64 separation = (x - request->player.x) * (x - request->player.x) +
-							(z - request->player.z) * (z - request->player.z);
 	for (legacy_u32 step = 0U; step < UNIT_ROLLOUT_STEPS; step++) {
 		legacy_f64 error;
 		cursor = closest(local, local_count, cursor, x, z, &progress, &error);
@@ -711,7 +604,6 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 			(UNIT_MIN_LOOKAHEAD + speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_LOOKAHEAD_SECONDS) *
 				selected.lookahead,
 			UNIT_MIN_LOOKAHEAD, UNIT_PLANNER_MAX_LOOKAHEAD);
-		lookahead *= request->overtaking ? UNIT_PLANNER_PASS_LOOKAHEAD_SCALE : 1.0;
 		struct UNIT_PLAN target = {0};
 		target_at(local, local_count, progress + lookahead, &target);
 		legacy_f64 maximum_speed = fmin(target.target_speed, local[cursor].speed);
@@ -723,19 +615,12 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 			target.target_speed = fmin(target.target_speed, UNIT_RECOVERY_CRAWL_SPEED);
 		} else if (speed_scale > 0.0) {
 			/* Slow variants must still leave enough acceleration distance before
-			 * a required launch. A full stop remains available for blocked paths. */
+			 * a required launch. A full stop remains available for unsafe approaches. */
 			target.target_speed =
 				fmin(maximum_speed, fmax(target.target_speed, local[cursor].minimum_speed));
 		}
 		if (request->unit.recovering) {
 			target.target_speed = fmin(target.target_speed, UNIT_RECOVERY_SPEED);
-		}
-		if (request->overtaking) {
-			legacy_f64 passing_speed =
-				fmax(UNIT_PLANNER_PASS_MINIMUM_SPEED,
-					 request->player.speed + UNIT_PLANNER_PASS_SPEED_ADVANTAGE);
-			target.target_speed = fmin(maximum_speed, fmax(target.target_speed, passing_speed));
-			target.overtaking = 1U;
 		}
 		if (!step) {
 			result->plan = target;
@@ -796,37 +681,6 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		x += sin(yaw) * speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_ROLLOUT_STEP;
 		z += cos(yaw) * speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_ROLLOUT_STEP;
 		legacy_f64 time = (step + 1U) * UNIT_ROLLOUT_STEP;
-		legacy_f64 y = unit_planner_forecast_height(&request->unit, time);
-		if (!request->unit.airborne && !local[cursor].height_unspecified &&
-			!local[cursor + 1U].height_unspecified) {
-			target_at(local, local_count,
-					  progress + speed * UNIT_PLANNER_WORLD_PER_MPH * UNIT_ROLLOUT_STEP, &floor);
-			y = floor.target_y + ride_height;
-		}
-		legacy_u8 collision = unit_planner_player_overlap(request, x, y, z, yaw, time);
-		if (margin_escape) {
-			/* A completed pass can start inside the extra safety margin while
-			 * both physical bodies are clear. Permit only a separating escape;
-			 * braking there forever cannot restore the margin. Physical overlap
-			 * or decreasing separation still rejects the trajectory, and normal
-			 * margins resume as soon as it clears the initial overlap. */
-			legacy_f64 player_dx = request->player.x + request->player.vx * time - x;
-			legacy_f64 player_dz = request->player.z + request->player.vz * time - z;
-			legacy_f64 next_separation = player_dx * player_dx + player_dz * player_dz;
-			margin_escape = collision &&
-							next_separation + UNIT_PLANNER_MIN_DISTANCE >= separation &&
-							!unit_planner_player_margin_overlap(request, x, y, z, yaw, time, 0.0);
-			collision = collision && !margin_escape;
-			separation = next_separation;
-		}
-		if (collision) {
-			if (request->overtaking &&
-				unit_planner_player_margin_overlap(request, x, y, z, yaw, time, 0.0)) {
-				first_physical_collision = fmin(first_physical_collision, time);
-			}
-			first_collision = fmin(first_collision, time);
-			cost += UNIT_COLLISION_COST * (UNIT_PLANNER_ROLLOUT_SECONDS - time + UNIT_ROLLOUT_STEP);
-		}
 		if (ordered_stunt(&points[local[local_count - 1U].source]) &&
 			progress >= local[local_count - 1U].distance - UNIT_STUNT_ENTRY_DISTANCE) {
 			const struct UNIT_LOCAL_POINT *entry = &local[local_count - 1U];
@@ -845,19 +699,8 @@ legacy_int unit_planner_rollout(const struct UNIT_ROUTE_POINT *points, legacy_u3
 		}
 	}
 	result->score = cost - (progress - initial_progress);
-	/* A committed pass keeps a forward escape even when no candidate can
-	 * preserve the usual safety margin. Brake for a genuinely imminent
-	 * high-speed body impact while retaining the chosen evasive steering. */
-	legacy_u8 emergency =
-		request->overtaking && first_physical_collision <= UNIT_PLANNER_PASS_EMERGENCY_SECONDS &&
-		request->unit.speed > fmax(UNIT_PLANNER_PASS_EMERGENCY_SPEED,
-								   request->player.speed + UNIT_PLANNER_PASS_EMERGENCY_SPEED);
-	if (emergency ||
-		(!request->overtaking &&
-		 (first_collision < UNIT_PLANNER_ROLLOUT_SECONDS * 0.5 || speed_scale == 0.0))) {
-		result->plan.brake = emergency || first_collision < UNIT_PLANNER_ROLLOUT_SECONDS * 0.5
-								 ? UNIT_PLAN_BRAKE_COLLISION
-								 : UNIT_PLAN_BRAKE_STOP;
+	if (speed_scale == 0.0) {
+		result->plan.brake = UNIT_PLAN_BRAKE_STOP;
 		result->plan.target_speed = 0.0;
 	}
 	return 1;

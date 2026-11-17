@@ -1,6 +1,5 @@
 #include "unit_planner_internal.h"
 #include "unit_shortcut.h"
-#include "unit_overtake.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -43,7 +42,6 @@ struct UNIT_PLANNER {
 	struct UNIT_PLANNER_STATS stats;
 	struct UNIT_REQUEST request, published_request;
 	struct UNIT_ROLLOUT published;
-	struct UNIT_OVERTAKE overtake;
 	struct UNIT_WORKER synchronous, *workers;
 	legacy_f64 route_score;
 	legacy_u64 geometry_generation, next_sample, completed_samples;
@@ -63,7 +61,7 @@ struct UNIT_PLANNER {
  * workers consume copied geometry but never create or replace a planner. */
 static legacy_u64 unit_geometry_generation;
 
-static void planner_clear_traffic_profile(struct UNIT_PROFILE *profile)
+static void planner_clear_reserved_profile(struct UNIT_PROFILE *profile)
 {
 	profile->clearance_passing = 0;
 	profile->overtake_offset = 0.0;
@@ -372,8 +370,8 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 		}
 		planner_unlock(seed);
 	}
-	planner_clear_traffic_profile(&planner->route_profile);
-	planner_clear_traffic_profile(&planner->search_profile);
+	planner_clear_reserved_profile(&planner->route_profile);
+	planner_clear_reserved_profile(&planner->search_profile);
 	planner->synchronous.planner = planner;
 	legacy_u32 workers = 0U;
 #ifdef UNIT_PLANNER_THREADS
@@ -437,8 +435,8 @@ struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner)
 	clone->stats.opening_ready = planner->stats.opening_ready;
 	clone->stats.route_ready = planner->stats.route_ready;
 	planner_unlock(planner);
-	planner_clear_traffic_profile(&clone->route_profile);
-	planner_clear_traffic_profile(&clone->search_profile);
+	planner_clear_reserved_profile(&clone->route_profile);
+	planner_clear_reserved_profile(&clone->search_profile);
 	clone->startup = 0U;
 	clone->native_preview = 1U;
 	return clone;
@@ -610,11 +608,8 @@ legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
 	destination->published_serial = source->published_serial;
 	destination->have_request = source->have_request;
 	destination->stats = source->stats;
-	memset(&destination->overtake, 0, sizeof(destination->overtake));
-	planner_clear_traffic_profile(&destination->route_profile);
-	planner_clear_traffic_profile(&destination->search_profile);
-	destination->request.overtaking = destination->published_request.overtaking = 0;
-	destination->request.overtake_offset = destination->published_request.overtake_offset = 0.0;
+	planner_clear_reserved_profile(&destination->route_profile);
+	planner_clear_reserved_profile(&destination->search_profile);
 	destination->published.plan.overtaking = 0;
 	return 1;
 }
@@ -634,7 +629,7 @@ legacy_int unit_planner_adopt_profiles(struct UNIT_PLANNER *planner, struct UNIT
 	unit_planner_finish_startup(planner);
 	planner_lock(validated);
 	struct UNIT_PROFILE route = validated->route_profile;
-	planner_clear_traffic_profile(&route);
+	planner_clear_reserved_profile(&route);
 	legacy_u8 opening_ready = validated->stats.opening_ready,
 			  route_ready = validated->stats.route_ready;
 	planner_unlock(validated);
@@ -750,25 +745,18 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 							 const struct UNIT_VEHICLE *player, legacy_u32 route_cursor,
 							 legacy_u32 generation, struct UNIT_PLAN *plan)
 {
-	if (!planner || !plan || !finite_vehicle(unit) || (player && !finite_vehicle(player)) ||
-		route_cursor >= planner->count) {
+	(void)player;
+	if (!planner || !plan || !finite_vehicle(unit) || route_cursor >= planner->count) {
 		return 0;
 	}
 	unit_planner_wait_fixed_work(planner);
 	struct UNIT_REQUEST request = {0};
 	request.unit = *unit;
-	if (player) {
-		request.player = *player;
-	} else {
-		request.player.x = UNIT_NO_PLAYER_POSITION;
-	}
 	request.cursor = route_cursor;
 	request.generation = generation;
 	request.native_preview = planner->native_preview;
 	planner_lock(planner);
 	struct UNIT_PROFILE profile = planner->route_profile;
-	unit_overtake_request(&planner->overtake, planner->points, planner->count, &planner->limits,
-						  planner->owoot, &profile, &request);
 	struct UNIT_ROLLOUT published = planner->published;
 	struct UNIT_REQUEST old_request = planner->published_request;
 	legacy_u8 have_published = planner->published_serial != 0U;
@@ -815,8 +803,7 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 	if (have_published && generation >= old_request.generation &&
 		generation - old_request.generation <= UNIT_RECENT_FRAME_LIMIT && same_neighborhood &&
 		dx * dx + dz * dz <= UNIT_RECENT_POSE_DISTANCE * UNIT_RECENT_POSE_DISTANCE) {
-		/* Re-evaluate the worker's maneuver against current car/player positions.
-		 * Wall-clock scheduling can change proposals, never collision freshness. */
+		/* Re-evaluate the worker's proposal at UNIT's current route position. */
 		struct UNIT_ROLLOUT refreshed;
 		if (unit_planner_rollout(planner->points, planner->count, &planner->limits, planner->owoot,
 								 &profile, &request, published.candidate, &refreshed) &&
@@ -831,18 +818,8 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 		}
 	}
 	*plan = best.plan;
-	plan->overtaking = request.overtaking;
+	plan->overtaking = 0;
 	return 1;
-}
-
-legacy_int unit_planner_overtaking(const struct UNIT_PLANNER *planner)
-{
-	return planner && !planner->native_preview && planner->overtake.phase != UNIT_OVERTAKE_IDLE;
-}
-
-void unit_planner_cancel_overtake(struct UNIT_PLANNER *planner)
-{
-	unit_overtake_cancel(planner ? &planner->overtake : NULL);
 }
 
 void unit_planner_stats(struct UNIT_PLANNER *planner, struct UNIT_PLANNER_STATS *stats)

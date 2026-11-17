@@ -23,11 +23,11 @@ enum UNIT_ROUTE_ALIGNMENT {
 	UNIT_ALIGN_NONE = 0,
 	/* Keep the entire pursuit horizon centered while approaching a maneuver. */
 	UNIT_ALIGN_MANEUVER = 1,
-	/* Fix this gate's samples while leaving neighboring passing lines open. */
+	/* Fix this gate's samples while preserving neighboring racing lines. */
 	UNIT_ALIGN_GATE = 2,
 	/* Conservative centering for unrestricted live guidance. */
 	UNIT_ALIGN_FALLBACK = 4,
-	/* Center clearance checks unless a forecast obstruction requires passing. */
+	/* Center the certified body-clearance corridor. */
 	UNIT_ALIGN_CLEARANCE = 8
 };
 
@@ -63,14 +63,15 @@ struct UNIT_CAR_LIMITS {
 
 enum UNIT_PLAN_BRAKE {
 	UNIT_PLAN_BRAKE_NONE = 0,
-	UNIT_PLAN_BRAKE_COLLISION = 1,
+	UNIT_PLAN_BRAKE_COLLISION = 1, /* Reserved legacy value. */
 	UNIT_PLAN_BRAKE_STOP = 2
 };
 
 struct UNIT_PLAN {
 	legacy_f64 target_x, target_y, target_z, target_speed;
 	legacy_u32 route_cursor, generation;
-	legacy_u8 brake, valid, from_worker, overtaking;
+	legacy_u8 brake, valid, from_worker;
+	legacy_u8 overtaking; /* Reserved layout field, always zero. */
 };
 
 struct UNIT_PLANNER_STATS {
@@ -79,8 +80,7 @@ struct UNIT_PLANNER_STATS {
 	legacy_u8 opening_ready, route_ready;
 };
 
-/* Portable learning values. Serialize fields explicitly, never raw struct bytes.
- * The transient clearance-passing permission is deliberately excluded. */
+/* Portable learning values. Serialize fields explicitly, never raw struct bytes. */
 struct UNIT_PLANNER_PROFILE {
 	legacy_f64 lane, apex, lookahead;
 };
@@ -160,14 +160,11 @@ void unit_planner_work(struct UNIT_PLANNER *planner, legacy_u32 work_units);
 /* Publish a new immutable driving snapshot and return guidance immediately.
  * Recent worker results are accepted only for this route neighborhood and a
  * nearby pose. Older work cannot overwrite a newer request. Single-threaded
- * platforms evaluate a fixed small number of predictive rollouts per call. */
+ * platforms evaluate a fixed small number of predictive rollouts per call.
+ * The player argument is ignored; guidance depends only on UNIT and the track. */
 legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEHICLE *unit,
 							 const struct UNIT_VEHICLE *player, legacy_u32 route_cursor,
 							 legacy_u32 generation, struct UNIT_PLAN *plan);
-/* Main-thread intent includes the gradual merge after clearing the human. */
-legacy_int unit_planner_overtaking(const struct UNIT_PLANNER *planner);
-/* A native cached line can already provide a clear passage past traffic. */
-void unit_planner_cancel_overtake(struct UNIT_PLANNER *planner);
 void unit_planner_stats(struct UNIT_PLANNER *planner, struct UNIT_PLANNER_STATS *stats);
 
 #endif

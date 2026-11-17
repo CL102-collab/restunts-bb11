@@ -225,10 +225,6 @@ legacy_int unit_launch_guidance_policy(const struct UNIT_ROUTE *route, legacy_u3
 			first = last;
 			continue;
 		}
-		if (along < 0.0 && policy->preserve_approach) {
-			/* Fresh human avoidance retains its line and speed before commitment. */
-			return UNIT_LAUNCH_NONE;
-		}
 		if ((verified > 0.0 || entry->stunt == UNIT_STUNT_RAMP) &&
 			plan->brake == UNIT_PLAN_BRAKE_STOP) {
 			plan->brake = UNIT_PLAN_BRAKE_NONE;

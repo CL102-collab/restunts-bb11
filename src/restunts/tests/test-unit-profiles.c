@@ -98,7 +98,6 @@ static void assert_private_clear(const struct UNIT_LAUNCH_POLICY *policy)
 	assert(policy->secondary_piece == ROUTE_INDEX_NONE);
 	assert(policy->secondary_speed == 0.0);
 	assert(!policy->exit && !policy->barrel_offset);
-	assert(!policy->preserve_approach);
 	for (legacy_u32 slot = 0U; slot < UNIT_RAMP_APPROACH_OVERRIDES; slot++) {
 		assert(policy->ramps[slot].tiles == 0U);
 	}

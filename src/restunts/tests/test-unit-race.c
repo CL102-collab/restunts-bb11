@@ -892,20 +892,21 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 {
 	test_stall_classification();
 	if (argc < 3) {
-		fprintf(stderr,
-				"Usage: test-unit-race [--data-dir DIR] TRACK 1..7 "
-				"[--prepare-ms N] [--prepare-steps N] [--prepare-until-plan] [--frames N] [--trace "
-				"FILE] [--verify-replay] "
-				"[--planner-yield-ms N] [--planner-sync] [--require-worker] "
-				"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
-				"[--manual] [--frame-rate 10|20] [--require-finish] "
-				"[--require-clean] [--require-no-stalls] [--human "
-				"stationary|accelerating|crossing|grid|grid-then-park|blocked|slow] "
-				"[--human-drive-frames N] [--human-distance N] [--human-offset N] "
-				"[--require-overtake] [--require-no-contact] [--unit-cache-dir DIR] "
-				"[--owoot:on]\n"
-				"       test-unit-race [--data-dir DIR] --source-replay FILE "
-				"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
+		fprintf(
+			stderr,
+			"Usage: test-unit-race [--data-dir DIR] TRACK 1..7 "
+			"[--prepare-ms N] [--prepare-steps N] [--prepare-until-plan] [--frames N] [--trace "
+			"FILE] [--verify-replay] "
+			"[--planner-yield-ms N] [--planner-sync] [--require-worker] [--require-worker-search] "
+			"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
+			"[--manual] [--frame-rate 10|20] [--require-finish] "
+			"[--require-clean] [--require-no-stalls] [--human "
+			"stationary|accelerating|crossing|grid|grid-then-park|blocked|slow] "
+			"[--human-drive-frames N] [--human-distance N] [--human-offset N] "
+			"[--require-overtake] [--require-no-contact] [--unit-cache-dir DIR] "
+			"[--owoot:on]\n"
+			"       test-unit-race [--data-dir DIR] --source-replay FILE "
+			"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
 		return 1;
 	}
 	const legacy_char *source_replay =
@@ -927,6 +928,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_int require_clean = 0;
 	legacy_int require_no_stalls = 0;
 	legacy_int require_worker = 0;
+	legacy_int require_worker_search = 0;
 	legacy_int require_overtake = 0, require_no_contact = 0;
 	legacy_f64 human_distance_option = 0.0, human_offset = 0.0;
 	legacy_u8 human_distance_set = 0, human_offset_set = 0;
@@ -1030,6 +1032,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			planner_sync = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--require-worker") == 0) {
 			require_worker = 1;
+		} else if (strcmp((legacy_char *)argv[index], "--require-worker-search") == 0) {
+			require_worker_search = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--require-clean") == 0) {
 			require_clean = 1;
 		} else if (strcmp((legacy_char *)argv[index], "--require-no-stalls") == 0) {
@@ -1058,8 +1062,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		return 1;
 	}
 	if (source_replay) {
-		if (require_no_stalls || require_worker) {
-			fputs("--source-replay does not support --require-no-stalls or --require-worker\n",
+		if (require_no_stalls || require_worker || require_worker_search) {
+			fputs("--source-replay does not support --require-no-stalls, --require-worker or "
+				  "--require-worker-search\n",
 				  stderr);
 			return 1;
 		}
@@ -1503,23 +1508,16 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	if (opponent == OPPONENT_UNIT) {
 		print_learning_stats();
 	}
-	/* Accelerating leaders may remain ahead. Preserve the old encounter's
-	 * forward-progress requirement without reporting a pass at their vacated
-	 * starting position. Stopped/slow cases require actual rear clearance. */
-	legacy_u8 moving_leader =
-		human == UNIT_BENCHMARK_HUMAN_ACCELERATING || human == UNIT_BENCHMARK_HUMAN_GRID;
-	legacy_int failed_human =
-		human != UNIT_BENCHMARK_HUMAN_PARKED &&
-		((moving_leader ? !traffic_progress : !traffic.passed) || human_event != CRASH_EVENT_NONE ||
-		 shadow_penalty_frames != 0 || (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH));
 	return (require_finish && event != CRASH_EVENT_FINISH) ||
 				   (require_clean && shadow_penalty_frames != 0) ||
 				   (require_no_stalls && benchmark_stall_failed(&stall, frame_rate)) ||
 				   (require_worker && (!worker_commands || planner_stats.workers > 1U)) ||
+				   (require_worker_search &&
+					(planner_stats.workers != 1U || !planner_stats.worker_accepted)) ||
 				   (require_overtake && (!traffic.merged || traffic.side_changes ||
 										 traffic.max_blocked_frames >=
 											 UNIT_BENCHMARK_TRAFFIC_STALL_SECONDS * frame_rate)) ||
-				   (require_no_contact && traffic.contact_frames) || failed_human
+				   (require_no_contact && traffic.contact_frames)
 			   ? 1
 			   : 0;
 }

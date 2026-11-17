@@ -16,22 +16,13 @@
 #define UNIT_PLANNER_MIN_SPEED 1.0
 #define UNIT_PLANNER_MAX_LOOKAHEAD 850.0
 #define UNIT_PLANNER_ROLLOUT_SECONDS 2.4
-#define UNIT_PLANNER_COLLISION_MARGIN 24.0
-#define UNIT_PLANNER_OVERTAKE_COLLISION_MARGIN 8.0
-#define UNIT_PLANNER_COLLISION_HEIGHT 90.0
 #define UNIT_PLANNER_WORLD_GRAVITY (18.0 * 20.0 * 20.0 / 64.0)
 #define UNIT_PLANNER_LOCAL_SAMPLE_SCAN_LIMIT (UNIT_PLANNER_LOCAL_POINTS * 64U)
-#define UNIT_NO_PLAYER_POSITION 1000000000.0
-#define UNIT_PLANNER_PASS_SPEED_ADVANTAGE 12.0
-#define UNIT_PLANNER_PASS_MINIMUM_SPEED 18.0
-#define UNIT_PLANNER_PASS_EMERGENCY_SPEED 40.0
-#define UNIT_PLANNER_PASS_EMERGENCY_SECONDS 0.25
-#define UNIT_PLANNER_PASS_LOOKAHEAD_SCALE 0.6
 
 struct UNIT_PROFILE {
 	legacy_f64 lane, apex, lookahead;
+	/* Reserved layout fields. Always zero and ignored by planning. */
 	legacy_u8 clearance_passing;
-	/* Live traffic intent is never exported, learned, or inherited. */
 	legacy_f64 overtake_offset;
 };
 
@@ -42,10 +33,9 @@ struct UNIT_EVALUATION {
 };
 
 struct UNIT_REQUEST {
-	struct UNIT_VEHICLE unit, player;
+	struct UNIT_VEHICLE unit;
 	legacy_u32 cursor, generation;
-	legacy_u8 native_preview, overtaking;
-	legacy_f64 overtake_offset;
+	legacy_u8 native_preview;
 };
 
 struct UNIT_ROLLOUT {
@@ -64,10 +54,6 @@ struct UNIT_LOCAL_POINT {
 
 legacy_u32 unit_planner_available_workers(void);
 legacy_f64 unit_planner_clamp(legacy_f64 value, legacy_f64 minimum, legacy_f64 maximum);
-legacy_u8 unit_planner_clearance_corridor_blocked(const struct UNIT_ROUTE_POINT *points,
-												  legacy_u32 count,
-												  const struct UNIT_CAR_LIMITS *limits,
-												  const struct UNIT_REQUEST *request);
 void unit_planner_protected_target(const struct UNIT_ROUTE_POINT *points, legacy_u32 count,
 								   const struct UNIT_REQUEST *request, struct UNIT_PLAN *plan);
 void unit_planner_profile(legacy_u32 *seed, struct UNIT_PROFILE *profile);

@@ -36,15 +36,11 @@ void unit_opponent_pilot_input_override(legacy_u8 mask, legacy_u8 value)
 }
 
 void unit_pilot_controls_apply(const struct CARSTATE *car, legacy_u8 steering_rate,
-							   legacy_int collision, struct CSRPL_OPPONENT_COMMAND *command)
+							   struct CSRPL_OPPONENT_COMMAND *command)
 {
 	legacy_u8 mask = preview_mask, value = preview_value;
 	preview_mask = preview_value = 0;
 	if (!car || !command) {
-		return;
-	}
-	if (collision) {
-		command->input = (legacy_u8)((command->input & ~INPUT_ACCELERATE_FLAG) | INPUT_BRAKE_FLAG);
 		return;
 	}
 	if (mask & INPUT_STEERING_MASK) {

@@ -278,7 +278,7 @@ static void pilot_test_assert_no_input_override(void)
 	command.input = INPUT_ACCELERATE_FLAG;
 	command.steering = PILOT_TEST_STEERING_SENTINEL;
 	struct CSRPL_OPPONENT_COMMAND expected = command;
-	unit_pilot_controls_apply(&state.opponentstate, 1U, 0, &command);
+	unit_pilot_controls_apply(&state.opponentstate, 1U, &command);
 	assert(memcmp(&command, &expected, sizeof(command)) == 0);
 }
 

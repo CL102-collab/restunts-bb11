@@ -243,8 +243,6 @@ set(common_sources
     extended/extended_unit_route.c
     opponent/unit_planner.c opponent/unit_planner_workers.c
     opponent/unit_planner_math.c opponent/unit_planner_guidance.c
-    opponent/unit_planner_traffic.c
-    opponent/unit_overtake.c opponent/unit_traffic.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
     extended/extended_unit_checkpoint.c extended/extended_physics_snapshot.c
     extended/extended_unit_shortcut.c opponent/unit_pilot.c opponent/unit_pilot_learning.c
@@ -726,8 +724,7 @@ if(RESTUNTS_BUILD_TESTS)
             src/restunts/tests/test-unit-planner.c
             ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_workers.c
             ${core}/opponent/unit_planner_math.c
-            ${core}/opponent/unit_planner_traffic.c ${core}/opponent/unit_planner_guidance.c
-            ${core}/opponent/unit_overtake.c)
+            ${core}/opponent/unit_planner_guidance.c)
         target_link_libraries(test-unit-planner-${unit_planner_variant} PRIVATE restunts_options)
         target_compile_options(test-unit-planner-${unit_planner_variant} PRIVATE -UNDEBUG)
         if(unit_planner_variant STREQUAL "sync")
@@ -1192,7 +1189,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     endif()
     set(unit_race_tests unit-fixed-work-budget
         unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
-        unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoint-human
+        unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoints
         unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
         unit-race-glacier-human unit-race-glacier-owoot-human)
     add_test(NAME unit-fixed-work-budget COMMAND "${Python3_EXECUTABLE}"
@@ -1246,7 +1243,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         list(APPEND unit_race_tests unit-race-${unit_regression_track}-no-stalls)
         add_test(NAME unit-race-${unit_regression_track}-no-stalls COMMAND test-unit-race-fixed-work
             --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_regression_fixture}" 7
-            ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --human grid-then-park
+            ${unit_race_fixed_preparation_args} --planner-yield-ms 2
             --verify-replay --require-finish --require-clean --require-no-stalls)
         set_tests_properties(unit-race-${unit_regression_track}-no-stalls PROPERTIES RUN_SERIAL TRUE)
     endforeach()
@@ -1281,15 +1278,15 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         set_tests_properties(unit-race-skids-short-launch-${unit_skids_planner}
             PROPERTIES RUN_SERIAL TRUE)
     endforeach()
-    add_test(NAME unit-race-prepared-worker COMMAND test-unit-race
+    add_test(NAME unit-race-prepared-worker COMMAND test-unit-race-fixed-work
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_race_fixture}" 7
-        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 180 --human accelerating
-        --verify-replay --require-clean --require-worker)
+        ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --frames 180
+        --verify-replay --require-clean --require-worker-search)
     set_tests_properties(unit-race-prepared-worker PROPERTIES RUN_SERIAL TRUE)
-    add_test(NAME unit-race-checkpoint-human COMMAND test-unit-race
+    add_test(NAME unit-race-checkpoints COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/blue-checkpoints.cstrk" 7
-        --human stationary --verify-replay --require-finish --require-clean)
+        --verify-replay --require-finish --require-clean)
     add_test(NAME unit-race-default COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK" 7
         --verify-replay --require-finish --require-clean)
@@ -1329,35 +1326,39 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/assets/cars"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/ninhbinh-banked.csrpl")
     set_tests_properties(unit-bank-replay PROPERTIES RUN_SERIAL TRUE)
-    foreach(unit_overtake_case blocked left right slow)
-        set(unit_overtake_test "unit-overtake-${unit_overtake_case}-sync")
-        list(APPEND unit_race_tests "${unit_overtake_test}")
-        add_test(NAME "${unit_overtake_test}" COMMAND "${Python3_EXECUTABLE}"
-            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+    foreach(unit_human_case near long-range slow)
+        set(unit_human_test "unit-human-independent-${unit_human_case}-sync")
+        set(unit_human_mode blocked)
+        set(unit_human_distance 350)
+        if(unit_human_case STREQUAL "long-range")
+            set(unit_human_distance 1400)
+        elseif(unit_human_case STREQUAL "slow")
+            set(unit_human_mode slow)
+        endif()
+        list(APPEND unit_race_tests "${unit_human_test}")
+        add_test(NAME "${unit_human_test}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
             "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
-            "${unit_race_fixture}" --case "${unit_overtake_case}" --planner sync)
-        set_tests_properties("${unit_overtake_test}" PROPERTIES RUN_SERIAL TRUE)
+            "${unit_race_fixture}" --human-mode "${unit_human_mode}"
+            --distance "${unit_human_distance}" --planner sync)
+        set_tests_properties("${unit_human_test}" PROPERTIES RUN_SERIAL TRUE)
     endforeach()
-    foreach(unit_overtake_planner sync threaded)
-        set(unit_overtake_test "unit-overtake-slow-prepared-${unit_overtake_planner}")
-        list(APPEND unit_race_tests "${unit_overtake_test}")
-        add_test(NAME "${unit_overtake_test}" COMMAND "${Python3_EXECUTABLE}"
-            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
-            "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
-            "${unit_race_fixture}" --case slow --planner "${unit_overtake_planner}" --prepared)
-        set_tests_properties("${unit_overtake_test}" PROPERTIES RUN_SERIAL TRUE)
+    foreach(unit_human_planner sync threaded)
+        set(unit_human_test "unit-human-independent-near-prepared-${unit_human_planner}")
+        list(APPEND unit_race_tests "${unit_human_test}")
+        add_test(NAME "${unit_human_test}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
+            "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
+            "${unit_race_fixture}" --human-mode blocked --distance 350
+            --planner "${unit_human_planner}" --prepared)
+        set_tests_properties("${unit_human_test}" PROPERTIES RUN_SERIAL TRUE)
     endforeach()
-    list(APPEND unit_race_tests unit-overtake-blocked-owoot-sync unit-overtake-blocked-prepared-sync)
-    add_test(NAME unit-overtake-blocked-owoot-sync COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
+    list(APPEND unit_race_tests unit-human-independent-near-owoot-sync)
+    add_test(NAME unit-human-independent-near-owoot-sync COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
-        "${unit_race_fixture}" --case blocked --planner sync --owoot)
-    add_test(NAME unit-overtake-blocked-prepared-sync COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-overtake.py"
-        "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
-        "${unit_race_fixture}" --case blocked --planner sync --prepared)
-    set_tests_properties(unit-overtake-blocked-owoot-sync unit-overtake-blocked-prepared-sync
-        PROPERTIES RUN_SERIAL TRUE)
+        "${unit_race_fixture}" --human-mode blocked --distance 350 --planner sync --owoot)
+    set_tests_properties(unit-human-independent-near-owoot-sync PROPERTIES RUN_SERIAL TRUE)
     # Instrumentation slows the fixed native workload. Match the ghost tests'
     # budgets; CTest --timeout cannot override an explicit test TIMEOUT.
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT ${restunts_unit_test_timeout}

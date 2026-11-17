@@ -1,4 +1,57 @@
 #include "test-unit-pilot-fixture.h"
+#include "../c/opponent/unit_pilot_internal.h"
+
+#define TEST_PREVIEW_HUMAN_POSITION 100
+#define TEST_PREVIEW_HUMAN_SPEED 20
+
+enum TEST_PREVIEW_MODE {
+	TEST_PREVIEW_STARTUP,
+	TEST_PREVIEW_STOPPED,
+	TEST_PREVIEW_ROLLING,
+	TEST_PREVIEW_MODE_COUNT
+};
+
+static void assert_preview_human_absent(void)
+{
+	const struct CARSTATE *human = &unit_pilot_state->run.state.playerstate;
+	assert(human->car_position.lx < 0 && human->car_position.ly < 0 && human->car_position.lz < 0);
+	assert(memcmp(&human->car_previous_position, &human->car_position,
+				  sizeof(human->car_position)) == 0);
+	assert(human->car_actual_speed == 0 && human->car_rev_speed == 0);
+}
+
+static void test_preview_excludes_human_body(void)
+{
+	for (legacy_u8 mode = TEST_PREVIEW_STARTUP; mode < TEST_PREVIEW_MODE_COUNT; mode++) {
+		struct UNIT_PLANNER source = {0};
+		reset_fixture(1);
+		state.playerstate.car_position.lx =
+			(legacy_s32)(TEST_PREVIEW_HUMAN_POSITION * UNIT_POSITION_SCALE);
+		state.playerstate.car_position.lz = state.playerstate.car_position.lx;
+		state.playerstate.car_previous_position = state.playerstate.car_position;
+		state.playerstate.car_previous_position.lz--;
+		state.playerstate.car_actual_speed =
+			(legacy_u16)(TEST_PREVIEW_HUMAN_SPEED * UNIT_SPEED_SCALE);
+		state.playerstate.car_rev_speed = state.playerstate.car_actual_speed;
+		struct GAMESTATE before = state;
+		assert(unit_pilot_begin(&source));
+		assert_preview_human_absent();
+		assert_live_unchanged(&before);
+		if (mode == TEST_PREVIEW_STOPPED) {
+			assert(unit_pilot_recheck_begin(&source, 0, 1));
+		} else if (mode == TEST_PREVIEW_ROLLING) {
+			assert(unit_pilot_recheck_rolling_begin(&source, 0, 1));
+		}
+		assert_preview_human_absent();
+		assert_live_unchanged(&before);
+		/* The fixture's native step also rejects any in-track human body. */
+		unit_pilot_work(mode == TEST_PREVIEW_STOPPED ? UNIT_PILOT_WAIT_TICKS + 1U : 1U);
+		assert_preview_human_absent();
+		assert_live_unchanged(&before);
+		unit_pilot_stop();
+		assert_live_unchanged(&before);
+	}
+}
 
 static void test_barrel_search(void)
 {
@@ -24,8 +77,8 @@ static void test_barrel_search(void)
 	assert(unit_pilot_recheck_status(50032) == 1);
 	unit_pilot_stats(&stats);
 	assert(stats.failed_trials == 626 && stats.trials == 628);
-	/* The old successful lateral line can become unsafe after a human changes
-	 * the approach. Keep centerline in the search after warming the old line. */
+	/* An altered approach can invalidate the old successful lateral line.
+	 * Keep centerline in the search after warming the old line. */
 	required_barrel_offset = 0.0;
 	waited_frames = 0;
 	source.calls = 52000;
@@ -251,6 +304,7 @@ static void test_barrel_local_controls(void)
 
 legacy_int main(void)
 {
+	test_preview_excludes_human_body();
 	struct UNIT_PLANNER source = {0};
 	struct UNIT_PILOT_STATS stats;
 	reset_fixture(0);
