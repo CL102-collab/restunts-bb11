@@ -602,6 +602,48 @@ static void debug_pilot_entries(void)
 	}
 }
 
+/* A callback budget fixes logical search work; milliseconds remain its safety
+ * ceiling. Complete native readiness can be an explicitly earlier goal. */
+static legacy_int benchmark_preparation(legacy_u64 began, legacy_u32 milliseconds, legacy_u32 steps,
+										legacy_int until_ready, legacy_int pilot_debug,
+										legacy_u32 *failures, FILE *trace, FILE *entry_trace,
+										legacy_u64 *elapsed)
+{
+	legacy_u32 completed = 0;
+	while (SDL_GetTicks() - began < milliseconds && (!steps || completed < steps)) {
+		unit_opponent_prepare_work();
+		completed++;
+		if (pilot_debug) {
+			debug_pilot_failure(failures, trace, entry_trace);
+		}
+		if (until_ready && unit_pilot_ready()) {
+			break;
+		}
+		SDL_Delay(1U);
+	}
+	legacy_int ready = unit_pilot_ready();
+	if (steps && completed < steps && !(until_ready && ready)) {
+		fprintf(stderr, "preparation safety budget expired after %u of %u callbacks\n", completed,
+				steps);
+		unit_opponent_stop();
+		return 0;
+	}
+	if (!unit_opponent_prepare_end()) {
+		fputs("preparation did not produce a route\n", stderr);
+		return 0;
+	}
+	if (elapsed) {
+		*elapsed = SDL_GetTicks() - began;
+	}
+	struct UNIT_PILOT_STATS selected;
+	unit_pilot_stats(&selected);
+	printf("fixed_work=%u preparation_steps=%u selected_preview_native_ticks=%u "
+		   "preparation_ready=%u\n",
+		   RESTUNTS_UNIT_TEST_FIXED_WORK ? 1U : 0U, completed, selected.native_ticks,
+		   ready ? 1U : 0U);
+	return 1;
+}
+
 static legacy_u8 *read_track(const legacy_char *path, legacy_uint *size)
 {
 	FILE *source = fopen(path, "rb");
@@ -637,7 +679,7 @@ static void print_learning_stats(void)
 
 struct UNIT_SOURCE_REPLAY_OPTIONS {
 	const legacy_char *path;
-	legacy_u32 branch_frame, frame_limit, preparation_ms, planner_yield_ms;
+	legacy_u32 branch_frame, frame_limit, preparation_ms, preparation_steps, planner_yield_ms;
 	legacy_int replay_only, planner_sync, prepare_until_plan, verify;
 	legacy_int require_finish, require_clean, pilot_debug;
 	FILE *trace, *pilot_trace, *pilot_entry_trace;
@@ -749,6 +791,7 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 		source_replay_trace(options->trace, "recorded", INPUT_NONE, &none);
 	}
 	legacy_u32 frames = 0, failures = 0;
+	legacy_int preparation_failed = 0;
 	for (; frames < limit; frames++) {
 		if (branch && frames == options->branch_frame) {
 			/* The recorded prefix supplied every physics tick. Truncate only its
@@ -758,20 +801,13 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 			if (options->preparation_ms) {
 				assert(unit_opponent_prepare_begin_with_workers(options->planner_sync ? -1 : 0));
 				legacy_u64 began = SDL_GetTicks();
-				do {
-					unit_opponent_prepare_work();
-					if (options->pilot_debug) {
-						debug_pilot_failure(&failures, options->pilot_trace,
-											options->pilot_entry_trace);
-					}
-					if (options->prepare_until_plan) {
-						if (unit_pilot_ready()) {
-							break;
-						}
-					}
-					SDL_Delay(1U);
-				} while (SDL_GetTicks() - began < options->preparation_ms);
-				assert(unit_opponent_prepare_end());
+				if (!benchmark_preparation(began, options->preparation_ms,
+										   options->preparation_steps, options->prepare_until_plan,
+										   options->pilot_debug, &failures, options->pilot_trace,
+										   options->pilot_entry_trace, NULL)) {
+					preparation_failed = 1;
+					break;
+				}
 			}
 			printf("branch_frame=%u branch_x=%.3f branch_y=%.3f branch_z=%.3f branch_speed=%.3f\n",
 				   frames, state.opponentstate.car_position.lx / UNIT_BENCHMARK_WORLD_SCALE,
@@ -804,18 +840,24 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 	}
 	legacy_u8 event = state.opponentstate.car_crashBmpFlag;
 	legacy_u32 penalty = extended_unit_penalty_total();
-	printf("source_replay_version=%u source_replay_rules=%u player_car=%.*s player_transmission=%u "
-		   "opponent=%u opponent_car=%.*s opponent_transmission=%u frames=%u seconds=%.2f "
-		   "frame_rate=%u "
-		   "event=%u finished=%u penalty_frames=%u player_event=%u branch=%u\n",
-		   replay.metadata.version, rules, CSRPL_CAR_ID_SIZE, replay.metadata.player_car_id,
-		   replay.metadata.player_transmission, replay.metadata.opponent_type, CSRPL_CAR_ID_SIZE,
-		   replay.metadata.opponent_car_id, replay.metadata.opponent_transmission, frames,
-		   frames / (legacy_f64)genghost_sim_frame_rate(), genghost_sim_frame_rate(), event,
-		   event == CRASH_EVENT_FINISH, penalty, state.playerstate.car_crashBmpFlag, branch);
+	if (!preparation_failed) {
+		printf("source_replay_version=%u source_replay_rules=%u player_car=%.*s "
+			   "player_transmission=%u "
+			   "opponent=%u opponent_car=%.*s opponent_transmission=%u frames=%u seconds=%.2f "
+			   "frame_rate=%u "
+			   "event=%u finished=%u penalty_frames=%u player_event=%u branch=%u\n",
+			   replay.metadata.version, rules, CSRPL_CAR_ID_SIZE, replay.metadata.player_car_id,
+			   replay.metadata.player_transmission, replay.metadata.opponent_type,
+			   CSRPL_CAR_ID_SIZE, replay.metadata.opponent_car_id,
+			   replay.metadata.opponent_transmission, frames,
+			   frames / (legacy_f64)genghost_sim_frame_rate(), genghost_sim_frame_rate(), event,
+			   event == CRASH_EVENT_FINISH, penalty, state.playerstate.car_crashBmpFlag, branch);
+	}
 	unit_opponent_stop();
-	print_learning_stats();
-	if (options->verify) {
+	if (!preparation_failed) {
+		print_learning_stats();
+	}
+	if (options->verify && !preparation_failed) {
 		genghost_sim_restore(&initial);
 		game_replay_mode = REPLAY_MODE_PLAYBACK;
 		for (legacy_u32 frame = 0; frame < frames; frame++) {
@@ -840,7 +882,7 @@ static legacy_s16 source_replay_benchmark(const struct UNIT_SOURCE_REPLAY_OPTION
 	if (options->pilot_entry_trace) {
 		assert(fclose(options->pilot_entry_trace) == 0);
 	}
-	return (options->require_finish && event != CRASH_EVENT_FINISH) ||
+	return preparation_failed || (options->require_finish && event != CRASH_EVENT_FINISH) ||
 				   (options->require_clean && penalty != 0)
 			   ? 1
 			   : 0;
@@ -850,20 +892,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 {
 	test_stall_classification();
 	if (argc < 3) {
-		fprintf(
-			stderr,
-			"Usage: test-unit-race [--data-dir DIR] TRACK 1..7 "
-			"[--prepare-ms N] [--prepare-until-plan] [--frames N] [--trace FILE] [--verify-replay] "
-			"[--planner-yield-ms N] [--planner-sync] [--require-worker] "
-			"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
-			"[--manual] [--frame-rate 10|20] [--require-finish] "
-			"[--require-clean] [--require-no-stalls] [--human "
-			"stationary|accelerating|crossing|grid|grid-then-park|blocked|slow] "
-			"[--human-drive-frames N] [--human-distance N] [--human-offset N] "
-			"[--require-overtake] [--require-no-contact] [--unit-cache-dir DIR] "
-			"[--owoot:on]\n"
-			"       test-unit-race [--data-dir DIR] --source-replay FILE "
-			"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
+		fprintf(stderr,
+				"Usage: test-unit-race [--data-dir DIR] TRACK 1..7 "
+				"[--prepare-ms N] [--prepare-steps N] [--prepare-until-plan] [--frames N] [--trace "
+				"FILE] [--verify-replay] "
+				"[--planner-yield-ms N] [--planner-sync] [--require-worker] "
+				"[--pilot-debug] [--pilot-trace FILE] [--pilot-entry-trace FILE] [--car ID] "
+				"[--manual] [--frame-rate 10|20] [--require-finish] "
+				"[--require-clean] [--require-no-stalls] [--human "
+				"stationary|accelerating|crossing|grid|grid-then-park|blocked|slow] "
+				"[--human-drive-frames N] [--human-distance N] [--human-offset N] "
+				"[--require-overtake] [--require-no-contact] [--unit-cache-dir DIR] "
+				"[--owoot:on]\n"
+				"       test-unit-race [--data-dir DIR] --source-replay FILE "
+				"[--replay-only | --branch-frame N] [--trace FILE] [--frames TOTAL]\n");
 		return 1;
 	}
 	const legacy_char *source_replay =
@@ -876,6 +918,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_u32 frame_limit = UNIT_BENCHMARK_DEFAULT_FRAMES;
 	legacy_u16 frame_rate = GENGHOST_FRAME_RATE;
 	legacy_u32 preparation_ms = 0;
+	legacy_u32 preparation_steps = 0;
 	legacy_u32 planner_yield_ms = 0;
 	legacy_int verify = 0;
 	legacy_int route_debug = 0;
@@ -912,6 +955,12 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 				   index + 1 < argc) {
 			planner_yield_ms = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
 			assert(planner_yield_ms <= UNIT_BENCHMARK_MAX_PLANNER_YIELD_MS);
+		} else if (strcmp((legacy_char *)argv[index], "--prepare-steps") == 0 && index + 1 < argc) {
+			preparation_steps = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
+			if (!preparation_steps) {
+				fputs("preparation step budget must be positive\n", stderr);
+				return 1;
+			}
 		} else if (strcmp((legacy_char *)argv[index], "--prepare-ms") == 0 && index + 1 < argc) {
 			preparation_ms = (legacy_u32)strtoul((legacy_char *)argv[++index], NULL, 10);
 		} else if (strcmp((legacy_char *)argv[index], "--pilot-entry-trace") == 0 &&
@@ -996,6 +1045,18 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 		}
 	}
 	assert(frame_limit > 0 && frame_limit <= GENGHOST_MAX_FRAMES);
+	if (preparation_steps && !preparation_ms) {
+		fputs("preparation steps require a positive --prepare-ms safety budget\n", stderr);
+		return 1;
+	}
+	if (preparation_steps && opponent != OPPONENT_UNIT) {
+		fputs("preparation steps require UNIT\n", stderr);
+		return 1;
+	}
+	if (preparation_steps && source_replay && (replay_only || branch_frame == LEGACY_U32_MAX)) {
+		fputs("preparation steps require a live source-replay branch\n", stderr);
+		return 1;
+	}
 	if (source_replay) {
 		if (require_no_stalls || require_worker) {
 			fputs("--source-replay does not support --require-no-stalls or --require-worker\n",
@@ -1007,12 +1068,22 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 			fputs("--source-replay does not support scripted overtake options\n", stderr);
 			return 1;
 		}
-		struct UNIT_SOURCE_REPLAY_OPTIONS options = {
-			source_replay,	branch_frame,		frame_limit,
-			preparation_ms, planner_yield_ms,	replay_only,
-			planner_sync,	prepare_until_plan, verify,
-			require_finish, require_clean,		pilot_debug,
-			trace,			pilot_trace,		pilot_entry_trace};
+		struct UNIT_SOURCE_REPLAY_OPTIONS options = {.path = source_replay,
+													 .branch_frame = branch_frame,
+													 .frame_limit = frame_limit,
+													 .preparation_ms = preparation_ms,
+													 .preparation_steps = preparation_steps,
+													 .planner_yield_ms = planner_yield_ms,
+													 .replay_only = replay_only,
+													 .planner_sync = planner_sync,
+													 .prepare_until_plan = prepare_until_plan,
+													 .verify = verify,
+													 .require_finish = require_finish,
+													 .require_clean = require_clean,
+													 .pilot_debug = pilot_debug,
+													 .trace = trace,
+													 .pilot_trace = pilot_trace,
+													 .pilot_entry_trace = pilot_entry_trace};
 		return source_replay_benchmark(&options, (legacy_char *)argv[0]);
 	}
 	assert(!replay_only && branch_frame == LEGACY_U32_MAX);
@@ -1168,22 +1239,13 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 	legacy_u64 preparation_elapsed = 0;
 	legacy_u32 pilot_failures = 0;
 	if (opponent == OPPONENT_UNIT && preparation_ms != 0) {
-		legacy_u64 started = SDL_GetTicks();
+		legacy_u64 began = SDL_GetTicks();
 		assert(unit_opponent_prepare_begin_with_workers(planner_sync ? -1 : 0));
-		while (SDL_GetTicks() - started < preparation_ms) {
-			unit_opponent_prepare_work();
-			if (pilot_debug) {
-				debug_pilot_failure(&pilot_failures, pilot_trace, pilot_entry_trace);
-			}
-			if (prepare_until_plan) {
-				if (unit_pilot_ready()) {
-					break;
-				}
-			}
-			SDL_Delay(1);
+		if (!benchmark_preparation(began, preparation_ms, preparation_steps, prepare_until_plan,
+								   pilot_debug, &pilot_failures, pilot_trace, pilot_entry_trace,
+								   &preparation_elapsed)) {
+			return 1;
 		}
-		assert(unit_opponent_prepare_end());
-		preparation_elapsed = SDL_GetTicks() - started;
 		if (pilot_debug) {
 			debug_pilot_entries();
 		}

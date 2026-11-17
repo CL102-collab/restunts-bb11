@@ -1940,9 +1940,25 @@ also scale UNIT race, subprocess, and native rendering fixture deadlines.
 CMake also scales the planning allowance for its prepared UNIT race commands,
 stopping early once a complete clean native lap is ready. The instrumented UNIT
 race binary scales the native pump, continuation, and recheck CPU time guards
-by the same multiplier, preserving work per simulated frame. Native tick quotas,
+by the same multiplier to account for instrumentation overhead. Native tick quotas,
 chunk limits, exact-state handoffs, and race-frame limits remain unchanged.
-Normal builds retain the ten-second preparation window and original CPU guards.
+Timed-target normal runs retain the ten-second preparation window and original
+CPU guards.
+
+The Glacier OWOOT and four no-stall completion regressions use
+`test-unit-race-fixed-work` in every build configuration. This test-only target
+uses the same 1,024 preparation callbacks, stopping early if a clean native lap
+is ready, and the same bounded native tick quotas under normal builds and
+sanitizers. Startup route evaluation runs synchronously. Each live request waits
+for the previous worker batch; rollouts and physics still run alongside newly
+published work.
+Finish, zero-penalty, no-stall, worker-application, and full replay assertions
+remain required. The preparation watchdog reserves half the scaled CTest limit;
+expiry fails the test instead of selecting a different partial preparation state.
+`unit-fixed-work`, `unit-fixed-work-budget`, and `unit-planner-fixed-work` check
+the logical work policy and reject incomplete preparation budgets.
+The standard timed race target, native-grid, prepared-worker, threaded-planner,
+and desktop tests retain their timer and asynchronous startup coverage.
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need

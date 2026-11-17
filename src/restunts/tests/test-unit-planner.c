@@ -28,6 +28,10 @@
 #define TEST_WORKER_UNIT_SPEED 70.0
 #define TEST_WORKER_PLAYER_DISTANCE 900.0
 #define TEST_WORKER_CROSSING_SPEED 64.0
+#define TEST_FIXED_FIRST_WORKERS 2
+#define TEST_FIXED_SECOND_WORKERS 4
+#define TEST_FIXED_WORK_CALLS 8U
+#define TEST_FIXED_DELAY_MS 1U
 
 static struct UNIT_CAR_LIMITS car_limits(void)
 {
@@ -1314,6 +1318,7 @@ static legacy_f64 crest_speed(legacy_u8 unspecified)
 }
 
 #ifndef RESTUNTS_UNIT_SYNC_ONLY
+#if !RESTUNTS_UNIT_TEST_FIXED_WORK
 static void test_learning_worker_snapshots(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -1343,6 +1348,8 @@ static void test_learning_worker_snapshots(void)
 	unit_planner_destroy(planner);
 }
 
+#endif
+
 static void wait_for_worker_batch(struct UNIT_PLANNER *planner, legacy_u64 previous_candidates)
 {
 	struct UNIT_PLANNER_STATS stats;
@@ -1358,6 +1365,87 @@ static void wait_for_worker_batch(struct UNIT_PLANNER *planner, legacy_u64 previ
 	assert(0 && "live worker did not finish its candidate batch");
 }
 
+#if RESTUNTS_UNIT_TEST_FIXED_WORK
+static void test_fixed_startup_and_real_live_worker(void)
+{
+	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
+	straight(points);
+	struct UNIT_CAR_LIMITS limits = car_limits();
+	struct UNIT_PLANNER *first =
+		unit_planner_create(points, TEST_POINT_COUNT, &limits, 1U, TEST_FIXED_FIRST_WORKERS);
+	struct UNIT_PLANNER *second =
+		unit_planner_create(points, TEST_POINT_COUNT, &limits, 1U, TEST_FIXED_SECOND_WORKERS);
+	assert(first && second);
+	struct UNIT_PLANNER_STATS first_stats, second_stats;
+	unit_planner_stats(first, &first_stats);
+	unit_planner_stats(second, &second_stats);
+	assert(!first_stats.workers && !second_stats.workers);
+	assert(!first_stats.route_ready && !second_stats.route_ready);
+	struct UNIT_PLANNER_LEARNING a, b, delayed;
+	assert(unit_planner_export_learning(first, &a));
+	SDL_Delay(TEST_FIXED_DELAY_MS);
+	assert(unit_planner_export_learning(second, &b));
+	assert_learning_equal(&a, &b);
+	for (legacy_u32 call = 0U; call < TEST_FIXED_WORK_CALLS; call++) {
+		unit_planner_work(first, 1U);
+		assert(unit_planner_export_learning(first, &a));
+		SDL_Delay(TEST_FIXED_DELAY_MS);
+		assert(unit_planner_export_learning(first, &delayed));
+		assert_learning_equal(&a, &delayed);
+		unit_planner_work(second, 1U);
+		assert(unit_planner_export_learning(second, &b));
+		assert_learning_equal(&a, &b);
+		unit_planner_stats(first, &first_stats);
+		unit_planner_stats(second, &second_stats);
+		assert(!first_stats.workers && !second_stats.workers);
+		assert(first_stats.route_candidates == second_stats.route_candidates);
+	}
+	assert(a.ready && a.completed_samples > 0U);
+	/* Requested startup concurrency cannot change explicit preparation. The
+	 * live worker remains real and must supply an actually applied proposal. */
+	unit_planner_finish_startup(first);
+	unit_planner_finish_startup(second);
+	unit_planner_stats(first, &first_stats);
+	unit_planner_stats(second, &second_stats);
+	assert(first_stats.workers == 1U && second_stats.workers == 1U);
+	struct UNIT_VEHICLE unit = vehicle(), player = vehicle();
+	unit.speed = TEST_WORKER_UNIT_SPEED;
+	unit.vz = unit.speed * TEST_WORLD_PER_MPH;
+	player.z = TEST_WORKER_PLAYER_DISTANCE;
+	player.vx = TEST_WORKER_CROSSING_SPEED;
+	player.speed = player.vx / TEST_WORLD_PER_MPH;
+	player.yaw = TEST_PI * 0.5;
+	legacy_u64 previous_candidates = first_stats.live_candidates;
+	struct UNIT_PLAN plan;
+	assert(unit_planner_plan(first, &unit, &player, 0U, 1U, &plan));
+	assert(!plan.overtaking);
+	wait_for_worker_batch(first, previous_candidates);
+	assert(unit_planner_plan(first, &unit, &player, 0U, 2U, &plan));
+	unit_planner_stats(first, &first_stats);
+	assert(first_stats.worker_accepted && plan.from_worker);
+	assert(!plan.overtaking && plan.target_speed < unit.speed);
+	assert(unit_planner_pause_live(first));
+	struct UNIT_PLANNER *snapshot = unit_planner_clone_continuation(first);
+	assert(snapshot);
+	legacy_u64 saved_candidates = first_stats.live_candidates;
+	assert(unit_planner_resume_live(first));
+	player.x = UNIT_NO_PLAYER_POSITION;
+	assert(unit_planner_plan(first, &unit, &player, 0U, 3U, &plan));
+	assert(!plan.brake && !plan.from_worker && plan.target_speed > unit.speed);
+	unit_planner_stats(first, &first_stats);
+	assert(first_stats.live_candidates == saved_candidates + UNIT_PLANNER_LIVE_CANDIDATES);
+	assert(unit_planner_pause_live(first));
+	assert(unit_planner_restore_continuation(first, snapshot));
+	assert(unit_planner_resume_live(first));
+	/* Restoring request identity must also restore its completion. Otherwise
+	 * this synchronized getter waits for a duplicate batch after resume. */
+	unit_planner_stats(first, &first_stats);
+	assert(first_stats.workers == 1U && first_stats.live_candidates == saved_candidates);
+	unit_planner_destroy(snapshot);
+	unit_planner_destroy(first);
+	unit_planner_destroy(second);
+}
+#else
 static void test_worker_lifecycle(void)
 {
 	struct UNIT_ROUTE_POINT points[TEST_POINT_COUNT];
@@ -1437,6 +1525,7 @@ static void test_worker_lifecycle(void)
 	unit_planner_destroy(planner);
 }
 #endif
+#endif
 
 legacy_int main(void)
 {
@@ -1471,8 +1560,12 @@ legacy_int main(void)
 	test_swept_stunt_collision();
 	assert(crest_speed(0U) < crest_speed(1U) * 0.8);
 #ifndef RESTUNTS_UNIT_SYNC_ONLY
+#if RESTUNTS_UNIT_TEST_FIXED_WORK
+	test_fixed_startup_and_real_live_worker();
+#else
 	test_learning_worker_snapshots();
 	test_worker_lifecycle();
+#endif
 #endif
 	puts("UNIT planner tests passed");
 	return 0;

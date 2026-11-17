@@ -3,6 +3,11 @@
 
 #include "../legacy.h"
 
+/* A dedicated regression target uses fixed logical work and proposal delivery. */
+#ifndef RESTUNTS_UNIT_TEST_FIXED_WORK
+#define RESTUNTS_UNIT_TEST_FIXED_WORK 0
+#endif
+
 /* Planner coordinates are full-width world units (car_position / 64), speed
  * is mph, yaw is radians, and accelerations are mph per second. All geometry
  * and car parameters are copied: worker threads never read engine globals. */

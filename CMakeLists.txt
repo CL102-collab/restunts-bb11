@@ -241,7 +241,8 @@ set(common_sources
     opponent/unit_opponent.c opponent/unit_launch.c opponent/unit_profiles.c
     opponent/unit_learning_cache.c opponent/unit_learning_key.c
     extended/extended_unit_route.c
-    opponent/unit_planner.c opponent/unit_planner_math.c opponent/unit_planner_guidance.c
+    opponent/unit_planner.c opponent/unit_planner_workers.c
+    opponent/unit_planner_math.c opponent/unit_planner_guidance.c
     opponent/unit_planner_traffic.c
     opponent/unit_overtake.c opponent/unit_traffic.c opponent/unit_collision.c
     opponent/unit_route_graph.c extended/extended_unit_route_graph.c extended/extended_unit_penalty.c
@@ -709,16 +710,31 @@ if(RESTUNTS_BUILD_TESTS)
         string(REGEX REPLACE "^test-" "" unit_continuation_test "${unit_continuation_target}")
         add_test(NAME ${unit_continuation_test} COMMAND ${unit_continuation_target})
     endforeach()
-    foreach(unit_planner_variant threaded sync)
+    get_target_property(unit_fixed_work_sources test-unit-pilot SOURCES)
+    list(REMOVE_ITEM unit_fixed_work_sources src/restunts/tests/test-unit-pilot.c)
+    add_executable(test-unit-fixed-work src/restunts/tests/test-unit-fixed-work.c
+        ${unit_fixed_work_sources})
+    target_compile_definitions(test-unit-fixed-work PRIVATE
+        RESTUNTS_SDL3 RESTUNTS_UNIT_TEST_FIXED_WORK=1)
+    target_include_directories(test-unit-fixed-work PRIVATE
+        $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_options(test-unit-fixed-work PRIVATE -UNDEBUG)
+    target_link_libraries(test-unit-fixed-work PRIVATE m)
+    add_test(NAME unit-fixed-work COMMAND test-unit-fixed-work)
+    foreach(unit_planner_variant threaded sync fixed-work)
         add_executable(test-unit-planner-${unit_planner_variant}
             src/restunts/tests/test-unit-planner.c
-            ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_math.c
+            ${core}/opponent/unit_planner.c ${core}/opponent/unit_planner_workers.c
+            ${core}/opponent/unit_planner_math.c
             ${core}/opponent/unit_planner_traffic.c ${core}/opponent/unit_planner_guidance.c
             ${core}/opponent/unit_overtake.c)
         target_link_libraries(test-unit-planner-${unit_planner_variant} PRIVATE restunts_options)
         target_compile_options(test-unit-planner-${unit_planner_variant} PRIVATE -UNDEBUG)
         if(unit_planner_variant STREQUAL "sync")
             target_compile_definitions(test-unit-planner-sync PRIVATE RESTUNTS_UNIT_SYNC_ONLY)
+        elseif(unit_planner_variant STREQUAL "fixed-work")
+            target_compile_definitions(test-unit-planner-fixed-work PRIVATE
+                RESTUNTS_UNIT_TEST_FIXED_WORK=1)
         endif()
         add_test(NAME unit-planner-${unit_planner_variant}
             COMMAND test-unit-planner-${unit_planner_variant})
@@ -1140,19 +1156,31 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
 endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    math(EXPR restunts_unit_test_timeout
+        "180 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
+    math(EXPR restunts_unit_fixed_preparation_ms "${restunts_unit_test_timeout} * 1000 / 2")
+    set(restunts_unit_fixed_preparation_steps 1024)
+    set(unit_race_fixed_preparation_args --prepare-ms ${restunts_unit_fixed_preparation_ms}
+        --prepare-steps ${restunts_unit_fixed_preparation_steps} --prepare-until-plan)
     add_executable(test-unit-race ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c ${platform}/main.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/tests/test-unit-race.c)
-    target_compile_definitions(test-unit-race PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+    get_target_property(unit_race_sources test-unit-race SOURCES)
+    add_executable(test-unit-race-fixed-work ${unit_race_sources})
+    foreach(unit_race_target test-unit-race test-unit-race-fixed-work)
+        target_compile_definitions(${unit_race_target} PRIVATE
+            RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+        target_compile_options(${unit_race_target} PRIVATE -UNDEBUG)
+        target_link_libraries(${unit_race_target} PRIVATE restunts_options)
+    endforeach()
+    target_compile_definitions(test-unit-race-fixed-work PRIVATE RESTUNTS_UNIT_TEST_FIXED_WORK=1)
     if(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER GREATER 1)
         # Restore comparable native work per simulated frame under instrumentation.
         # Tick quotas and exact-state race-frame handoffs remain unchanged.
         target_compile_definitions(test-unit-race PRIVATE
             RESTUNTS_UNIT_WORK_TIME_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER})
     endif()
-    target_compile_options(test-unit-race PRIVATE -UNDEBUG)
-    target_link_libraries(test-unit-race PRIVATE restunts_options)
     set(unit_race_fixture "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/flat-rectangle.trk")
     math(EXPR restunts_unit_preparation_ms
         "10000 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
@@ -1162,10 +1190,16 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         # a complete clean native lap has been validated.
         list(APPEND unit_race_preparation_args --prepare-until-plan)
     endif()
-    set(unit_race_tests unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
+    set(unit_race_tests unit-fixed-work-budget
+        unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
         unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoint-human
         unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
         unit-race-glacier-human unit-race-glacier-owoot-human)
+    add_test(NAME unit-fixed-work-budget COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-preparation.py"
+        "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${unit_race_fixture}")
+    set_tests_properties(unit-fixed-work-budget PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-prepared COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK" 7
         ${unit_race_preparation_args} --planner-yield-ms 2
@@ -1177,10 +1211,10 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         ${unit_race_preparation_args} --planner-sync --frames 18000
         --verify-replay --require-finish --require-clean)
     set_tests_properties(unit-race-glacier-sync PROPERTIES RUN_SERIAL TRUE)
-    add_test(NAME unit-race-glacier-owoot-sync COMMAND test-unit-race
+    add_test(NAME unit-race-glacier-owoot-sync COMMAND test-unit-race-fixed-work
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        ${unit_race_preparation_args} --planner-sync --frames 18000 --owoot:on
+        ${unit_race_fixed_preparation_args} --planner-sync --frames 18000 --owoot:on
         --verify-replay --require-finish --require-clean)
     set_tests_properties(unit-race-glacier-owoot-sync PROPERTIES RUN_SERIAL TRUE)
     add_test(NAME unit-race-native-grid COMMAND test-unit-race
@@ -1195,10 +1229,11 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000 --human grid-then-park
         --verify-replay --require-finish --require-clean --require-worker)
     set_tests_properties(unit-race-glacier-human PROPERTIES RUN_SERIAL TRUE)
-    add_test(NAME unit-race-glacier-owoot-human COMMAND test-unit-race
+    add_test(NAME unit-race-glacier-owoot-human COMMAND test-unit-race-fixed-work
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000 --human grid-then-park --owoot:on
+        ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --frames 18000
+        --human grid-then-park --owoot:on
         --verify-replay --require-finish --require-clean --require-worker)
     set_tests_properties(unit-race-glacier-owoot-human PROPERTIES RUN_SERIAL TRUE)
     foreach(unit_regression_track branches keukenhof ninhbinh default)
@@ -1209,9 +1244,9 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/${unit_regression_track}.cstrk")
         endif()
         list(APPEND unit_race_tests unit-race-${unit_regression_track}-no-stalls)
-        add_test(NAME unit-race-${unit_regression_track}-no-stalls COMMAND test-unit-race
+        add_test(NAME unit-race-${unit_regression_track}-no-stalls COMMAND test-unit-race-fixed-work
             --data-dir "${CMAKE_SOURCE_DIR}/stunts" "${unit_regression_fixture}" 7
-            ${unit_race_preparation_args} --planner-yield-ms 2 --human grid-then-park
+            ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --human grid-then-park
             --verify-replay --require-finish --require-clean --require-no-stalls)
         set_tests_properties(unit-race-${unit_regression_track}-no-stalls PROPERTIES RUN_SERIAL TRUE)
     endforeach()
@@ -1325,8 +1360,6 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         PROPERTIES RUN_SERIAL TRUE)
     # Instrumentation slows the fixed native workload. Match the ghost tests'
     # budgets; CTest --timeout cannot override an explicit test TIMEOUT.
-    math(EXPR restunts_unit_test_timeout
-        "180 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT ${restunts_unit_test_timeout}
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     set_property(TEST ${unit_race_tests} APPEND PROPERTY ENVIRONMENT

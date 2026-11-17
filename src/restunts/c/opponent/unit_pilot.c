@@ -632,7 +632,7 @@ void unit_pilot_work(legacy_u32 maximum_ticks)
 	unit_pilot_restore_overrides();
 	for (legacy_u32 tick = 0; tick < maximum_ticks && unit_pilot_state->stats.active; tick++) {
 		unit_pilot_tick();
-		if (SDL_GetTicksNS() - start >= UNIT_PILOT_CHUNK_NS) {
+		if (!RESTUNTS_UNIT_TEST_FIXED_WORK && SDL_GetTicksNS() - start >= UNIT_PILOT_CHUNK_NS) {
 			break;
 		}
 	}
@@ -679,7 +679,8 @@ legacy_int unit_pilot_continue_work(legacy_u32 maximum_ticks)
 	for (legacy_u32 chunk = 0;
 		 chunk < UNIT_PILOT_CONTINUATION_CHUNKS && maximum_ticks && unit_pilot_state->stats.active;
 		 chunk++) {
-		if (chunk && SDL_GetTicksNS() - start >= UNIT_PILOT_CONTINUATION_NS) {
+		if (!RESTUNTS_UNIT_TEST_FIXED_WORK && chunk &&
+			SDL_GetTicksNS() - start >= UNIT_PILOT_CONTINUATION_NS) {
 			break;
 		}
 		legacy_u32 ticks =

@@ -62,6 +62,7 @@ struct UNIT_LOCAL_POINT {
 	legacy_u8 height_unspecified;
 };
 
+legacy_u32 unit_planner_available_workers(void);
 legacy_f64 unit_planner_clamp(legacy_f64 value, legacy_f64 minimum, legacy_f64 maximum);
 legacy_u8 unit_planner_clearance_corridor_blocked(const struct UNIT_ROUTE_POINT *points,
 												  legacy_u32 count,

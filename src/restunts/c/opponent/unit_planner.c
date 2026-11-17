@@ -1,6 +1,3 @@
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include "unit_planner_internal.h"
 #include "unit_shortcut.h"
 #include "unit_overtake.h"
@@ -12,13 +9,9 @@
 #if !defined(__DJGPP__) && (!defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)) &&       \
 	!defined(RESTUNTS_UNIT_SYNC_ONLY)
 #define UNIT_PLANNER_THREADS 1
-#include <SDL3/SDL_cpuinfo.h>
 #include <SDL3/SDL_mutex.h>
 #include <SDL3/SDL_thread.h>
-#if defined(__linux__) || defined(__ANDROID__)
-#include <sched.h>
-#include <stdio.h>
-#endif
+#include <SDL3/SDL_timer.h>
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/threading.h>
 #endif
@@ -56,6 +49,7 @@ struct UNIT_PLANNER {
 	legacy_u64 geometry_generation, next_sample, completed_samples;
 	legacy_u32 search_seed;
 	legacy_u32 count, worker_count, request_serial, published_serial;
+	legacy_u32 completed_request_serial;
 	legacy_u32 sync_candidate;
 	legacy_s32 requested_workers;
 	legacy_u8 owoot, startup, stopping, have_request, allow_threads, native_preview;
@@ -195,6 +189,11 @@ static legacy_int SDLCALL planner_worker(void *argument)
 	struct UNIT_WORKER *worker = argument;
 	struct UNIT_PLANNER *planner = worker->planner;
 	legacy_u32 completed_serial = 0U;
+	if (RESTUNTS_UNIT_TEST_FIXED_WORK) {
+		planner_lock(planner);
+		completed_serial = planner->completed_request_serial;
+		planner_unlock(planner);
+	}
 	for (;;) {
 		planner_lock(planner);
 		while (!planner->startup && !planner->stopping &&
@@ -222,6 +221,9 @@ static legacy_int SDLCALL planner_worker(void *argument)
 			}
 			planner_lock(planner);
 			legacy_u8 stale = planner->stopping || serial != planner->request_serial;
+			if (!stale && candidate + 1U == UNIT_PLANNER_LIVE_CANDIDATES) {
+				planner->completed_request_serial = serial;
+			}
 			planner_unlock(planner);
 			if (stale) {
 				break;
@@ -256,6 +258,9 @@ static void stop_workers(struct UNIT_PLANNER *planner)
 static void start_workers(struct UNIT_PLANNER *planner, legacy_u32 count)
 {
 #ifdef UNIT_PLANNER_THREADS
+	if (RESTUNTS_UNIT_TEST_FIXED_WORK && planner->startup) {
+		return;
+	}
 	if (!count || !planner->allow_threads) {
 		return;
 	}
@@ -293,38 +298,6 @@ static void start_workers(struct UNIT_PLANNER *planner, legacy_u32 count)
 	(void)count;
 #endif
 }
-
-#ifdef UNIT_PLANNER_THREADS
-static legacy_u32 available_workers(void)
-{
-	legacy_s32 detected = SDL_GetNumLogicalCPUCores();
-	legacy_u32 count = detected > 0 ? (legacy_u32)detected : 1U;
-#if defined(__linux__) || defined(__ANDROID__)
-	cpu_set_t affinity;
-	if (!sched_getaffinity(0, sizeof(affinity), &affinity)) {
-		legacy_u32 allowed = (legacy_u32)CPU_COUNT(&affinity);
-		if (allowed && allowed < count) {
-			count = allowed;
-		}
-	}
-	FILE *file = fopen("/sys/fs/cgroup/cpu.max", "r");
-	legacy_u64 quota = 0U, period = 0U;
-	if (file) {
-		if (fscanf(file, "%" LEGACY_PRIu64 " %" LEGACY_PRIu64, &quota, &period) != 2) {
-			quota = period = 0U;
-		}
-		fclose(file);
-	}
-	if (quota && period) {
-		legacy_u64 available = quota / period + (quota % period != 0U);
-		if (available < count) {
-			count = (legacy_u32)available;
-		}
-	}
-#endif
-	return count;
-}
-#endif
 
 static legacy_int same_route_point(const struct UNIT_ROUTE_POINT *a,
 								   const struct UNIT_ROUTE_POINT *b)
@@ -411,7 +384,8 @@ static struct UNIT_PLANNER *planner_create(const struct UNIT_ROUTE_POINT *points
 	planner->allow_threads = planner->allow_threads && emscripten_has_threading_support();
 #endif
 	if (planner->allow_threads) {
-		workers = requested_workers > 0 ? (legacy_u32)requested_workers : available_workers();
+		workers = requested_workers > 0 ? (legacy_u32)requested_workers
+										: unit_planner_available_workers();
 		if (workers > UNIT_PLANNER_MAX_WORKERS) {
 			workers = UNIT_PLANNER_MAX_WORKERS;
 		}
@@ -632,6 +606,7 @@ legacy_int unit_planner_restore_continuation(struct UNIT_PLANNER *destination,
 	destination->published_request = source->published_request;
 	destination->published = source->published;
 	destination->request_serial = source->request_serial;
+	destination->completed_request_serial = source->completed_request_serial;
 	destination->published_serial = source->published_serial;
 	destination->have_request = source->have_request;
 	destination->stats = source->stats;
@@ -714,11 +689,35 @@ void unit_planner_finish_startup(struct UNIT_PLANNER *planner)
 	start_workers(planner, 1U);
 }
 
+/* Fixed test work waits for the prior request before consuming proposals.
+ * Workers still overlap the caller's rollout and current physics step. */
+static void unit_planner_wait_fixed_work(struct UNIT_PLANNER *planner)
+{
+#ifdef UNIT_PLANNER_THREADS
+	if (!RESTUNTS_UNIT_TEST_FIXED_WORK) {
+		return;
+	}
+	for (;;) {
+		planner_lock(planner);
+		legacy_u8 pending = planner->worker_count && !planner->startup && planner->have_request &&
+							planner->completed_request_serial != planner->request_serial;
+		planner_unlock(planner);
+		if (!pending) {
+			return;
+		}
+		SDL_Delay(1U);
+	}
+#else
+	(void)planner;
+#endif
+}
+
 legacy_int unit_planner_pause_live(struct UNIT_PLANNER *planner)
 {
 	if (!planner || planner->startup) {
 		return 0;
 	}
+	unit_planner_wait_fixed_work(planner);
 	stop_workers(planner);
 	return 1;
 }
@@ -755,6 +754,7 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 		route_cursor >= planner->count) {
 		return 0;
 	}
+	unit_planner_wait_fixed_work(planner);
 	struct UNIT_REQUEST request = {0};
 	request.unit = *unit;
 	if (player) {
@@ -774,6 +774,7 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 	legacy_u8 have_published = planner->published_serial != 0U;
 	planner->request = request;
 	planner->have_request = 1U;
+	planner->completed_request_serial = 0U;
 	legacy_u32 serial = ++planner->request_serial;
 	if (!serial) {
 		serial = ++planner->request_serial;
@@ -851,6 +852,7 @@ void unit_planner_stats(struct UNIT_PLANNER *planner, struct UNIT_PLANNER_STATS 
 	}
 	memset(stats, 0, sizeof(*stats));
 	if (planner) {
+		unit_planner_wait_fixed_work(planner);
 		planner_lock(planner);
 		*stats = planner->stats;
 		planner_unlock(planner);

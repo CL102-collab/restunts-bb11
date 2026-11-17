@@ -724,7 +724,8 @@ static legacy_int unit_verified_controls(legacy_u32 frame, struct CSRPL_OPPONENT
 		for (legacy_u32 chunk = 0; chunk < UNIT_RECHECK_CHUNKS; chunk++) {
 			unit_pilot_work(UNIT_PREPARATION_NATIVE_TICKS);
 			result = unit_pilot_recheck_status(frame);
-			if (result != 0 || SDL_GetTicksNS() - begin >= UNIT_RECHECK_TIME_NS) {
+			if (result != 0 || (!RESTUNTS_UNIT_TEST_FIXED_WORK &&
+								SDL_GetTicksNS() - begin >= UNIT_RECHECK_TIME_NS)) {
 				break;
 			}
 		}
