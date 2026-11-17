@@ -57,6 +57,12 @@ runs as a separate process and remains running after the launcher closes. The
 AppImage hides the startup window and waits for the game to exit so its mounted
 assets remain available.
 
+**Widescreen**, between **Fullscreen** and **Show FPS**, starts off. It passes
+`--widescreen:on` or `--widescreen:off` to the game and is saved with the other
+settings. With HyperVision enabled, it expands racing and replay views to the
+available supported widescreen aspect ratio; menus and the intro keep their 4:3
+presentation. **HyperVision** has its own row, with its label beside the selector.
+
 In **Graphics settings**, **Show MPH (Ctrl+F9)** follows **Show FPS**. It starts
 off and selects `--showmph:on` or `--showmph:off` for the game. The display shows
 MPH at the bottom right while driving. Ctrl+F9 toggles it for the current game

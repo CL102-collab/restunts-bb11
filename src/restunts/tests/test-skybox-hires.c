@@ -12,6 +12,7 @@
 #include "../c/hires/skybox_hires.h"
 #include "../c/skybox.h"
 
+struct SPRITE drawing_sprite;
 static struct SPRITE target;
 static legacy_u8 rows[200 * 2];
 static legacy_u8 *screen;

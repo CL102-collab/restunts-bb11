@@ -17,6 +17,8 @@
 #define TEST_HIRES_HEIGHT (TEST_HEIGHT * TEST_SCALE)
 #define TEST_BYTES (TEST_WIDTH * TEST_HEIGHT)
 
+struct SPRITE drawing_sprite;
+
 struct TEST_SURFACE {
 	struct SPRITE sprite;
 	legacy_u8 lines[TEST_HEIGHT * 2];

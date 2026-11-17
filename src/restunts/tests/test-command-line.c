@@ -111,6 +111,7 @@ static void test_help_contents(void)
 		"  --mt-32-model ID",
 		"  --list-mt-32-roms DIR",
 #endif
+		"  --widescreen:on|off",
 		"  --ogg:on|off",
 #ifndef __DJGPP__
 		"  --multi-core:on|off",
@@ -196,7 +197,7 @@ static void test_help_contents(void)
 #ifdef RESTUNTS_SDL3
 	expect_text("Select classic graphics; default VGA; supply once.");
 	expect_text("Video mode starts at VGA; HyperVision always uses VGA graphics.");
-	expect_text("Video mode options are case-insensitive.");
+	expect_text("Video mode and widescreen options are case-insensitive.");
 	expect_text("use --videomode for classic graphics.");
 	expect_text("HyperVision starts off.");
 	expect_text("Ogg music starts off.");
@@ -210,6 +211,7 @@ static void test_help_contents(void)
 	assert(strstr(output, "--data-dir") == NULL);
 #endif
 	assert(strstr(output, "--videomode") == NULL);
+	assert(strstr(output, "--widescreen") == NULL);
 	assert(strstr(output, "Video mode starts") == NULL);
 	assert(strstr(output, "--ogg") == NULL);
 	assert(strstr(output, "hv:") == NULL);

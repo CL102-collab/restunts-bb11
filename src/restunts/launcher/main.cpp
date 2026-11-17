@@ -156,19 +156,23 @@ class LauncherDialog : public wxDialog
 		video_mode_->SetSelection(options_.video_mode);
 		graphics_grid->Add(video_mode_, FIXED_LAYOUT, wxEXPAND);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_FULLSCREEN);
+		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_WIDESCREEN);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_FPS);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_MPH);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_MULTI_CORE);
-		graphics_grid->Add(
+		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
+		wxBoxSizer *hypervision_row = new wxBoxSizer(wxHORIZONTAL);
+		hypervision_row->Add(
 			new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "HyperVision (F12, Shift+F12)"),
-			FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+			FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, border);
 		hypervision_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
 		for (const LauncherHyperVision &preset : launcher_hypervision_definitions) {
 			hypervision_->Append(preset.label);
 		}
 		hypervision_->SetSelection(options_.hypervision);
-		graphics_grid->Add(hypervision_, FIXED_LAYOUT, wxEXPAND);
-		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
+		hypervision_row->Add(hypervision_, GROW_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		graphics->Add(hypervision_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
+					  spacing);
 		fields->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 		add_group(content, fields, "Driving rules", LAUNCHER_POWER_GEAR, LAUNCHER_OPTION_COUNT);
 		content->SetSizer(fields);

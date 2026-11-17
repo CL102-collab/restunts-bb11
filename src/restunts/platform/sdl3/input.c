@@ -11,6 +11,7 @@
 #include "../../c/game_input.h"
 #include "../../c/fatal.h"
 #include "../../c/hires/hires.h"
+#include "../../c/hires/widescreen.h"
 #include "../../c/opponent/unit_opponent.h"
 #include <string.h>
 #ifdef __ANDROID__
@@ -1265,7 +1266,10 @@ void sdl3_input_shutdown(void)
 	driving_mode = SDL3_DRIVING_KEYBOARD;
 	gameplay_active = false;
 	replay_active = false;
-	modal_depth = 0;
+	while (modal_depth != 0) {
+		widescreen_pop_modal();
+		modal_depth--;
+	}
 	input_focused = true;
 	memset(keys, 0, sizeof(keys));
 	memset(consumed_keys, 0, sizeof(consumed_keys));
@@ -1563,7 +1567,9 @@ void sdl3_input_push_modal(void)
 	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth < LEGACY_U16_MAX) {
+		widescreen_push_modal();
 		modal_depth++;
+		sdl3_video_update_widescreen();
 	}
 	controller_menu_direction = INPUT_NONE;
 	controller_menu_repeat_at = 0;
@@ -1580,7 +1586,9 @@ void sdl3_input_pop_modal(void)
 	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth != 0) {
+		widescreen_pop_modal();
 		modal_depth--;
+		sdl3_video_update_widescreen();
 	}
 	controller_menu_direction = INPUT_NONE;
 	controller_menu_repeat_at = 0;

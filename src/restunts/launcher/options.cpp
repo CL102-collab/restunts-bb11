@@ -33,6 +33,7 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"vibration", "Controller vibration", "--controller-vibration:on", "--controller-vibration:off",
 	 true},
 	{"fullscreen", "Fullscreen (Alt+Enter)", "--fullscreen:on", "--fullscreen:off", false},
+	{"widescreen", "Widescreen", "--widescreen:on", "--widescreen:off", false},
 	{"show_fps", "Show FPS (F11)", "--fps:on", "--fps:off", false},
 	{"show_mph", "Show MPH (Ctrl+F9)", "--showmph:on", "--showmph:off", false},
 	{"multi_core", "Multi-core rendering", "--multi-core:on", "--multi-core:off", true},

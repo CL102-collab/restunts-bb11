@@ -40,6 +40,10 @@ legacy_int main()
 	check(wxString(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].label) ==
 			  "Chicane Fast-Grass",
 		  "The Chicane Fast-Grass checkbox must use its public label.");
+	check(LAUNCHER_FULLSCREEN + 1 == LAUNCHER_WIDESCREEN &&
+			  LAUNCHER_WIDESCREEN + 1 == LAUNCHER_SHOW_FPS &&
+			  wxString(launcher_option_definitions[LAUNCHER_WIDESCREEN].label) == "Widescreen",
+		  "Widescreen must appear between Fullscreen and Show FPS.");
 	check(LAUNCHER_SHOW_FPS + 1 == LAUNCHER_SHOW_MPH &&
 			  wxString(launcher_option_definitions[LAUNCHER_SHOW_MPH].label) ==
 				  "Show MPH (Ctrl+F9)",
@@ -53,6 +57,7 @@ legacy_int main()
 	check(wxString(launcher_sound_definitions[LAUNCHER_SOUND_PC_SPEAKER].label) == "PC Speaker",
 		  "The PC Speaker choice must use its public label.");
 	LauncherOptions options;
+	check(!options.enabled[LAUNCHER_WIDESCREEN], "Widescreen must default to disabled.");
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
 	check(options.video_mode == LAUNCHER_VIDEO_VGA, "Video mode must default to VGA.");
@@ -66,10 +71,11 @@ legacy_int main()
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
 	const legacy_char *defaults[] = {
-		"--soundmode:adlib", "--videomode:vga", "--ogg:off",	 "--hv:auto",
-		"--fullscreen:off",	 "--fps:off",		"--showmph:off", "--controller-vibration:on",
-		"--multi-core:on",	 "--pg:on",			"--lc:on",		 "--lcb:on",
-		"--dws:on",			 "--cfg:on"};
+		"--soundmode:adlib", "--videomode:vga",	 "--ogg:off",
+		"--hv:auto",		 "--widescreen:off", "--fullscreen:off",
+		"--fps:off",		 "--showmph:off",	 "--controller-vibration:on",
+		"--multi-core:on",	 "--pg:on",			 "--lc:on",
+		"--lcb:on",			 "--dws:on",		 "--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -84,10 +90,10 @@ legacy_int main()
 	options.hypervision = LAUNCHER_HV_OFF;
 	arguments = launcher_game_arguments(game, options);
 	const legacy_char *changed[] = {
-		"--nosound",	   "--ogg:on", "--nointro",	   "--controller-vibration:off",
-		"--fullscreen:on", "--fps:on", "--showmph:on", "--multi-core:off",
-		"--pg:off",		   "--lc:off", "--lcb:off",	   "--dws:off",
-		"--cfg:off",	   "--owoot",  "--amigagrass"};
+		"--nosound",		"--ogg:on",		   "--nointro", "--controller-vibration:off",
+		"--widescreen:on",	"--fullscreen:on", "--fps:on",	"--showmph:on",
+		"--multi-core:off", "--pg:off",		   "--lc:off",	"--lcb:off",
+		"--dws:off",		"--cfg:off",	   "--owoot",	"--amigagrass"};
 	for (const legacy_char *argument : changed) {
 		check(contains(arguments, argument), "Missing changed game argument.");
 	}
@@ -280,6 +286,7 @@ legacy_int main()
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOW_MPH].key);
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_WIDESCREEN].key);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
@@ -290,6 +297,8 @@ legacy_int main()
 		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
 	check(restored.enabled[LAUNCHER_MULTI_CORE],
 		  "Configurations without a saved multi-core setting must use the enabled default.");
+	check(!restored.enabled[LAUNCHER_WIDESCREEN],
+		  "Configurations without a saved Widescreen setting must use the disabled default.");
 	check(!restored.enabled[LAUNCHER_SHOW_MPH],
 		  "Configurations without a saved Show MPH setting must use the disabled default.");
 	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
@@ -338,7 +347,8 @@ legacy_int main()
 	check(restored.folder.empty() && restored.mt32_rom_folder.empty() &&
 			  restored.mt32_model.empty() && restored.sound_mode == LAUNCHER_SOUND_ADLIB &&
 			  !restored.enabled[LAUNCHER_NEW_MIDI] && !restored.enabled[LAUNCHER_FULLSCREEN] &&
-			  !restored.enabled[LAUNCHER_SHOW_MPH] && restored.enabled[LAUNCHER_MULTI_CORE] &&
+			  !restored.enabled[LAUNCHER_WIDESCREEN] && !restored.enabled[LAUNCHER_SHOW_MPH] &&
+			  restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO && restored.video_mode == LAUNCHER_VIDEO_VGA,
 		  "A missing configuration must restore current defaults, not previous user state.");

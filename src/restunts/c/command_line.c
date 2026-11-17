@@ -64,6 +64,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"exist." COMMAND_LINE_NEWLINE "  --list-mt-32-roms DIR  List complete ROM sets as JSON without "
 	"starting the game." COMMAND_LINE_NEWLINE
 #endif
+	"  --widescreen:on|off  Enable widescreen HyperVision races/replays; default "
+	"off." COMMAND_LINE_NEWLINE
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
@@ -145,7 +147,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
-	"Video mode options are case-insensitive." COMMAND_LINE_NEWLINE
+	"Video mode and widescreen options are case-insensitive." COMMAND_LINE_NEWLINE
 	"HyperVision presets and Ogg music options are also case-insensitive." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
 	"Multi-core rendering options are case-insensitive." COMMAND_LINE_NEWLINE

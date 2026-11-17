@@ -84,6 +84,7 @@ engine. **Sound** enabled means `/ns` is omitted.
 | MT-32 ROM directory `--mt-32-rom-dir DIR` | Read-only folder of recognized control/PCM ROMs. No ROMs are distributed. |
 | MT-32 model `--mt-32-model ID` | Optional when exactly one complete set is detected; required to disambiguate several sets. IDs come from Munt's detected compatible models. |
 | Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of PC Speaker/Ad Lib/MT-32. Off by default on all platforms; saved launcher choices take precedence. |
+| Widescreen `--widescreen:on/off` | All SDL3 builds, including Android, web and DOS32. Off by default; applies only to HyperVision races and replays. |
 | Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
 | Touch control layout `--control-layout:on/off` | Android and web. |
 | Tilt steering | Android launcher and sensor backend. |
@@ -101,6 +102,12 @@ The default is on. `--multi-core:off` disables workers, including when
 `RESTUNTS_RENDER_WORKERS` is set. With the option enabled, that environment
 variable can select a background worker count for measurements. Launchers
 preserve saved choices. Physics and replay data are independent of this setting.
+
+Widescreen names and values are case-insensitive. Supply the option once; invalid
+values or repeated options report an error before starting the game. The widest
+supported aspect fitting the current window/display is selected: 16:9, 16:10 or
+3:2, otherwise 4:3. Menus, intro and classic rendering remain 4:3. See the
+[widescreen resolution table](../readme.md#hypervision-and-fps-display).
 
 Desktop fullscreen names and values are case-insensitive. Supply this option
 once; unknown values and repeated options report an error before creating the

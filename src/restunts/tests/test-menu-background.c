@@ -40,6 +40,8 @@
 static legacy_u8 rows[TEST_HEIGHT * LEGACY_WORD_BYTES];
 static legacy_u8 *screen;
 static legacy_u32 palette[TEST_COLOR_COUNT];
+struct SPRITE drawing_sprite;
+
 static struct SPRITE target;
 static struct SHAPE2D original;
 static legacy_u8 overlay_bytes[SHAPE2D_HEADER_SIZE + TEST_MASK_WIDTH * TEST_MASK_HEIGHT];

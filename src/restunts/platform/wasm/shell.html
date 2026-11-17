@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Chocolate Stunts</title>
     <style>
-        :root { --game-width: 960px; --hotkeys-width: 320px; --layout-gap: 24px; --page-padding: 16px; color-scheme: dark; font-family: system-ui, sans-serif; background: #121820; color: #eef3fa; }
+        :root { --game-aspect-ratio: 4 / 3; --game-width: 960px; --hotkeys-width: 320px; --layout-gap: 24px; --page-padding: 16px; color-scheme: dark; font-family: system-ui, sans-serif; background: #121820; color: #eef3fa; }
         body { max-width: var(--game-width); margin: 24px auto; padding: 0 var(--page-padding); }
         main { min-width: 0; }
         .hotkeys { margin-top: var(--layout-gap); }
@@ -37,9 +37,9 @@
         button, .file-label { font: inherit; border: 1px solid #63748a; border-radius: 6px; padding: 8px 14px; background: #243246; color: inherit; cursor: pointer; }
         button:disabled { opacity: .5; cursor: default; }
         #start { background: #145b99; }
-        canvas { display: block; width: 100%; aspect-ratio: 4 / 3; background: #000; image-rendering: pixelated; outline-offset: 4px; touch-action: none; user-select: none; }
-        /* SDL resizes the fullscreen canvas to the viewport and draws its own 4:3
-           game area, leaving the side gutters available to the native controls. */
+        canvas { display: block; width: 100%; aspect-ratio: var(--game-aspect-ratio); background: #000; image-rendering: pixelated; outline-offset: 4px; touch-action: none; user-select: none; }
+        /* SDL resizes the fullscreen canvas to the viewport and chooses the game
+           area, including the 4:3 borders outside widescreen races. */
         canvas:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; object-fit: fill; }
         #status { min-height: 1.5em; }
         #load-progress { height: 18px; margin: -4px 0 16px; overflow: hidden; border: 1px solid #6b3e26; border-radius: 4px; background: #243246; }
@@ -129,10 +129,13 @@
                     <option value="tandy">Tandy</option>
                 </select></label>
                 <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
+                <label><input id="widescreen" type="checkbox" disabled> Widescreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
                 <label><input id="show-mph" type="checkbox" disabled> Show MPH (Ctrl+F9)</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
+            </div>
+            <div class="settings-row hypervision-row">
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
                     <option value="off">Off</option>
                     <option value="auto" selected>Auto</option>
@@ -310,10 +313,14 @@
         const FOLDER_STORE = 'folders';
         const ROM_FOLDER_STORE = 'mt32-rom-folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen',
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen',
             'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
+        const CLASSIC_DISPLAY_ASPECT = { width: 4, height: 3 };
+        const WIDESCREEN_DISPLAY_ASPECTS = [
+            { width: 16, height: 9 }, { width: 16, height: 10 }, { width: 3, height: 2 }
+        ];
 
         function validFilename(name, extensions) {
             if (typeof name !== 'string') return false;
@@ -373,6 +380,7 @@
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
         const hyperVision = document.getElementById('hypervision');
+        const widescreen = document.getElementById('widescreen');
         const videoMode = document.getElementById('video-mode');
         const soundMode = document.getElementById('sound-mode');
         const mt32Settings = document.getElementById('mt32-settings');
@@ -453,6 +461,24 @@
                 multiCore.checked = false;
                 multiCore.disabled = true;
             }
+        }
+
+        function updateCanvasAspect() {
+            // Match the landscape display before fullscreen, including phones
+            // whose launcher is currently in portrait orientation.
+            const width = window.screen?.width || innerWidth;
+            const height = window.screen?.height || innerHeight;
+            const displayWidth = Math.max(width, height);
+            const displayHeight = Math.min(width, height);
+            const aspect = widescreen.checked ? WIDESCREEN_DISPLAY_ASPECTS.find(candidate =>
+                displayWidth * candidate.height >= displayHeight * candidate.width) || CLASSIC_DISPLAY_ASPECT :
+                CLASSIC_DISPLAY_ASPECT;
+            const value = aspect.width + ' / ' + aspect.height;
+            const style = document.documentElement.style;
+            if (style.getPropertyValue('--game-aspect-ratio') === value) return;
+            style.setProperty('--game-aspect-ratio', value);
+            // SDL tracks CSS canvas dimensions separately from framebuffer size.
+            window.dispatchEvent(new Event('resize'));
         }
 
         function fail(error) {
@@ -624,6 +650,7 @@
                 }
             }
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
+            args.push(widescreen.checked ? '--widescreen:on' : '--widescreen:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(document.getElementById('show-mph').checked ? '--showmph:on' : '--showmph:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
@@ -1183,6 +1210,8 @@
                 }
             } catch (error) {
                 log('Remembered launch options unavailable: ' + error.message);
+            } finally {
+                updateCanvasAspect();
             }
         }
 
@@ -1210,9 +1239,12 @@
                         }
                     }
                 }
+                if (option === widescreen) updateCanvasAspect();
                 await rememberLaunchOptions();
             });
         }
+        window.addEventListener('resize', updateCanvasAspect);
+        window.screen?.orientation?.addEventListener?.('change', updateCanvasAspect);
 
         function showFolderError(error, prefix) {
             status.textContent = error.name === 'AbortError' ? 'Folder selection cancelled.' :

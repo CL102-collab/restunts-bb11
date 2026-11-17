@@ -46,6 +46,18 @@ legacy_s16 dos_write_stderr(const legacy_s8 *text, legacy_u16 length)
 #ifdef RESTUNTS_SDL3
 legacy_u8 renderer_active;
 static legacy_s32 startup_render_enabled;
+static legacy_s32 startup_widescreen_enabled;
+static legacy_u32 startup_widescreen_calls;
+static legacy_u32 startup_widescreen_before_video_calls;
+
+void widescreen_set_enabled(legacy_s32 enabled)
+{
+	assert(enabled == 0 || enabled == 1);
+	startup_widescreen_enabled = enabled;
+	startup_widescreen_before_video_calls = startup_video_calls;
+	++startup_widescreen_calls;
+}
+
 static legacy_s32 startup_render_scale = HIRES_SCALE;
 static legacy_u16 expected_hypervision_preset;
 static legacy_u8 expected_hypervision_enabled;
@@ -252,6 +264,7 @@ void dos_video_set_mode_13h(void)
 {
 #ifdef RESTUNTS_SDL3
 	assert(startup_video_mode_before_video_calls == startup_video_calls);
+	assert(startup_widescreen_before_video_calls == startup_video_calls);
 #endif
 #ifdef STARTUP_FULLSCREEN_PREFIX
 	assert(startup_fullscreen_before_video_calls == startup_video_calls);
@@ -833,6 +846,8 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	reset_startup_hypervision();
 #ifdef RESTUNTS_SDL3
 	legacy_u32 before_video_mode_calls = startup_video_mode_set_calls;
+	legacy_u32 before_widescreen_calls = startup_widescreen_calls;
+	legacy_s32 before_widescreen_enabled = startup_widescreen_enabled;
 	legacy_u8 before_video_mode = startup_video_mode;
 #endif
 #ifdef STARTUP_MULTI_CORE_PREFIX
@@ -862,6 +877,8 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(startup_render_enabled == 0 && renderer_active == 0);
 	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
 	assert(startup_video_mode_set_calls == before_video_mode_calls);
+	assert(startup_widescreen_calls == before_widescreen_calls);
+	assert(startup_widescreen_enabled == before_widescreen_enabled);
 	assert(startup_video_mode == before_video_mode);
 #endif
 	assert(timer_calls == 0);
@@ -1297,6 +1314,45 @@ static void test_startup_video_mode_options(void)
 #endif
 }
 
+static void test_startup_widescreen_options(void)
+{
+#ifdef RESTUNTS_SDL3
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 enabled;
+	} cases[] = {{"--widescreen:on", 1},
+				 {"--widescreen:off", 0},
+				 {"--WIDESCREEN:On", 1},
+				 {"--WiDeScReEn:OfF", 0}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		legacy_u32 before = startup_widescreen_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_widescreen_calls == before + 1U);
+		assert(startup_widescreen_enabled == cases[index].enabled);
+		assert(startup_options.widescreen_specified != 0);
+	}
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_widescreen_enabled = 1;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_widescreen_enabled == 0 && startup_options.widescreen_specified == 0);
+	static const legacy_s8 *invalid[] = {"--widescreen:", "--widescreen:auto", "--widescreen:1"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); first++) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); second++) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+#endif
+}
+
 static void test_startup_fullscreen_options(void)
 {
 #ifdef STARTUP_FULLSCREEN_PREFIX
@@ -1699,6 +1755,7 @@ int main(void)
 	test_startup_multi_core_options();
 	test_startup_video_mode_options();
 	test_startup_fullscreen_options();
+	test_startup_widescreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");
 	return 0;

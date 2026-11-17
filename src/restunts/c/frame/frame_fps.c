@@ -1,4 +1,7 @@
 #include "frame_fps.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 #include "../video/video_color.h"
 #include "frame_internal.h"
 #include "../renderer/frame_overlay.h"
@@ -210,6 +213,9 @@ struct RECTANGLE *frame_fps_draw_text(void)
 
 	static struct RECTANGLE bounds;
 	bounds = empty_rect;
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_LEFT);
+#endif
 	if (fps_display_enabled != 0) {
 		legacy_s8 text[FPS_TEXT_BUFFER_SIZE];
 		legacy_u16 count = frame_fps_format_number(text, fps_sample_value);
@@ -222,6 +228,9 @@ struct RECTANGLE *frame_fps_draw_text(void)
 #endif
 	}
 	rect_union(&bounds, frame_renderer_status_draw_text(), &bounds);
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
+#endif
 	return &bounds;
 }
 

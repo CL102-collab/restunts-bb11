@@ -1,5 +1,8 @@
 #include "frame_render_private.h"
 #include "../video/video_color.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 
 const struct GAMESTATE *frame_state = &state;
 
@@ -428,11 +431,29 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
 	shape3d_render_queued_primitives();
 	frame_draw_explosions(cars, cliprect);
-	frame_draw_cockpit_effects(cliprect);
+	struct RECTANGLE cockpit_clip = *cliprect;
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		cockpit_clip.left = 0;
+		cockpit_clip.right = FRAME_SCREEN_WIDTH;
+		cockpit_clip.top = roofbmpheight_copy;
+		cockpit_clip.bottom = dashbmp_y_copy;
+	}
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
+	frame_draw_cockpit_effects(&cockpit_clip);
 	/* Cockpit trim covers scene effects, while the timer and race messages
 	 * remain above every custom upper-dashboard silhouette. */
-	frame_draw_dashboard_top(cliprect);
+	frame_draw_dashboard_top(&cockpit_clip);
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, 0, VIDEO_FRAMEBUFFER_HEIGHT);
+	}
+#endif
 	frame_draw_elapsed_time();
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
+#endif
 	frame_finish(buffer_index, cliprect, skybox_requires_full_redraw, camera.yaw);
 	polyinfo_set_expanded(0);
 }

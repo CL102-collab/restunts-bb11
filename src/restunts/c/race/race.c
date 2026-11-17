@@ -1,4 +1,8 @@
 #include "race_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#include "../math/projection.h"
+#endif
 #include "../video/video_color.h"
 #include "../extended/extended_replay_ui.h"
 #ifdef RESTUNTS_AMIGA_TRACE
@@ -215,13 +219,21 @@ void race_update_dashboard_layout(legacy_s16 rewind_active)
 
 void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_active)
 {
+	legacy_s16 renderer_changed = race_renderer_viewport_changed(&cache->renderer_viewport);
+#ifdef RESTUNTS_SDL3
+	legacy_s16 widescreen_changed =
+		widescreen_active() || cache->renderer_viewport.widescreen_active;
+#endif
 	if (game_replay_mode != game_replay_mode_copy || dashb_toggle != dashb_toggle_copy ||
 		replaybar_toggle != replaybar_toggle_copy || is_in_replay != is_in_replay_copy ||
-		followOpponentFlag != followOpponentFlag_copy ||
-		race_renderer_viewport_changed(&cache->renderer_viewport) != 0) {
+		followOpponentFlag != followOpponentFlag_copy || renderer_changed != 0) {
 		race_renderer_cache_viewport(&cache->renderer_viewport);
 		race_update_dashboard_layout(rewind_active);
-		if (cache->roof_height != roofbmpheight_copy || dashbmp_y_copy != viewport_bottom_cache ||
+		if (
+#ifdef RESTUNTS_SDL3
+			widescreen_changed != 0 ||
+#endif
+			cache->roof_height != roofbmpheight_copy || dashbmp_y_copy != viewport_bottom_cache ||
 			cache->dashboard_bottom != height_above_replaybar) {
 			full_redraw_frames_remaining = video_page_count;
 			set_projection(RACE_PROJECTION_HORIZONTAL_SCALE,
@@ -229,6 +241,30 @@ void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_a
 						   RACE_SCREEN_WIDTH, dashbmp_y_copy);
 			rect_windshield.top = roofbmpheight_copy;
 			rect_windshield.bottom = dashbmp_y_copy;
+#ifdef RESTUNTS_SDL3
+			if (widescreen_changed != 0) {
+				rect_windshield.left = 0;
+				rect_windshield.right = RACE_SCREEN_WIDTH;
+			}
+			if (widescreen_active()) {
+				legacy_s32 width = widescreen_logical_width();
+				legacy_s32 height = widescreen_logical_height();
+				/* Preserve the original vertical framing and pixel proportions while
+				 * exposing the additional world beside the centered cockpit. */
+				projection_focal_length_x =
+					(legacy_u16)((legacy_s32)projection_focal_length_x * height /
+								 WIDESCREEN_CLASSIC_PRESENTATION_HEIGHT);
+				projection_focal_length_y = (legacy_u16)((legacy_s32)projection_focal_length_y *
+														 height / RACE_SCREEN_HEIGHT);
+				projection_center_x = (legacy_u16)(width / 2);
+				projection_center_y =
+					(legacy_u16)((legacy_s32)projection_center_y * height / RACE_SCREEN_HEIGHT);
+				rect_windshield.left = 0;
+				rect_windshield.right = (legacy_s16)width;
+				rect_windshield.top = 0;
+				rect_windshield.bottom = (legacy_s16)height;
+			}
+#endif
 			cache->roof_height = roofbmpheight_copy;
 			viewport_bottom_cache = dashbmp_y_copy;
 			cache->dashboard_bottom = height_above_replaybar;
@@ -428,6 +464,11 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		}
 #ifdef RESTUNTS_SDL3
 		race_hires_presentation_sync(rewind.active);
+		if (widescreen_active() && race_renderer_viewport_changed(&cache->renderer_viewport) != 0) {
+			/* Interpolated presentations can run while waiting for the next physics
+			 * frame. Apply resized output dimensions before those draws too. */
+			race_update_viewport(cache, rewind.active);
+		}
 #endif
 		if (race_frame_is_ready(&last_processed_frame) == 0) {
 #ifdef RESTUNTS_SDL3
@@ -550,6 +591,9 @@ static void race_release_resources(void)
 	is_in_replay = 1;
 	audio_carstate();
 	audio_remove_driver_timer();
+#ifdef RESTUNTS_SDL3
+	race_hires_presentation_finish();
+#endif
 	race_finish_opponent();
 #ifdef RESTUNTS_SDL3
 	unit_opponent_stop();
@@ -560,9 +604,6 @@ static void race_release_resources(void)
 	mouse_minmax_position(0);
 	remove_frame_callback();
 	free_player_cars();
-#ifdef RESTUNTS_SDL3
-	race_hires_presentation_finish();
-#endif
 }
 
 void run_game(void)

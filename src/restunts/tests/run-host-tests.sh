@@ -119,7 +119,7 @@ small_source_companions() {
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
         math.c) printf '%s\n' math/math_rectangles.c ;;
         shape3d_hires.c) printf '%s\n' hires/shape3d_hires_draw.c hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c ;;
-        hires.c) printf '%s\n' hires/hires_raster.c ;;
+        hires.c) printf '%s\n' hires/hires_raster.c hires/widescreen.c ;;
         shape2d.c) printf '%s\n' shape2d/shape2d_image.c ;;
         shape2d_blit.c) printf '%s\n' shape2d/shape2d_window.c ;;
         trackobj.c) printf '%s\n' track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c ;;
@@ -461,6 +461,9 @@ run_host_test test-frame-overlay frame/frame_overlay.c -DRESTUNTS_SDL3 \
     "$test_source_dir/data/full_data.c" "$test_source_dir/headless/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-frame-adaptive hires/frame_adaptive.c
+run_host_test test-widescreen hires/widescreen.c \
+    "$test_source_dir/hires/hires.c" "$test_source_dir/../platform/sdl3/memory.c" \
+    -DRESTUNTS_SDL3
 run_host_test test-frame-interpolation hires/frame_interpolation.c
 run_host_test test-intro-preview intro_render.c \
     "$test_source_dir/track/track_preview.c" "$test_source_dir/data/full_data.c" \

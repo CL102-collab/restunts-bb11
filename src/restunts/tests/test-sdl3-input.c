@@ -102,6 +102,11 @@ const legacy_u8 *video_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, l
 	return high_resolution_active ? high_resolution_framebuffer : legacy;
 }
 
+const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
+{
+	return high_resolution_active ? video_framebuffer(legacy, width, height) : NULL;
+}
+
 void video_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 								 legacy_u32 *destination, legacy_s32 pitch)
 {
@@ -124,6 +129,8 @@ legacy_u32 hires_generation(void)
 {
 	return frame_generation;
 }
+
+struct SPRITE drawing_sprite;
 
 legacy_s32 hires_enabled(void)
 {
@@ -151,6 +158,13 @@ void *dos_memory_make_pointer(legacy_u16 segment, legacy_u16 offset)
 {
 	assert(segment == 0xA000U);
 	return framebuffer + offset;
+}
+
+legacy_u16 dos_memory_pointer_segment(const void *pointer)
+{
+	assert((const legacy_u8 *)pointer >= framebuffer &&
+		   (const legacy_u8 *)pointer < framebuffer + sizeof(framebuffer));
+	return 0xA000U;
 }
 
 void dos_process_exit(legacy_s16 status)

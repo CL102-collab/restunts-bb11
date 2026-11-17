@@ -68,6 +68,50 @@ legacy_u8 renderer_active;
 legacy_u8 mph_display_enabled;
 
 #ifdef RESTUNTS_SDL3
+static legacy_u8 widescreen_test_enabled, widescreen_test_racing;
+static legacy_s32 widescreen_test_width = 1280, widescreen_test_height = 720;
+void widescreen_set_racing(legacy_s32 racing)
+{
+	widescreen_test_racing = racing != 0;
+}
+legacy_s32 widescreen_active(void)
+{
+	return widescreen_test_enabled && widescreen_test_racing && renderer_active;
+}
+legacy_s32 widescreen_render_width(void)
+{
+	return widescreen_active() ? widescreen_test_width : HIRES_WIDTH;
+}
+legacy_s32 widescreen_render_height(void)
+{
+	return widescreen_active() ? widescreen_test_height : HIRES_HEIGHT;
+}
+legacy_s32 widescreen_logical_width(void)
+{
+	return widescreen_render_width() / HIRES_SCALE;
+}
+legacy_s32 widescreen_logical_height(void)
+{
+	return widescreen_render_height() / HIRES_SCALE;
+}
+legacy_u32 widescreen_generation(void)
+{
+	return 0;
+}
+void widescreen_begin_frame(void)
+{
+}
+void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
+{
+	(void)overlay;
+}
+void widescreen_overlay_end(void)
+{
+}
+void sdl3_video_update_widescreen(void)
+{
+}
+
 #define TEST_GHOST_DISTANCE_PER_FRAME 100L
 #define TEST_REWIND_TOUCH_TRANSITIONS 2U
 
@@ -198,6 +242,14 @@ static void assert_render_scale_before_drawing(void)
 legacy_s32 hires_render_scale(void)
 {
 	return test_render_scale;
+}
+legacy_s32 hires_render_width(void)
+{
+	return widescreen_render_width() * test_render_scale / HIRES_SCALE;
+}
+legacy_s32 hires_render_height(void)
+{
+	return widescreen_render_height() * test_render_scale / HIRES_SCALE;
 }
 
 void hires_set_render_scale(legacy_s32 scale)
@@ -534,6 +586,12 @@ void set_projection(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 hei
 	trace(y);
 	trace(width);
 	trace(height);
+#ifdef RESTUNTS_SDL3
+	projection_focal_length_x = 400;
+	projection_focal_length_y = 300;
+	projection_center_x = (legacy_u16)(width / 2);
+	projection_center_y = (legacy_u16)(height / 2);
+#endif
 }
 void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16 top,
 								   legacy_u16 bottom)
@@ -1603,6 +1661,48 @@ static void test_ghost_interpolation_timestamps(void)
 
 #endif
 
+#ifdef RESTUNTS_SDL3
+static void test_widescreen_racing_viewport(void)
+{
+	enum { TEST_WIDE_WIDTH = 320, TEST_WIDE_HEIGHT = 180, TEST_WIDE_DASHBOARD_TOP = 140 };
+	struct RACE_VIEWPORT_CACHE cache = {0};
+	cache.roof_height = cache.dashboard_bottom = -1;
+	viewport_bottom_cache = -1;
+	game_replay_mode = REPLAY_MODE_LIVE;
+	game_replay_mode_copy = -1;
+	idle_expired = 0;
+	dashb_toggle = 1;
+	followOpponentFlag = 0;
+	dashbmp_y = TEST_WIDE_DASHBOARD_TOP;
+	roofbmpheight = 12;
+	renderer_active = 1;
+	widescreen_test_enabled = 1;
+	race_hires_presentation_initialize();
+	assert(widescreen_active());
+	race_update_viewport(&cache, 0);
+	assert(rect_windshield.left == 0 && rect_windshield.right == TEST_WIDE_WIDTH);
+	assert(rect_windshield.top == 0 && rect_windshield.bottom == TEST_WIDE_HEIGHT);
+	assert(projection_focal_length_x == 300 && projection_focal_length_y == 270);
+	assert(projection_center_x == TEST_WIDE_WIDTH / 2);
+	assert(projection_center_y ==
+		   TEST_WIDE_DASHBOARD_TOP / 2 * TEST_WIDE_HEIGHT / RACE_SCREEN_HEIGHT);
+	/* Disabling HyperVision returns both projection and bounds to their legacy layout. */
+	renderer_active = 0;
+	race_update_viewport(&cache, 0);
+	assert(rect_windshield.right == RACE_SCREEN_WIDTH);
+	assert(rect_windshield.top == roofbmpheight && rect_windshield.bottom == dashbmp_y);
+	renderer_active = 1;
+	race_hires_presentation_finish();
+	assert(!widescreen_active() && widescreen_test_racing == 0);
+	/* Attract-mode driving uses the same race loop without becoming widescreen. */
+	idle_expired = 1;
+	race_hires_presentation_initialize();
+	assert(!widescreen_active());
+	widescreen_test_enabled = 0;
+	idle_expired = 0;
+}
+#endif
+
 int main(void)
 {
 #ifdef RESTUNTS_SDL3
@@ -1688,6 +1788,7 @@ int main(void)
 	test_interpolation_resets();
 	test_ghost_waits_for_race_start();
 	test_ghost_interpolation_timestamps();
+	test_widescreen_racing_viewport();
 #endif
 	return 0;
 }

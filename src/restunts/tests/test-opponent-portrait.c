@@ -11,6 +11,7 @@
 
 static legacy_u8 rows[400];
 static legacy_u8 original_bytes[SHAPE2D_HEADER_SIZE + 80 * 83];
+struct SPRITE drawing_sprite;
 static struct SPRITE target;
 static legacy_u8 *screen;
 static legacy_u32 palette[256];

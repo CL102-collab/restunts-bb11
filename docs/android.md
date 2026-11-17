@@ -93,7 +93,8 @@ PC music/effects as PCM through the normal audio output; it requires no ROMs
 or extra dependency installation. Tandy plays the original TD instruments as
 PCM and requires no ROM files. Selecting No sound passes `--nosound`, and
 selecting Skip intro passes `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
-**Graphics settings** group contains **Show FPS** for the FPS/render-time display,
+**Graphics settings** group starts with **Widescreen** (off by default), followed
+by **Show FPS** for the FPS/render-time display,
 followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,
 **Show Control Layout** for the touch circles, **Multi-core rendering**
 (`--multi-core:on/off`, initially on unless a saved choice overrides it),
@@ -103,7 +104,7 @@ Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group
 places its controls side by side and wraps onto additional rows on smaller
 screens, keeping every option visible without horizontal scrolling. The
-HyperVision label and selector stay grouped; the label moves above the selector
+HyperVision label and selector share their own horizontal row; other settings wrap
 when needed. Start game applies all selections and remembers them for later
 launches. Show MPH starts off and passes `--showmph:on` or `--showmph:off`.
 With a keyboard, Ctrl+F9 toggles it for the current session without changing

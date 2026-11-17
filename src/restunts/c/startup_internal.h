@@ -24,6 +24,7 @@
 #define STARTUP_SOUND_MODE_PREFIX "--soundmode:"
 #ifdef RESTUNTS_SDL3
 #define STARTUP_VIDEO_MODE_PREFIX "--videomode:"
+#define STARTUP_WIDESCREEN_PREFIX "--widescreen:"
 #endif
 #define STARTUP_SOUND_ADLIB 0U
 #define STARTUP_SOUND_MT32 1U
@@ -66,6 +67,8 @@ struct STARTUP_OPTIONS {
 	legacy_u8 mph_display_enabled;
 	legacy_u8 mph_display_specified;
 #ifdef RESTUNTS_SDL3
+	legacy_u8 widescreen_enabled;
+	legacy_u8 widescreen_specified;
 	legacy_u8 video_mode;
 	legacy_u8 video_mode_specified;
 	legacy_u8 sound_mode;

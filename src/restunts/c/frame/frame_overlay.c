@@ -1,4 +1,7 @@
 #include "frame_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 #include "frame_fps.h"
 #include "../game_input.h"
 #include "../ui/ui_text.h"
@@ -235,8 +238,15 @@ static void draw_replay_text(legacy_s8 *text, legacy_s16 y)
 {
 	legacy_s16 x = LEGACY_S16_WRAP_SUB(
 		REPLAY_TEXT_RIGHT_X, LEGACY_U16_WRAP_MUL(strlen(text), REPLAY_TEXT_CHARACTER_WIDTH));
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_RIGHT);
+#endif
 	rect_union(&rect_ingame_text, intro_draw_text(text, x, y, VIDEO_UI_COLOR(dialog_fnt_colour), 0),
 			   &rect_ingame_text);
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
 }
 
 static legacy_s16 draw_replay_filename(legacy_u16 reserved_characters)
@@ -260,7 +270,7 @@ static legacy_s16 draw_replay_filename(legacy_u16 reserved_characters)
 	return y;
 }
 
-struct RECTANGLE *draw_ingame_text(void)
+static struct RECTANGLE *draw_ingame_text_content(void)
 {
 	rect_ingame_text = empty_rect;
 	legacy_u16 fps_characters = frame_fps_prepare_text();
@@ -303,4 +313,16 @@ struct RECTANGLE *draw_ingame_text(void)
 
 	draw_ingame_route_information();
 	return &rect_ingame_text;
+}
+
+struct RECTANGLE *draw_ingame_text(void)
+{
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
+	struct RECTANGLE *bounds = draw_ingame_text_content();
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
+#endif
+	return bounds;
 }

@@ -76,6 +76,23 @@ void hires_frame_extended_ground_cache_release(struct FRAME_HIRES_GROUND_CACHE_P
 struct TRACKOBJECT trkObjectList[215];
 legacy_s16 camera_track_height_offset;
 legacy_u8 renderer_active;
+#ifdef RESTUNTS_SDL3
+#include "../c/hires/widescreen.h"
+static legacy_u8 widescreen_test_active;
+static enum WIDESCREEN_OVERLAY widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
+legacy_s32 widescreen_active(void)
+{
+	return widescreen_test_active;
+}
+void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
+{
+	widescreen_test_overlay = overlay;
+}
+void widescreen_overlay_end(void)
+{
+	widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
+}
+#endif
 
 static legacy_u64 trace_hash = UINT64_C(1469598103934665603);
 static legacy_s16 fixture_plane_distance;

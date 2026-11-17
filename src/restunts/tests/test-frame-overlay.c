@@ -29,6 +29,23 @@ legacy_s16 legacy_render_player_headings_active;
 legacy_u8 fps_display_enabled;
 legacy_u8 mph_display_enabled;
 legacy_u8 renderer_active;
+#ifdef RESTUNTS_SDL3
+#include "../c/hires/widescreen.h"
+static legacy_u8 widescreen_test_active;
+static enum WIDESCREEN_OVERLAY widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
+legacy_s32 widescreen_active(void)
+{
+	return widescreen_test_active;
+}
+void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
+{
+	widescreen_test_overlay = overlay;
+}
+void widescreen_overlay_end(void)
+{
+	widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
+}
+#endif
 static legacy_u32 realtime_ticks;
 
 legacy_u32 dos_timer_get_realtime_counter(void)
@@ -50,6 +67,9 @@ struct TEXT_DRAW {
 	legacy_s16 y;
 	legacy_s16 color;
 	legacy_s16 shadow_color;
+#ifdef RESTUNTS_SDL3
+	enum WIDESCREEN_OVERLAY overlay;
+#endif
 };
 
 enum {
@@ -505,6 +525,9 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 	draw->y = y;
 	draw->color = color;
 	draw->shadow_color = shadow_color;
+#ifdef RESTUNTS_SDL3
+	draw->overlay = widescreen_test_overlay;
+#endif
 	/* Include the actual glyph advances and the shadow's extra pixel. */
 	text_bounds.left = x;
 	text_bounds.right = x + font_text_width(text) + OPPONENT_TEST_TEXT_SHADOW_HEIGHT;
@@ -2090,6 +2113,22 @@ static void test_mph_overlay(void)
 			mph_test_select_target(COMPOSITION_TEST_FIRST_PAGE);
 			text_draw_count = 0;
 			frame_mph_draw_text(COMPOSITION_TEST_HEIGHT);
+#ifdef RESTUNTS_SDL3
+			/* Wide HUD layers are rebuilt independently, so old digit backgrounds
+			 * must not be captured or restored into the scene framebuffer. */
+			widescreen_test_active = 1;
+			legacy_u16 wide_captures = mph_capture_count;
+			legacy_u16 wide_restores = mph_restore_count;
+			frame_mph_restore_text();
+			text_draw_count = 0;
+			frame_mph_draw_text(COMPOSITION_TEST_HEIGHT);
+			assert(text_draw_count == 1);
+			assert(text_draws[0].overlay == WIDESCREEN_OVERLAY_RIGHT);
+			assert(mph_capture_count == wide_captures && mph_restore_count == wide_restores);
+			frame_mph_restore_text();
+			assert(mph_restore_count == wide_restores);
+			widescreen_test_active = 0;
+#endif
 			frame_mph_shutdown();
 			assert(mph_allocation_count == 0 && mph_free_count == video_page_count);
 			composition.active = 0;
@@ -2098,6 +2137,31 @@ static void test_mph_overlay(void)
 	}
 	reset_status_text();
 }
+
+#ifdef RESTUNTS_SDL3
+static void test_widescreen_text_anchors(void)
+{
+	reset_ingame_text("WIDE.TRK");
+	widescreen_test_active = 1;
+	fps_display_enabled = FRAME_FPS_DISPLAY_ON;
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	state.game_frame = 0;
+	draw_ingame_text();
+	assert(text_draw_count >= 2);
+	for (legacy_u16 index = 0; index < text_draw_count; index++) {
+		assert(text_draws[index].overlay == WIDESCREEN_OVERLAY_RIGHT);
+	}
+	text_draw_count = 0;
+	frame_fps_draw_text();
+	assert(text_draw_count == DIAGNOSTIC_TEST_LINE_COUNT);
+	for (legacy_u16 index = 0; index < text_draw_count; index++) {
+		assert(text_draws[index].overlay == WIDESCREEN_OVERLAY_LEFT);
+	}
+	assert(widescreen_test_overlay == WIDESCREEN_OVERLAY_COUNT);
+	widescreen_test_active = 0;
+	reset_status_text();
+}
+#endif
 
 legacy_int main(void)
 {
@@ -2134,6 +2198,7 @@ legacy_int main(void)
 	test_status_only_preserves_diagnostics();
 #ifdef RESTUNTS_SDL3
 	test_render_timing();
+	test_widescreen_text_anchors();
 #endif
 	return 0;
 }

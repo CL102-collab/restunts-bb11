@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
 #include "renderer/settings.h"
+#include "hires/widescreen.h"
 #ifndef __DJGPP__
 #include "hires/render_workers.h"
 #endif
@@ -274,6 +275,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	options->mph_display_specified = 0;
 #ifdef RESTUNTS_SDL3
+	options->widescreen_enabled = 0;
+	options->widescreen_specified = 0;
 	options->video_mode = SDL3_VIDEO_MODE_VGA;
 	options->video_mode_specified = 0;
 	options->sound_mode = STARTUP_SOUND_ADLIB;
@@ -312,6 +315,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 			continue;
 		}
 		hires_settings_parse_startup(argv[i], options);
+		startup_parse_boolean(argv[i], STARTUP_WIDESCREEN_PREFIX, "Widescreen",
+							  &options->widescreen_enabled, &options->widescreen_specified);
 #ifndef __DJGPP__
 		startup_parse_boolean(argv[i], STARTUP_MULTI_CORE_PREFIX, "Multi-core rendering",
 							  &options->multi_core_enabled, &options->multi_core_specified);
@@ -459,6 +464,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	mph_display_enabled = startup_options.mph_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+	widescreen_set_enabled(startup_options.widescreen_enabled);
 	sdl3_video_set_startup_mode(startup_options.video_mode);
 #ifndef __DJGPP__
 	hires_render_workers_set_enabled(startup_options.multi_core_enabled);

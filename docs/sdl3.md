@@ -338,6 +338,9 @@ that can display it with the original 4:3 aspect ratio (normally 1280x1024,
 with a 1280x960 image and black borders). Indexed modes are preferred; true-colour
 VESA modes are supported too. If no sufficiently large mode is available, SDL
 scales the 1280x800 rendering to the largest available viewport and logs a warning.
+With `--widescreen:on`, HyperVision races and replays select the widest supported
+aspect fitting an available VESA mode (16:9, 16:10 or 3:2). Menus, intro and
+classic rendering remain 4:3. See the [resolution table](../readme.md#hypervision-and-fps-display).
 Disabling HyperVision restores Mode 13h. High-resolution rendering requires more
 RAM and processing power than the original mode.
 

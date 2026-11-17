@@ -32,6 +32,7 @@ public final class LaunchOptionsTest {
         require(LaunchOptions.DEFAULT_SOUND, "Sound must remain enabled by default.");
         require(!LaunchOptions.DEFAULT_SKIP_INTRO, "The intro must remain enabled by default.");
         require(!LaunchOptions.DEFAULT_TILT_STEERING, "Tilt steering must default to off.");
+        require(!LaunchOptions.DEFAULT_WIDESCREEN, "Widescreen must default to off.");
         require(!LaunchOptions.DEFAULT_SHOW_FPS, "FPS must default to hidden.");
         require(!LaunchOptions.DEFAULT_SHOW_MPH, "MPH must default to hidden.");
         require(LaunchOptions.DEFAULT_MULTI_CORE, "Multi-core rendering must default to on.");
@@ -53,39 +54,40 @@ public final class LaunchOptionsTest {
         require(LaunchOptions.AMIGA_GRASS_KEY.equals("amiga_grass"), "Keep saved Amiga Grass choices.");
         require(LaunchOptions.SOUND_KEY.equals("sound"), "Keep saved sound choices.");
         require(LaunchOptions.MULTI_CORE_KEY.equals("multi_core"), "Keep saved multi-core choices.");
+        require(LaunchOptions.WIDESCREEN_KEY.equals("widescreen"), "Keep saved widescreen choices.");
         require(LaunchOptions.SHOW_MPH_KEY.equals("show_mph"), "Keep saved MPH choices.");
         require(LaunchOptions.SKIP_INTRO_KEY.equals("skip_intro"), "Keep saved intro choices.");
         requireArguments(new LaunchOptions(LaunchOptions.DEFAULT_NEW_MIDI,
             LaunchOptions.DEFAULT_SHOW_FPS, LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT,
             LaunchOptions.HyperVision.fromStored(null)),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, false, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.AUTO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.FULL),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.MEDIUM),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.LOW),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.FULL,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false,
             true, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga",
             "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false,
             true, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:off", "--videomode:vga",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:off", "--videomode:vga",
             "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         for (boolean fps : new boolean[] {false, true}) {
             for (boolean mph : new boolean[] {false, true}) {
@@ -152,55 +154,55 @@ public final class LaunchOptionsTest {
                 "Invalid stored preset must fall back to Off.");
         }
         requireArguments(new LaunchOptions(false, false, true, null),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             false, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:off", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, false, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:off", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:off", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--amigagrass");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, LaunchOptions.DEFAULT_SOUND,
             LaunchOptions.DEFAULT_SKIP_INTRO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "/ns");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot", "/ns", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, false, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:off", "--cfg:on");
         for (boolean midi : new boolean[] {false, true}) {
             for (boolean fps : new boolean[] {false, true}) {
@@ -264,6 +266,32 @@ public final class LaunchOptionsTest {
                 "Sound mode must survive saving and restoring.");
         }
         LaunchOptions defaults = new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF);
+        require(!defaults.widescreen, "Existing launch settings must keep widescreen disabled.");
+        for (LaunchOptions.HyperVision vision : LaunchOptions.HyperVision.values()) {
+            LaunchOptions original = new LaunchOptions(true, true, false, vision)
+                .withVideoMode(LaunchOptions.VideoMode.TANDY)
+                .withSoundMode(LaunchOptions.SoundMode.MT32, "/roms", "model");
+            for (boolean enabled : new boolean[] {false, true}) {
+                LaunchOptions wide = original.withWidescreen(enabled);
+                require(wide.widescreen == enabled, "Retain the selected widescreen option.");
+                java.util.List<String> expectedWide = new java.util.ArrayList<>(
+                    Arrays.asList(original.arguments(DATA_DIRECTORY)));
+                expectedWide.set(expectedWide.indexOf("--widescreen:off"),
+                    enabled ? "--widescreen:on" : "--widescreen:off");
+                require(Arrays.asList(wide.arguments(DATA_DIRECTORY)).equals(expectedWide),
+                    "Widescreen must change only its own native argument for every HyperVision preset.");
+                for (LaunchOptions.VideoMode mode : LaunchOptions.VideoMode.values()) {
+                    require(wide.withVideoMode(mode).widescreen == enabled,
+                        "Classic video changes must preserve widescreen for later HyperVision use.");
+                }
+                for (LaunchOptions.SoundMode mode : LaunchOptions.SoundMode.values()) {
+                    require(wide.withSoundMode(mode, "/roms", "model").widescreen == enabled,
+                        "Sound changes must preserve the widescreen setting.");
+                }
+                require(!wide.withWidescreen(false).widescreen,
+                    "Turning widescreen off must restore the original setting.");
+            }
+        }
         String romDirectory = "/data/user/0/org.restunts.android/files/mt32-roms";
         String model = "mt32_1_07";
         LaunchOptions mt32 = defaults.withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
@@ -327,6 +355,6 @@ public final class LaunchOptionsTest {
             .withSoundMode(LaunchOptions.SoundMode.MT32, romDirectory, model);
         require(Arrays.asList(oggMt32.arguments(DATA_DIRECTORY)).contains("--ogg:on"),
             "OGG music replacement can coexist with MT-32 effects.");
-        System.out.println("Android defaults, saved option keys, graphics/driving/audio/intro flags passed.");
+        System.out.println("Android defaults, saved option keys, widescreen/graphics/driving/audio/intro flags passed.");
     }
 }

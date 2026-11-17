@@ -113,7 +113,8 @@ build supports `file://` without a local web server. The HTML's location does no
    **OGG music replacement** (formerly **New MIDI**) selects recorded Ogg music
    (`--ogg:on`); leave it unchecked to hear the chosen PC Speaker, Tandy, Ad Lib
    or MT-32 synthesizer (`--ogg:off`). It starts off unless a remembered choice enables it.
-   **Graphics settings** contains **Show FPS** (`--fps:on`), followed by
+   **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
+   `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
    **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
    (`--multi-core:on/off`, initially on when supported), and the **HyperVision**

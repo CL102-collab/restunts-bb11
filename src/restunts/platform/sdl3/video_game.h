@@ -11,4 +11,7 @@
 void sdl3_video_set_startup_fullscreen(legacy_u8 enabled);
 #endif
 
+/* Refresh drawable-dependent racing dimensions before configuring the next camera frame. */
+void sdl3_video_update_widescreen(void);
+
 #endif

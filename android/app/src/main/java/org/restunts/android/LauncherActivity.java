@@ -94,6 +94,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox vibration;
     private CheckBox skipIntro;
     private CheckBox tiltSteering;
+    private CheckBox widescreen;
     private CheckBox showFps;
     private CheckBox showMph;
     private CheckBox multiCore;
@@ -284,6 +285,8 @@ public final class LauncherActivity extends Activity {
         videoModeOption.addView(videoMode);
         graphics.addView(videoModeOption);
 
+        widescreen = option(graphics, "Widescreen", LaunchOptions.WIDESCREEN_KEY,
+            LaunchOptions.DEFAULT_WIDESCREEN, textSize);
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
         showMph = option(graphics, "Show MPH (Ctrl+F9)", LaunchOptions.SHOW_MPH_KEY,
@@ -292,9 +295,9 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_MULTI_CORE, textSize);
         showControlLayout = option(graphics, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
             LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
-        // Keep the label and selector as one graphics item; at large font sizes
-        // the label can move above the selector without squeezing its value.
-        WrappingLayout hyperVisionOption = new WrappingLayout(this, 0, 0);
+        LinearLayout hyperVisionOption = new LinearLayout(this);
+        hyperVisionOption.setOrientation(LinearLayout.HORIZONTAL);
+        hyperVisionOption.setGravity(Gravity.CENTER_VERTICAL);
         TextView label = new TextView(this);
         label.setText("HyperVision");
         label.setTextSize(textSize);
@@ -309,7 +312,8 @@ public final class LauncherActivity extends Activity {
         hyperVision.setSelection(LaunchOptions.HyperVision.fromStored(
             preferences.getString(LaunchOptions.HYPERVISION_KEY, null)).ordinal());
         hyperVisionOption.addView(hyperVision);
-        graphics.addView(hyperVisionOption);
+        graphics.addView(hyperVisionOption, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
         tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
@@ -337,7 +341,8 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         for (CheckBox option : new CheckBox[] {
-                vibration, newMidi, skipIntro, tiltSteering, showFps, showMph, multiCore, showControlLayout,
+                vibration, newMidi, skipIntro, tiltSteering, widescreen, showFps, showMph,
+                multiCore, showControlLayout,
                 powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
@@ -664,7 +669,8 @@ public final class LauncherActivity extends Activity {
             selectedSoundMode() != LaunchOptions.SoundMode.NONE, skipIntro.isChecked(),
             multiCore.isChecked(), showMph.isChecked()).withSoundMode(selectedSoundMode(),
                 Mt32RomStorage.directory(this).getAbsolutePath(), selectedRomModel())
-            .withVideoMode((LaunchOptions.VideoMode) videoMode.getSelectedItem());
+            .withVideoMode((LaunchOptions.VideoMode) videoMode.getSelectedItem())
+            .withWidescreen(widescreen.isChecked());
     }
 
     private void saveOptions() {
@@ -679,6 +685,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.VIBRATION_KEY, vibration.isChecked())
             .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
+            .putBoolean(LaunchOptions.WIDESCREEN_KEY, options.widescreen)
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.SHOW_MPH_KEY, options.showMph)
             .putBoolean(LaunchOptions.MULTI_CORE_KEY, options.multiCore)
@@ -767,6 +774,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.VIBRATION_KEY, selectedVibration);
                         intent.putExtra(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro);
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
+                        intent.putExtra(LaunchOptions.WIDESCREEN_KEY, options.widescreen);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.SHOW_MPH_KEY, options.showMph);
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);

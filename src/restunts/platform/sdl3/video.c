@@ -7,6 +7,7 @@
 #include "../../c/fatal.h"
 #include "../../c/hires/hires.h"
 #include "../../c/hires/frame_adaptive.h"
+#include "../../c/hires/widescreen.h"
 #include "../../c/frame/frame_internal.h"
 #include <string.h>
 #include <stdio.h>
@@ -20,6 +21,8 @@
 #define PRESENT_INTERVAL_MS 10U
 #define PRESENTATION_HEIGHT 240
 #define WINDOW_INITIAL_SCALE 3
+#define WINDOW_INITIAL_USABLE_PERCENT 80
+#define PERCENT_SCALE 100
 #define VGA_PALETTE_COLOR_COUNT 256U
 #define VGA_PALETTE_CHANNEL_COUNT 3U
 #define VGA_PALETTE_CHANNEL_MAX 63U
@@ -41,6 +44,8 @@ struct PRESENTATION_PAGE {
 	legacy_u32 *pixels;
 	legacy_s32 width;
 	legacy_s32 height;
+	legacy_s32 presentation_width;
+	legacy_s32 presentation_height;
 };
 
 static SDL_Window *window;
@@ -53,6 +58,11 @@ static legacy_s32 texture_width;
 static legacy_s32 texture_height;
 static legacy_u8 surface_output;
 static legacy_u8 high_resolution_output;
+static legacy_u8 widescreen_output;
+static legacy_s32 presentation_width = SDL3_SCREEN_WIDTH;
+static legacy_s32 presentation_height = PRESENTATION_HEIGHT;
+static legacy_s32 presentation_raster_width = SDL3_SCREEN_WIDTH;
+static legacy_s32 presentation_raster_height = SDL3_SCREEN_HEIGHT;
 static SDL_Rect surface_viewport;
 static SDL_Color palette_colors[VGA_PALETTE_COLOR_COUNT];
 static legacy_u32 palette_pixels[VGA_PALETTE_COLOR_COUNT];
@@ -175,6 +185,36 @@ static void video_fail(const legacy_char *operation)
 }
 
 #if !defined(__DJGPP__) && !defined(__EMSCRIPTEN__)
+#ifndef __ANDROID__
+static void initial_window_size(legacy_s32 *width, legacy_s32 *height)
+{
+	*width = SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE;
+	*height = PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE;
+	if (!widescreen_enabled()) {
+		return;
+	}
+	SDL_DisplayID display = SDL_GetPrimaryDisplay();
+	const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display);
+	if (mode == NULL || mode->w <= 0 || mode->h <= 0) {
+		return;
+	}
+	*width = (legacy_s32)(((legacy_s64)*height * mode->w + mode->h - 1) / mode->h);
+	SDL_Rect usable;
+	if (SDL_GetDisplayUsableBounds(display, &usable)) {
+		legacy_s32 available_width = usable.w * WINDOW_INITIAL_USABLE_PERCENT / PERCENT_SCALE;
+		legacy_s32 available_height = usable.h * WINDOW_INITIAL_USABLE_PERCENT / PERCENT_SCALE;
+		if (*width > available_width) {
+			*width = available_width;
+			*height = (legacy_s32)((legacy_s64)*width * mode->h / mode->w);
+		}
+		if (*height > available_height) {
+			*height = available_height;
+			*width = (legacy_s32)(((legacy_s64)*height * mode->w + mode->h - 1) / mode->h);
+		}
+	}
+}
+#endif
+
 static SDL_WindowFlags desktop_window_flags(void)
 {
 #ifdef __ANDROID__
@@ -215,13 +255,36 @@ static void configure_vsync(void)
 #endif
 
 #ifdef __DJGPP__
+static legacy_u8 dos_widescreen_requested(void)
+{
+	return hires_enabled() && widescreen_enabled() && widescreen_racing() &&
+		   !widescreen_modal_active();
+}
+
+static void mode_presentation_size(const SDL_DisplayMode *mode, legacy_s32 *width,
+								   legacy_s32 *height)
+{
+	*width = 0;
+	*height = 0;
+	if (dos_widescreen_requested() &&
+		(mode->w != SDL3_SCREEN_WIDTH || mode->h != SDL3_SCREEN_HEIGHT)) {
+		widescreen_dimensions_for_output(mode->w, mode->h, width, height);
+	}
+	if (*width == 0 || *height == 0) {
+		*width = SDL3_SCREEN_WIDTH;
+		*height = PRESENTATION_HEIGHT;
+	}
+}
+
 static legacy_s32 mode_viewport_width(const SDL_DisplayMode *mode)
 {
-	/* The legacy VGA mode has nonsquare pixels; VESA modes use a 4:3 viewport. */
+	/* The legacy VGA mode has nonsquare pixels. Other modes fit the selected aspect. */
 	if (mode->w == SDL3_SCREEN_WIDTH && mode->h == SDL3_SCREEN_HEIGHT) {
 		return SDL3_SCREEN_WIDTH;
 	}
-	return SDL_min(mode->w, mode->h * 4 / 3);
+	legacy_s32 width, height;
+	mode_presentation_size(mode, &width, &height);
+	return SDL_min(mode->w, (legacy_s32)((legacy_s64)mode->h * width / height));
 }
 
 static legacy_u8 mode_is_better(const SDL_DisplayMode *candidate, const SDL_DisplayMode *current)
@@ -231,10 +294,25 @@ static legacy_u8 mode_is_better(const SDL_DisplayMode *candidate, const SDL_Disp
 	}
 	legacy_s32 candidate_width = mode_viewport_width(candidate);
 	legacy_s32 current_width = mode_viewport_width(current);
-	legacy_u8 candidate_fits = candidate_width >= HIRES_WIDTH;
-	legacy_u8 current_fits = current_width >= HIRES_WIDTH;
+	legacy_s32 candidate_aspect_width, candidate_aspect_height;
+	legacy_s32 current_aspect_width, current_aspect_height;
+	mode_presentation_size(candidate, &candidate_aspect_width, &candidate_aspect_height);
+	mode_presentation_size(current, &current_aspect_width, &current_aspect_height);
+	legacy_s32 candidate_render_width =
+		candidate_aspect_width == SDL3_SCREEN_WIDTH ? HIRES_WIDTH : candidate_aspect_width;
+	legacy_s32 current_render_width =
+		current_aspect_width == SDL3_SCREEN_WIDTH ? HIRES_WIDTH : current_aspect_width;
+	legacy_u8 candidate_fits = candidate_width >= candidate_render_width;
+	legacy_u8 current_fits = current_width >= current_render_width;
 	if (candidate_fits != current_fits) {
 		return candidate_fits;
+	}
+	if (dos_widescreen_requested() && candidate_fits) {
+		legacy_s64 candidate_aspect = (legacy_s64)candidate_aspect_width * current_aspect_height;
+		legacy_s64 current_aspect = (legacy_s64)current_aspect_width * candidate_aspect_height;
+		if (candidate_aspect != current_aspect) {
+			return candidate_aspect > current_aspect;
+		}
 	}
 	if (candidate_width != current_width) {
 		return candidate_fits ? candidate_width < current_width : candidate_width > current_width;
@@ -254,6 +332,8 @@ static void select_dos_video_mode(legacy_u8 high_resolution)
 	SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(SDL_GetPrimaryDisplay(), &mode_count);
 	legacy_u8 selected = false;
 	legacy_s32 selected_width = 0;
+	legacy_s32 target_width = HIRES_WIDTH, target_height = HIRES_HEIGHT;
+	legacy_s32 aspect_width = SDL3_SCREEN_WIDTH, aspect_height = PRESENTATION_HEIGHT;
 	if (modes != NULL) {
 		for (legacy_s32 attempt = 0; attempt < mode_count && !selected; attempt++) {
 			legacy_s32 best = -1;
@@ -278,6 +358,9 @@ static void select_dos_video_mode(legacy_u8 high_resolution)
 			SDL_DestroyWindowSurface(window);
 			selected = SDL_SetWindowFullscreenMode(window, modes[best]) && SDL_SyncWindow(window);
 			selected_width = mode_viewport_width(modes[best]);
+			mode_presentation_size(modes[best], &aspect_width, &aspect_height);
+			target_width = aspect_width != SDL3_SCREEN_WIDTH ? aspect_width : HIRES_WIDTH;
+			target_height = aspect_width != SDL3_SCREEN_WIDTH ? aspect_height : HIRES_HEIGHT;
 			modes[best] = NULL;
 		}
 		SDL_free(modes);
@@ -294,23 +377,52 @@ static void select_dos_video_mode(legacy_u8 high_resolution)
 	surface_viewport.w = surface->w;
 	surface_viewport.h = surface->h;
 	if (surface->w != SDL3_SCREEN_WIDTH || surface->h != SDL3_SCREEN_HEIGHT) {
-		if (surface->w * 3 > surface->h * 4) {
-			surface_viewport.w = surface->h * 4 / 3;
+		if ((legacy_s64)surface->w * aspect_height > (legacy_s64)surface->h * aspect_width) {
+			surface_viewport.w =
+				(legacy_s32)((legacy_s64)surface->h * aspect_width / aspect_height);
 		} else {
-			surface_viewport.h = surface->w * 3 / 4;
+			surface_viewport.h =
+				(legacy_s32)((legacy_s64)surface->w * aspect_height / aspect_width);
 		}
 		surface_viewport.x = (surface->w - surface_viewport.w) / 2;
 		surface_viewport.y = (surface->h - surface_viewport.h) / 2;
 	}
-	if (high_resolution && selected_width < HIRES_WIDTH) {
+	if (high_resolution && selected_width < target_width) {
 		SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
-					"No VESA mode can display the full 1280x800 render at 4:3; scaling to %dx%d",
-					surface_viewport.w, surface_viewport.h);
+					"No VESA mode can display the full %dx%d render; scaling to %dx%d",
+					(legacy_int)target_width, (legacy_int)target_height,
+					(legacy_int)surface_viewport.w, (legacy_int)surface_viewport.h);
 	}
+	presentation_width = aspect_width;
+	presentation_height = aspect_height;
+	widescreen_output = dos_widescreen_requested();
 	high_resolution_output = high_resolution;
 	palette_changed = true;
 }
 #endif
+
+void sdl3_video_update_widescreen(void)
+{
+	if (window == NULL) {
+		return;
+	}
+#ifdef __DJGPP__
+	if (high_resolution_output != (hires_enabled() != 0) ||
+		widescreen_output != dos_widescreen_requested()) {
+		select_dos_video_mode(hires_enabled() != 0);
+	}
+#endif
+	legacy_int width, height;
+	if (SDL_GetWindowSizeInPixels(window, &width, &height) && width > 0 && height > 0) {
+#ifdef __DJGPP__
+		/* Mode 13h has nonsquare pixels and must remain a 4:3 fallback. */
+		if (width == SDL3_SCREEN_WIDTH && height == SDL3_SCREEN_HEIGHT) {
+			height = PRESENTATION_HEIGHT;
+		}
+#endif
+		widescreen_set_output_size(width, height);
+	}
+}
 
 SDL_Window *sdl3_video_window(void)
 {
@@ -320,7 +432,7 @@ SDL_Window *sdl3_video_window(void)
 void sdl3_video_toggle_fullscreen(void)
 {
 	/* DOS already uses native fullscreen modes. SDL saves and restores the
-	 * desktop window's size and position; the logical 4:3 viewport persists. */
+	 * desktop window's size and position; frame presentation keeps its aspect. */
 	if (window == NULL || surface_output) {
 		return;
 	}
@@ -328,6 +440,27 @@ void sdl3_video_toggle_fullscreen(void)
 	if (!SDL_SetWindowFullscreen(window, !fullscreen)) {
 		SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "Cannot change fullscreen mode: %s", SDL_GetError());
 	}
+}
+
+static legacy_f32 legacy_content_width(void)
+{
+	if (presentation_width == SDL3_SCREEN_WIDTH) {
+		return (legacy_f32)SDL3_SCREEN_WIDTH;
+	}
+	legacy_s32 artwork_width =
+		presentation_raster_height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
+	return (legacy_f32)artwork_width * presentation_width / presentation_raster_width;
+}
+
+static legacy_f32 legacy_content_left(void)
+{
+	if (presentation_width == SDL3_SCREEN_WIDTH) {
+		return 0;
+	}
+	legacy_s32 artwork_width =
+		presentation_raster_height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
+	legacy_s32 left = (presentation_raster_width - artwork_width) / 2;
+	return (legacy_f32)left * presentation_width / presentation_raster_width;
 }
 
 void sdl3_video_window_to_game(legacy_f32 window_x, legacy_f32 window_y, legacy_f32 *x,
@@ -343,11 +476,17 @@ void sdl3_video_window_to_game(legacy_f32 window_x, legacy_f32 window_y, legacy_
 	}
 	if (renderer != NULL) {
 		SDL_RenderCoordinatesFromWindow(renderer, window_x, window_y, x, y);
-		*y *= (legacy_f32)SDL3_SCREEN_HEIGHT / PRESENTATION_HEIGHT;
 	} else if (surface_output) {
-		*x = (window_x - surface_viewport.x) * SDL3_SCREEN_WIDTH / surface_viewport.w;
-		*y = (window_y - surface_viewport.y) * SDL3_SCREEN_HEIGHT / surface_viewport.h;
+		*x = (window_x - surface_viewport.x) * presentation_width / surface_viewport.w;
+		*y = (window_y - surface_viewport.y) * presentation_height / surface_viewport.h;
+	} else {
+		return;
 	}
+	/* Replay controls and cockpit artwork retain a centered 4:3 coordinate space.
+	 * Coordinates beyond it stay outside the controls rather than stretching them. */
+	legacy_f32 content_width = legacy_content_width();
+	*x = (*x - legacy_content_left()) * SDL3_SCREEN_WIDTH / content_width;
+	*y *= (legacy_f32)SDL3_SCREEN_HEIGHT / presentation_height;
 }
 
 void sdl3_video_game_to_window(legacy_f32 x, legacy_f32 y, legacy_f32 *window_x,
@@ -361,13 +500,15 @@ void sdl3_video_game_to_window(legacy_f32 x, legacy_f32 y, legacy_f32 *window_x,
 		*window_y = area.y + y * area.h / SDL3_SCREEN_HEIGHT;
 		return;
 	}
+	legacy_f32 content_width = legacy_content_width();
+	x = x * content_width / SDL3_SCREEN_WIDTH +
+		((legacy_f32)presentation_width - content_width) / 2;
+	y *= (legacy_f32)presentation_height / SDL3_SCREEN_HEIGHT;
 	if (renderer != NULL) {
-		SDL_RenderCoordinatesToWindow(renderer, x,
-									  y * ((legacy_f32)PRESENTATION_HEIGHT / SDL3_SCREEN_HEIGHT),
-									  window_x, window_y);
+		SDL_RenderCoordinatesToWindow(renderer, x, y, window_x, window_y);
 	} else if (surface_output) {
-		*window_x = surface_viewport.x + x * surface_viewport.w / SDL3_SCREEN_WIDTH;
-		*window_y = surface_viewport.y + y * surface_viewport.h / SDL3_SCREEN_HEIGHT;
+		*window_x = surface_viewport.x + x * surface_viewport.w / presentation_width;
+		*window_y = surface_viewport.y + y * surface_viewport.h / presentation_height;
 	}
 }
 
@@ -391,6 +532,8 @@ static void present_surface(const legacy_u8 *pixels, const legacy_u32 *argb, leg
 	if (surface == NULL) {
 		video_fail("Get video surface");
 	}
+	presentation_raster_width = width;
+	presentation_raster_height = height;
 	const void *frame_pixels = argb != NULL ? (const void *)argb : pixels;
 	SDL_PixelFormat format = argb != NULL ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_INDEX8;
 	legacy_u8 new_frame_surface = frame_surface == NULL || frame_surface->pixels != frame_pixels ||
@@ -464,6 +607,9 @@ static void prepare_presentation_page(const legacy_u8 *legacy_pixels)
 		hires_enabled() ? legacy_pixels : sdl3_video_mode_framebuffer(legacy_pixels);
 	video_copy_framebuffer_argb(composed, palette_pixels, page->pixels,
 								width * sizeof(*page->pixels));
+	page->presentation_width = widescreen_active() ? widescreen_render_width() : SDL3_SCREEN_WIDTH;
+	page->presentation_height =
+		widescreen_active() ? widescreen_render_height() : PRESENTATION_HEIGHT;
 	front_page = back_page;
 }
 
@@ -479,6 +625,18 @@ static void present_texture(legacy_u8 new_frame)
 	if (page->pixels == NULL) {
 		return;
 	}
+	if (presentation_width != page->presentation_width ||
+		presentation_height != page->presentation_height) {
+		if (!SDL_SetRenderLogicalPresentation(renderer, page->presentation_width,
+											  page->presentation_height,
+											  SDL_LOGICAL_PRESENTATION_LETTERBOX)) {
+			video_fail("Configure framebuffer scaling");
+		}
+		presentation_width = page->presentation_width;
+		presentation_height = page->presentation_height;
+	}
+	presentation_raster_width = page->width;
+	presentation_raster_height = page->height;
 	legacy_u8 upload = new_frame;
 	if (texture == NULL || texture_width != page->width || texture_height != page->height) {
 		SDL_DestroyTexture(texture);
@@ -565,8 +723,9 @@ void sdl3_video_present(void)
 		return;
 	}
 #ifdef __DJGPP__
-	if (high_resolution_output != (hires_enabled() != 0)) {
-		select_dos_video_mode(hires_enabled() != 0);
+	if (high_resolution_output != (hires_enabled() != 0) ||
+		widescreen_output != dos_widescreen_requested()) {
+		sdl3_video_update_widescreen();
 	}
 #endif
 	const legacy_u8 *legacy_pixels = dos_memory_make_pointer(VGA_MEMORY_SEGMENT, 0);
@@ -679,6 +838,7 @@ void sdl3_video_screenshot(void)
 
 void sdl3_video_begin_frame(void)
 {
+	sdl3_video_update_widescreen();
 	hires_set_render_scale(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO
 							   ? HIRES_SCALE
 							   : frame_hires_adaptive_render_scale(&frame_hires_adaptive));
@@ -690,6 +850,7 @@ void sdl3_video_begin_frame(void)
 
 void sdl3_video_begin_track_frame(legacy_u8 adaptive)
 {
+	sdl3_video_update_widescreen();
 	drawing_frame = true;
 	adaptive_frame =
 		adaptive != 0 && frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
@@ -740,6 +901,11 @@ void sdl3_video_shutdown(void)
 	SDL_DestroyWindow(window);
 	surface_output = false;
 	high_resolution_output = false;
+	widescreen_output = false;
+	presentation_width = SDL3_SCREEN_WIDTH;
+	presentation_height = PRESENTATION_HEIGHT;
+	presentation_raster_width = SDL3_SCREEN_WIDTH;
+	presentation_raster_height = SDL3_SCREEN_HEIGHT;
 	drawing_frame = false;
 	adaptive_frame = 0;
 	measured_frame = 0;
@@ -786,8 +952,12 @@ void dos_video_set_mode_13h(void)
 	}
 #endif
 #endif
-	window = SDL_CreateWindow("Chocolate Stunts", SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE,
-							  PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE, window_flags);
+	legacy_s32 initial_width = SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE;
+	legacy_s32 initial_height = PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE;
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
+	initial_window_size(&initial_width, &initial_height);
+#endif
+	window = SDL_CreateWindow("Chocolate Stunts", initial_width, initial_height, window_flags);
 #endif
 	if (window == NULL) {
 		video_fail("Create game window");
@@ -814,6 +984,7 @@ void dos_video_set_mode_13h(void)
 	}
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 #endif
+	sdl3_video_update_widescreen();
 	SDL_HideCursor();
 	palette_changed = true;
 	sdl3_video_present();

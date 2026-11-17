@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -118,6 +118,7 @@ async function assertSettingsLayout(page, narrow) {
                         return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
                     }) };
             }),
+            hypervisionOwnRow: document.getElementById('hypervision').closest('.settings-row').children.length === 1,
             documentWidth: document.documentElement.scrollWidth,
             viewportWidth: innerWidth
         };
@@ -125,8 +126,9 @@ async function assertSettingsLayout(page, narrow) {
     assert.ok(layout.soundTop >= layout.startupBottom, 'Sound settings must follow startup options');
     assert.ok(layout.graphicsTop >= layout.soundBottom, 'Sound settings must precede graphics settings');
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['video-mode', 'start-fullscreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'hypervision'],
+    assert.deepEqual(layout.graphicsControls, ['video-mode', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'hypervision'],
         'Video mode must precede the shared graphics controls, with HyperVision last');
+    assert.equal(layout.hypervisionOwnRow, true, 'HyperVision must have its own row with its label and dropdown together');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
@@ -1064,6 +1066,64 @@ async function exerciseMobileControlLayout(browser, url, fixture) {
     }
 }
 
+async function assertCanvasAspect(page, width, height, description) {
+    const bounds = await page.locator('#canvas').boundingBox();
+    assert.ok(Math.abs(bounds.width / bounds.height - width / height) < 0.001, description);
+}
+
+async function exerciseWidescreen(browser, url, fixture) {
+    const displays = [
+        { width: 1920, height: 1080, aspect: [16, 9] },
+        { width: 1920, height: 1200, aspect: [16, 10] },
+        { width: 1080, height: 720, aspect: [3, 2] },
+        { width: 2400, height: 1080, aspect: [16, 9] },
+        { width: 1024, height: 768, aspect: [4, 3] },
+        { width: 1080, height: 2400, aspect: [16, 9] }
+    ];
+    for (const display of displays) {
+        const context = await browser.newContext({ viewport: { width: 1000, height: 800 },
+            screen: { width: display.width, height: display.height } });
+        await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(String(error)));
+        const label = display.width + 'x' + display.height;
+        try {
+            await page.goto(url);
+            await ready(page);
+            assert.equal(await page.locator('#widescreen').isChecked(), false, label + ': widescreen defaults off');
+            await assertCanvasAspect(page, 4, 3, label + ': default canvas stays 4:3');
+            await page.locator('#widescreen').check();
+            assert.equal((await storedOptions(page)).widescreen, true, label + ': enabled widescreen must be saved');
+            await assertCanvasAspect(page, ...display.aspect, label + ': canvas must fit the landscape display');
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#widescreen').isChecked(), true, label + ': widescreen must persist');
+            await assertCanvasAspect(page, ...display.aspect, label + ': restored canvas must keep the selected aspect');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
+                argument.startsWith('--widescreen:'))), ['--widescreen:on']);
+            assert.equal(await page.locator('#widescreen').isDisabled(), true, 'Widescreen must lock after launch');
+            await page.reload();
+            await ready(page);
+            await page.locator('#widescreen').uncheck();
+            assert.equal((await storedOptions(page)).widescreen, false, label + ': disabled widescreen must be saved');
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#widescreen').isChecked(), false, label + ': disabled widescreen must persist');
+            await assertCanvasAspect(page, 4, 3, label + ': disabling widescreen restores the classic canvas');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
+                argument.startsWith('--widescreen:'))), ['--widescreen:off']);
+            assert.deepEqual(errors, [], label + ': widescreen must not report browser errors');
+        } finally {
+            await context.close();
+        }
+    }
+}
+
 async function exerciseStartupFullscreen(browser, url, fixture) {
     const context = await browser.newContext();
     await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
@@ -1492,6 +1552,7 @@ async function main() {
         assert.equal(await page.locator('#new-midi').evaluate(input => input.closest('fieldset').id), 'sound-settings');
         assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
             'Initial fullscreen must default off');
+        assert.equal(await page.locator('#widescreen').isChecked(), false, 'Widescreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-mph').isChecked(), false, 'MPH must default off');
         assert.equal((await page.locator('#show-mph').locator('..').innerText()).trim(), 'Show MPH (Ctrl+F9)');
@@ -1518,7 +1579,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--fps:off', '--showmph:off', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--widescreen:off', '--fps:off', '--showmph:off', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1587,7 +1648,7 @@ async function main() {
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--fps:on', '--showmph:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--widescreen:off', '--fps:on', '--showmph:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1678,13 +1739,14 @@ async function main() {
         await exerciseMt32Sound(browser, url, fixture, temporary);
         await exerciseMultiCoreAvailability(browser, url, fixture);
         await exerciseStartupFullscreen(browser, url, fixture);
+        await exerciseWidescreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, widescreen defaults/persistence/arguments and supported canvas ratios with portrait/ultrawide fitting, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

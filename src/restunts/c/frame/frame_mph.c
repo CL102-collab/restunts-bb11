@@ -1,4 +1,7 @@
 #include "frame_mph.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 #include "../video/video_color.h"
 #include "frame_fps.h"
 #include "../game_input.h"
@@ -109,6 +112,14 @@ static legacy_u16 frame_mph_page(void)
 void frame_mph_restore_text(void)
 {
 	legacy_u16 page = frame_mph_page();
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		if (page < mph_page_count) {
+			mph_background_valid[page] = 0;
+		}
+		return;
+	}
+#endif
 	if (page >= mph_page_count || mph_background_valid[page] == 0) {
 		return;
 	}
@@ -149,6 +160,16 @@ struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
 	sprite_save_context(saved_context);
 	sprite_set_target_clip_bounds(0, MPH_TEXT_SCREEN_WIDTH, 0, MPH_TEXT_SCREEN_HEIGHT);
 	mph_target[page] = drawing_sprite;
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_RIGHT);
+		struct RECTANGLE *bounds =
+			intro_draw_text(text, x, y, VIDEO_UI_COLOR(dialog_fnt_colour), MPH_TEXT_SHADOW_COLOR);
+		widescreen_overlay_end();
+		sprite_restore_context(saved_context);
+		return bounds;
+	}
+#endif
 	struct SHAPE2D far *background = mph_background[page]->sprite_bitmapptr;
 	shape2d_put_word((legacy_u8 far *)background + offsetof(struct SHAPE2D, width),
 					 width + MPH_TEXT_SHADOW_SIZE);

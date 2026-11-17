@@ -13,6 +13,9 @@
 #include "../../platform/amiga/amiga.h"
 #endif
 #include "../dashboard.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 #include "../fileio.h"
 #include "../game_input.h"
 #include "../memmgr.h"
@@ -51,9 +54,17 @@ void race_draw_frame(void)
 #endif
 #ifdef RESTUNTS_SDL3
 	race_hires_presentation_begin_frame();
+	widescreen_begin_frame();
+	if (widescreen_active()) {
+		/* Overlay masks are independent of the scene and rebuilt every frame. */
+		full_redraw_frames_remaining = video_page_count;
+	}
 #endif
 	/* Restore the previous page before any new scene or cached-dashboard drawing. */
 	frame_mph_restore_text();
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
 	if (full_redraw_frames_remaining != 0) {
 		replay_controls_drawn[dashboard_buffer_index] = 0;
 		if (dashboard_visible != 0) {
@@ -73,6 +84,7 @@ void race_draw_frame(void)
 	}
 
 #ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
 	if (race_hires_presentation_draw_snapshot() == 0)
 #endif
 	{
@@ -82,9 +94,20 @@ void race_draw_frame(void)
 	frame_fps_present_roof();
 	if (dashboard_visible != 0) {
 		sprite_set_target_clip_bounds(0, RACE_SCREEN_WIDTH, dashbmp_y_copy, height_above_replaybar);
+#ifdef RESTUNTS_SDL3
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
 		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+#ifdef RESTUNTS_SDL3
+		widescreen_overlay_end();
+#endif
 		sprite_set_target_clip_bounds(0, RACE_SCREEN_WIDTH, 0, RACE_SCREEN_HEIGHT);
 	}
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		sprite_set_target_clip_bounds(0, RACE_SCREEN_WIDTH, 0, RACE_SCREEN_HEIGHT);
+	}
+#endif
 	if (frame_display_overlay_active() != 0 || mph_display_enabled != FRAME_MPH_DISPLAY_OFF) {
 		/* Keep HUD text above every layer of custom dashboard artwork. */
 		mouse_draw_opaque_check();

@@ -5,6 +5,7 @@
 #include "frame_interpolation.h"
 #include "frame_adaptive.h"
 #include "hires.h"
+#include "widescreen.h"
 #include "settings.h"
 #include "../externs.h"
 #include "../camera.h"
@@ -56,6 +57,8 @@ static legacy_u32 race_hires_presentation_fraction(legacy_u64 now)
 
 void race_hires_presentation_sync(legacy_s16 rewinding)
 {
+	widescreen_set_racing(idle_expired == 0);
+	sdl3_video_update_widescreen();
 	legacy_s16 view[RACE_PRESENTATION_VIEW_COUNT] = {hires_active,
 													 cameramode,
 													 followOpponentFlag,
@@ -169,6 +172,8 @@ void race_hires_presentation_idle(legacy_s16 rewind_active, legacy_s64 last_proc
 
 void race_hires_presentation_initialize(void)
 {
+	widescreen_set_racing(idle_expired == 0);
+	sdl3_video_update_widescreen();
 	race_hires_presentation = (struct RACE_PRESENTATION){0};
 	hires_presentation_reset(&race_hires_presentation.clock, hires_presentation_now());
 }
@@ -183,6 +188,9 @@ void race_hires_presentation_begin_frame(void)
 		full_redraw_frames_remaining = video_page_count;
 	}
 	sdl3_video_begin_track_frame(hires_active);
+	/* Refresh variable dimensions before the independent artwork layer is rebuilt. */
+	(void)hires_render_width();
+	(void)hires_render_height();
 }
 
 legacy_s16 race_hires_presentation_draw_snapshot(void)
@@ -241,6 +249,8 @@ void race_hires_presentation_draw(legacy_s16 rewind_active)
 
 void race_hires_presentation_finish(void)
 {
+	widescreen_set_racing(0);
+	sdl3_video_update_widescreen();
 	/* Auto restores menu resolution; a manually locked scale stays selected. */
 	hires_set_render_scale(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO
 							   ? HIRES_SCALE

@@ -328,12 +328,32 @@ graphics menu's scenery setting still applies.
 A sustained overload reduces one stage after about half a second at the target
 frame rate; isolated stalls do not trigger a reduction. About three seconds of
 frames with spare processing time restore one stage. Failed recovery attempts
-increase the wait before trying again. The small mask at 320x200 is the floor;
+increase the wait before trying again. The small mask at quarter resolution is the floor;
 there are no further reductions if the machine still cannot reach 60 FPS.
 
-Resolution changes affect the internal renderer. The output keeps its existing
-4:3 presentation, window/fullscreen size, and DOS VESA display mode. At 320x200,
-HyperVision disables car shadows and uses the original horizon artwork. This
+With **Widescreen** enabled (`--widescreen:on`), HyperVision races and replays
+use the widest supported aspect ratio fitting the current window or display.
+Other screens and classic rendering keep their 4:3 image with black side borders.
+Widescreen starts off; `--widescreen:off` explicitly disables it. Desktop, Android,
+and web launchers remember the checkbox, immediately before Show FPS. The initial
+desktop window and web canvas follow the display's supported widescreen ratio.
+
+| Display aspect | Full / High | Medium | Low |
+| --- | --- | --- | --- |
+| 16:9 | 1280x720 | 640x360 | 320x180 |
+| 16:10 | 1280x800 | 640x400 | 320x200 |
+| 3:2 | 1080x720 | 540x360 | 270x180 |
+
+Auto uses the same resolution steps. Wider displays fit 16:9 with black side
+borders; displays narrower than 3:2 retain 4:3. Racing reveals more scenery at the
+sides, without stretching the scene. Dashboard artwork remains centered with its
+original proportions, leaving scenery visible beside it. Corner HUD text follows
+the race image's edges; replay controls remain centered. DOS32 selects a suitable
+VESA mode and fits the chosen race aspect inside it.
+
+Quality-level resolution changes affect the internal renderer. The output keeps
+its selected presentation aspect, window/fullscreen size, and DOS VESA display mode.
+At quarter resolution, HyperVision disables car shadows and uses the original horizon artwork. This
 applies to locked Low and both of Auto's lowest stages; higher resolutions restore
 shadows and enhanced horizons. Physics and replay data are unaffected. Switching HyperVision
 off restores the original draw distance, detail policy, and rendering limits;
