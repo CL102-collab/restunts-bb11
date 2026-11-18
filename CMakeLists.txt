@@ -211,11 +211,17 @@ else()
         if(RESTUNTS_SDL_UNUSED_GLOBAL_WARNING)
             # The pinned SDL updates an unread event counter and loads unused optional
             # Vulkan entry points.
+            set(restunts_sdl_unused_global_sources
+                "${SDL3_SOURCE_DIR}/src/events/SDL_events.c"
+                "${SDL3_SOURCE_DIR}/src/render/vulkan/SDL_render_vulkan.c")
+            if(EMSCRIPTEN)
+                # The common gamepad code saves the mapping even when XInput is unavailable.
+                list(APPEND restunts_sdl_unused_global_sources
+                    "${SDL3_SOURCE_DIR}/src/joystick/SDL_gamepad.c")
+            endif()
             foreach(restunts_sdl_target SDL3-static SDL3-shared)
                 if(TARGET ${restunts_sdl_target})
-                    set_property(SOURCE
-                        "${SDL3_SOURCE_DIR}/src/events/SDL_events.c"
-                        "${SDL3_SOURCE_DIR}/src/render/vulkan/SDL_render_vulkan.c"
+                    set_property(SOURCE ${restunts_sdl_unused_global_sources}
                         TARGET_DIRECTORY ${restunts_sdl_target} APPEND PROPERTY
                         COMPILE_OPTIONS -Wno-unused-but-set-global)
                 endif()

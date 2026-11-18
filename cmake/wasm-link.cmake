@@ -14,7 +14,9 @@ function(restunts_configure_wasm target asset_root shell)
         # must not need the browser to process a message while it waits for a
         # completed render job.
         set(restunts_pthread_pool_size 9)
-        target_link_options(${target} PRIVATE -pthread
+        # Keep memory growth for custom content without requiring browsers to
+        # implement growable shared memory views.
+        target_link_options(${target} PRIVATE -pthread -Wno-pthreads-mem-growth
             -sPTHREAD_POOL_SIZE=${restunts_pthread_pool_size}
             -sPTHREAD_POOL_SIZE_STRICT=2
             -sDEFAULT_PTHREAD_STACK_SIZE=${restunts_stack_bytes})
