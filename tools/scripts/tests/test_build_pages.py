@@ -43,11 +43,16 @@ class BuildPagesTests(unittest.TestCase):
             "".join(f"{PACKAGES.sha256(FIXTURE_DATA)}  {name}\n"
                     for name in PAGES.TEMPLEOS_DOWNLOAD_FILES), encoding="ascii")
         runtime = self.root / "runtime"
+        car_archives = PACKAGES.build_custom_car_archives()
         for name in PACKAGES.required_files("browser") - {PACKAGES.README}:
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
-            path.write_bytes(source.read_bytes() if source is not None else FIXTURE_DATA)
+            if PACKAGES.custom_car_archive_members(name) is not None:
+                content = car_archives[path.name]
+            else:
+                source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
+                content = source.read_bytes() if source is not None else FIXTURE_DATA
+            path.write_bytes(content)
         (runtime / "share/restunts/wasm-relink/CMakeLists.txt").write_bytes(
             b"set(RESTUNTS_WASM_THREADS OFF)\n")
         args = argparse.Namespace(target="browser", runtime=runtime,
@@ -166,6 +171,25 @@ class BuildPagesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing packaged files"):
             self.build()
         self.assertFalse(self.output.exists())
+
+    def test_invalid_car_archives_fail_even_with_updated_inventory_and_checksum(self):
+        files, modes = PACKAGES.archive_contents(self.archive)
+        car_archives = sorted(name for name in files
+                              if PACKAGES.custom_car_archive_members(name) is not None)
+        self.assertTrue(car_archives)
+        for name in car_archives:
+            with self.subTest(name=name):
+                modified = {**files, name: FIXTURE_DATA}
+                manifest = json.loads(modified[PACKAGES.MANIFEST])
+                for entry in manifest["files"]:
+                    if entry["path"] == name:
+                        entry["sha256"] = PACKAGES.sha256(FIXTURE_DATA)
+                        entry["size"] = len(FIXTURE_DATA)
+                modified[PACKAGES.MANIFEST] = json.dumps(manifest).encode()
+                self.rewrite_archive(modified, modes)
+                with self.assertRaisesRegex(ValueError, "Invalid custom car archive"):
+                    self.build()
+                self.assertFalse(self.output.exists())
 
     def test_original_resources_and_traversal_fail_before_writing_output(self):
         files, modes = PACKAGES.archive_contents(self.archive)
