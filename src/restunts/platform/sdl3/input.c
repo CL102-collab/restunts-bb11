@@ -1561,15 +1561,17 @@ void sdl3_input_set_replay_active(legacy_u8 active)
 	replay_active = active;
 }
 
-void sdl3_input_push_modal(void)
+static void input_push_modal(legacy_u8 preserve_presentation)
 {
 	input_feedback_use_controller(false);
 	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth < LEGACY_U16_MAX) {
-		widescreen_push_modal();
 		modal_depth++;
-		sdl3_video_update_widescreen();
+		if (!preserve_presentation) {
+			widescreen_push_modal();
+			sdl3_video_update_widescreen();
+		}
 	}
 	controller_menu_direction = INPUT_NONE;
 	controller_menu_repeat_at = 0;
@@ -1581,14 +1583,16 @@ void sdl3_input_push_modal(void)
 	controller_race_start_requested = false;
 }
 
-void sdl3_input_pop_modal(void)
+static void input_pop_modal(legacy_u8 preserve_presentation)
 {
 	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth != 0) {
-		widescreen_pop_modal();
 		modal_depth--;
-		sdl3_video_update_widescreen();
+		if (!preserve_presentation) {
+			widescreen_pop_modal();
+			sdl3_video_update_widescreen();
+		}
 	}
 	controller_menu_direction = INPUT_NONE;
 	controller_menu_repeat_at = 0;
@@ -1598,6 +1602,26 @@ void sdl3_input_pop_modal(void)
 	controller_camera_repeat_at = 0;
 	controller_shift_pending = INPUT_NONE;
 	controller_race_start_requested = false;
+}
+
+void sdl3_input_push_modal(void)
+{
+	input_push_modal(0);
+}
+
+void sdl3_input_pop_modal(void)
+{
+	input_pop_modal(0);
+}
+
+void sdl3_input_push_overlay_modal(void)
+{
+	input_push_modal(1);
+}
+
+void sdl3_input_pop_overlay_modal(void)
+{
+	input_pop_modal(1);
 }
 
 legacy_s16 sdl3_controller_driving_flags(void)

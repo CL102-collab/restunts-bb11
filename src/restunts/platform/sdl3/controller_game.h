@@ -18,6 +18,9 @@ void sdl3_input_set_gameplay_active(legacy_u8 active);
 void sdl3_input_set_replay_active(legacy_u8 active);
 void sdl3_input_push_modal(void);
 void sdl3_input_pop_modal(void);
+/* Modal input routing for a dialog drawn over the current presentation. */
+void sdl3_input_push_overlay_modal(void);
+void sdl3_input_pop_overlay_modal(void);
 legacy_s16 sdl3_joystick_menu_flags(void);
 legacy_s16 sdl3_controller_driving_flags(void);
 legacy_s16 sdl3_controller_scaled_x(void);

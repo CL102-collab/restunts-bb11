@@ -2,192 +2,192 @@
 
 legacy_s8 RsSupersightTrackPreviewSceneLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7906;
+  legacy_s32 noreg temple_tmp_7909;
   if((value<=127)) {
-    temple_tmp_7906=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7909=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7906=TempleCastS32(TempleCastS8(
+    temple_tmp_7909=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7906);
+  return TempleCastS8(temple_tmp_7909);
 }
 
 legacy_s16 RsSupersightTrackPreviewSceneLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7907;
+  legacy_s32 noreg temple_tmp_7910;
   if((value<=32767)) {
-    temple_tmp_7907=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7910=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7907=TempleCastS32(TempleCastS16(
+    temple_tmp_7910=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7907);
+  return TempleCastS16(temple_tmp_7910);
 }
 
 legacy_s32 RsSupersightTrackPreviewSceneLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7908;
+  legacy_s32 noreg temple_tmp_7911;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7908=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7911=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7908=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7911=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7908);
+  return TempleCastS32(temple_tmp_7911);
 }
 
 legacy_void RsSupersightTrackPreviewDrawCoveredWater(legacy_u8 track,legacy_u8 terrain,
     legacy_u8 column,legacy_u8 row,CVector *camera,CTransformedShape3D *transformed,
     legacy_u8 *draw_terrain)
 {
-  legacy_s32 noreg temple_tmp_7909;
-  legacy_s32 noreg temple_tmp_7910;
-  legacy_s32 noreg temple_tmp_7911;
-  legacy_u8 noreg temple_footprint_7912;
+  legacy_s32 noreg temple_tmp_7912;
   legacy_s32 noreg temple_tmp_7913;
-  legacy_u8 noreg temple_last_column_7914;
-  legacy_u8 noreg temple_last_row_7915;
-  legacy_u8 noreg temple_adjacent_row_7917;
-  legacy_s32 noreg temple_tmp_7918;
-  legacy_u8 noreg temple_adjacent_column_7920;
+  legacy_s32 noreg temple_tmp_7914;
+  legacy_u8 noreg temple_footprint_7915;
+  legacy_s32 noreg temple_tmp_7916;
+  legacy_u8 noreg temple_last_column_7917;
+  legacy_u8 noreg temple_last_row_7918;
+  legacy_u8 noreg temple_adjacent_row_7920;
   legacy_s32 noreg temple_tmp_7921;
-  legacy_s32 noreg temple_tmp_7922;
-  legacy_u8 noreg temple_covered_terrain_7923;
+  legacy_u8 noreg temple_adjacent_column_7923;
   legacy_s32 noreg temple_tmp_7924;
-  legacy_void (*temple_callee_7925)(legacy_u8 terrain,legacy_u8 column,legacy_u8 row,
+  legacy_s32 noreg temple_tmp_7925;
+  legacy_u8 noreg temple_covered_terrain_7926;
+  legacy_s32 noreg temple_tmp_7927;
+  legacy_void (*temple_callee_7928)(legacy_u8 terrain,legacy_u8 column,legacy_u8 row,
       legacy_s16 height,legacy_s16 camera_x,legacy_s16 camera_y,legacy_s16 camera_z,
       legacy_s16 use_high_detail,CTransformedShape3D *transformed);
-  legacy_u8 *temple_tmp_7926;
-  legacy_u8 noreg temple_tmp_7927;
-  legacy_u8 *temple_tmp_7928;
-  legacy_u8 noreg temple_tmp_7929;
+  legacy_u8 *temple_tmp_7929;
+  legacy_u8 noreg temple_tmp_7930;
+  legacy_u8 *temple_tmp_7931;
+  legacy_u8 noreg temple_tmp_7932;
   if((supersight_enabled==0)) {
     return;
   }
-  temple_tmp_7911=0;
+  temple_tmp_7914=0;
   if((track==0)) {
-    temple_tmp_7911=1;
+    temple_tmp_7914=1;
   }
-  if(!temple_tmp_7911) {
-    temple_tmp_7909=0;
+  if(!temple_tmp_7914) {
+    temple_tmp_7912=0;
     if((track>=105)) {
-      temple_tmp_7909=1;
+      temple_tmp_7912=1;
     }
-    if(temple_tmp_7909) {
-      temple_tmp_7909=0;
+    if(temple_tmp_7912) {
+      temple_tmp_7912=0;
       if((track<=108)) {
-        temple_tmp_7909=1;
+        temple_tmp_7912=1;
       }
     }
-    temple_tmp_7910=0;
-    if(temple_tmp_7909) {
-      temple_tmp_7910=1;
-    }
-    if(temple_tmp_7910) {
-      temple_tmp_7910=0;
-      if((terrain!=6)) {
-        temple_tmp_7910=1;
-      }
-    }
-    temple_tmp_7911=0;
-    if(temple_tmp_7910) {
-      temple_tmp_7911=1;
-    }
-  }
-  if(temple_tmp_7911) {
-    return;
-  }
-  temple_footprint_7912=TempleCastU8(trk_object_list[track].ss_multi_tile_flag);
-  temple_tmp_7913=0;
-  if((temple_footprint_7912<1)) {
-    temple_tmp_7913=1;
-  }
-  if(!temple_tmp_7913) {
     temple_tmp_7913=0;
-    if((temple_footprint_7912>TempleCastU32((1|2)))) {
+    if(temple_tmp_7912) {
       temple_tmp_7913=1;
     }
+    if(temple_tmp_7913) {
+      temple_tmp_7913=0;
+      if((terrain!=6)) {
+        temple_tmp_7913=1;
+      }
+    }
+    temple_tmp_7914=0;
+    if(temple_tmp_7913) {
+      temple_tmp_7914=1;
+    }
   }
-  if(temple_tmp_7913) {
+  if(temple_tmp_7914) {
     return;
   }
-  temple_last_column_7914=TempleCastU8(
-      TempleCastS32((column+(TempleCastU32((temple_footprint_7912&2))!=TempleCastU32(0)))));
-  temple_last_row_7915=TempleCastU8(
-      TempleCastS32((row+(TempleCastU32((temple_footprint_7912&1))!=TempleCastU32(0)))));
-  temple_adjacent_row_7917=TempleCastU8(row);
+  temple_footprint_7915=TempleCastU8(trk_object_list[track].ss_multi_tile_flag);
+  temple_tmp_7916=0;
+  if((temple_footprint_7915<1)) {
+    temple_tmp_7916=1;
+  }
+  if(!temple_tmp_7916) {
+    temple_tmp_7916=0;
+    if((temple_footprint_7915>TempleCastU32((1|2)))) {
+      temple_tmp_7916=1;
+    }
+  }
+  if(temple_tmp_7916) {
+    return;
+  }
+  temple_last_column_7917=TempleCastU8(
+      TempleCastS32((column+(TempleCastU32((temple_footprint_7915&2))!=TempleCastU32(0)))));
+  temple_last_row_7918=TempleCastU8(
+      TempleCastS32((row+(TempleCastU32((temple_footprint_7915&1))!=TempleCastU32(0)))));
+  temple_adjacent_row_7920=TempleCastU8(row);
   while(1) {
-    temple_tmp_7918=0;
-    if((temple_adjacent_row_7917<=temple_last_row_7915)) {
-      temple_tmp_7918=1;
+    temple_tmp_7921=0;
+    if((temple_adjacent_row_7920<=temple_last_row_7918)) {
+      temple_tmp_7921=1;
     }
-    if(temple_tmp_7918) {
-      temple_tmp_7918=0;
-      if((temple_adjacent_row_7917<30)) {
-        temple_tmp_7918=1;
-      }
-    }
-    if(!(temple_tmp_7918)) {
-      break;
-    }
-    temple_adjacent_column_7920=TempleCastU8(column);
-    while(1) {
+    if(temple_tmp_7921) {
       temple_tmp_7921=0;
-      if((temple_adjacent_column_7920<=temple_last_column_7914)) {
+      if((temple_adjacent_row_7920<30)) {
         temple_tmp_7921=1;
       }
-      if(temple_tmp_7921) {
-        temple_tmp_7921=0;
-        if((temple_adjacent_column_7920<30)) {
-          temple_tmp_7921=1;
-        }
-      }
-      if(!(temple_tmp_7921)) {
-        break;
-      }
-      temple_tmp_7922=0;
-      if((temple_adjacent_column_7920==column)) {
-        temple_tmp_7922=1;
-      }
-      if(temple_tmp_7922) {
-        temple_tmp_7922=0;
-        if((temple_adjacent_row_7917==row)) {
-          temple_tmp_7922=1;
-        }
-      }
-      if(temple_tmp_7922) {
-        goto temple_next_7919;
-      }
-      temple_covered_terrain_7923=TempleCastU8(track_terrain_map[TempleCastU16(
-          TempleCastS32((TempleCastU16(terrainrows[temple_adjacent_row_7917])+
-              TempleCastU16(temple_adjacent_column_7920))))]);
+    }
+    if(!(temple_tmp_7921)) {
+      break;
+    }
+    temple_adjacent_column_7923=TempleCastU8(column);
+    while(1) {
       temple_tmp_7924=0;
-      if((temple_covered_terrain_7923>=1)) {
+      if((temple_adjacent_column_7923<=temple_last_column_7917)) {
         temple_tmp_7924=1;
       }
       if(temple_tmp_7924) {
         temple_tmp_7924=0;
-        if((temple_covered_terrain_7923<=5)) {
+        if((temple_adjacent_column_7923<30)) {
           temple_tmp_7924=1;
         }
       }
-      if(temple_tmp_7924) {
-        temple_callee_7925=draw_terrain;
-        temple_callee_7925(TempleCastU8(temple_covered_terrain_7923),
-            TempleCastU8(temple_adjacent_column_7920),TempleCastU8(temple_adjacent_row_7917),
+      if(!(temple_tmp_7924)) {
+        break;
+      }
+      temple_tmp_7925=0;
+      if((temple_adjacent_column_7923==column)) {
+        temple_tmp_7925=1;
+      }
+      if(temple_tmp_7925) {
+        temple_tmp_7925=0;
+        if((temple_adjacent_row_7920==row)) {
+          temple_tmp_7925=1;
+        }
+      }
+      if(temple_tmp_7925) {
+        goto temple_next_7922;
+      }
+      temple_covered_terrain_7926=TempleCastU8(track_terrain_map[TempleCastU16(
+          TempleCastS32((TempleCastU16(terrainrows[temple_adjacent_row_7920])+
+              TempleCastU16(temple_adjacent_column_7923))))]);
+      temple_tmp_7927=0;
+      if((temple_covered_terrain_7926>=1)) {
+        temple_tmp_7927=1;
+      }
+      if(temple_tmp_7927) {
+        temple_tmp_7927=0;
+        if((temple_covered_terrain_7926<=5)) {
+          temple_tmp_7927=1;
+        }
+      }
+      if(temple_tmp_7927) {
+        temple_callee_7928=draw_terrain;
+        temple_callee_7928(TempleCastU8(temple_covered_terrain_7926),
+            TempleCastU8(temple_adjacent_column_7923),TempleCastU8(temple_adjacent_row_7920),
             TempleCastS16(0),TempleCastS16(camera->x),TempleCastS16(camera->y),
             TempleCastS16(camera->z),TempleCastS16(0),transformed);
       }
-    temple_next_7919:;
-      temple_tmp_7926=&(temple_adjacent_column_7920);
-      temple_tmp_7927=*temple_tmp_7926;
-      *temple_tmp_7926=TempleCastU8((temple_tmp_7927+1));
-      temple_tmp_7927;
+    temple_next_7922:;
+      temple_tmp_7929=&(temple_adjacent_column_7923);
+      temple_tmp_7930=*temple_tmp_7929;
+      *temple_tmp_7929=TempleCastU8((temple_tmp_7930+1));
+      temple_tmp_7930;
     }
-    temple_tmp_7928=&(temple_adjacent_row_7917);
-    temple_tmp_7929=*temple_tmp_7928;
-    *temple_tmp_7928=TempleCastU8((temple_tmp_7929+1));
-    temple_tmp_7929;
+    temple_tmp_7931=&(temple_adjacent_row_7920);
+    temple_tmp_7932=*temple_tmp_7931;
+    *temple_tmp_7931=TempleCastU8((temple_tmp_7932+1));
+    temple_tmp_7932;
   }
 }
 

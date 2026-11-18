@@ -536,6 +536,61 @@ static void test_nested_modal_background_and_restoration(void)
 	hires_shutdown();
 }
 
+static void test_replay_dialog_over_scene(void)
+{
+	enum { TEST_WIDE_WIDTH = 1280, TEST_WIDE_HEIGHT = 720 };
+	legacy_u8 *legacy = dos_memory_make_pointer(TEST_VGA_SEGMENT, 0);
+	legacy_u8 rows[VIDEO_FRAMEBUFFER_HEIGHT * LEGACY_WORD_BYTES];
+	memset(legacy, TEST_BACKGROUND_INDEX, VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT);
+	test_setup_overlay_target(legacy, rows);
+	widescreen_set_enabled(1);
+	widescreen_set_racing(1);
+	widescreen_set_output_size(TEST_WIDE_WIDTH, TEST_WIDE_HEIGHT);
+	hires_set_enabled(1);
+	for (legacy_s32 scale = HIRES_SCALE; scale >= HIRES_MINIMUM_SCALE; scale /= 2) {
+		hires_set_render_scale(scale);
+		widescreen_begin_frame();
+
+		/* Dialog, HUD, and cursor may overlap. Clear only the layer that closes. */
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_LEFT);
+		assert(!hires_write(legacy, 0, TEST_LEFT_HUD_INDEX));
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_DIALOG);
+		assert(hires_write(legacy, 0, TEST_DASHBOARD_INDEX));
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_CURSOR);
+		assert(hires_write(legacy, 0, TEST_RIGHT_HUD_INDEX));
+		widescreen_overlay_end();
+		assert(hires_write(legacy, 1, TEST_DASHBOARD_INDEX));
+		widescreen_overlay_end();
+		assert(!hires_write(legacy, 1, TEST_LEFT_HUD_INDEX));
+		widescreen_overlay_end();
+
+		legacy_s32 width, height;
+		const legacy_u8 *pixels = hires_framebuffer(legacy, &width, &height);
+		assert(width == TEST_WIDE_WIDTH && height == TEST_WIDE_HEIGHT);
+		assert(hires_render_scale() == scale);
+		legacy_s32 left = (width - height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT) / 2;
+		legacy_s32 step = (width - left * 2) / VIDEO_FRAMEBUFFER_WIDTH;
+		assert(pixels[left] == TEST_RIGHT_HUD_INDEX);
+		assert(pixels[left + step] == TEST_DASHBOARD_INDEX);
+		assert(pixels[step] == TEST_LEFT_HUD_INDEX);
+
+		legacy_u32 generation = hires_generation();
+		widescreen_overlay_clear(WIDESCREEN_OVERLAY_CURSOR);
+		assert(hires_generation() != generation);
+		pixels = hires_framebuffer(legacy, &width, &height);
+		assert(pixels[left] == TEST_DASHBOARD_INDEX);
+		widescreen_overlay_clear(WIDESCREEN_OVERLAY_DIALOG);
+		pixels = hires_framebuffer(legacy, &width, &height);
+		assert(pixels[left] == TEST_BACKGROUND_INDEX);
+		assert(pixels[left + step] == TEST_BACKGROUND_INDEX);
+		assert(pixels[step] == TEST_LEFT_HUD_INDEX);
+		assert(legacy[0] == TEST_BACKGROUND_INDEX && legacy[1] == TEST_BACKGROUND_INDEX);
+	}
+	widescreen_set_racing(0);
+	widescreen_set_enabled(0);
+	hires_shutdown();
+}
+
 legacy_int main(void)
 {
 	test_ratio_selection();
@@ -545,6 +600,7 @@ legacy_int main(void)
 	test_artwork_pixels_do_not_follow_scene_quality();
 	test_unseeded_overlay_preserves_world();
 	test_nested_modal_background_and_restoration();
+	test_replay_dialog_over_scene();
 	puts("Widescreen tests passed");
 	return 0;
 }

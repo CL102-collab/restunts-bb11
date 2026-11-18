@@ -76,7 +76,9 @@ static inline void video_pages_write_pixel(legacy_u8 far *bitmap, legacy_u16 off
 	}
 #endif
 #ifdef RESTUNTS_SDL3
-	hires_write(bitmap, offset, color);
+	if (hires_write(bitmap, offset, color)) {
+		return;
+	}
 #endif
 	bitmap[offset] = color;
 }
@@ -101,7 +103,10 @@ static inline void video_pages_raster_span(legacy_u8 far *destination,
 	}
 #endif
 #ifdef RESTUNTS_SDL3
-	hires_raster(destination, destination_offset, source, source_offset, count, operation, palette);
+	if (hires_raster(destination, destination_offset, source, source_offset, count, operation,
+					 palette)) {
+		return;
+	}
 #endif
 	while (count-- != 0) {
 		legacy_u8 value = source[source_offset++];

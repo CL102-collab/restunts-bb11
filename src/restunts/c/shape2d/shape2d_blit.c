@@ -54,7 +54,9 @@ static void shape2d_write_raster(legacy_u8 far *bitmap, legacy_u16 destination, 
 		return;
 	}
 #endif
-	hires_raster(bitmap, destination, &value, 0, 1, operation, NULL);
+	if (hires_raster(bitmap, destination, &value, 0, 1, operation, NULL)) {
+		return;
+	}
 	planar = 0;
 #endif
 	if (planar != 0) {

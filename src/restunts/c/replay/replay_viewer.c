@@ -1,4 +1,7 @@
 #include "replay_viewer_private.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 
 static legacy_s16 replay_try_zoom(legacy_u16 input)
 {
@@ -293,6 +296,13 @@ static void replay_handle_input(void)
 	legacy_u16 input;
 	for (;;) {
 #ifdef RESTUNTS_SDL3
+		if (widescreen_active() && is_in_replay != 0 && replaybar_enabled == 0) {
+			/* Pausing with the bar hidden changes its viewport. Let the race loop
+			 * expose the toolbar before this paused input loop blocks again. */
+			is_in_replay_copy = (legacy_s8)REPLAY_BAR_HIDDEN_STATE;
+			viewport_bottom_cache = -1;
+			return;
+		}
 		if (sdl3_controller_take_menu_request() != 0) {
 			replay_pause_menu();
 			return;

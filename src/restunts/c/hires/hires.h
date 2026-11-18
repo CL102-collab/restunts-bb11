@@ -124,10 +124,11 @@ void hires_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color);
 void hires_fill_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color);
 /* Copy scale*scale row-major samples into one logical cell, retiring its ARGB overlay. */
 void hires_write_pixel(legacy_s32 x, legacy_s32 y, const legacy_u8 *samples);
-void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color);
-void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
-				  const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
-				  legacy_s16 operation, const legacy_u8 *palette);
+/* Return true when the overlay owns the write and the legacy destination stays intact. */
+legacy_s32 hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color);
+legacy_s32 hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
+						const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
+						legacy_s16 operation, const legacy_u8 *palette);
 void hires_forget(const void *base);
 void hires_forget_range(const void *base, legacy_u32 size);
 /* Return enhanced samples, or NULL without changing dimensions when disabled. */

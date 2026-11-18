@@ -34,6 +34,23 @@ legacy_u8 amiga_video_set_auto_refresh(legacy_u8 enabled)
 }
 #endif
 
+#ifdef RESTUNTS_SDL3
+static legacy_s32 wide_toolbar_testing;
+static legacy_u8 wide_pause_key;
+legacy_s16 camera_track_height_offset;
+legacy_s32 widescreen_active(void)
+{
+	return wide_toolbar_testing;
+}
+void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
+{
+	(void)overlay;
+}
+void widescreen_overlay_end(void)
+{
+}
+#endif
+
 static struct CARSTATE ghost_fixture;
 static legacy_s16 ghost_fixture_active;
 static legacy_u32 ghost_end_calls;
@@ -203,6 +220,12 @@ legacy_s16 input_checking(legacy_s16 delta)
 	}
 #endif
 	assert(++input_polls <= input_exit_poll);
+#ifdef RESTUNTS_SDL3
+	if (wide_pause_key) {
+		wide_pause_key = 0;
+		return KEY_SPACE;
+	}
+#endif
 	return input_polls == input_exit_poll ? KEY_F2 : 0;
 }
 
@@ -214,6 +237,11 @@ void camera_select_mode(legacy_s8 mode)
 
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
+#ifdef RESTUNTS_SDL3
+	if (wide_toolbar_testing && key == KEY_SPACE) {
+		return 0;
+	}
+#endif
 	assert(key == KEY_F2);
 	return 1;
 }
@@ -522,6 +550,14 @@ legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_
 	}
 	return (scenario / 4) % 4 - 1;
 }
+#ifdef RESTUNTS_SDL3
+legacy_u16 show_replay_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_u16 x,
+							  legacy_u16 y, legacy_s16 color, legacy_s16 *disabled,
+							  legacy_s16 initial)
+{
+	return show_dialog(type, save, text, x, y, color, disabled, initial);
+}
+#endif
 legacy_s8 do_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename, legacy_s8 *extension,
 							   legacy_s8 far *prompt)
 {
@@ -1106,6 +1142,48 @@ static void test_extended_toolbar_menu_interrupt(void)
 	}
 }
 
+static void test_wide_hidden_bar_pause_returns_for_layout(void)
+{
+	reset_viewer();
+	wide_toolbar_testing = 1;
+	mouse_butstate = kbormouse = 0;
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	is_in_replay = 1;
+	replaybar_enabled = 0;
+	input_polls = 0;
+	input_exit_poll = 2;
+	viewport_bottom_cache = 200;
+	replay_handle_input();
+	assert(input_polls == 0 && replaybar_enabled == 0);
+	assert(is_in_replay_copy == (legacy_s8)REPLAY_BAR_HIDDEN_STATE);
+	assert(viewport_bottom_cache == -1);
+
+	/* A keyboard pause from playing consumes its key, then yields for the bar. */
+	is_in_replay = 0;
+	replay_selected_control = REPLAY_CONTROL_PAUSE;
+	wide_pause_key = 1;
+	replay_handle_input();
+	assert(input_polls == 1 && wide_pause_key == 0 && is_in_replay != 0);
+	assert(replay_control_active[REPLAY_CONTROL_PAUSE]);
+	assert(viewport_bottom_cache == -1);
+	wide_toolbar_testing = 0;
+}
+
+static void test_keyboard_toolbar_activation(void)
+{
+	reset_viewer();
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	is_in_replay = 1;
+	replay_selected_control = REPLAY_CONTROL_PAUSE;
+	assert(replay_handle_control_input(KEY_RIGHT) == 0);
+	assert(replay_selected_control == REPLAY_CONTROL_PLAY);
+	assert(replay_handle_control_input(KEY_ENTER) == 0);
+	assert(is_in_replay == 0 && replay_control_active[REPLAY_CONTROL_PLAY]);
+	replay_selected_control = REPLAY_CONTROL_PAUSE;
+	assert(replay_handle_control_input(KEY_SPACE) == 0);
+	assert(is_in_replay != 0 && replay_control_active[REPLAY_CONTROL_PAUSE]);
+}
+
 static void test_controller_pause_menu(void)
 {
 	reset_viewer();
@@ -1206,6 +1284,8 @@ legacy_int main(void)
 #endif
 #ifdef RESTUNTS_SDL3
 	test_touch_seek_reconstruction();
+	test_wide_hidden_bar_pause_returns_for_layout();
+	test_keyboard_toolbar_activation();
 	test_controller_pause_menu();
 	test_controller_menu_during_scrub();
 	test_toolbar_scrub_acceleration();

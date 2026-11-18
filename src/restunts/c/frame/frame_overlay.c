@@ -245,7 +245,6 @@ static void draw_replay_text(legacy_s8 *text, legacy_s16 y)
 			   &rect_ingame_text);
 #ifdef RESTUNTS_SDL3
 	widescreen_overlay_end();
-	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
 #endif
 }
 

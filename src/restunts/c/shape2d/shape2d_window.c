@@ -1,6 +1,7 @@
 #include <stddef.h>
 #ifdef RESTUNTS_SDL3
 #include "../../platform/sdl3/sdl3.h"
+#include "../hires/widescreen.h"
 #endif
 #ifdef RESTUNTS_AMIGA
 #include "../../platform/amiga/amiga.h"
@@ -22,6 +23,10 @@
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 static struct SPRITE native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY]
 											   [SPRITE_STATE_COUNT];
+#endif
+
+#ifdef RESTUNTS_SDL3
+static legacy_u8 mouse_widescreen_overlay;
 #endif
 
 #define WINDOW_DEFINITION_TABLE_BYTES 3600U
@@ -259,6 +264,15 @@ void sprite_pop_background(void)
 
 void mouse_draw_opaque(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (mouse_widescreen_overlay != 0) {
+		/* Wide cursors never replace scene bytes or save a scene background. */
+		widescreen_overlay_clear(WIDESCREEN_OVERLAY_CURSOR);
+		mouse_widescreen_overlay = 0;
+		mouse_background_dirty = 0;
+		return;
+	}
+#endif
 	struct SPRITE saved_sprites[SPRITE_STATE_COUNT];
 
 	sprite_save_context(saved_sprites);
@@ -274,6 +288,22 @@ void mouse_draw_transparent(void)
 	struct SPRITE saved_sprites[SPRITE_STATE_COUNT];
 	sprite_save_context(saved_sprites);
 	sprite_select_screen();
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		/* Match the centered artwork and its mouse coordinates. The cursor has
+		 * its own transparent plane, so erasing it cannot restore stale world
+		 * pixels after a new race frame or dialog has been drawn. */
+		widescreen_overlay_clear(WIDESCREEN_OVERLAY_CURSOR);
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_CURSOR);
+		sprite_putimage_and(mouse_medium_sprite->sprite_bitmapptr, mouse_xpos, mouse_ypos);
+		sprite_putimage_or(mouse_small_sprite->sprite_bitmapptr, mouse_xpos, mouse_ypos);
+		widescreen_overlay_end();
+		sprite_restore_context(saved_sprites);
+		mouse_widescreen_overlay = 1;
+		mouse_background_dirty = 1;
+		return;
+	}
+#endif
 	sprite_clear_shape_alt(mouse_background_sprite->sprite_bitmapptr, aligned_x, mouse_ypos);
 	sprite_putimage_and(mouse_medium_sprite->sprite_bitmapptr, mouse_xpos, mouse_ypos);
 	sprite_putimage_or(mouse_small_sprite->sprite_bitmapptr, mouse_xpos, mouse_ypos);

@@ -1768,6 +1768,94 @@ static void assert_wide_video_capture(legacy_s32 width, legacy_s32 height, legac
 	assert(SDL_RemovePath(path));
 }
 
+enum {
+	REPLAY_POINTER_PLAY_X = 253,
+	REPLAY_POINTER_BUTTON_Y = 164,
+	REPLAY_POINTER_TIMELINE_LEFT = 154,
+	REPLAY_POINTER_TIMELINE_MIDDLE = 209,
+	REPLAY_POINTER_TIMELINE_RIGHT = 264,
+	REPLAY_POINTER_TIMELINE_Y = 178
+};
+
+static void replay_pointer_event(SDL_EventType type, legacy_s16 authored_x, legacy_s16 authored_y,
+								 legacy_s16 expected_buttons)
+{
+	legacy_f32 x, y;
+	/* Pick the interior of an authored pixel so float rounding cannot select its neighbor. */
+	sdl3_video_game_to_window(authored_x + HIRES_SAMPLE_CENTER_OFFSET,
+							  authored_y + HIRES_SAMPLE_CENTER_OFFSET, &x, &y);
+	SDL_Event event;
+	SDL_zero(event);
+	event.type = type;
+	if (type == SDL_EVENT_MOUSE_MOTION) {
+		event.motion.x = x;
+		event.motion.y = y;
+	} else {
+		event.button.button = SDL_BUTTON_LEFT;
+		event.button.down = type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+		event.button.x = x;
+		event.button.y = y;
+	}
+	assert(SDL_PushEvent(&event));
+	legacy_s16 buttons, mouse_x, mouse_y;
+	dos_mouse_get_state(&buttons, &mouse_x, &mouse_y);
+	assert(buttons == expected_buttons && mouse_x == authored_x && mouse_y == authored_y);
+}
+
+static void test_wide_replay_pointer_events(void)
+{
+	kb_init_interrupt();
+	sdl3_input_set_gameplay_active(1);
+	sdl3_input_set_replay_active(1);
+	assert(dos_mouse_init(SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT));
+	replay_pointer_event(SDL_EVENT_MOUSE_MOTION, REPLAY_POINTER_PLAY_X, REPLAY_POINTER_BUTTON_Y, 0);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_DOWN, REPLAY_POINTER_PLAY_X,
+						 REPLAY_POINTER_BUTTON_Y, 1);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_UP, REPLAY_POINTER_PLAY_X, REPLAY_POINTER_BUTTON_Y,
+						 0);
+	legacy_int before_width, before_height, width, height;
+	SDL_RendererLogicalPresentation before_mode, mode;
+	SDL_Renderer *renderer = SDL_GetRenderer(sdl3_video_window());
+	assert(SDL_GetRenderLogicalPresentation(renderer, &before_width, &before_height, &before_mode));
+	sdl3_input_push_overlay_modal();
+	assert(widescreen_active() && !widescreen_modal_active());
+	sdl3_video_present();
+	assert(SDL_GetRenderLogicalPresentation(renderer, &width, &height, &mode));
+	assert(width == before_width && height == before_height && mode == before_mode);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_DOWN, REPLAY_POINTER_PLAY_X,
+						 REPLAY_POINTER_BUTTON_Y, 1);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_UP, REPLAY_POINTER_PLAY_X, REPLAY_POINTER_BUTTON_Y,
+						 0);
+	sdl3_input_pop_overlay_modal();
+	assert(widescreen_active() && !widescreen_modal_active());
+	sdl3_video_present();
+	assert(SDL_GetRenderLogicalPresentation(renderer, &width, &height, &mode));
+	assert(width == before_width && height == before_height && mode == before_mode);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_DOWN, REPLAY_POINTER_TIMELINE_LEFT,
+						 REPLAY_POINTER_TIMELINE_Y, 1);
+	replay_pointer_event(SDL_EVENT_MOUSE_MOTION, REPLAY_POINTER_TIMELINE_MIDDLE,
+						 REPLAY_POINTER_TIMELINE_Y, 1);
+	replay_pointer_event(SDL_EVENT_MOUSE_MOTION, REPLAY_POINTER_TIMELINE_RIGHT,
+						 REPLAY_POINTER_TIMELINE_Y, 1);
+	replay_pointer_event(SDL_EVENT_MOUSE_BUTTON_UP, REPLAY_POINTER_TIMELINE_RIGHT,
+						 REPLAY_POINTER_TIMELINE_Y, 0);
+	assert(dos_kb_get_char() == 0);
+	const struct {
+		SDL_Scancode scancode;
+		legacy_u16 key;
+	} keys[] = {{SDL_SCANCODE_RIGHT, KEY_RIGHT},
+				{SDL_SCANCODE_RETURN, KEY_ENTER},
+				{SDL_SCANCODE_SPACE, KEY_SPACE}};
+	for (legacy_u32 index = 0; index < SDL_arraysize(keys); index++) {
+		send_key(keys[index].scancode, SDL_KMOD_NONE, true, false);
+		assert(kb_read_char() == keys[index].key);
+		send_key(keys[index].scancode, SDL_KMOD_NONE, false, false);
+		assert(kb_read_char() == 0);
+	}
+	sdl3_input_set_replay_active(0);
+	sdl3_input_set_gameplay_active(0);
+}
+
 static void test_wide_quality_presentation(void)
 {
 	static const struct {
@@ -1836,6 +1924,9 @@ static void test_wide_quality_presentation(void)
 			sdl3_video_window_to_game(x, y, &x, &y);
 			assert_coordinate(x, SDL3_SCREEN_WIDTH);
 			assert_coordinate(y, SDL3_SCREEN_HEIGHT);
+			if (quality == 0) {
+				test_wide_replay_pointer_events();
+			}
 			assert_wide_video_capture(cases[index].width, cases[index].height, marker_x, marker_y);
 		}
 	}

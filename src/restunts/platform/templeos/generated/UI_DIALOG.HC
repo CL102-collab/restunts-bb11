@@ -175,8 +175,18 @@ legacy_void RsUiDialogDialogMeasure(CDialogContent *dialog,legacy_u8 *text_resou
                   65528)))))));
 }
 
+legacy_void RsUiDialogDialogBeginOverlay(legacy_u8 overlay)
+{
+  overlay;
+}
+
+legacy_void RsUiDialogDialogEndOverlay(legacy_u8 overlay)
+{
+  overlay;
+}
+
 legacy_s16 RsUiDialogDialogDrawFrame(CDialogContent *dialog,legacy_u16 x_argument,
-    legacy_u16 y_argument,legacy_s16 save_background,legacy_s16 border_color)
+    legacy_u16 y_argument,legacy_s16 save_background,legacy_s16 border_color,legacy_u8 overlay)
 {
   legacy_s16 noreg temple_left_1509;
   legacy_s16 noreg temple_right_1510;
@@ -232,6 +242,7 @@ legacy_s16 RsUiDialogDialogDrawFrame(CDialogContent *dialog,legacy_u16 x_argumen
     return TempleCastS16(0);
   }
   RsSpriteSelectScreen();
+  RsUiDialogDialogBeginOverlay(TempleCastU8(overlay));
   RsSpriteSetTargetClipBounds(TempleCastU16(temple_left_1509),TempleCastU16(temple_right_1510),
       TempleCastU16(temple_top_1511),TempleCastU16(temple_bottom_1512));
   RsSpriteClearTarget(TempleCastU8(0));
@@ -670,8 +681,8 @@ legacy_s16 RsUiDialogDialogApplyMenuInput(
   return TempleCastS16(0);
 }
 
-legacy_s16 RsUiDialogDialogRunMenu(
-    CDialogContent *dialog,legacy_s16 *disabled_choices,legacy_s16 initial_choice)
+legacy_s16 RsUiDialogDialogRunMenu(CDialogContent *dialog,legacy_s16 *disabled_choices,
+    legacy_s16 initial_choice,legacy_u8 overlay)
 {
   legacy_u8 noreg temple_selected_1563;
   legacy_u8 noreg temple_previous_1564;
@@ -700,7 +711,9 @@ legacy_s16 RsUiDialogDialogRunMenu(
       break;
     }
     if((temple_selected_1563!=temple_previous_1564)) {
+      RsUiDialogDialogBeginOverlay(TempleCastU8(overlay));
       RsUiDialogDialogDrawChoices(dialog,TempleCastU8(temple_selected_1563),disabled_choices);
+      RsUiDialogDialogEndOverlay(TempleCastU8(overlay));
       if((temple_previous_1564==255)) {
         RsCheckInput();
       }
@@ -769,20 +782,21 @@ legacy_s16 RsUiDialogDialogRunMenu(
 
 legacy_u16 RsUiDialogShowDialogImpl(legacy_s16 dialog_type,legacy_s16 save_background,
     legacy_u8 *text_resource,legacy_u16 x_argument,legacy_u16 y_argument,legacy_s16 border_color,
-    legacy_s16 *disabled_choices,legacy_s16 initial_choice)
+    legacy_s16 *disabled_choices,legacy_s16 initial_choice,legacy_u8 overlay)
 {
   CDialogContent temple_dialog_1574;
   legacy_u16 noreg temple_input_1575;
   legacy_s16 noreg temple_result_1576;
   RsUiDialogDialogMeasure((&(temple_dialog_1574)),text_resource);
   if((!(RsUiDialogDialogDrawFrame((&(temple_dialog_1574)),TempleCastU16(x_argument),
-        TempleCastU16(y_argument),TempleCastS16(save_background),
-        TempleCastS16(border_color))))) {
+        TempleCastU16(y_argument),TempleCastS16(save_background),TempleCastS16(border_color),
+        TempleCastU8(overlay))))) {
     return TempleCastU16(65535);
   }
   RsUiDialogDialogDrawMessage(
       (&(temple_dialog_1574)),text_resource,TempleCastS16(dialog_type),disabled_choices);
   RsUiDialogDialogMeasureChoices((&(temple_dialog_1574)));
+  RsUiDialogDialogEndOverlay(TempleCastU8(overlay));
   if((dialog_type==DIALOG_TYPE_MESSAGE)) {
     return TempleCastU16(0);
   }
@@ -816,8 +830,8 @@ legacy_u16 RsUiDialogShowDialogImpl(legacy_s16 dialog_type,legacy_s16 save_backg
     return TempleCastU16(
         RsUiDialogDialogFinish(TempleCastS16(temple_result_1576),TempleCastS16(save_background)));
   }
-  (temple_result_1576=TempleCastS16(RsUiDialogDialogRunMenu(
-      (&(temple_dialog_1574)),disabled_choices,TempleCastS16(initial_choice))));
+  (temple_result_1576=TempleCastS16(RsUiDialogDialogRunMenu((&(temple_dialog_1574)),
+      disabled_choices,TempleCastS16(initial_choice),TempleCastU8(overlay))));
   return TempleCastU16(
       RsUiDialogDialogFinish(TempleCastS16(temple_result_1576),TempleCastS16(save_background)));
 }
@@ -827,9 +841,9 @@ legacy_u16 RsShowDialog(legacy_s16 dialog_type,legacy_s16 save_background,
     legacy_s16 *disabled_choices,legacy_s16 initial_choice)
 {
   legacy_u16 noreg temple_result_1578;
-  temple_result_1578=TempleCastU16(
-      RsUiDialogShowDialogImpl(TempleCastS16(dialog_type),TempleCastS16(save_background),
-          text_resource,TempleCastU16(x_argument),TempleCastU16(y_argument),
-          TempleCastS16(border_color),disabled_choices,TempleCastS16(initial_choice)));
+  temple_result_1578=TempleCastU16(RsUiDialogShowDialogImpl(TempleCastS16(dialog_type),
+      TempleCastS16(save_background),text_resource,TempleCastU16(x_argument),
+      TempleCastU16(y_argument),TempleCastS16(border_color),disabled_choices,
+      TempleCastS16(initial_choice),TempleCastU8(0)));
   return TempleCastU16(temple_result_1578);
 }

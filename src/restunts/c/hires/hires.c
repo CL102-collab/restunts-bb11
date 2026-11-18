@@ -228,7 +228,7 @@ legacy_s32 hires_enabled(void)
 
 legacy_u32 hires_generation(void)
 {
-	return hires_state.generation;
+	return hires_state.generation + widescreen_overlay_generation();
 }
 
 legacy_s32 hires_begin(const struct SPRITE *target)
@@ -383,16 +383,20 @@ void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity)
 	}
 }
 
-void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
+legacy_s32 hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
 {
 	if (widescreen_overlay_write(base, offset, color)) {
+		if (widescreen_overlay_only()) {
+			hires_state.generation++;
+			return 1;
+		}
 		/* The legacy byte is about to change; retain its scene sample. */
 		hires_cell(hires_create(base), offset);
 		hires_state.generation++;
-		return;
+		return 0;
 	}
 	if (!hires_state.enabled || hires_state.active != NULL) {
-		return;
+		return 0;
 	}
 	struct HIRES_SURFACE *surface = hires_surface_find(base);
 	if (surface != NULL && surface->valid[offset]) {
@@ -402,6 +406,7 @@ void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
 		hires_release_unused_argb(surface);
 		hires_state.generation++;
 	}
+	return 0;
 }
 
 static void hires_raster_argb(struct HIRES_SURFACE *dst, legacy_u16 dest, struct HIRES_SURFACE *src,
@@ -468,26 +473,30 @@ static void hires_raster_copy_indexed(struct HIRES_SURFACE *dst, legacy_u16 dest
 	}
 }
 
-void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
-				  const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
-				  legacy_s16 operation, const legacy_u8 *palette)
+legacy_s32 hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
+						const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
+						legacy_s16 operation, const legacy_u8 *palette)
 {
 	if (widescreen_overlay_raster(destination, destination_offset, source, source_offset, count,
 								  operation, palette)) {
+		if (widescreen_overlay_only()) {
+			hires_state.generation++;
+			return 1;
+		}
 		struct HIRES_SURFACE *scene = hires_create(destination);
 		for (legacy_u32 index = 0; index < count; index++) {
 			hires_cell(scene, (legacy_u16)(destination_offset + index));
 		}
 		hires_state.generation++;
-		return;
+		return 0;
 	}
 	if (!hires_state.enabled || hires_state.active != NULL || count == 0) {
-		return;
+		return 0;
 	}
 	struct HIRES_SURFACE *src = hires_surface_find(source);
 	struct HIRES_SURFACE *dst = hires_surface_find(destination);
 	if (src == NULL && dst == NULL) {
-		return;
+		return 0;
 	}
 	if (dst == NULL) {
 		dst = hires_create(destination);
@@ -532,6 +541,7 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 	}
 	hires_release_unused_argb(dst);
 	hires_state.generation++;
+	return 0;
 }
 
 void hires_forget(const void *base)

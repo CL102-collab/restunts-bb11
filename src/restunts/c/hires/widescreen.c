@@ -7,6 +7,7 @@
 #define WIDESCREEN_UI_PIXELS (VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT)
 #define WIDESCREEN_RATIO_COUNT 3
 #define WIDESCREEN_OUTPUT_ROUNDING_ROWS 1
+#define WIDESCREEN_OVERLAY_SCOPE_LIMIT 4U
 #define WIDESCREEN_VGA_SEGMENT 0xA000U
 
 struct WIDESCREEN_RATIO {
@@ -26,9 +27,17 @@ static legacy_u8 modal_background[WIDESCREEN_UI_PIXELS];
 static legacy_u8 modal_background_saved;
 static legacy_u8 overlay_pixels[WIDESCREEN_OVERLAY_COUNT][WIDESCREEN_UI_PIXELS];
 static legacy_u8 overlay_valid[WIDESCREEN_OVERLAY_COUNT][WIDESCREEN_UI_PIXELS];
-static const legacy_u8 *overlay_base;
-static legacy_u16 overlay_origin;
-static enum WIDESCREEN_OVERLAY overlay_kind;
+struct WIDESCREEN_OVERLAY_TARGET {
+	const legacy_u8 *base;
+	legacy_u16 origin;
+	enum WIDESCREEN_OVERLAY kind;
+};
+
+static struct WIDESCREEN_OVERLAY_TARGET overlay_target;
+static struct WIDESCREEN_OVERLAY_TARGET overlay_scopes[WIDESCREEN_OVERLAY_SCOPE_LIMIT];
+static legacy_u16 overlay_depth;
+static legacy_u32 overlay_revision;
+static legacy_u8 overlay_used[WIDESCREEN_OVERLAY_COUNT];
 static legacy_u8 overlay_hide_edges;
 static legacy_s32 overlay_output_width, overlay_output_height;
 static legacy_s16 overlay_source_x[WIDESCREEN_OVERLAY_COUNT][HIRES_WIDTH];
@@ -62,7 +71,7 @@ void widescreen_set_enabled(legacy_s32 enabled)
 	if (widescreen_option != enabled) {
 		widescreen_option = enabled;
 		widescreen_revision++;
-		overlay_base = NULL;
+		overlay_target.base = NULL;
 	}
 }
 
@@ -77,7 +86,7 @@ void widescreen_set_racing(legacy_s32 racing)
 	if (widescreen_race != racing) {
 		widescreen_race = racing;
 		widescreen_revision++;
-		overlay_base = NULL;
+		overlay_target.base = NULL;
 	}
 }
 
@@ -112,7 +121,7 @@ static void widescreen_capture_modal_background(void)
 			legacy_s32 source_x = left + x * crop_width / VIDEO_FRAMEBUFFER_WIDTH;
 			legacy_s32 offset = y * VIDEO_FRAMEBUFFER_WIDTH + x;
 			legacy_u8 color = pixels[source_y * presentation_width + source_x];
-			for (legacy_s32 kind = WIDESCREEN_OVERLAY_LEFT; kind < WIDESCREEN_OVERLAY_COUNT;
+			for (legacy_s32 kind = WIDESCREEN_OVERLAY_LEFT; kind <= WIDESCREEN_OVERLAY_RIGHT;
 				 kind++) {
 				if (overlay_valid[kind][offset]) {
 					color = overlay_pixels[kind][offset];
@@ -135,7 +144,7 @@ void widescreen_push_modal(void)
 			widescreen_capture_modal_background();
 		}
 		widescreen_revision++;
-		overlay_base = NULL;
+		overlay_target.base = NULL;
 	}
 	widescreen_modal_depth++;
 }
@@ -154,7 +163,7 @@ void widescreen_pop_modal(void)
 			modal_background_saved = 0;
 		}
 		widescreen_revision++;
-		overlay_base = NULL;
+		overlay_target.base = NULL;
 	}
 }
 
@@ -171,7 +180,7 @@ void widescreen_set_output_size(legacy_s32 width, legacy_s32 height)
 		widescreen_width = render_width;
 		widescreen_height = render_height;
 		widescreen_revision++;
-		overlay_base = NULL;
+		overlay_target.base = NULL;
 	}
 }
 
@@ -206,35 +215,65 @@ legacy_u32 widescreen_generation(void)
 
 void widescreen_begin_frame(void)
 {
-	overlay_base = NULL;
+	overlay_target.base = NULL;
 	if (widescreen_active()) {
 		memset(overlay_valid, 0, sizeof(overlay_valid));
+		memset(overlay_used, 0, sizeof(overlay_used));
 	}
 }
 
 void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
 {
-	overlay_base = NULL;
+	if (overlay_depth < WIDESCREEN_OVERLAY_SCOPE_LIMIT) {
+		overlay_scopes[overlay_depth] = overlay_target;
+	}
+	overlay_depth++;
+	overlay_target.base = NULL;
+	if (overlay_depth > WIDESCREEN_OVERLAY_SCOPE_LIMIT) {
+		return;
+	}
 	if (widescreen_active() && overlay >= WIDESCREEN_OVERLAY_CENTER &&
 		overlay < WIDESCREEN_OVERLAY_COUNT) {
-		overlay_kind = overlay;
-		overlay_base =
+		overlay_target.kind = overlay;
+		overlay_target.base =
 			dos_memory_make_pointer(dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr), 0);
-		overlay_origin = LEGACY_READ_U16_LE(drawing_sprite.sprite_lineofs);
+		overlay_target.origin = LEGACY_READ_U16_LE(drawing_sprite.sprite_lineofs);
 	}
 }
 
 void widescreen_overlay_end(void)
 {
-	overlay_base = NULL;
+	if (overlay_depth != 0 && --overlay_depth < WIDESCREEN_OVERLAY_SCOPE_LIMIT) {
+		overlay_target = overlay_scopes[overlay_depth];
+	}
+}
+
+void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay)
+{
+	if (overlay_used[overlay]) {
+		memset(overlay_valid[overlay], 0, sizeof(overlay_valid[overlay]));
+		overlay_used[overlay] = 0;
+		overlay_revision++;
+	}
+}
+
+legacy_s32 widescreen_overlay_only(void)
+{
+	return overlay_target.kind == WIDESCREEN_OVERLAY_DIALOG ||
+		   overlay_target.kind == WIDESCREEN_OVERLAY_CURSOR;
+}
+
+legacy_u32 widescreen_overlay_generation(void)
+{
+	return overlay_revision;
 }
 
 static legacy_s32 widescreen_overlay_offset(const legacy_u8 *base, legacy_u16 offset)
 {
-	if (overlay_base == NULL || base != overlay_base || !widescreen_active()) {
+	if (overlay_target.base == NULL || base != overlay_target.base || !widescreen_active()) {
 		return -1;
 	}
-	legacy_u16 relative = (legacy_u16)(offset - overlay_origin);
+	legacy_u16 relative = (legacy_u16)(offset - overlay_target.origin);
 	return relative < WIDESCREEN_UI_PIXELS ? relative : -1;
 }
 
@@ -244,8 +283,9 @@ legacy_s32 widescreen_overlay_write(const legacy_u8 *base, legacy_u16 offset, le
 	if (index < 0) {
 		return 0;
 	}
-	overlay_pixels[overlay_kind][index] = color;
-	overlay_valid[overlay_kind][index] = 1;
+	overlay_pixels[overlay_target.kind][index] = color;
+	overlay_valid[overlay_target.kind][index] = 1;
+	overlay_used[overlay_target.kind] = 1;
 	return 1;
 }
 
@@ -254,7 +294,7 @@ legacy_s32 widescreen_overlay_raster(const legacy_u8 *destination, legacy_u16 de
 									 legacy_u16 count, legacy_s16 operation,
 									 const legacy_u8 *palette)
 {
-	if (overlay_base == NULL || destination != overlay_base || !widescreen_active()) {
+	if (overlay_target.base == NULL || destination != overlay_target.base || !widescreen_active()) {
 		return 0;
 	}
 	for (legacy_u32 pixel = 0; pixel < count; pixel++) {
@@ -274,12 +314,15 @@ legacy_s32 widescreen_overlay_raster(const legacy_u8 *destination, legacy_u16 de
 				continue;
 			}
 		} else if (operation == SHAPE2D_RASTER_AND) {
-			value &= overlay_valid[overlay_kind][index] ? overlay_pixels[overlay_kind][index] : 0;
-		} else if (operation == SHAPE2D_RASTER_OR && overlay_valid[overlay_kind][index]) {
-			value |= overlay_pixels[overlay_kind][index];
+			value &= overlay_valid[overlay_target.kind][index]
+						 ? overlay_pixels[overlay_target.kind][index]
+						 : 0;
+		} else if (operation == SHAPE2D_RASTER_OR && overlay_valid[overlay_target.kind][index]) {
+			value |= overlay_pixels[overlay_target.kind][index];
 		}
-		overlay_pixels[overlay_kind][index] = value;
-		overlay_valid[overlay_kind][index] = 1;
+		overlay_pixels[overlay_target.kind][index] = value;
+		overlay_valid[overlay_target.kind][index] = 1;
+		overlay_used[overlay_target.kind] = 1;
 	}
 	return 1;
 }
@@ -312,9 +355,10 @@ legacy_s32 widescreen_overlay_sample(legacy_s32 x, legacy_s32 y, legacy_s32 widt
 		}
 	}
 	legacy_s32 source_y = overlay_source_y[y];
-	legacy_s32 found = 0;
-	for (legacy_s32 kind = WIDESCREEN_OVERLAY_CENTER; kind < WIDESCREEN_OVERLAY_COUNT; kind++) {
-		if (overlay_hide_edges && kind != WIDESCREEN_OVERLAY_CENTER) {
+	for (legacy_s32 kind = WIDESCREEN_OVERLAY_COUNT - 1; kind >= WIDESCREEN_OVERLAY_CENTER;
+		 kind--) {
+		if (!overlay_used[kind] || (overlay_hide_edges && (kind == WIDESCREEN_OVERLAY_LEFT ||
+														   kind == WIDESCREEN_OVERLAY_RIGHT))) {
 			continue;
 		}
 		legacy_s32 source_x = overlay_source_x[kind][x];
@@ -324,8 +368,8 @@ legacy_s32 widescreen_overlay_sample(legacy_s32 x, legacy_s32 y, legacy_s32 widt
 		legacy_s32 offset = source_y * VIDEO_FRAMEBUFFER_WIDTH + source_x;
 		if (overlay_valid[kind][offset]) {
 			*color = overlay_pixels[kind][offset];
-			found = 1;
+			return 1;
 		}
 	}
-	return found;
+	return 0;
 }

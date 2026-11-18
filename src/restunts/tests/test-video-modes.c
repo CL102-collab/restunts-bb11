@@ -53,16 +53,17 @@ static legacy_u32 palette[TEST_TABLE_SIZE];
 
 /* The production page helpers perform the actual VGA writes. HyperVision is
  * outside this unit fixture; its companion hooks do not affect these bytes. */
-void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
+legacy_s32 hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
 {
 	(void)base;
 	(void)offset;
 	(void)color;
+	return 0;
 }
 
-void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
-				  const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
-				  legacy_s16 operation, const legacy_u8 *map)
+legacy_s32 hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
+						const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
+						legacy_s16 operation, const legacy_u8 *map)
 {
 	(void)destination;
 	(void)destination_offset;
@@ -71,6 +72,7 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 	(void)count;
 	(void)operation;
 	(void)map;
+	return 0;
 }
 
 static legacy_u32 table_hash(const legacy_u16 *table)

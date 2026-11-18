@@ -69,6 +69,10 @@ legacy_u8 mph_display_enabled;
 
 #ifdef RESTUNTS_SDL3
 static legacy_u8 widescreen_test_enabled, widescreen_test_racing;
+static struct {
+	legacy_u8 active, toolbar;
+	legacy_u32 frames_before, controls, input_calls;
+} widescreen_transition;
 static legacy_s32 widescreen_test_width = 1280, widescreen_test_height = 720;
 void widescreen_set_racing(legacy_s32 racing)
 {
@@ -629,6 +633,25 @@ void setup_car_shapes(legacy_s16 operation)
 void loop_game(legacy_s16 operation, legacy_s16 recorded, legacy_s16 current)
 {
 #ifdef RESTUNTS_SDL3
+	if (widescreen_transition.active != 0) {
+		assert(game_replay_mode == REPLAY_MODE_PLAYBACK);
+		if (operation == REPLAY_LOOP_DRAW_CONTROLS) {
+			assert(replaybar_enabled != 0 && widescreen_transition.toolbar != 0);
+			widescreen_transition.controls++;
+		} else if (operation == REPLAY_LOOP_HANDLE_INPUT) {
+			/* The pause handler may block here. Its frame and toolbar must
+			 * already use the playback layout instead of the previous live one. */
+			assert(frames == widescreen_transition.frames_before + 1U);
+			assert(replaybar_enabled == widescreen_transition.toolbar);
+			assert(widescreen_transition.controls == widescreen_transition.toolbar);
+			widescreen_transition.input_calls++;
+		} else {
+			assert(operation == REPLAY_LOOP_LOAD_RESOURCES ||
+				   (operation == REPLAY_LOOP_SELECT_CONTROL && recorded == REPLAY_CONTROL_PAUSE));
+		}
+		return;
+	}
+
 	if (controller_menu_testing != 0) {
 		assert(game_replay_mode == REPLAY_MODE_PLAYBACK);
 		if (operation == REPLAY_LOOP_SELECT_CONTROL) {
@@ -904,6 +927,7 @@ static void test_driving_hotkey_queue(void)
 
 static void test_idle_replay_display_hotkeys(void)
 {
+	struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 	static const legacy_s16 shortcuts[] = {
 		KEY_F11,
 		KEY_F12,
@@ -928,19 +952,19 @@ static void test_idle_replay_display_hotkeys(void)
 		hotkey_script.queue[hotkey_script.count++] = shortcuts[shortcut];
 		hotkey_script.queue[hotkey_script.count++] = KEY_ESCAPE;
 		/* Each press performs its action, and the following ordinary key still exits. */
-		assert(race_process_frame_input() == 0);
+		assert(race_process_frame_input(&cache) == 0);
 		assert(hotkey_script.actions == 1 && hotkey_script.last_action == shortcuts[shortcut]);
 		assert(idle_expired != 0 && game_replay_mode == REPLAY_MODE_PLAYBACK);
-		assert(race_process_frame_input() == 0);
+		assert(race_process_frame_input(&cache) == 0);
 		assert(hotkey_script.actions == 2 && hotkey_script.last_action == shortcuts[shortcut]);
-		assert(race_process_frame_input() == 1);
+		assert(race_process_frame_input(&cache) == 1);
 		assert(hotkey_script.actions == 2 && hotkey_script.read == hotkey_script.count);
-		assert(race_process_frame_input() == 0);
+		assert(race_process_frame_input(&cache) == 0);
 
 		/* A display shortcut must not hide simultaneous action-button input. */
 		hotkey_script.read = 0;
 		scenario = TEST_IDLE_REPLAY_ACTION_SCENARIO;
-		assert(race_process_frame_input() == 1);
+		assert(race_process_frame_input(&cache) == 1);
 		assert(hotkey_script.actions == 3);
 		scenario = 0;
 	}
@@ -948,7 +972,7 @@ static void test_idle_replay_display_hotkeys(void)
 		memset(&hotkey_script, 0, sizeof(hotkey_script));
 		hotkey_script.active = 1;
 		hotkey_script.queue[hotkey_script.count++] = dismissals[key];
-		assert(race_process_frame_input() == 1);
+		assert(race_process_frame_input(&cache) == 1);
 		assert(hotkey_script.actions == 0);
 	}
 	memset(&hotkey_script, 0, sizeof(hotkey_script));
@@ -1218,11 +1242,12 @@ static void test_controller_menu_transition(void)
 		controller_menu_request = controller_menu_testing = 1;
 		controller_menu_opens = controller_menu_transitions = controller_analog_reads = 0;
 		struct RACE_REWIND_STATE rewind = {0};
+		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 		legacy_s64 last_frame = -1;
 		legacy_u8 menu_pending = 0;
 		if (modes[index] == REPLAY_MODE_LIVE) {
 			elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;
-			assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) == 0);
+			assert(race_handle_controller_menu(&cache, &rewind, &last_frame, &menu_pending) == 0);
 			assert(controller_menu_request == 0 && menu_pending != 0);
 			for (legacy_u16 frame = 0; frame < TEST_HOTKEY_CATCHUP_FRAMES; frame++) {
 				assert(race_frame_is_ready(&last_frame) == 0);
@@ -1231,13 +1256,13 @@ static void test_controller_menu_transition(void)
 			}
 			assert(controller_analog_reads == TEST_HOTKEY_CATCHUP_FRAMES);
 		}
-		assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) != 0);
+		assert(race_handle_controller_menu(&cache, &rewind, &last_frame, &menu_pending) != 0);
 		assert(controller_menu_opens == 1);
 		assert(controller_menu_transitions == (modes[index] != REPLAY_MODE_PLAYBACK));
 		assert(scheduled_physics ==
 			   (modes[index] == REPLAY_MODE_LIVE ? TEST_HOTKEY_CATCHUP_FRAMES : 0));
 		assert(controller_menu_request == 0 && menu_pending == 0);
-		assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) == 0);
+		assert(race_handle_controller_menu(&cache, &rewind, &last_frame, &menu_pending) == 0);
 		assert(controller_menu_opens == 1);
 		controller_menu_testing = 0;
 	}
@@ -1703,6 +1728,41 @@ static void test_widescreen_racing_viewport(void)
 }
 #endif
 
+#ifdef RESTUNTS_SDL3
+static void test_widescreen_escape_publishes_playback(void)
+{
+	for (legacy_u8 toolbar = 0; toolbar <= 1; toolbar++) {
+		prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
+		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
+		widescreen_test_enabled = widescreen_test_racing = 1;
+		game_replay_mode = REPLAY_MODE_LIVE;
+		game_replay_mode_copy = -1;
+		is_in_replay = 0;
+		replaybar_toggle = toolbar;
+		dashb_toggle = 1;
+		followOpponentFlag = 0;
+		dashbmp_y = 140;
+		roofbmpheight = 12;
+		race_update_viewport(&cache, 0);
+		assert(replaybar_enabled == 0);
+		state.game_end_event = CRASH_EVENT_EXIT;
+		race_exit_request = 1;
+		widescreen_transition.active = 1;
+		/* Paused controls are visible even when the playing toolbar is hidden. */
+		widescreen_transition.toolbar = 1;
+		widescreen_transition.frames_before = frames;
+		widescreen_transition.controls = widescreen_transition.input_calls = 0;
+		assert(race_process_frame_input(&cache) == 0);
+		assert(game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay != 0);
+		assert(widescreen_transition.input_calls == 1);
+		assert(widescreen_transition.controls == 1);
+		widescreen_transition.active = 0;
+		widescreen_test_enabled = widescreen_test_racing = 0;
+		scheduled_mode = 0;
+	}
+}
+#endif
+
 int main(void)
 {
 #ifdef RESTUNTS_SDL3
@@ -1789,6 +1849,7 @@ int main(void)
 	test_ghost_waits_for_race_start();
 	test_ghost_interpolation_timestamps();
 	test_widescreen_racing_viewport();
+	test_widescreen_escape_publishes_playback();
 #endif
 	return 0;
 }

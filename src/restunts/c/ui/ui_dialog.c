@@ -1,5 +1,8 @@
 #include "ui_dialog_private.h"
 #include "../video/video_color.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 
 const legacy_u8 far g_ascii_props[256] = {
 	32,	 32, 32,  32,  32,	32,	 32,  32,  32,	40,	 40,  40,  40,	40,	 32,  32,  32,	32,	 32,
@@ -91,9 +94,31 @@ static void dialog_measure(struct DIALOG_CONTENT *dialog, void far *text_resourc
 		DIALOG_ALIGNMENT_MASK);
 }
 
+static void dialog_begin_overlay(legacy_u8 overlay)
+{
+#ifdef RESTUNTS_SDL3
+	if (overlay) {
+		widescreen_overlay_begin(WIDESCREEN_OVERLAY_DIALOG);
+	}
+#else
+	(void)overlay;
+#endif
+}
+
+static void dialog_end_overlay(legacy_u8 overlay)
+{
+#ifdef RESTUNTS_SDL3
+	if (overlay) {
+		widescreen_overlay_end();
+	}
+#else
+	(void)overlay;
+#endif
+}
+
 static legacy_s16 dialog_draw_frame(struct DIALOG_CONTENT *dialog, legacy_u16 x_argument,
 									legacy_u16 y_argument, legacy_s16 save_background,
-									legacy_s16 border_color)
+									legacy_s16 border_color, legacy_u8 overlay)
 {
 	dialog->x = LEGACY_S16_FROM_BITS(x_argument);
 	dialog->y = LEGACY_S16_FROM_BITS(y_argument);
@@ -121,6 +146,7 @@ static legacy_s16 dialog_draw_frame(struct DIALOG_CONTENT *dialog, legacy_u16 x_
 	}
 
 	sprite_select_screen();
+	dialog_begin_overlay(overlay);
 	sprite_set_target_clip_bounds(left, right, top, bottom);
 	sprite_clear_target(0);
 	sprite_draw_rect_outline(
@@ -310,7 +336,7 @@ static legacy_s16 dialog_apply_menu_input(legacy_u16 input, legacy_u8 *selected,
 }
 
 static legacy_s16 dialog_run_menu(struct DIALOG_CONTENT *dialog, legacy_s16 *disabled_choices,
-								  legacy_s16 initial_choice)
+								  legacy_s16 initial_choice, legacy_u8 overlay)
 {
 	legacy_u8 selected = (legacy_u8)initial_choice;
 	legacy_u8 previous = DIALOG_NO_SELECTION;
@@ -324,7 +350,9 @@ static legacy_s16 dialog_run_menu(struct DIALOG_CONTENT *dialog, legacy_s16 *dis
 	}
 	for (;;) {
 		if (selected != previous) {
+			dialog_begin_overlay(overlay);
 			dialog_draw_choices(dialog, selected, disabled_choices);
+			dialog_end_overlay(overlay);
 			if (previous == DIALOG_NO_SELECTION) {
 				check_input();
 			}
@@ -349,15 +377,18 @@ static legacy_s16 dialog_run_menu(struct DIALOG_CONTENT *dialog, legacy_s16 *dis
 static legacy_u16 show_dialog_impl(legacy_s16 dialog_type, legacy_s16 save_background,
 								   void far *text_resource, legacy_u16 x_argument,
 								   legacy_u16 y_argument, legacy_s16 border_color,
-								   legacy_s16 *disabled_choices, legacy_s16 initial_choice)
+								   legacy_s16 *disabled_choices, legacy_s16 initial_choice,
+								   legacy_u8 overlay)
 {
 	struct DIALOG_CONTENT dialog;
 	dialog_measure(&dialog, text_resource);
-	if (!dialog_draw_frame(&dialog, x_argument, y_argument, save_background, border_color)) {
+	if (!dialog_draw_frame(&dialog, x_argument, y_argument, save_background, border_color,
+						   overlay)) {
 		return DIALOG_FAILURE_RESULT;
 	}
 	dialog_draw_message(&dialog, text_resource, dialog_type, disabled_choices);
 	dialog_measure_choices(&dialog);
+	dialog_end_overlay(overlay);
 #ifdef RESTUNTS_AMIGA
 	/* These paths do not poll keyboard or mouse, so present before returning
 	 * to resource loading or waiting on a timer that only advances time. */
@@ -391,7 +422,7 @@ static legacy_u16 show_dialog_impl(legacy_s16 dialog_type, legacy_s16 save_backg
 		return dialog_finish(result, save_background);
 	}
 
-	result = dialog_run_menu(&dialog, disabled_choices, initial_choice);
+	result = dialog_run_menu(&dialog, disabled_choices, initial_choice, overlay);
 	return dialog_finish(result, save_background);
 }
 
@@ -404,9 +435,35 @@ legacy_u16 show_dialog(legacy_s16 dialog_type, legacy_s16 save_background, void 
 #endif
 	legacy_u16 result =
 		show_dialog_impl(dialog_type, save_background, text_resource, x_argument, y_argument,
-						 border_color, disabled_choices, initial_choice);
+						 border_color, disabled_choices, initial_choice, 0);
 #ifdef RESTUNTS_SDL3
 	sdl3_input_pop_modal();
 #endif
 	return result;
 }
+
+#ifdef RESTUNTS_SDL3
+legacy_u16 show_replay_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
+							  void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
+							  legacy_s16 border_color, legacy_s16 *disabled_choices,
+							  legacy_s16 initial_choice)
+{
+	if (!widescreen_active()) {
+		return show_dialog(dialog_type, save_background, text_resource, x_argument, y_argument,
+						   border_color, disabled_choices, initial_choice);
+	}
+
+	/* Center the dialog over the current replay. Clearing its own layer
+	 * reveals the replay again, including full-resolution scene samples. */
+	struct SPRITE saved_context[SPRITE_STATE_COUNT];
+	sprite_save_context(saved_context);
+	sdl3_input_push_overlay_modal();
+	legacy_u16 result =
+		show_dialog_impl(dialog_type, DIALOG_NO_BACKGROUND_SAVE, text_resource, x_argument,
+						 y_argument, border_color, disabled_choices, initial_choice, 1);
+	widescreen_overlay_clear(WIDESCREEN_OVERLAY_DIALOG);
+	sprite_restore_context(saved_context);
+	sdl3_input_pop_overlay_modal();
+	return result;
+}
+#endif

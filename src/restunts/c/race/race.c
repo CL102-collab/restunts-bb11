@@ -300,8 +300,11 @@ static void race_handle_driving_input(void)
 	}
 }
 
-static legacy_u16 race_handle_exit_request(void)
+static legacy_u16 race_handle_exit_request(struct RACE_VIEWPORT_CACHE *cache)
 {
+#ifndef RESTUNTS_SDL3
+	(void)cache;
+#endif
 	if (race_exit_request != 0) {
 		if ((game_replay_mode != REPLAY_MODE_LIVE || state.game_end_event == CRASH_EVENT_EXIT) &&
 			race_exit_request != REPLAY_EXIT_REQUESTED) {
@@ -314,6 +317,16 @@ static legacy_u16 race_handle_exit_request(void)
 					  REPLAY_LOOP_UNUSED_ARGUMENT);
 			is_in_replay = 1;
 			audio_carstate();
+#ifdef RESTUNTS_SDL3
+			if (widescreen_active()) {
+				/* Paused replay input can wait without another simulation frame.
+				 * Publish its centered toolbar and new cockpit bounds before any
+				 * inline replay update or modal dialog can use the old live layout. */
+				race_select_render_target();
+				race_update_viewport(cache, 0);
+				race_draw_frame();
+			}
+#endif
 		} else {
 			return 1;
 		}
@@ -361,10 +374,10 @@ static legacy_u16 race_frame_is_ready(legacy_s64 *last_processed_frame)
 	return 1;
 }
 
-static legacy_s16 race_process_frame_input(void)
+static legacy_s16 race_process_frame_input(struct RACE_VIEWPORT_CACHE *cache)
 {
 	if (idle_expired == 0) {
-		if (race_handle_exit_request() != 0) {
+		if (race_handle_exit_request(cache) != 0) {
 			return 1;
 		}
 
@@ -394,7 +407,8 @@ static legacy_s16 race_process_frame_input(void)
 }
 
 #ifdef RESTUNTS_SDL3
-static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
+static legacy_s16 race_handle_controller_menu(struct RACE_VIEWPORT_CACHE *cache,
+											  struct RACE_REWIND_STATE *rewind,
 											  legacy_s64 *last_processed_frame,
 											  legacy_u8 *menu_pending)
 {
@@ -415,13 +429,13 @@ static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
 	*menu_pending = 0;
 	if (game_replay_mode != REPLAY_MODE_PLAYBACK) {
 		(void)handle_ingame_kb_shortcuts(KEY_ESCAPE);
-		if (race_handle_exit_request() != 0) {
+		if (race_handle_exit_request(cache) != 0) {
 			return 1;
 		}
 	}
 	sdl3_input_set_replay_active(1);
 	loop_game(REPLAY_LOOP_OPEN_MENU, REPLAY_LOOP_UNUSED_ARGUMENT, REPLAY_LOOP_UNUSED_ARGUMENT);
-	return race_handle_exit_request();
+	return race_handle_exit_request(cache);
 }
 #endif
 
@@ -445,8 +459,8 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #ifdef RESTUNTS_SDL3
 		sdl3_input_set_replay_active(game_replay_mode == REPLAY_MODE_PLAYBACK &&
 									 rewind.active == 0);
-		if (race_handle_controller_menu(&rewind, &last_processed_frame, &controller_menu_pending) !=
-			0) {
+		if (race_handle_controller_menu(cache, &rewind, &last_processed_frame,
+										&controller_menu_pending) != 0) {
 			break;
 		}
 		(void)input_update_controller_camera();
@@ -531,7 +545,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			init_game_state_with_frame_rate(configured_frame_rate);
 		}
 
-		if (rewind.active == 0 && race_process_frame_input() != 0) {
+		if (rewind.active == 0 && race_process_frame_input(cache) != 0) {
 			break;
 		}
 	}

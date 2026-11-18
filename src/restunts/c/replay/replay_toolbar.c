@@ -1,5 +1,8 @@
 #include "replay_viewer_private.h"
 #include "../video/video_color.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 
 legacy_u32 replay_current_frame(void)
 {
@@ -194,6 +197,18 @@ static void replay_controls_draw_buttons(legacy_u16 buffer_index)
 
 void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_frame)
 {
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		/* The live-to-replay transition must prepare its viewport before exposing
+		 * the toolbar. Hidden controls must not paint into the old cockpit. */
+		if (replaybar_enabled == 0) {
+			return;
+		}
+	}
+	/* Paused input polls redraw without going through race_draw_frame. Own the
+	 * authored toolbar layer here so selection, time and seek changes stay live. */
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_CENTER);
+#endif
 	legacy_u16 buffer_index = (legacy_u8)dashboard_buffer_index;
 	replay_controls_prepare_background(buffer_index);
 	replay_controls_draw_time(buffer_index, current_frame);
@@ -203,6 +218,9 @@ void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_frame)
 		replay_controls_draw_buttons(buffer_index);
 	}
 	mouse_draw_transparent_check();
+#ifdef RESTUNTS_SDL3
+	widescreen_overlay_end();
+#endif
 }
 
 void replay_draw_waiting(void)
