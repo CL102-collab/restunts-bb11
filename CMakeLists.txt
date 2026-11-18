@@ -353,6 +353,11 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         -Wall -Wextra "$<$<COMPILE_LANGUAGE:C>:-Wno-pointer-sign>"
         -Wno-missing-field-initializers -Wno-missing-braces)
 endif()
+if(DJGPP)
+    # DJGPP libm does not provide fmin and fmax used by UNIT.
+    target_compile_options(restunts_options INTERFACE
+        "$<$<COMPILE_LANGUAGE:C>:-include;${CMAKE_CURRENT_SOURCE_DIR}/${platform}/djgpp_math.h>")
+endif()
 target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
 
 function(restunts_add_genghost)
