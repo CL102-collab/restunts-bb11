@@ -1906,11 +1906,11 @@ CI runs in five phases, each requiring the previous phase to pass:
 A failed phase skips the later phases. Physics and renderer phase diagnostics
 remain available in their individual artifacts if replay validation fails.
 
-The twenty Linux x64 sanitizer jobs cover the host and SDL3 regression
-suites, including the renderer-worker and audio tests. AddressSanitizer splits
-the suite across two jobs: extended ghost and fine-tune tests in one, all
-remaining tests in the other. UndefinedBehaviorSanitizer runs the complete suite
-in one job. ThreadSanitizer splits the same coverage across seventeen jobs.
+The Linux x64 sanitizer jobs cover the host and SDL3 regression suites,
+including the renderer-worker and audio tests. AddressSanitizer splits the
+suite across two jobs. One runs extended ghost and fine-tune tests, and the
+other runs every remaining test. UndefinedBehaviorSanitizer runs the complete
+suite in one job. ThreadSanitizer splits the same coverage across 36 jobs.
 
 CTest registers the extended ghost suite as `genghost-extended-<part>-<shard>`:
 parts 1, 2, and 3 each have two shards; part 4 has three. Part 4 covers fork and
@@ -1921,10 +1921,12 @@ script runs both parts when `--part` is omitted. The restricted-driving search
 uses two distinct seeds with 1,000 evaluations each, retaining a total budget of
 2,000 evaluations while checking both generated replays. Each shard,
 `genghost-fine-tune`, `genghost-parallel`, `extended-render`, and `render-replay`
-has a dedicated TSan job. Two jobs cover the remaining `genghost-` tests and
-the remaining tests without that prefix. Each sanitizer runs every regression
-once across its jobs. These checks run for every platform selection and gate
-both PR validation and releases. Each job uses debug symbols, frame pointers,
+has a dedicated TSan job. Another job covers the remaining `genghost-` tests.
+After the first sanitizer group finishes, 20 TSan jobs run the remaining
+host and SDL3 regressions. They assign each CTest test to a shard using
+observed TSan durations. Each sanitizer runs every regression once across
+its jobs. Both groups gate PR validation and releases for every platform
+selection. Each job uses debug symbols, frame pointers,
 and fail-on-error sanitizer settings. ASan uses Clang 18 and also checks for
 leaks; TSan and UBSan use GCC. The ASan linker
 flags preserve removal of unused fixture data while retaining checks on all
@@ -1932,8 +1934,9 @@ globals that remain in the executable. Bundled SDL3, wxWidgets, and Nuked are
 instrumented along with the game, launcher, and tests. Sanitizer builds disable
 SDL D-Bus support because the headless dummy drivers do not need desktop IPC.
 Test logs are retained in `sanitizer-<variant>-logs` artifacts, including on
-failure. Dedicated TSan variants use `thread-<test-name>`; the remaining suites
-use `thread` and `thread-genghost-other`. TSan's runner lowers ASLR mapping
+failure. Dedicated TSan variants use `thread-<test-name>` and
+`thread-genghost-other`. The 20 shards use `thread-1` through `thread-20`.
+TSan's runner lowers ASLR mapping
 entropy to keep its shadow-memory range available. Sanitizer jobs allow twenty
 minutes per replay subprocess and use a sixty-minute default CTest timeout,
 with scaled limits for ghost and rendering regressions. ASan and UBSan jobs
