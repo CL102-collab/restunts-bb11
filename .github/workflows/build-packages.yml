@@ -105,7 +105,8 @@ jobs:
       - name: Download game data for ARM userspace tests
         if: startsWith(matrix.target, 'linux-appimage-arm')
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
@@ -201,7 +202,8 @@ jobs:
 
       - name: Download game data for isolated startup and rendering tests
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
@@ -280,7 +282,8 @@ jobs:
 
       - name: Download game data for isolated startup and rendering tests
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
@@ -703,7 +706,8 @@ jobs:
 
       - name: Download and verify native regression test assets
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
@@ -950,7 +954,8 @@ jobs:
       - name: Start the archived game through its startup window and validate real output
         run: |
           set -euo pipefail
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \

@@ -293,7 +293,8 @@ jobs:
       - &native-sanitizer-assets
         name: Download and extract the game assets
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts
@@ -551,8 +552,8 @@ jobs:
           set -eu
           zip_path="$RUNNER_TEMP/BB11.zip"
           trap 'rm -f -- "$zip_path"' EXIT
-          curl --fail --location --silent --show-error --retry 3 \
-              --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
+          curl --fail --location --silent --show-error \
+              --retry 6 --retry-max-time 120 --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
           unzip -oq "$zip_path" -d stunts
 
       - name: Build original dump references
@@ -629,7 +630,8 @@ jobs:
 
       - name: Download and extract the game assets
         run: |
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-max-time 120 --connect-timeout 20 \
             https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
             --output "$RUNNER_TEMP/BB11.zip"
           unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts

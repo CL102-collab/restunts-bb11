@@ -153,8 +153,8 @@ jobs:
           zip_path="$RUNNER_TEMP/BB11.zip"
           trap 'rm -f -- "$zip_path"' EXIT
           mkdir -p "$game_dir"
-          curl --fail --location --silent --show-error --retry 3 \
-              --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
+          curl --fail --location --silent --show-error \
+              --retry 6 --retry-max-time 120 --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
           unzip -oq "$zip_path" -d "$game_dir"
           # Custom cars use mixed-case extensions; copy the complete asset pack.
           cp -R tools/scripts/cars/. "$game_dir/"
