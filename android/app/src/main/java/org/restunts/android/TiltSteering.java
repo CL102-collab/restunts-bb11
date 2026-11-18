@@ -6,9 +6,11 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.view.Display;
 
 /** Owns tilt sensor registration for the visible, resumed game Activity only. */
 public final class TiltSteering implements SensorEventListener {
@@ -132,6 +134,15 @@ public final class TiltSteering implements SensorEventListener {
         output.setTilt(0, false);
     }
 
+    @SuppressWarnings("deprecation") // The window manager supplies the display on older Android.
+    private int displayRotation() {
+        Display display = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? activity.getDisplay() : null;
+        if (display == null) {
+            display = activity.getWindowManager().getDefaultDisplay();
+        }
+        return display.getRotation();
+    }
+
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (!listening || !TiltSteeringMath.shouldListen(requested, resumed, focused, destroyed, true)
@@ -140,7 +151,7 @@ public final class TiltSteering implements SensorEventListener {
                 || !TiltSteeringMath.freshSample(event.timestamp, SystemClock.elapsedRealtimeNanos())) {
             return;
         }
-        int displayRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+        int displayRotation = displayRotation();
         if (displayRotation != rotation) {
             filter.reset();
             rotation = displayRotation;

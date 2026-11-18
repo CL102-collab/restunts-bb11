@@ -5,6 +5,7 @@ import importlib.util
 import io
 import os
 from pathlib import Path
+import re
 import shutil
 import tarfile
 import tempfile
@@ -13,6 +14,18 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
+SDL_JAVA_DIRECTORY = "android-project/app/src/main/java/org/libsdl/app"
+SDL_JAVA_SOURCES = {
+    "HIDDeviceBLESteamController.java": "class HIDDeviceBLESteamController {}\n",
+    "HIDDeviceManager.java": "public class HIDDeviceManager {}\n",
+    "SDL.java": "public class SDL {}\n",
+    "SDLActivity.java": ("public class SDLActivity {}\nclass SDLMain {}\n"
+                         "class SDLClipboardHandler implements\n    Runnable {}\n"),
+    "SDLControllerManager.java": ("public class SDLControllerManager\n{}\n"
+                                  "class SDLHapticHandler_API31 {}\n"
+                                  "class SDLHapticHandler_API26 {}\nclass SDLHapticHandler {}\n"),
+    "SDLSurface.java": "public class SDLSurface {}\r\n",
+}
 
 
 def load_script(name):
@@ -48,6 +61,7 @@ class AndroidPreparationTests(unittest.TestCase):
             "LICENSE.txt": "SDL license\n",
             "android-project/gradlew": "#!/bin/sh\nexit 0\n",
             "android-project/gradle/wrapper/gradle-wrapper.properties": "fixture=true\n",
+            **{f"{SDL_JAVA_DIRECTORY}/{name}": source for name, source in SDL_JAVA_SOURCES.items()},
         })
         self.checksum = hashlib.sha256(self.archive).hexdigest()
 
@@ -163,6 +177,28 @@ class AndroidPreparationTests(unittest.TestCase):
         wrapper = self.root / "out/android-gradle/gradlew"
         self.assertTrue(wrapper.stat().st_mode & 0o111)
         self.assertTrue((wrapper.parent / "gradle/wrapper/gradle-wrapper.properties").is_file())
+        java = self.root / "out/android-deps/sdl" / SDL_JAVA_DIRECTORY
+        annotated_classes = set()
+        prepared_stats = {}
+        for name, original in SDL_JAVA_SOURCES.items():
+            path = java / name
+            prepared = path.read_bytes()
+            annotated_classes.update(re.findall(rb'@SuppressWarnings\("deprecation"\)\r?\n'
+                                                rb'(?:public )?class (\w+)', prepared))
+            stripped = re.sub(rb"^// Restunts .*\r?\n"
+                              rb'@SuppressWarnings\("deprecation"\)\r?\n', b"", prepared,
+                              flags=re.MULTILINE)
+            self.assertEqual(stripped, original.encode(), name)
+            prepared_stats[path] = path.stat().st_mtime_ns
+        self.assertEqual(annotated_classes, {
+            b"HIDDeviceBLESteamController", b"HIDDeviceManager", b"SDLActivity",
+            b"SDLClipboardHandler", b"SDLHapticHandler_API31", b"SDLHapticHandler_API26",
+            b"SDLHapticHandler", b"SDLSurface",
+        })
+        with mock.patch.object(ANDROID.urllib.request, "urlopen") as download:
+            ANDROID.prepare(self.root)
+            download.assert_not_called()
+        self.assertEqual({path: path.stat().st_mtime_ns for path in prepared_stats}, prepared_stats)
         self.assertEqual((self.root / "android/generated-assets/licenses/SDL-LICENSE.txt").read_text(),
                          "SDL license\n")
         licenses = self.root / "android/generated-assets/licenses"

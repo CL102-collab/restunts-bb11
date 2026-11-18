@@ -48,6 +48,7 @@ public final class GameDataStorage {
     }
 
     /** Use only the primary app-owned shared directory; never request wider storage access. */
+    @SuppressWarnings("deprecation") // Keep the existing app media import directory on TVs.
     public static File tvMediaDirectory(Context context) throws IOException {
         File[] directories = context.getExternalMediaDirs();
         if (directories == null || directories.length == 0 || directories[0] == null) {

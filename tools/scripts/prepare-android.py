@@ -6,7 +6,17 @@ from pathlib import Path
 import re
 import shutil
 import tarfile
+import tempfile
 import urllib.request
+
+
+SDL_ANDROID_COMPATIBILITY_CLASSES = {
+    "HIDDeviceBLESteamController": ("HIDDeviceBLESteamController",),
+    "HIDDeviceManager": ("HIDDeviceManager",),
+    "SDLActivity": ("SDLActivity", "SDLClipboardHandler"),
+    "SDLControllerManager": ("SDLHapticHandler_API31", "SDLHapticHandler_API26", "SDLHapticHandler"),
+    "SDLSurface": ("SDLSurface",),
+}
 
 
 def dependency_pin(root, name, configuration):
@@ -49,8 +59,38 @@ def dependency(root, name, configuration, directory):
     return destination
 
 
+def prepare_sdl_android_java(destination):
+    java = destination / "android-project/app/src/main/java/org/libsdl/app"
+    updates = {}
+    for file_name, classes in SDL_ANDROID_COMPATIBILITY_CLASSES.items():
+        path = java / (file_name + ".java")
+        original = path.read_bytes()
+        newline = b"\r\n" if b"\r\n" in original else b"\n"
+        annotation = newline.join((b"// Restunts keeps SDL's legacy Android API compatibility.",
+                                   b'@SuppressWarnings("deprecation")', b""))
+        source = original
+        for class_name in classes:
+            declaration = rb"^(?:public )?class " + class_name.encode("ascii") + rb"(?=\s)"
+            matches = list(re.finditer(declaration, source, re.MULTILINE))
+            if len(matches) != 1:
+                raise RuntimeError(f"Expected one SDL Android class {class_name} in {path}")
+            start = matches[0].start()
+            if not source[:start].endswith(annotation):
+                source = source[:start] + annotation + source[start:]
+        if source != original:
+            updates[path] = source
+    if updates:
+        with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
+            for path, source in updates.items():
+                prepared = Path(temporary) / path.name
+                prepared.write_bytes(source)
+                shutil.copymode(path, prepared)
+                prepared.replace(path)
+
+
 def prepare(root):
     destination = dependency(root, "SDL3", "CMakeLists.txt", "sdl")
+    prepare_sdl_android_java(destination)
     vpx = dependency(root, "restunts_vpx", "cmake/webm.cmake", "vpx")
     nestegg = dependency(root, "restunts_nestegg", "cmake/webm.cmake", "nestegg")
     munt = dependency(root, "restunts_munt", "cmake/mt32emu.cmake", "munt")

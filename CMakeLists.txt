@@ -277,6 +277,10 @@ else()
         target_compile_options(SDL3-static PRIVATE
             "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-isystem \"${RESTUNTS_HAIKU_OPENGL_HEADER_ROOT}\">")
     endif()
+    if(ANDROID AND TARGET SDL3-shared)
+        # SDL's Android EGL and Vulkan headers redeclare compatible typedefs, legal in C11.
+        set_target_properties(SDL3-shared PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+    endif()
 endif()
 
 set(core src/restunts/c)

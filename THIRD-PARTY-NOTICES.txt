@@ -153,6 +153,8 @@ SDL3
 Bundled SDL3 builds include SDL's zlib license in
 share/licenses/restunts/SDL-LICENSE.txt. Builds using a system SDL3 installation
 use that installation's library and accompanying license instead.
+The Android game adds deprecation annotations to SDL's Java compatibility
+classes and marks those changes in the prepared source.
 
 DOS builds write the hardware AdLib chip and do not include Nuked OPL2 Lite.
 Original game resources are supplied separately and retain their own terms.

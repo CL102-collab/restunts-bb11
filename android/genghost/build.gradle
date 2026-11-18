@@ -35,14 +35,14 @@ def prepareCars = tasks.register('prepareGenghostCarAssets', Sync) {
 }
 
 android {
-    namespace 'org.restunts.genghost'
-    compileSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
+    namespace = 'org.restunts.genghost'
+    compileSdk = Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
     buildToolsVersion toolchain.getProperty('ANDROID_BUILD_TOOLS')
-    ndkVersion toolchain.getProperty('ANDROID_NDK')
+    ndkVersion = toolchain.getProperty('ANDROID_NDK')
 
     defaultConfig {
         applicationId 'org.restunts.genghost'
-        targetSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
+        targetSdk = Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
         versionCode 8
         versionName '1.0.7'
         externalNativeBuild {
@@ -60,12 +60,12 @@ android {
     productFlavors {
         armv7 {
             dimension 'cpu'
-            minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
+            minSdk = Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
             ndk { abiFilters 'armeabi-v7a' }
         }
         arm64 {
             dimension 'cpu'
-            minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARM64_MIN_SDK'))
+            minSdk = Integer.parseInt(toolchain.getProperty('ANDROID_ARM64_MIN_SDK'))
             ndk { abiFilters 'arm64-v8a' }
         }
     }
@@ -85,7 +85,7 @@ android {
                 buildStagingDirectory file("${androidBuildRoot.get()}/genghost/.cxx")
             }
             path '../../CMakeLists.txt'
-            version toolchain.getProperty('ANDROID_CMAKE')
+            version = toolchain.getProperty('ANDROID_CMAKE')
         }
     }
     signingConfigs {
@@ -120,6 +120,7 @@ android {
     // the ABI name, and it must have only that one packaging source to avoid duplicate entries.
     packaging {
         jniLibs {
+            // The runner launches this executable from the extracted native library directory.
             useLegacyPackaging = true
             keepDebugSymbols += ['**/libgenghost_exec.so']
         }

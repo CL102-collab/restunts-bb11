@@ -10,6 +10,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -755,7 +756,7 @@ public final class GeneratorService extends Service {
                     return;
                 }
                 main.removeCallbacks(heartbeat);
-                stopForeground(false);
+                stopForegroundNotification(false);
                 publishState(true);
                 stopSelf();
             });
@@ -943,8 +944,18 @@ public final class GeneratorService extends Service {
         }
     }
 
+    @SuppressWarnings("deprecation") // Preserve the notification lifecycle on API 21 and later.
+    private void stopForegroundNotification(boolean remove) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(remove ? STOP_FOREGROUND_REMOVE : STOP_FOREGROUND_LEGACY);
+        } else {
+            stopForeground(remove);
+        }
+    }
+
+    @SuppressWarnings("deprecation") // The constructor and action fallbacks support API 21.
     private Notification notification(State value) {
-        Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= 23) {
@@ -964,8 +975,13 @@ public final class GeneratorService extends Service {
                 (int)Math.min(value.seconds, value.elapsedSeconds),
                 !value.phase.equals("running"));
             Intent stop = new Intent(this, GeneratorService.class).setAction(ACTION_CANCEL);
-            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop",
-                PendingIntent.getService(this, 1, stop, pendingFlags));
+            PendingIntent stopIntent = PendingIntent.getService(this, 1, stop, pendingFlags);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Icon stopIcon = Icon.createWithResource("android", android.R.drawable.ic_menu_close_clear_cancel);
+                builder.addAction(new Notification.Action.Builder(stopIcon, "Stop", stopIntent).build());
+            } else {
+                builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopIntent);
+            }
         }
         return builder.build();
     }
@@ -1027,7 +1043,7 @@ public final class GeneratorService extends Service {
                     forced = true;
                 }
             }
-            stopForeground(true);
+            stopForegroundNotification(true);
             stopSelf();
         }, BACKGROUND_STOP_GRACE_MS);
     }

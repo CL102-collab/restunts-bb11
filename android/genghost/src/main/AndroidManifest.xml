@@ -10,7 +10,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:label="Genghost" android:allowBackup="false"
         android:icon="@drawable/ic_genghost" android:theme="@style/GenghostTheme"
-        android:extractNativeLibs="true" android:supportsRtl="true">
+        android:supportsRtl="true">
         <!-- This form needs no GPU rendering. Older Android 9 drivers can retain stale
              glyphs during scrolling; disable HWUI for the whole window, including startup. -->
         <activity android:name=".GenghostActivity" android:exported="true"

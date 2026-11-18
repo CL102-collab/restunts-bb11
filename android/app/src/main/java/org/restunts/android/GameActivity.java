@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.view.InputDevice;
@@ -42,7 +43,7 @@ public final class GameActivity extends SDLActivity {
         if (nativeReady) {
             setControllerVibrationEnabled(vibrationEnabled);
             try {
-                Vibrator device = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                Vibrator device = deviceVibrator();
                 if (device != null && device.hasVibrator()) {
                     vibrator = device;
                 }
@@ -58,6 +59,15 @@ public final class GameActivity extends SDLActivity {
             });
             tiltSteering.setFocused(hasWindowFocus());
         }
+    }
+
+    @SuppressWarnings("deprecation") // Android versions before 12 need the legacy service name.
+    private Vibrator deviceVibrator() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager manager = getSystemService(VibratorManager.class);
+            return manager == null ? null : manager.getDefaultVibrator();
+        }
+        return (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
     }
 
     /** SDL's resizable-window request must preserve either landscape rotation. */
@@ -141,6 +151,7 @@ public final class GameActivity extends SDLActivity {
     }
 
     /** Called when the player's bump, scrape or crash sound starts in racing or replay playback. */
+    @SuppressWarnings("deprecation") // Android versions before 8 need the duration-based API.
     public void vibrateCarImpact() {
         runOnUiThread(() -> {
             if (!vibrationEnabled || !resumed || !nativeReady || mBrokenLibraries || !hasWindowFocus()
@@ -148,7 +159,7 @@ public final class GameActivity extends SDLActivity {
                 return;
             }
             try {
-                if (Build.VERSION.SDK_INT >= 26) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     vibrator.vibrate(VibrationEffect.createOneShot(CAR_IMPACT_VIBRATION_MS,
                         VibrationEffect.DEFAULT_AMPLITUDE));
                 } else {
