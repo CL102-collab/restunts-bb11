@@ -196,10 +196,10 @@ legacy_void RsConfigureChicaneFastGrass(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_7090<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_7090))],temple_off_option_7087)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_7090],temple_off_option_7087)==0)) {
       (rs_trackobj_road_chicane_fast_grass_enabled=TempleCastS16(CHICANE_FAST_GRASS_OFF));
     } else {
-      if((RsInternal1Stricmp(argv[((temple_index_7090))],temple_on_option_7088)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_7090],temple_on_option_7088)==0)) {
         (rs_trackobj_road_chicane_fast_grass_enabled=TempleCastS16(CHICANE_FAST_GRASS_ON));
       }
     }

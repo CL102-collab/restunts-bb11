@@ -376,7 +376,7 @@ class Model:
             for enum in node.values.enumerators:
                 previous = enum.value if enum.value is not None else A.BinaryOp("+", A.Constant("int", previous), A.Constant("int", "1")) if isinstance(previous, str) else A.BinaryOp("+", copy.deepcopy(previous), A.Constant("int", "1"))
                 self.enums.setdefault(enum.name, previous)
-        if isinstance(node, A.Typedef) and not isinstance(node.type, A.ArrayDecl):
+        if isinstance(node, A.Typedef):
             if node.name not in BUILTINS and not node.name.startswith("legacy_"):
                 self.aliases.setdefault(node.name, node.type)
         for _, child in node.children():
@@ -461,7 +461,6 @@ class Generator:
         self.in_function = False
         self.current_function = ""
         self.return_type = None
-        self.param_arrays = {}
 
     def lookup(self, name):
         for scope in reversed(self.scopes):
@@ -484,7 +483,10 @@ class Generator:
         if isinstance(node, A.PtrDecl):
             if isinstance(node.type, A.FuncDecl):
                 return "legacy_u8 *"
-            pointee = self.type_text(node.type)
+            typ = self.resolve_type(node.type)
+            while isinstance(typ, A.ArrayDecl):
+                typ = self.resolve_type(typ.type)
+            pointee = self.type_text(typ)
             return ("legacy_u8" if pointee == "legacy_void" else pointee) + " *"
         if isinstance(node, A.ArrayDecl):
             pointee = self.type_text(node.type)
@@ -519,8 +521,14 @@ class Generator:
         if isinstance(node, A.PtrDecl):
             if isinstance(node.type, A.FuncDecl):
                 return "legacy_u8 *" + name
-            if isinstance(node.type, A.ArrayDecl):
-                return self.decl(node.type, "(*" + name + ")")
+            typ = self.resolve_type(node.type)
+            if isinstance(typ, A.ArrayDecl):
+                # HolyC has no C pointer-to-array declarator. Store the
+                # address as a pointer to the contiguous element type;
+                # expressions below retain the C row dimensions and stride.
+                while isinstance(typ, A.ArrayDecl):
+                    typ = self.resolve_type(typ.type)
+                return self.decl(A.PtrDecl([], typ), name)
             if self.type_text(node.type) == "legacy_void":
                 return "legacy_u8 *" + name
             return self.decl(node.type, "*" + name)
@@ -535,10 +543,10 @@ class Generator:
                 if isinstance(arg, A.EllipsisParam):
                     args.append("...")
                 elif self.type_text(arg.type) != "legacy_void":
-                    typ = arg.type
+                    typ = self.resolve_type(arg.type)
                     if isinstance(typ, A.ArrayDecl):
                         while isinstance(typ, A.ArrayDecl):
-                            typ = typ.type
+                            typ = self.resolve_type(typ.type)
                         typ = A.PtrDecl([], typ)
                     name_arg = arg.name or f"arg{index}"
                     if self.class_type_from_type(typ):
@@ -572,6 +580,10 @@ class Generator:
             return None
         return INTEGER_TYPES.get(self.type_text(typ))
 
+    def decay_type(self, typ):
+        typ = self.resolve_type(typ)
+        return A.PtrDecl([], typ.type) if isinstance(typ, A.ArrayDecl) else typ
+
     def sizeof_type(self, typ):
         typ = self.resolve_type(typ)
         factors = []
@@ -580,6 +592,29 @@ class Generator:
             typ = self.resolve_type(typ.type)
         value = "sizeof(" + self.type_text(typ) + ")"
         return "(" + " * ".join(factors + [value]) + ")" if factors else value
+
+    def flattened_array_type(self, node):
+        """Return C dimensions when an array expression uses a flat pointer."""
+        typ = self.resolve_type(self.node_type(node))
+        if (isinstance(typ, A.PtrDecl) and
+                isinstance(self.resolve_type(typ.type), A.ArrayDecl)):
+            return typ
+        if isinstance(typ, A.ArrayDecl):
+            if isinstance(node, A.ArrayRef) and self.flattened_array_type(node.name):
+                return typ
+            if (isinstance(node, A.UnaryOp) and node.op == "*" and
+                    self.flattened_array_type(node.expr)):
+                return typ
+        return None
+
+    def array_stride(self, node):
+        typ = self.flattened_array_type(node)
+        typ = self.resolve_type(typ.type) if typ else None
+        factors = []
+        while isinstance(typ, A.ArrayDecl):
+            factors.append(self.expr(typ.dim)[1])
+            typ = self.resolve_type(typ.type)
+        return " * ".join(factors) if factors else None
 
     def normalize(self, expr, typ):
         if not self.in_function:
@@ -666,23 +701,23 @@ class Generator:
                 return scalar_type("legacy_s32")
             return self.resolve_type(self.types.get(self.lookup(n.name)))
         if isinstance(n, A.Cast):
-            return n.to_type.type
+            return self.resolve_type(n.to_type.type)
         if isinstance(n, A.CompoundLiteral):
-            return n.type.type
+            return self.resolve_type(n.type.type)
         if isinstance(n, A.UnaryOp):
             if n.op == "sizeof":
                 return scalar_type("legacy_u64")
             if n.op == "!":
                 return scalar_type("legacy_s32")
-            t = self.node_type(n.expr)
+            t = self.resolve_type(self.node_type(n.expr))
             if n.op == "&":
                 return A.PtrDecl([], t) if t else None
             if n.op == "*" and isinstance(t, (A.PtrDecl, A.ArrayDecl)):
-                return t.type
+                return self.resolve_type(t.type)
             return self.promote(t) if n.op in ("+", "-", "~") else t
         if isinstance(n, A.ArrayRef):
-            t = self.node_type(n.name)
-            return t.type if isinstance(t, (A.PtrDecl, A.ArrayDecl)) else None
+            t = self.resolve_type(self.node_type(n.name))
+            return self.resolve_type(t.type) if isinstance(t, (A.PtrDecl, A.ArrayDecl)) else None
         if isinstance(n, A.StructRef):
             t = self.node_type(n.name)
             if n.type == "->" and isinstance(t, (A.PtrDecl, A.ArrayDecl)):
@@ -691,14 +726,15 @@ class Generator:
             if isinstance(base, (A.Struct, A.Union)):
                 struct = self.m.classes.get(base.name)
                 if struct:
-                    return self.member_type(struct, n.field.name)
+                    return self.resolve_type(self.member_type(struct, n.field.name))
         if isinstance(n, A.FuncCall):
             t = self.node_type(n.name)
             if isinstance(t, A.PtrDecl):
                 t = t.type
-            return t.type if isinstance(t, A.FuncDecl) else None
+            return self.resolve_type(t.type) if isinstance(t, A.FuncDecl) else None
         if isinstance(n, A.TernaryOp):
-            return self.common_type(self.node_type(n.iftrue), self.node_type(n.iffalse))
+            return self.common_type(self.decay_type(self.node_type(n.iftrue)),
+                                    self.decay_type(self.node_type(n.iffalse)))
         if isinstance(n, A.BinaryOp):
             if n.op == "-" and all(isinstance(self.node_type(part), (A.PtrDecl, A.ArrayDecl)) for part in (n.left, n.right)):
                 return scalar_type("legacy_s64")
@@ -706,11 +742,16 @@ class Generator:
                 return scalar_type("legacy_s32")
             if n.op in ("<<", ">>"):
                 return self.promote(self.node_type(n.left))
-            return self.common_type(self.node_type(n.left), self.node_type(n.right))
+            typ = self.common_type(self.node_type(n.left), self.node_type(n.right))
+            if (n.op in ("+", "-") and
+                    (self.flattened_array_type(n.left) or self.flattened_array_type(n.right))):
+                return self.decay_type(typ)
+            return typ
         if isinstance(n, A.Assignment):
             return self.node_type(n.lvalue)
         if isinstance(n, A.ExprList):
-            return self.node_type(n.exprs[-1])
+            typ = self.node_type(n.exprs[-1])
+            return self.decay_type(typ) if self.flattened_array_type(n.exprs[-1]) else typ
         return None
 
     def class_type_from_type(self, typ):
@@ -756,6 +797,19 @@ class Generator:
         if isinstance(n, A.BinaryOp):
             a, x = self.expr(n.left)
             b, y = self.expr(n.right)
+            if n.op in ("+", "-"):
+                left_stride, right_stride = self.array_stride(n.left), self.array_stride(n.right)
+                right_pointer = isinstance(self.resolve_type(self.node_type(n.right)),
+                                           (A.PtrDecl, A.ArrayDecl))
+                if left_stride and right_pointer and n.op == "-":
+                    return a + b, self.division(f"({x} - {y})", f"({left_stride})", "/",
+                                               scalar_type("legacy_s64"))
+                if left_stride and not right_pointer:
+                    y = f"({y} * {left_stride})"
+                elif right_stride and n.op == "+":
+                    # HolyC takes the result type from the left operand.
+                    # Keep the pointer first for C's commutative indexing.
+                    x, y = y, f"({x} * {right_stride})"
             if self.in_function and n.op in ("&&", "||"):
                 # HolyC only short-circuits boolean expressions in an if.
                 # C also requires this in assignments, returns and arguments,
@@ -808,17 +862,26 @@ class Generator:
                     return [], self.sizeof_type(n.expr.type)
                 typ = self.node_type(n.expr)
                 if typ is not None:
-                    if isinstance(typ, A.ArrayDecl):
-                        count = []
-                        while isinstance(typ, A.ArrayDecl):
-                            _, dim = self.expr(typ.dim)
-                            count.append(dim)
-                            typ = typ.type
-                        return [], "(" + " * ".join(count + ["sizeof(" + self.type_text(typ) + ")"]) + ")"
-                    return [], "sizeof(" + self.type_text(typ) + ")"
+                    return [], self.sizeof_type(typ)
             a, x = self.expr(n.expr)
+            if (n.op == "&" and isinstance(self.node_type(n.expr), A.ArrayDecl) and
+                    self.flattened_array_type(n.expr)):
+                return a, x
+            if (n.op == "*" and isinstance(self.node_type(n), A.ArrayDecl) and
+                    self.flattened_array_type(n.expr)):
+                return a, x
             if n.op == "&" and x.startswith("&"):
                 return a, x
+            stride = self.array_stride(n.expr)
+            if n.op in ("p++", "p--", "++", "--") and stride:
+                typ = self.node_type(n.expr)
+                pointer = self.temp()
+                self.local_decls[-1] = self.decl(A.PtrDecl([], typ), pointer) + ";"
+                result = self.temp(n.expr)
+                operation = "+" if "+" in n.op else "-"
+                a += [f"{pointer} = &({x});", f"{result} = *{pointer};",
+                      f"*{pointer} = ({result} {operation} ({stride}));"]
+                return a, result if n.op.startswith("p") else "(*" + pointer + ")"
             if n.op in ("p++", "p--", "++", "--") and self.integer_info(self.node_type(n.expr)):
                 typ = self.node_type(n.expr)
                 pointer = self.temp()
@@ -841,38 +904,16 @@ class Generator:
                 expr = self.normalize(expr, self.node_type(n))
             return a, expr
         if isinstance(n, A.ArrayRef):
-            indices = []
-            base = n
-            while isinstance(base, A.ArrayRef):
-                indices.insert(0, base.subscript)
-                base = base.name
-            parameter_array = self.param_arrays.get(base.name) if isinstance(base, A.ID) else None
-            dimension = parameter_array
-            array_depth = 0
-            while isinstance(dimension, A.ArrayDecl):
-                array_depth += 1
-                dimension = dimension.type
-            # Flatten contiguous array dimensions only. An array of pointers
-            # needs a pointer load before indexing the pointed-to object.
-            # Recurse below when a subscript crosses that pointer boundary.
-            if len(indices) <= array_depth:
-                typ = parameter_array
-                a, terms = [], []
-                for index in indices:
-                    b, value = self.expr(index)
-                    a += b
-                    typ = typ.type
-                    dimension = typ
-                    factors = []
-                    while isinstance(dimension, A.ArrayDecl):
-                        factors.append(self.expr(dimension.dim)[1])
-                        dimension = dimension.type
-                    terms.append("(" + " * ".join([value] + factors) + ")")
-                subscript = "(" + " + ".join(terms) + ")"
-                value = self.lookup(base.name) + "[" + subscript + "]"
-                return a, "(&(" + value + "))" if isinstance(typ, A.ArrayDecl) else value
             a, x = self.expr(n.name)
             b, y = self.expr(n.subscript)
+            typ = self.flattened_array_type(n.name)
+            if typ:
+                stride = self.array_stride(n.name)
+                subscript = f"({y} * {stride})" if stride else y
+                value = f"{x}[{subscript}]"
+                if isinstance(self.resolve_type(typ.type), A.ArrayDecl):
+                    value = "(&(" + value + "))"
+                return a + b, value
             if isinstance(n.name, A.Constant) and n.name.type == "string":
                 name = self.temp(n.name)
                 a.append(f"{name} = {x};")
@@ -933,6 +974,9 @@ class Generator:
             if cls:
                 return a + b, f"MemCpy(&({x}), &({y}), sizeof({cls}))"
             typ = self.node_type(n.lvalue)
+            stride = self.array_stride(n.lvalue)
+            if n.op in ("+=", "-=") and stride:
+                return a + b, f"({x} {n.op} ({y} * {stride}))"
             if n.op != "=" and self.integer_info(typ):
                 pointer = self.temp()
                 self.local_decls[-1] = self.decl(A.PtrDecl([], typ), pointer) + ";"
@@ -1013,9 +1057,11 @@ class Generator:
         raise ValueError("Nonconstant array dimension " + str(node))
 
     def aggregate(self, typ):
+        typ = self.resolve_type(typ)
         return isinstance(typ, A.ArrayDecl) or isinstance(typ, A.TypeDecl) and isinstance(typedef_name(typ), (A.Struct, A.Union)) or isinstance(typ, (A.Struct, A.Union))
 
     def initializer_fields(self, name, typ):
+        typ = self.resolve_type(typ)
         if isinstance(typ, A.ArrayDecl):
             return [(name + f"[{i}]", typ.type) for i in range(self.const_value(typ.dim))]
         cls = self.m.classes[typedef_name(typ).name]
@@ -1023,6 +1069,7 @@ class Generator:
         return [(name + ("." + field.name if field.name else ""), field.type) for field in fields]
 
     def consume_initializer(self, name, typ, values):
+        typ = self.resolve_type(typ)
         if not values:
             return []
         first = values[0]
@@ -1046,6 +1093,7 @@ class Generator:
         return a + [f"{name} = {self.normalize(expr, typ)};"]
 
     def initialize(self, name, typ, init):
+        typ = self.resolve_type(typ)
         if isinstance(init, A.InitList):
             return [f"MemSet(&{name}, 0, sizeof({name}));"] + self.consume_initializer(name, typ, [init])
         a, x = self.expr(init)
@@ -1166,13 +1214,14 @@ class Generator:
         for arg in typ.args.params if typ.args else []:
             if isinstance(arg, A.Decl) and arg.name:
                 self.scopes[0][arg.name] = arg.name
-                self.types[arg.name] = arg.type
+                # C adjusts only the outer array dimension of a parameter
+                # to a pointer. Keep the remaining dimensions for row strides
+                # while the HolyC prototype uses contiguous element storage.
+                self.types[arg.name] = self.decay_type(arg.type)
                 result = self.class_type_from_type(arg.type)
                 if result:
                     self.local_decls.append(self.decl(arg.type, arg.name) + ";")
                     argument_copies.append(f"MemCpy(&{arg.name}, temple_value_{arg.name}, sizeof({result}));")
-                if isinstance(arg.type, A.ArrayDecl):
-                    self.param_arrays[arg.name] = arg.type
         if self.current_function == "shape2d_write_raster":
             # The native raster handles both bitmap layouts. Do not translate
             # the replaced C body: its temporaries have no remaining users.

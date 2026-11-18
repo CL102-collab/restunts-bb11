@@ -33,7 +33,12 @@ enum TranslationStorageEnum {
     TRANSLATION_SIZEOF_TYPENAME_FAILURE = 68,
     TRANSLATION_RESOURCE_NAME_LENGTH = 12,
     TRANSLATION_SIZEOF_ROWS = 2,
-    TRANSLATION_SIZEOF_COLUMNS = 3
+    TRANSLATION_SIZEOF_COLUMNS = 3,
+    TRANSLATION_ARRAY_POINTER_FAILURE = 67,
+    TRANSLATION_ARRAY_ROWS = 3,
+    TRANSLATION_ARRAY_COLUMNS = 3,
+    TRANSLATION_ARRAY_PLANES = 2,
+    TRANSLATION_ARRAY_WORD_COLUMNS = 2
 };
 struct TranslationPair { legacy_u16 first; legacy_s16 second; };
 struct TranslationPacked { legacy_s8 value; legacy_u8 neighbor; legacy_u16 word; legacy_u32 doubleWord; };
@@ -118,6 +123,89 @@ static legacy_s32 TranslationPointerMatrix(legacy_s8 *values[][2])
 {
     return values[0][1][1] == 'n' && values[1][0][2] == 'f' &&
         values[1][1][0] == '/';
+}
+static legacy_s16 translation_array_values[TRANSLATION_ARRAY_ROWS][TRANSLATION_ARRAY_COLUMNS] = {
+    {1, 2, 3}, {4, 5, 6}, {7, 8, 9}
+};
+static legacy_s16 (*translation_array_rows)[TRANSLATION_ARRAY_COLUMNS] = translation_array_values;
+struct TranslationArrayView { legacy_s16 (*rows)[TRANSLATION_ARRAY_COLUMNS]; };
+typedef legacy_s16 TranslationArrayRow[TRANSLATION_ARRAY_COLUMNS];
+typedef TranslationArrayRow *TranslationRowPointer;
+static legacy_s16 (*TranslationArrayPointer(void))[TRANSLATION_ARRAY_COLUMNS]
+{
+    return translation_array_rows;
+}
+static legacy_s32 TranslationArrayParameter(legacy_s16 values[][TRANSLATION_ARRAY_COLUMNS])
+{
+    values++;
+    return values[0][0] == 4 && values[-1][2] == 3 &&
+        values[1][1] == 8 && sizeof(*values) == TRANSLATION_ARRAY_COLUMNS * sizeof(legacy_s16);
+}
+static legacy_s32 TranslationArrayPointerParameter(legacy_s16 (*values)[TRANSLATION_ARRAY_COLUMNS])
+{
+    legacy_s16 *row = values[1];
+    return row[2] == 6 && (*values)[1] == 2 &&
+        (values + 1)[0][2] == 6 && (1 + values)[1][0] == 7;
+}
+static legacy_s32 TranslationArrayAliasParameter(TranslationArrayRow values[TRANSLATION_ARRAY_ROWS])
+{
+    values++;
+    return values[0][2] == 6 && sizeof(*values) == sizeof(TranslationArrayRow);
+}
+static legacy_s32 TranslationArrayRowParameter(TranslationArrayRow values)
+{
+    return values[2] == 3;
+}
+static legacy_s32 TranslationArrayPointers(void)
+{
+    legacy_s16 (*rows)[TRANSLATION_ARRAY_COLUMNS] = translation_array_rows;
+    legacy_s16 (*origin)[TRANSLATION_ARRAY_COLUMNS] = rows;
+    struct TranslationArrayView view = {rows};
+    if (!TranslationArrayParameter(rows) || !TranslationArrayPointerParameter(rows)) { return 0; }
+    if (view.rows[1][2] != 6 || TranslationArrayPointer()[2][1] != 8) { return 0; }
+    if (((legacy_s16 (*)[TRANSLATION_ARRAY_COLUMNS])rows)[1][1] != 5) { return 0; }
+    if (rows++ != origin || rows != &origin[1] || rows - origin != 1) { return 0; }
+    if (origin - rows != -1 || --rows != origin || ++rows != &origin[1]) { return 0; }
+    if (rows-- != &origin[1] || rows != origin) { return 0; }
+    rows += 2;
+    if (rows[0][2] != 9) { return 0; }
+    rows -= 1;
+    if ((*rows)[2] != 6 || sizeof(*rows) != TRANSLATION_ARRAY_COLUMNS * sizeof(legacy_s16)) { return 0; }
+    legacy_s16 (*choices[TRANSLATION_ARRAY_PLANES])[TRANSLATION_ARRAY_COLUMNS] = {origin, &origin[1]};
+    legacy_s16 choice = 0;
+    if ((choices[choice++]++)[0][0] != 1 || choice != 1 || choices[0][0][0] != 4) { return 0; }
+    struct TranslationPair pairs[TRANSLATION_ARRAY_PLANES][TRANSLATION_ARRAY_COLUMNS] = {{{0}}};
+    struct TranslationPair (*pair_rows)[TRANSLATION_ARRAY_COLUMNS] = pairs;
+    pair_rows[1][2].second = -17;
+    if (pairs[1][2].second != -17 || pair_rows[0][2].second != 0) { return 0; }
+    legacy_s8 *words[TRANSLATION_ARRAY_PLANES][TRANSLATION_ARRAY_WORD_COLUMNS] = {
+        {"zero", "one"}, {"two", "three"}
+    };
+    legacy_s8 *(*word_rows)[TRANSLATION_ARRAY_WORD_COLUMNS] = words;
+    if (word_rows[1][0][1] != 'w' || (*word_rows)[1][2] != 'e') { return 0; }
+    legacy_s16 cube[TRANSLATION_ARRAY_PLANES][TRANSLATION_ARRAY_PLANES][TRANSLATION_ARRAY_COLUMNS] = {
+        {{1, 2, 3}, {4, 5, 6}}, {{7, 8, 9}, {10, 11, 12}}
+    };
+    legacy_s16 (*planes)[TRANSLATION_ARRAY_PLANES][TRANSLATION_ARRAY_COLUMNS] = cube;
+    legacy_s16 (*plane_rows)[TRANSLATION_ARRAY_COLUMNS] = planes[1];
+    if ((planes[0] + 1)[0][2] != 6 || ((*planes) + 1)[0][2] != 6) { return 0; }
+    if ((choice ? planes[0] : planes[1])[1][2] != 6) { return 0; }
+    if ((TranslationEffect(), planes[1])[1][2] != 12) { return 0; }
+    if (sizeof((*planes) + 1) != sizeof(legacy_s16 *) ||
+            sizeof((choice, *rows)) != sizeof(legacy_s16 *)) { return 0; }
+    TranslationArrayRow alias_values[TRANSLATION_ARRAY_ROWS] = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    TranslationArrayRow *alias_rows = alias_values;
+    TranslationRowPointer alias_pointer = alias_rows;
+    if (alias_rows[1][2] != 6 || (*alias_pointer)[2] != 3 ||
+            sizeof(*alias_rows) != sizeof(TranslationArrayRow) ||
+            sizeof(((TranslationRowPointer)alias_rows)[1]) != sizeof(TranslationArrayRow) ||
+            sizeof(alias_values) != TRANSLATION_ARRAY_ROWS * sizeof(TranslationArrayRow) ||
+            !TranslationArrayAliasParameter(alias_rows) || !TranslationArrayRowParameter(*alias_rows)) {
+        return 0;
+    }
+    return planes[1][1][2] == 12 && (*planes)[1][2] == 6 && plane_rows[1][0] == 10 &&
+        sizeof(*planes) == TRANSLATION_ARRAY_PLANES * TRANSLATION_ARRAY_COLUMNS * sizeof(legacy_s16) &&
+        (planes + 1) - planes == 1;
 }
 static legacy_s32 TranslationBuiltinIntegers(void)
 {
@@ -292,6 +380,7 @@ legacy_s32 TranslationSemantics(void)
     if (!TranslationPointerMatrix(pointer_matrix)) { return 65; }
     if (!TranslationBuiltinIntegers()) { return TRANSLATION_BUILTIN_INTEGER_FAILURE; }
     if (!TranslationSizeofTypenames()) { return TRANSLATION_SIZEOF_TYPENAME_FAILURE; }
+    if (!TranslationArrayPointers()) { return TRANSLATION_ARRAY_POINTER_FAILURE; }
     return 0;
 }
 '''

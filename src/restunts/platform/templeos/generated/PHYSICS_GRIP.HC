@@ -56,10 +56,10 @@ legacy_void RsConfigureLeftCornerBias(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_6125<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_6125))],temple_off_option_6122)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_6125],temple_off_option_6122)==0)) {
       (rs_physics_grip_left_corner_bias_enabled=TempleCastS16(LEFT_CORNER_BIAS_OFF));
     } else {
-      if((RsInternal1Stricmp(argv[((temple_index_6125))],temple_on_option_6123)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_6125],temple_on_option_6123)==0)) {
         (rs_physics_grip_left_corner_bias_enabled=TempleCastS16(LEFT_CORNER_BIAS_ON));
       }
     }
@@ -86,7 +86,7 @@ legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_6129<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_6129))],("--amigagrass")(legacy_s8 *))==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_6129],("--amigagrass")(legacy_s8 *))==0)) {
       (rs_physics_grip_amiga_grass_enabled=TempleCastS16(1));
     }
     temple_tmp_6130=&(temple_index_6129);
@@ -120,7 +120,7 @@ legacy_void RsApplyAmigaGrass(CSimd *simd,legacy_s8 *car_id)
       if(!((temple_character_6134<4))) {
         break;
       }
-      temple_letter_6136=TempleCastS8(car_id[((temple_character_6134))]);
+      temple_letter_6136=TempleCastS8(car_id[temple_character_6134]);
       temple_tmp_6137=0;
       if((temple_letter_6136>='a')) {
         temple_tmp_6137=1;

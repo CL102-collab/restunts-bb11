@@ -56,10 +56,10 @@ legacy_void RsConfigurePowergearBug(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_6993<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_6993))],temple_off_option_6990)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_6993],temple_off_option_6990)==0)) {
       (rs_statecar_powergear_bug_enabled=TempleCastS16(0));
     } else {
-      if((RsInternal1Stricmp(argv[((temple_index_6993))],temple_on_option_6991)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_6993],temple_on_option_6991)==0)) {
         (rs_statecar_powergear_bug_enabled=TempleCastS16(1));
       }
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check C integer spellings retain their widths in HolyC translation."""
+"""Check C integer widths and contiguous-array pointer declarations."""
 import importlib.machinery
 import importlib.util
 import itertools
@@ -96,6 +96,36 @@ class BuiltinTypeTests(unittest.TestCase):
                 prelude, text = self.generator.expr(ast.ext[0].body.block_items[0])
                 self.assertEqual(prelude, [])
                 self.assertEqual(text, expected)
+
+
+    def test_array_pointer_uses_contiguous_element_storage(self):
+        for source, expected in (("short (*value)[3];", "legacy_s16 *"),
+                                 ("short (*value)[2][3];", "legacy_s16 *"),
+                                 ("char *(*value)[2];", "legacy_char * *")):
+            with self.subTest(source=source):
+                node = self.parser.parse(source).ext[0].type
+                self.assertEqual(self.generator.type_text(node), expected)
+                self.assertEqual(self.generator.decl(node, "value").replace(" ", ""),
+                                 (expected + "value").replace(" ", ""))
+
+    def test_class_array_pointer_retains_class_element_type(self):
+        ast = self.parser.parse("struct Pair { short value; }; struct Pair (*rows)[6];")
+        node = ast.ext[1].type
+        self.assertEqual(self.generator.type_text(node), "Pair *")
+        self.assertEqual(self.generator.decl(node, "rows"), "Pair *rows")
+
+    def test_array_of_row_pointers_keeps_outer_storage(self):
+        node = self.parser.parse("short (*rows[2])[3];").ext[0].type
+        self.assertEqual(self.generator.decl(node, "rows"), "legacy_s16 *rows[2]")
+
+    def test_array_alias_retains_rows_and_adjusts_parameters(self):
+        ast = self.parser.parse("typedef short Row[3]; Row *rows; void Check(Row values[2]);")
+        model = TRANSLATE.Model()
+        model.collect(ast, "types")
+        generator = TRANSLATE.Generator(model)
+        self.assertEqual(generator.decl(ast.ext[1].type, "rows"), "legacy_s16 *rows")
+        self.assertEqual(generator.prototype(ast.ext[2].type, "Check"),
+                         "legacy_void Check(legacy_s16 *values)")
 
 
 if __name__ == "__main__":

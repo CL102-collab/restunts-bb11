@@ -56,10 +56,10 @@ legacy_void RsConfigureLegacyCollision(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_6759<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_6759))],temple_off_option_6756)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_6759],temple_off_option_6756)==0)) {
       (rs_physics_collision_legacy_collision_enabled=TempleCastS16(0));
     } else {
-      if((RsInternal1Stricmp(argv[((temple_index_6759))],temple_on_option_6757)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_6759],temple_on_option_6757)==0)) {
         (rs_physics_collision_legacy_collision_enabled=TempleCastS16(1));
       }
     }
@@ -1184,19 +1184,16 @@ legacy_void RsPhysicsCollisionBuildCollisionCorners(
               TempleCastS16(TempleCastS16(collision_points[COLLISION_RADIUS_POINT_INDEX].px)));
     }
     RsMatMulVector(
-        (&(temple_local_corner_6899)),temple_rotation_6898,(&(corners[((temple_corner_6901))])));
-    (corners[((temple_corner_6901))].x=
-            TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(
-                TempleCastU16(TempleCastS32((TempleCastU16(corners[((temple_corner_6901))].x)+
-                    TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].x)))))))));
-    (corners[((temple_corner_6901))].y=
-            TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(
-                TempleCastU16(TempleCastS32((TempleCastU16(corners[((temple_corner_6901))].y)+
-                    TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].y)))))))));
-    (corners[((temple_corner_6901))].z=
-            TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(
-                TempleCastU16(TempleCastS32((TempleCastU16(corners[((temple_corner_6901))].z)+
-                    TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].z)))))))));
+        (&(temple_local_corner_6899)),temple_rotation_6898,(&(corners[temple_corner_6901])));
+    (corners[temple_corner_6901].x=TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(
+        TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(corners[temple_corner_6901].x)+
+            TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].x)))))))));
+    (corners[temple_corner_6901].y=TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(
+        TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(corners[temple_corner_6901].y)+
+            TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].y)))))))));
+    (corners[temple_corner_6901].z=TempleCastS16(RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(
+        TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(corners[temple_corner_6901].z)+
+            TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].z)))))))));
     temple_tmp_6903=&(temple_corner_6901);
     temple_tmp_6904=*temple_tmp_6903;
     *temple_tmp_6903=TempleCastS16((temple_tmp_6904+1));
@@ -1229,15 +1226,15 @@ legacy_s16 RsPhysicsCollisionCollisionCornersInside(
     (temple_relative_corner_6907.x=TempleCastS16(
         RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].x)-
-                TempleCastU16(corners[((temple_corner_6909))].x)))))))));
+                TempleCastU16(corners[temple_corner_6909].x)))))))));
     (temple_relative_corner_6907.y=TempleCastS16(
         RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].y)-
-                TempleCastU16(corners[((temple_corner_6909))].y)))))))));
+                TempleCastU16(corners[temple_corner_6909].y)))))))));
     (temple_relative_corner_6907.z=TempleCastS16(
         RsPhysicsCollisionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(world_coordinates[COLLISION_POSITION_INDEX].z)-
-                TempleCastU16(corners[((temple_corner_6909))].z)))))))));
+                TempleCastU16(corners[temple_corner_6909].z)))))))));
     RsMatMulVector(
         (&(temple_relative_corner_6907)),temple_rotation_6905,(&(temple_local_corner_6906)));
     temple_tmp_6910=0;

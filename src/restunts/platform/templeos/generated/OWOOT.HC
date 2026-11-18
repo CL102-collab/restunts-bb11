@@ -54,16 +54,16 @@ legacy_void RsConfigureOwoot(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_7341<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_7341))],temple_off_option_7339)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_7341],temple_off_option_7339)==0)) {
       (owoot_enabled=TempleCastS16(0));
     } else {
       temple_tmp_7342=0;
-      if((RsInternal1Stricmp(argv[((temple_index_7341))],temple_shorthand_option_7337)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_7341],temple_shorthand_option_7337)==0)) {
         temple_tmp_7342=1;
       }
       if(!temple_tmp_7342) {
         temple_tmp_7342=0;
-        if((RsInternal1Stricmp(argv[((temple_index_7341))],temple_on_option_7338)==0)) {
+        if((RsInternal1Stricmp(argv[temple_index_7341],temple_on_option_7338)==0)) {
           temple_tmp_7342=1;
         }
       }

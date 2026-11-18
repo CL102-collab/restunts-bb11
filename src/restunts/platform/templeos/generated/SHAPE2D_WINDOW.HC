@@ -158,14 +158,14 @@ legacy_void RsSpriteSelectRenderWindowAndClear()
 
 legacy_void RsSpriteSaveContext(CSprite *saved_context)
 {
-  MemCpy(&(saved_context[((0))]),&(drawing_sprite),sizeof(CSprite));
-  MemCpy(&(saved_context[((1))]),&(screen_sprite),sizeof(CSprite));
+  MemCpy(&(saved_context[0]),&(drawing_sprite),sizeof(CSprite));
+  MemCpy(&(saved_context[1]),&(screen_sprite),sizeof(CSprite));
 }
 
 legacy_void RsSpriteRestoreContext(CSprite *saved_context)
 {
-  MemCpy(&(drawing_sprite),&(saved_context[((0))]),sizeof(CSprite));
-  MemCpy(&(screen_sprite),&(saved_context[((1))]),sizeof(CSprite));
+  MemCpy(&(drawing_sprite),&(saved_context[0]),sizeof(CSprite));
+  MemCpy(&(screen_sprite),&(saved_context[1]),sizeof(CSprite));
   TempleRasterSelect(&drawing_sprite);
 }
 

@@ -1168,7 +1168,7 @@ legacy_void RsFileLoadShape2dPalmapApply(legacy_u8 *memchunk,legacy_u8 *palmap)
       if(!((temple_j_5301<temple_length_5298))) {
         break;
       }
-      ((*(temple_memchunkptr_5299))=TempleCastU8(palmap[(((*(temple_memchunkptr_5299))))]));
+      ((*(temple_memchunkptr_5299))=TempleCastU8(palmap[(*(temple_memchunkptr_5299))]));
       (temple_memchunkptr_5299++);
       temple_tmp_5302=&(temple_j_5301);
       temple_tmp_5303=*temple_tmp_5302;

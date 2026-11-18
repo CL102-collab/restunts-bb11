@@ -56,10 +56,10 @@ legacy_void RsConfigureDualWaySwitching(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_5996<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_5996))],temple_off_option_5993)==0)) {
+    if((RsInternal1Stricmp(argv[temple_index_5996],temple_off_option_5993)==0)) {
       (rs_race_route_dual_way_switching_enabled=TempleCastS16(0));
     } else {
-      if((RsInternal1Stricmp(argv[((temple_index_5996))],temple_on_option_5994)==0)) {
+      if((RsInternal1Stricmp(argv[temple_index_5996],temple_on_option_5994)==0)) {
         (rs_race_route_dual_way_switching_enabled=TempleCastS16(1));
       }
     }

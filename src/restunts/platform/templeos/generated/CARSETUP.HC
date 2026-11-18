@@ -88,8 +88,7 @@ legacy_void RsCarsetupLegacyCarFilename(
     if(!((temple_index_892<4))) {
       break;
     }
-    (destination[TempleCastU32((temple_index_892+2))]=
-            TempleCastS8(car_id[((temple_index_892))]));
+    (destination[TempleCastU32((temple_index_892+2))]=TempleCastS8(car_id[temple_index_892]));
     temple_tmp_893=&(temple_index_892);
     temple_tmp_894=*temple_tmp_893;
     *temple_tmp_893=TempleCastU16((temple_tmp_894+1));
@@ -101,7 +100,7 @@ legacy_void RsCarsetupLegacyCarFilename(
       break;
     }
     (destination[TempleCastU32((TempleCastU32((temple_index_896+2))+4))]=
-            TempleCastS8(extension[((temple_index_896))]));
+            TempleCastS8(extension[temple_index_896]));
     temple_tmp_897=&(temple_index_896);
     temple_tmp_898=*temple_tmp_897;
     *temple_tmp_897=TempleCastU16((temple_tmp_898+1));

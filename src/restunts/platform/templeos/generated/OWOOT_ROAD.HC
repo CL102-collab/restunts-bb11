@@ -919,12 +919,12 @@ legacy_s16 RsTrackSlalomWheelEnvelopeCrossesBarrier(CVector *vertices,legacy_u16
     if(!((temple_wheel_7583<4))) {
       break;
     }
-    if((counts[((temple_wheel_7583))]>TempleCastU32((2*16)))) {
+    if((counts[temple_wheel_7583]>TempleCastU32((2*16)))) {
       return TempleCastS16(0);
     }
     temple_index_7585=TempleCastU16(0);
     while(1) {
-      if(!((temple_index_7585<counts[((temple_wheel_7583))]))) {
+      if(!((temple_index_7585<counts[temple_wheel_7583]))) {
         break;
       }
       temple_tmp_7586=&(temple_count_7581);
@@ -933,12 +933,12 @@ legacy_s16 RsTrackSlalomWheelEnvelopeCrossesBarrier(CVector *vertices,legacy_u16
       RsOwootRoadRoadLocalProjection(
           TempleCastS32(TempleCastS32(
               (TempleCastS32(
-                  vertices[((temple_wheel_7583*TempleCastU32((2*16)))+(temple_index_7585))]
+                  (&(vertices[(temple_wheel_7583*TempleCastU32((2*16)))]))[temple_index_7585]
                       .x)-
                   center->x))),
           TempleCastS32(TempleCastS32(
               (TempleCastS32(
-                  vertices[((temple_wheel_7583*TempleCastU32((2*16)))+(temple_index_7585))]
+                  (&(vertices[(temple_wheel_7583*TempleCastU32((2*16)))]))[temple_index_7585]
                       .z)-
                   center->z))),
           TempleCastS16(rotation),&temple_tmp_7588);
@@ -964,8 +964,8 @@ legacy_s16 RsTrackSlalomWheelEnvelopeCrossesBarrier(CVector *vertices,legacy_u16
       temple_tmp_7596=*temple_tmp_7595;
       *temple_tmp_7595=TempleCastU16((temple_tmp_7596+1));
       RsOwootRoadRoadLocalProjection(
-          TempleCastS32(TempleCastS32((TempleCastS32(body[((temple_corner_7594))].x)-center->x))),
-          TempleCastS32(TempleCastS32((TempleCastS32(body[((temple_corner_7594))].z)-center->z))),
+          TempleCastS32(TempleCastS32((TempleCastS32(body[temple_corner_7594].x)-center->x))),
+          TempleCastS32(TempleCastS32((TempleCastS32(body[temple_corner_7594].z)-center->z))),
           TempleCastS16(rotation),&temple_tmp_7597);
       MemCpy(
           &(temple_points_7580[temple_tmp_7596]),&(temple_tmp_7597),sizeof(COwootProjectedPoint));

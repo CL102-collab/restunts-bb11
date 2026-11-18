@@ -403,7 +403,7 @@ legacy_u16 RsFileCarFileResourcePath(
   legacy_s32 noreg temple_tmp_155;
   legacy_s32 noreg temple_tmp_156;
   legacy_s32 noreg temple_tmp_157;
-  (path[((0))]=TempleCastS8(0));
+  (path[0]=TempleCastS8(0));
   temple_tmp_145=0;
   if((root==FILE_CAR_BASE_LOOSE)) {
     temple_tmp_145=1;
@@ -447,7 +447,7 @@ legacy_u16 RsFileCarFileResourcePath(
   }
   temple_used_148=TempleCastU16(0);
   while(1) {
-    if(!((path[((temple_used_148))]!=0))) {
+    if(!((path[temple_used_148]!=0))) {
       break;
     }
     temple_tmp_150=&(temple_used_148);
@@ -461,7 +461,7 @@ legacy_u16 RsFileCarFileResourcePath(
   }
   if(temple_tmp_152) {
     temple_tmp_152=0;
-    if((path[((TempleCastU32((temple_used_148-1))))]!='/')) {
+    if((path[TempleCastU32((temple_used_148-1))]!='/')) {
       temple_tmp_152=1;
     }
   }
@@ -471,7 +471,7 @@ legacy_u16 RsFileCarFileResourcePath(
   }
   if(temple_tmp_153) {
     temple_tmp_153=0;
-    if((path[((TempleCastU32((temple_used_148-1))))]!='\\')) {
+    if((path[TempleCastU32((temple_used_148-1))]!='\\')) {
       temple_tmp_153=1;
     }
   }
@@ -481,7 +481,7 @@ legacy_u16 RsFileCarFileResourcePath(
   }
   if(temple_tmp_154) {
     temple_tmp_154=0;
-    if((path[((TempleCastU32((temple_used_148-1))))]!=':')) {
+    if((path[TempleCastU32((temple_used_148-1))]!=':')) {
       temple_tmp_154=1;
     }
   }
@@ -1015,7 +1015,7 @@ legacy_u16 RsFileFindCarIds(legacy_s8 *car_ids,legacy_u16 capacity)
               break;
             }
             if(RsFileCarFileCarEqual(
-                  temple_id_224,(&(car_ids[((temple_index_231*TempleCastU32((4+1))))])))) {
+                  temple_id_224,(&(car_ids[(temple_index_231*TempleCastU32((4+1)))])))) {
               (temple_duplicate_229=TempleCastU16(1));
               break;
             }
@@ -1030,7 +1030,7 @@ legacy_u16 RsFileFindCarIds(legacy_s8 *car_ids,legacy_u16 capacity)
               if(!((temple_index_235<TempleCastU32((4+1))))) {
                 break;
               }
-              (car_ids[((temple_count_212*TempleCastU32((4+1)))+(temple_index_235))]=
+              ((&(car_ids[(temple_count_212*TempleCastU32((4+1)))]))[temple_index_235]=
                       TempleCastS8(temple_id_224[temple_index_235]));
               temple_tmp_236=&(temple_index_235);
               temple_tmp_237=*temple_tmp_236;

@@ -227,12 +227,12 @@ legacy_s16 RsCommandLinePrintInfo(legacy_s32 argc,legacy_s8 **argv)
       break;
     }
     temple_tmp_8075=0;
-    if(RsCommandLineCommandLineMatches(argv[((temple_index_8073))],"--help")) {
+    if(RsCommandLineCommandLineMatches(argv[temple_index_8073],"--help")) {
       temple_tmp_8075=1;
     }
     if(!temple_tmp_8075) {
       temple_tmp_8075=0;
-      if(RsCommandLineCommandLineMatches(argv[((temple_index_8073))],"-h")) {
+      if(RsCommandLineCommandLineMatches(argv[temple_index_8073],"-h")) {
         temple_tmp_8075=1;
       }
     }
@@ -243,7 +243,7 @@ legacy_s16 RsCommandLinePrintInfo(legacy_s32 argc,legacy_s8 **argv)
     }
     if(!temple_tmp_8076) {
       temple_tmp_8076=0;
-      if(RsCommandLineCommandLineMatches(argv[((temple_index_8073))],"--version")) {
+      if(RsCommandLineCommandLineMatches(argv[temple_index_8073],"--version")) {
         temple_tmp_8076=1;
       }
     }
@@ -253,7 +253,7 @@ legacy_s16 RsCommandLinePrintInfo(legacy_s32 argc,legacy_s8 **argv)
     }
     if(!temple_tmp_8077) {
       temple_tmp_8077=0;
-      if(RsCommandLineCommandLineMatches(argv[((temple_index_8073))],"-v")) {
+      if(RsCommandLineCommandLineMatches(argv[temple_index_8073],"-v")) {
         temple_tmp_8077=1;
       }
     }

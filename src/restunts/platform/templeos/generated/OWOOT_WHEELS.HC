@@ -38,7 +38,7 @@ legacy_s32 RsOwootWheelsLegacyS32FromBits(legacy_u32 value)
 
 legacy_void RsOwootWheelsOwootReadCarWheelShape(legacy_u8 *shape,legacy_u16 car_index)
 {
-  CVector(*temple_target_controls_7363)[6];
+  CVector *temple_target_controls_7363;
   legacy_s32 noreg temple_tmp_7364;
   legacy_u16 noreg temple_wheel_7366;
   legacy_u16 noreg temple_point_7368;
@@ -80,20 +80,22 @@ legacy_void RsOwootWheelsOwootReadCarWheelShape(legacy_u8 *shape,legacy_u16 car_
       temple_index_7369=TempleCastU16(TempleCastU32(
           (TempleCastU32((8+TempleCastU32((temple_wheel_7366*6))))+temple_point_7368)));
       temple_vertex_7370=((shape+4)+TempleCastU32((temple_index_7369*6)));
-      (temple_target_controls_7363[temple_wheel_7366][temple_point_7368].x=TempleCastS16(
-          RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(
-              TempleCastU16(TempleCastS32((TempleCastU16(TempleCastU8(temple_vertex_7370[0]))|
-                  TempleCastS32((TempleCastU16(TempleCastU8(temple_vertex_7370[1]))<<8))))))))));
-      (temple_target_controls_7363[temple_wheel_7366][temple_point_7368].y=TempleCastS16(
-          RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+2)[0]))|
-                  TempleCastS32(
-                      (TempleCastU16(TempleCastU8((temple_vertex_7370+2)[1]))<<8))))))))));
-      (temple_target_controls_7363[temple_wheel_7366][temple_point_7368].z=TempleCastS16(
-          RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+4)[0]))|
-                  TempleCastS32(
-                      (TempleCastU16(TempleCastU8((temple_vertex_7370+4)[1]))<<8))))))))));
+      ((&(temple_target_controls_7363[(temple_wheel_7366*6)]))[temple_point_7368]
+              .x=TempleCastS16(RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(
+          TempleCastU16(TempleCastS32((TempleCastU16(TempleCastU8(temple_vertex_7370[0]))|
+              TempleCastS32((TempleCastU16(TempleCastU8(temple_vertex_7370[1]))<<8))))))))));
+      ((&(temple_target_controls_7363[(temple_wheel_7366*6)]))[temple_point_7368].y=
+              TempleCastS16(
+                  RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+                      TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+2)[0]))|
+                          TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+2)[1]))
+                              <<8))))))))));
+      ((&(temple_target_controls_7363[(temple_wheel_7366*6)]))[temple_point_7368].z=
+              TempleCastS16(
+                  RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+                      TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+4)[0]))|
+                          TempleCastS32((TempleCastU16(TempleCastU8((temple_vertex_7370+4)[1]))
+                              <<8))))))))));
       temple_tmp_7371=&(temple_point_7368);
       temple_tmp_7372=*temple_tmp_7371;
       *temple_tmp_7371=TempleCastU16((temple_tmp_7372+1));
@@ -129,7 +131,7 @@ legacy_void RsOwootWheelsOwootLoadCarWheels(legacy_s8 *car_id,legacy_u16 car_ind
       break;
     }
     (temple_filename_7375[TempleCastU32((temple_index_7377+2))]=
-            TempleCastS8(car_id[((temple_index_7377))]));
+            TempleCastS8(car_id[temple_index_7377]));
     temple_tmp_7378=&(temple_index_7377);
     temple_tmp_7379=*temple_tmp_7378;
     *temple_tmp_7378=TempleCastU16((temple_tmp_7379+1));
@@ -165,7 +167,7 @@ legacy_s16 RsOwootWheelsRingCoordinate(
 
 legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output)
 {
-  CVector(*temple_source_controls_7382)[6];
+  CVector *temple_source_controls_7382;
   CMatrix temple_rotation_7383;
   legacy_s16 noreg temple_sine_7384;
   legacy_u32 noreg temple_tmp_7385;
@@ -268,26 +270,26 @@ legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output
   temple_cosine_7389=TempleCastS16(RsCosFast(TempleCastU16(RsOwootWheelsLegacyS16FromBits(
       TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_7393)))))));
   if((TempleCastU32((TempleCastU16(1)&31))==0)) {
-    temple_tmp_7399=
-        TempleCastU32(TempleCastU16(RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(
-            TempleCastU16(TempleCastS32((TempleCastU16(temple_source_controls_7382[wheel][0].x)+
-                TempleCastU16(temple_source_controls_7382[wheel][3].x)))))))));
+    temple_tmp_7399=TempleCastU32(
+        TempleCastU16(RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+            TempleCastS32((TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[0].x)+
+                TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[3].x)))))))));
   } else {
     if((TempleCastU32(
             (TempleCastU16(RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                TempleCastS32((TempleCastU16(temple_source_controls_7382[wheel][0].x)+
-                    TempleCastU16(temple_source_controls_7382[wheel][3].x))))))))&
+                TempleCastS32((TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[0].x)+
+                    TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[3].x))))))))&
                 32768))!=0)) {
       if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
         temple_tmp_7396=TempleCastU32(TempleCastU32(65535));
       } else {
         temple_tmp_7396=TempleCastU32(TempleCastU32(
-            (TempleCastU32(TempleCastS32(
-                (TempleCastU16(
-                      RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                          TempleCastS32((TempleCastU16(temple_source_controls_7382[wheel][0].x)+
-                              TempleCastU16(temple_source_controls_7382[wheel][3].x))))))))>>
-                    TempleCastU32((TempleCastU16(1)&31)))))|
+            (TempleCastU32(TempleCastS32((
+                TempleCastU16(RsOwootWheelsLegacyS16FromBits(
+                    TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((
+                        TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[0].x)+
+                        TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[3].x))))))))>>
+                TempleCastU32((TempleCastU16(1)&31)))))|
                 TempleCastU16(TempleCastU32((TempleCastU32(65535)
                     <<TempleCastU32((16-TempleCastU32((TempleCastU16(1)&31))))))))));
       }
@@ -298,8 +300,8 @@ legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output
       } else {
         temple_tmp_7397=TempleCastU32(TempleCastU32(TempleCastS32(
             (TempleCastU16(RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                TempleCastS32((TempleCastU16(temple_source_controls_7382[wheel][0].x)+
-                    TempleCastU16(temple_source_controls_7382[wheel][3].x))))))))>>
+                TempleCastS32((TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[0].x)+
+                    TempleCastU16((&(temple_source_controls_7382[(wheel*6)]))[3].x))))))))>>
                 TempleCastU32((TempleCastU16(1)&31))))));
       }
       temple_tmp_7398=TempleCastU32(temple_tmp_7397);
@@ -308,14 +310,14 @@ legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output
   }
   temple_center_x_7395=TempleCastS16(
       RsOwootWheelsLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_7399)))));
-  temple_center_z_7400=TempleCastS16(temple_source_controls_7382[wheel][0].z);
+  temple_center_z_7400=TempleCastS16((&(temple_source_controls_7382[(wheel*6)]))[0].z);
   temple_point_7402=TempleCastU16(0);
   while(1) {
     if(!((temple_point_7402<6))) {
       break;
     }
     MemCpy(&(temple_controls_7394[temple_point_7402]),
-        &(temple_source_controls_7382[wheel][temple_point_7402]),sizeof(CVector));
+        &((&(temple_source_controls_7382[(wheel*6)]))[temple_point_7402]),sizeof(CVector));
     temple_tmp_7403=0;
     if((wheel<2)) {
       temple_tmp_7403=1;
@@ -391,7 +393,7 @@ legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output
           TempleCastS16(
               TempleCastS32(TempleDivideS64(car->car_suspension_deflection[wheel],64))))));
       temple_point_7418=
-          (&(output[((TempleCastU32((TempleCastU32((temple_side_7409*16))+temple_i_7412))))]));
+          (&(output[TempleCastU32((TempleCastU32((temple_side_7409*16))+temple_i_7412))]));
       RsMatMulVector((&(temple_local_7413)),(&(temple_rotation_7383)),temple_point_7418);
       temple_tmp_7419=&(temple_point_7418->x);
       ((*temple_tmp_7419)=TempleCastS16(

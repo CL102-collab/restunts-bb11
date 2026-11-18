@@ -233,29 +233,29 @@ legacy_void RsStartupStartupParseOptions(
     if(!((argc>temple_i_1162))) {
       break;
     }
-    if((RsInternal1Strcmp(argv[((temple_i_1162))],"--nosound")==0)) {
+    if((RsInternal1Strcmp(argv[temple_i_1162],"--nosound")==0)) {
       (options->sound_disabled=TempleCastU8(1));
       goto temple_next_1161;
     }
-    RsStartupStartupParseBoolean(argv[((temple_i_1162))],"--fps:","FPS display",
+    RsStartupStartupParseBoolean(argv[temple_i_1162],"--fps:","FPS display",
         (&(options->fps_display_enabled)),(&(options->fps_display_specified)));
-    RsStartupStartupParseBoolean(argv[((temple_i_1162))],"--showmph:","MPH display",
+    RsStartupStartupParseBoolean(argv[temple_i_1162],"--showmph:","MPH display",
         (&(options->mph_display_enabled)),(&(options->mph_display_specified)));
-    if((RsInternal1Strcmp(argv[((temple_i_1162))],"--nointro")==0)) {
+    if((RsInternal1Strcmp(argv[temple_i_1162],"--nointro")==0)) {
       (options->skip_intro=TempleCastU8(1));
     }
-    if((argv[((temple_i_1162))][0]=='/')) {
-      switch(argv[((temple_i_1162))][1]) {
+    if((argv[temple_i_1162][0]=='/')) {
+      switch(argv[temple_i_1162][1]) {
         case 104:
           (options->mode4_requested=TempleCastU8(4));
           break;
         case 110:
-          if((argv[((temple_i_1162))][2]=='s')) {
+          if((argv[temple_i_1162][2]=='s')) {
             (options->sound_disabled=TempleCastU8(1));
           }
           break;
         case 115:
-          RsStartupStartupSelectAudioDriver(argv[((temple_i_1162))]);
+          RsStartupStartupSelectAudioDriver(argv[temple_i_1162]);
           break;
       }
     }
