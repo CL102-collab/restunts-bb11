@@ -320,6 +320,12 @@ set(game_sources
     supersight/race_view.c supersight/track_geometry.c
     extended/extended_frame_layout.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
+if(RESTUNTS_TARGET_X86 AND RESTUNTS_SSE2 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    # -msse2 allows SSE2 instructions, but GCC still evaluates scalar arithmetic
+    # with x87 precision by default on i386. Keep the seeded search in binary64.
+    set_property(SOURCE "${core}/extended/extended_barrel_search.c"
+        APPEND PROPERTY COMPILE_OPTIONS -mfpmath=sse)
+endif()
 list(TRANSFORM game_sources PREPEND "${core}/")
 set(platform_files ${platform}/file.c ${platform}/car_zip.c third_party/puff/puff.c)
 set(platform_common ${platform}/memory.c ${platform_files} ${platform}/runtime.c
