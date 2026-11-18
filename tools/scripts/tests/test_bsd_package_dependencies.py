@@ -15,12 +15,15 @@ CONFIGURED_PATH = (
     "https://first.example/NetBSD/x86_64/10.0_2026Q3/All;"
     "https://second.example/NetBSD/x86_64/10.0_2026Q3/All"
 )
+CDN = "https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/"
+JAIST = "https://ftp.jaist.ac.jp/pub/pkgsrc/packages/NetBSD/"
 MOCK_COMMAND = """#!/usr/bin/env python3
-import json, os, sys
+import gzip, json, os, shutil, sys
 from pathlib import Path
 
 command = Path(sys.argv[0]).name
 package_path = os.environ.get("PKG_PATH", os.environ.get("BSD_HELPER_TEST_CONFIG_PATH", ""))
+bootstrap_packages = ("pkg_install-1.tgz", "sqlite3-2.tgz", "pkgin-3.tgz")
 if command == "uname":
     print({"-s": os.environ.get("BSD_HELPER_TEST_SYSTEM", "NetBSD"),
            "-m": os.environ["BSD_HELPER_TEST_ARCH"],
@@ -32,10 +35,39 @@ elif command == "pkg_admin":
     if os.environ.get("BSD_HELPER_TEST_CONFIG_FAILURE"):
         sys.exit("Cannot query package configuration")
     print(package_path)
-elif command in ("pkg_add", "pkg"):
+elif command == "timeout":
+    os.execvp(sys.argv[2], sys.argv[2:])
+elif command in ("pkg_add", "pkg", "pkgin"):
     with open(os.environ["BSD_HELPER_TEST_EVENTS"], "a") as output:
-        output.write(json.dumps({"arguments": sys.argv[1:], "path": package_path,
-                                 "environment_path": os.environ.get("PKG_PATH")}) + "\\n")
+        output.write(json.dumps({"command": command, "arguments": sys.argv[1:],
+                                 "path": package_path, "environment_path": os.environ.get("PKG_PATH"),
+                                 "repository": os.environ.get("PKG_REPOS")}) + "\\n")
+    if command == "pkg_add" and sys.argv[-1].endswith("/pkgin-3.tgz"):
+        if any((Path(package_path) / name).read_bytes() != name.encode()
+               for name in bootstrap_packages):
+            sys.exit("pkg_add received incomplete bootstrap packages")
+        shutil.copy2(Path(sys.argv[0]).with_name("pkgin.template"), Path(sys.argv[0]).with_name("pkgin"))
+    if command == "pkgin" and sys.argv[1] == "-yd":
+        if os.environ.get("BSD_HELPER_TEST_FAIL_DOWNLOAD") in (
+                "all", os.environ["PKG_REPOS"].split("/")[2]):
+            sys.exit("Package download interrupted")
+elif command == "ftp":
+    url = sys.argv[-1]
+    destination = Path(sys.argv[sys.argv.index("-o") + 1])
+    name = url.rsplit("/", 1)[1]
+    with open(os.environ["BSD_HELPER_TEST_EVENTS"], "a") as output:
+        output.write(json.dumps({"command": command, "url": url}) + "\\n")
+    if name == "pkg_summary.gz":
+        summary = "\\n\\n".join(f"PKGNAME={entry[:-4]}\\nFILE_NAME={entry}\\nFILE_SIZE={len(entry)}"
+                              for entry in bootstrap_packages)
+        destination.write_bytes(gzip.compress(summary.encode()))
+    elif name in bootstrap_packages:
+        data = name.encode()
+        if name == "pkgin-3.tgz" and "cdn.NetBSD.org" in url:
+            data = data[:-1]
+        destination.write_bytes(data)
+    else:
+        sys.exit("Unexpected FTP URL")
 elif command in ("curl", "cksum"):
     with open(os.environ["BSD_HELPER_TEST_DOWNLOADS"], "a") as output:
         output.write(json.dumps({"command": command, "arguments": sys.argv[1:],
@@ -52,18 +84,20 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.scripts = self.root / "tools/scripts"
         self.scripts.mkdir(parents=True)
-        for name in (HELPER, "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
+        for name in (HELPER, "install-netbsd-packages.sh", "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
                      "netbsd-arm64-sets.sha512", "netbsd-armv7-sets.sha512",
                      "netbsd-riscv64-sets.sha512"):
             shutil.copy2(ROOT / "tools/scripts" / name, self.scripts / name)
         x11 = self.root / "X11R6/include/X11/Xlib.h"
         x11.parent.mkdir(parents=True)
         x11.touch()
-        helper = self.scripts / HELPER
-        helper.write_text(helper.read_text().replace("/usr/X11R6", str(self.root / "X11R6")))
+        for name in (HELPER, "install-netbsd-packages.sh"):
+            helper = self.scripts / name
+            helper.write_text(helper.read_text().replace("/usr/X11R6", str(self.root / "X11R6"))
+                              .replace('export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"', ''))
         self.commands = self.root / "commands"
         self.commands.mkdir()
-        for name in ("uname", "pkg_admin", "pkg_add", "pkg", "curl", "cksum", "tar"):
+        for name in ("uname", "pkg_admin", "pkg_add", "pkg", "pkgin", "curl", "cksum", "tar", "ftp", "timeout"):
             command = self.commands / name
             command.write_text(MOCK_COMMAND, encoding="utf-8")
             command.chmod(0o755)
@@ -71,6 +105,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.downloads = self.root / "downloads.jsonl"
         self.environment = dict(os.environ)
         self.environment.pop("PKG_PATH", None)
+        self.environment.pop("PKG_REPOS", None)
         self.environment.update({
             "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
             "BSD_HELPER_TEST_ARCH": "amd64",
@@ -79,12 +114,12 @@ class BsdPackageDependencyTests(unittest.TestCase):
             "BSD_HELPER_TEST_DOWNLOADS": str(self.downloads),
         })
 
-    def run_helper(self, target="netbsd-x64", environment=None):
+    def run_helper(self, target="netbsd-x64", environment=None, installer=HELPER, arguments=None):
         self.events.unlink(missing_ok=True)
         self.downloads.unlink(missing_ok=True)
         values = self.environment.copy()
         values.update(environment or {})
-        result = subprocess.run(["sh", str(self.scripts / HELPER), target],
+        result = subprocess.run(["sh", str(self.scripts / installer), *(arguments or (target,))],
                                 cwd=self.root, env=values, text=True, capture_output=True,
                                 timeout=15, check=False)
         events = ([json.loads(line) for line in self.events.read_text().splitlines()]
@@ -97,12 +132,53 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.assertIn("curl", events[0]["arguments"])
         self.assertEqual(events[1]["arguments"], ["-u", "gtk3+"])
         for event in events:
+            self.assertEqual(event["command"], "pkg_add")
             self.assertEqual(event["path"], package_path)
             self.assertEqual(event["environment_path"], environment_path)
+
+    def assert_staged(self, result, events, repository):
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event["command"] for event in events], ["pkgin"] * 4)
+        self.assertEqual([event["repository"] for event in events], [repository] * 4)
+        self.assertEqual([event["arguments"][0] for event in events], ["-yd", "-y"] * 2)
+        self.assertIn("curl", events[0]["arguments"])
+        self.assertEqual(events[3]["arguments"], ["-y", "install", "gtk3+"])
 
     def test_vm_configured_mirrors_are_preserved(self):
         result, events = self.run_helper(environment={"BSD_HELPER_TEST_CONFIG_PATH": CONFIGURED_PATH})
         self.assert_repositories(result, events, CONFIGURED_PATH, None)
+
+    def test_official_mirror_failover_keeps_quarter_and_gates_install(self):
+        package_tree = "x86_64/11.0_2026Q3/All"
+        result, events = self.run_helper(environment={
+            "BSD_HELPER_TEST_CONFIG_PATH": CDN + package_tree + ";" + JAIST + package_tree,
+            "BSD_HELPER_TEST_FAIL_DOWNLOAD": "cdn.NetBSD.org",
+        }, installer="install-netbsd-packages.sh", arguments=("clang", "lld"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event["repository"] for event in events],
+                         [CDN + package_tree, JAIST + package_tree, JAIST + package_tree])
+        self.assertEqual([event["arguments"] for event in events],
+                         [["-yd", "install", "clang", "lld"], ["-yd", "install", "clang", "lld"],
+                          ["-y", "install", "clang", "lld"]])
+
+    def test_exhausted_downloads_never_install(self):
+        result, events = self.run_helper(environment={"BSD_HELPER_TEST_FAIL_DOWNLOAD": "all"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual([event["arguments"][0] for event in events], ["-yd", "-yd"])
+
+    def test_i386_bootstrap_verifies_archives_before_offline_pkg_add(self):
+        (self.commands / "pkgin").rename(self.commands / "pkgin.template")
+        result, events = self.run_helper(environment={"BSD_HELPER_TEST_ARCH": "i386"},
+                                         installer="install-netbsd-packages.sh", arguments=("cmake",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Incomplete NetBSD bootstrap package: pkgin-3.tgz", result.stderr)
+        self.assertEqual([event["command"] for event in events],
+                         ["ftp"] * 8 + ["pkg_add", "pkgin", "pkgin"])
+        self.assertTrue(events[0]["url"].startswith(CDN + "i386/10.0/All/"))
+        self.assertTrue(events[4]["url"].startswith(JAIST + "i386/10.0/All/"))
+        staging = Path(events[8]["environment_path"])
+        self.assertEqual(Path(events[8]["arguments"][-1]).parent, staging)
+        self.assertFalse(staging.exists())
 
     def test_explicit_environment_takes_precedence_over_vm_configuration(self):
         package_path = "/local package cache;https://custom.example/pkgsrc/All"
@@ -120,9 +196,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
                 ("netbsd-x86-no-sse2", "i386", "i386")):
             with self.subTest(target=target, architecture=architecture):
                 result, events = self.run_helper(target, {"BSD_HELPER_TEST_ARCH": architecture})
-                expected = ("https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/"
-                            f"{package_architecture}/10.0/All/")
-                self.assert_repositories(result, events, expected, expected)
+                self.assert_staged(result, events, CDN + f"{package_architecture}/10.0/All")
 
     def test_cross_targets_use_matching_netbsd_sets_and_package_abis(self):
         for target, machine, processor, release, set_architecture, suffix in (
@@ -139,9 +213,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
                     "BSD_HELPER_TEST_RELEASE": release,
                 })
                 major = release.split(".")[0]
-                expected = ("https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/"
-                            f"{processor}/{major}.0/All/")
-                self.assert_repositories(result, events, expected, expected)
+                self.assert_staged(result, events, CDN + f"{processor}/{major}.0/All")
                 downloads = [json.loads(line) for line in self.downloads.read_text().splitlines()]
                 for index, set_name in enumerate(("xbase", "xcomp")):
                     archive = f"{set_name}.{suffix}"

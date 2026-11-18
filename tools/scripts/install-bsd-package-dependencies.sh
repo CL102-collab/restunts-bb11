@@ -97,26 +97,10 @@ case "$target:$host_system:$host_architecture" in
     netbsd-armv7:NetBSD:earmv7hf|netbsd-armv7:NetBSD:armv7|\
     netbsd-riscv64:NetBSD:riscv64)
         export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
-        # Keep the caller's PKG_PATH or the VM's configured quarterly mirrors.
-        # Use a fallback only for unconfigured systems, such as fresh i386 base sets.
-        package_path=$(pkg_admin config-var PKG_PATH)
-        if [ -z "$package_path" ]; then
-            # NetBSD packages use the major release's ABI and the base X11 sets.
-            package_release=$(uname -r | cut -d . -f 1).0
-            package_architecture=$host_architecture
-            case "$package_architecture" in
-                amd64) package_architecture=x86_64 ;;
-                arm64) package_architecture=aarch64 ;;
-                armv7) package_architecture=earmv7hf ;;
-            esac
-            export PKG_PATH="https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/"
-        fi
-        # The VM image may contain older dependencies than the package mirror.
-        # Update those recursively when a requested package needs a newer one.
-        pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl \
+        sh "$script_dir/install-netbsd-packages.sh" bash cmake ninja-build git-base python313 pkgconf curl \
             mozilla-rootcerts-openssl
         install_netbsd_x11
-        pkg_add -u gtk3+
+        sh "$script_dir/install-netbsd-packages.sh" gtk3+
         ;;
     *)
         echo "$target requires its matching native BSD userspace; found $host_system $host_architecture." >&2

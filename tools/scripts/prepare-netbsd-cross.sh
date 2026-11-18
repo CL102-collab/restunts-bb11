@@ -41,7 +41,7 @@ if [ -n "$(ls -A "$sysroot")" ]; then
 fi
 sysroot=$(cd -- "$sysroot" && pwd)
 export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
-pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl \
+sh "$script_dir/install-netbsd-packages.sh" bash cmake ninja-build git-base python313 pkgconf curl \
     mozilla-rootcerts-openssl clang lld
 
 downloads=$(mktemp -d /var/tmp/restunts-netbsd-cross.XXXXXX)
