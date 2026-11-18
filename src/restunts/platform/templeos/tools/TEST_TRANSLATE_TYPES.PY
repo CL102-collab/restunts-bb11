@@ -86,6 +86,17 @@ class BuiltinTypeTests(unittest.TestCase):
             with self.subTest(spelling=spelling):
                 self.assertEqual(self.generator.type_text(self.type_node(spelling)), expected)
 
+    def test_array_typenames_retain_sizeof_dimensions(self):
+        cases = (("char[12]", "(12 * sizeof(legacy_char))"),
+                 ("short[2][3]", "(2 * 3 * sizeof(legacy_s16))"),
+                 ("char *[3]", "(3 * sizeof(legacy_char *))"))
+        for spelling, expected in cases:
+            with self.subTest(spelling=spelling):
+                ast = self.parser.parse("void Check(void) { sizeof(" + spelling + "); }")
+                prelude, text = self.generator.expr(ast.ext[0].body.block_items[0])
+                self.assertEqual(prelude, [])
+                self.assertEqual(text, expected)
+
 
 if __name__ == "__main__":
     unittest.main()

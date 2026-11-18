@@ -572,6 +572,15 @@ class Generator:
             return None
         return INTEGER_TYPES.get(self.type_text(typ))
 
+    def sizeof_type(self, typ):
+        typ = self.resolve_type(typ)
+        factors = []
+        while isinstance(typ, A.ArrayDecl):
+            factors.append(self.expr(typ.dim)[1])
+            typ = self.resolve_type(typ.type)
+        value = "sizeof(" + self.type_text(typ) + ")"
+        return "(" + " * ".join(factors + [value]) + ")" if factors else value
+
     def normalize(self, expr, typ):
         if not self.in_function:
             return expr
@@ -796,7 +805,7 @@ class Generator:
                 if isinstance(n.expr, A.Constant) and n.expr.type == "string":
                     return [], str(len(python_ast.literal_eval(n.expr.value).encode("latin-1")) + 1)
                 if isinstance(n.expr, A.Typename):
-                    return [], "sizeof(" + self.type_text(n.expr) + ")"
+                    return [], self.sizeof_type(n.expr.type)
                 typ = self.node_type(n.expr)
                 if typ is not None:
                     if isinstance(typ, A.ArrayDecl):

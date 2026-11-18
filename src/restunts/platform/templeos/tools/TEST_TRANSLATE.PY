@@ -29,7 +29,11 @@ enum TranslationStorageEnum {
     TRANSLATION_STORAGE_EXPECTED = 1,
     TRANSLATION_STORAGE_FAILURE = 51,
     TRANSLATION_VARIADIC_FAILURE = 52,
-    TRANSLATION_BUILTIN_INTEGER_FAILURE = 66
+    TRANSLATION_BUILTIN_INTEGER_FAILURE = 66,
+    TRANSLATION_SIZEOF_TYPENAME_FAILURE = 68,
+    TRANSLATION_RESOURCE_NAME_LENGTH = 12,
+    TRANSLATION_SIZEOF_ROWS = 2,
+    TRANSLATION_SIZEOF_COLUMNS = 3
 };
 struct TranslationPair { legacy_u16 first; legacy_s16 second; };
 struct TranslationPacked { legacy_s8 value; legacy_u8 neighbor; legacy_u16 word; legacy_u32 doubleWord; };
@@ -136,6 +140,20 @@ static legacy_s32 TranslationBuiltinIntegers(void)
     unsigned long long int widest = (long long int unsigned)negative;
     if (wide != (legacy_u64)-1 || widest != (legacy_u64)-1) { return 0; }
     return 1;
+}
+static legacy_s32 TranslationSizeofTypenames(void)
+{
+    legacy_s8 resource_name[TRANSLATION_RESOURCE_NAME_LENGTH] = "RESOURCE.RES";
+    legacy_s8 copied_name[TRANSLATION_RESOURCE_NAME_LENGTH] = {0};
+    for (legacy_u64 index = 0; index < sizeof(legacy_s8[TRANSLATION_RESOURCE_NAME_LENGTH]); index++) {
+        copied_name[index] = resource_name[index];
+    }
+    return sizeof(legacy_s8[TRANSLATION_RESOURCE_NAME_LENGTH]) == TRANSLATION_RESOURCE_NAME_LENGTH &&
+        sizeof(legacy_s16[TRANSLATION_SIZEOF_ROWS][TRANSLATION_SIZEOF_COLUMNS]) ==
+            TRANSLATION_SIZEOF_ROWS * TRANSLATION_SIZEOF_COLUMNS * sizeof(legacy_s16) &&
+        sizeof(legacy_s8 *[TRANSLATION_SIZEOF_COLUMNS]) ==
+            TRANSLATION_SIZEOF_COLUMNS * sizeof(legacy_s8 *) &&
+        copied_name[TRANSLATION_RESOURCE_NAME_LENGTH - 1] == 'S';
 }
 legacy_s32 TranslationSemantics(void)
 {
@@ -273,6 +291,7 @@ legacy_s32 TranslationSemantics(void)
     legacy_s8 *pointer_matrix[2][2] = {{"--fps:on", "/ns"}, {"--fps:on", "/ns"}};
     if (!TranslationPointerMatrix(pointer_matrix)) { return 65; }
     if (!TranslationBuiltinIntegers()) { return TRANSLATION_BUILTIN_INTEGER_FAILURE; }
+    if (!TranslationSizeofTypenames()) { return TRANSLATION_SIZEOF_TYPENAME_FAILURE; }
     return 0;
 }
 '''

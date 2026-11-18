@@ -548,7 +548,7 @@ legacy_u8 *RsMmgrGetChunkByName(legacy_s8 *name)
       (temple_live_chunk_663->ressize=TempleCastU16(temple_srcsize_672));
       (temple_live_chunk_663->resstate=TempleCastU16(MMGR_RESOURCE_STATE_LIVE));
       RsInternal1Memcpy(temple_live_chunk_663->resname,temple_cached_chunk_661->resname,
-          TempleCastU16(sizeof(legacy_s8 *)));
+          TempleCastU16((12*sizeof(legacy_s8))));
       if((temple_live_chunk_663==mmgr_first_cached_chunk)) {
         (mmgr_first_cached_chunk++);
       }
