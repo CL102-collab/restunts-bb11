@@ -189,13 +189,18 @@ else()
     set(SDL_TESTS OFF CACHE BOOL "Disable SDL tests")
     set(SDL_EXAMPLES OFF CACHE BOOL "Disable SDL examples")
     set(SDL_INSTALL OFF CACHE BOOL "Only install the game")
+    set(restunts_sdl_patch)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(restunts_sdl_patch PATCH_COMMAND "${CMAKE_COMMAND}" "-DSDL3_SOURCE_DIR=<SOURCE_DIR>"
+            -P "${CMAKE_CURRENT_LIST_DIR}/cmake/sdl3-wayland-compat.cmake")
+    endif()
     # Upstream DOS support and the gameport/Sound Blaster IRQ fix used by
     # stuntsengine's DOS port. Pin all platforms to the same SDL implementation.
     FetchContent_Declare(SDL3
         URL
         https://github.com/libsdl-org/SDL/archive/015489c672f24feed28c2aa2cdd6176df95329f3.tar.gz
         URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE ${restunts_sdl_patch})
     FetchContent_MakeAvailable(SDL3)
     if(CMAKE_C_COMPILER_ID MATCHES "Clang")
         include(CheckCCompilerFlag)

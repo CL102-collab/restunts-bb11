@@ -79,7 +79,7 @@ class LinuxPackageDependencyTests(unittest.TestCase):
         self.assertIn("g++-riscv64-linux-gnu", packages)
         self.assertIn("qemu-user", packages)
         for dependency in ("libgtk-3-dev", "libasound2-dev", "libpulse-dev", "libx11-dev",
-                           "libwayland-dev", "libegl1-mesa-dev"):
+                           "libwayland-dev", "libdecor-0-dev", "libegl1-mesa-dev"):
             self.assertIn(dependency + ":riscv64", packages)
             self.assertNotIn(dependency, packages)
 

@@ -60,8 +60,8 @@ On Debian 12 x64, install the compiler, build tools, and common desktop drivers:
 sudo apt-get update
 sudo apt-get install build-essential cmake ninja-build git curl ca-certificates pkg-config \
     libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-    libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libudev-dev \
-    libdrm-dev libgbm-dev libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
+    libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev \
+    libdecor-0-dev libudev-dev libdrm-dev libgbm-dev libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 cmake -S . -B out/sdl3-linux-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build out/sdl3-linux-x64
 ctest --test-dir out/sdl3-linux-x64 --output-on-failure

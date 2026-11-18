@@ -113,9 +113,9 @@ function(restunts_add_desktop_launcher)
         FetchContent_MakeAvailable(wxWidgets)
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
                 CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12 AND
-                CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
-            # GCC 12 and 13 misdiagnose the zero-iteration initialization loop after
-            # inlining the deprecated hash table's unsupported copy operation.
+                CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+            # GCC 12 through 14 misdiagnose the zero-iteration initialization loop
+            # after inlining the deprecated hash table's unsupported copy operation.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/hash.cpp"
                 TARGET_DIRECTORY wx::base APPEND PROPERTY COMPILE_OPTIONS -Wno-array-bounds)
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13)

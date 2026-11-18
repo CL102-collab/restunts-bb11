@@ -114,7 +114,7 @@ case "$target" in
             "libxrandr-dev:$architecture" "libxcursor-dev:$architecture" \
             "libxi-dev:$architecture" "libxfixes-dev:$architecture" \
             "libxss-dev:$architecture" "libxtst-dev:$architecture" \
-            "libwayland-dev:$architecture" "libxkbcommon-dev:$architecture" \
+            "libwayland-dev:$architecture" "libxkbcommon-dev:$architecture" "libdecor-0-dev:$architecture" \
             "libudev-dev:$architecture" "libdrm-dev:$architecture" "libgbm-dev:$architecture" \
             "libegl1-mesa-dev:$architecture" "libgl1-mesa-dev:$architecture"
         ;;

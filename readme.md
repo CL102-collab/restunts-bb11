@@ -949,7 +949,7 @@ for the native startup window, then configure and build:
 ```sh
 sudo apt-get install libasound2-dev libpulse-dev libx11-dev libxext-dev \
     libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
-    libwayland-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev \
+    libwayland-dev libxkbcommon-dev libdecor-0-dev libudev-dev libdrm-dev libgbm-dev \
     libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 cmake -S . -B out/sdl3-linux-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build out/sdl3-linux-x64 --parallel 2
@@ -969,7 +969,7 @@ sudo apt-get install gcc-multilib g++-multilib \
     libasound2-dev:i386 libpulse-dev:i386 \
     libx11-dev:i386 libxext-dev:i386 libxrandr-dev:i386 libxcursor-dev:i386 \
     libxi-dev:i386 libxfixes-dev:i386 libxss-dev:i386 libxtst-dev:i386 \
-    libwayland-dev:i386 libxkbcommon-dev:i386 libudev-dev:i386 libdrm-dev:i386 \
+    libwayland-dev:i386 libxkbcommon-dev:i386 libdecor-0-dev:i386 libudev-dev:i386 libdrm-dev:i386 \
     libgbm-dev:i386 libegl1-mesa-dev:i386 libgl1-mesa-dev:i386 libgtk-3-dev:i386
 cmake -S . -B out/sdl3-linux-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake
