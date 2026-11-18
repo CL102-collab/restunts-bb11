@@ -692,11 +692,13 @@ jobs:
           persist-credentials: false
 
       - name: Use all runner CPUs for builds and the Haiku VM
-        run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+        run: |
+          echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+          echo "RESTUNTS_HAIKU_SDK_ROOT=$RUNNER_TEMP/haiku-sdk" >> "$GITHUB_ENV"
 
       - name: Test the Haiku VM helper
         run: |
-          python3 -m unittest discover -s tools/scripts/tests -p test_haiku_vm.py
+          python3 -m unittest discover -s tools/scripts/tests -p 'test_haiku*.py'
           python3 -m unittest discover -s tools/scripts/tests -p test_host_test_sources.py
 
       - name: Download and verify native regression test assets
@@ -708,13 +710,21 @@ jobs:
             | sha256sum --check --strict
           unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts
 
-      - name: Install the Haiku VM host tools
+      - name: Install Linux cross-build and Haiku VM host tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils zstd
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils zstd \
+            build-essential g++-multilib cmake ninja-build pkg-config bison flex texinfo gawk \
+            autoconf automake libgmp-dev libmpfr-dev libmpc-dev libzstd-dev zlib1g-dev
           # The hosted CI time budget assumes hardware acceleration.
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
+
+      - name: Cache the pinned Haiku cross compiler
+        uses: actions/cache@v4.2.3
+        with:
+          path: ${{ env.RESTUNTS_HAIKU_SDK_ROOT }}/toolchain
+          key: haiku-cross-ubuntu-24.04-${{ runner.arch }}-${{ matrix.target }}-${{ hashFiles('tools/scripts/*haiku-cross*') }}
 
       - name: Assemble the Haiku R1 beta 6 x86 disk
         if: matrix.target == 'haiku-x86'
@@ -738,19 +748,41 @@ jobs:
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
             start --arch "${PACKAGE_TARGET#haiku-}" --accel kvm --cpus "$RESTUNTS_BUILD_JOBS"
 
-      - name: Build and test in the Haiku VM
+      - name: Export the matching Haiku development sysroot
         run: |
+          python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" ssh \
+            sh /boot/home/restunts/tools/scripts/export-haiku-cross-sysroot.sh \
+            "$PACKAGE_TARGET" /boot/home/haiku-sysroot.tar.gz
+          python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
+            download /boot/home/haiku-sysroot.tar.gz "$RUNNER_TEMP/haiku-sysroot.tar.gz"
+
+      - name: Cross-compile and package Haiku on Linux
+        run: |
+          sh tools/scripts/prepare-haiku-cross.sh "$PACKAGE_TARGET" \
+            "$RESTUNTS_HAIKU_SDK_ROOT" "$RUNNER_TEMP/haiku-sysroot.tar.gz"
+          # CTest and CMake install files contain absolute source and build paths.
+          # Use the same paths on the Linux builder and in the Haiku test guest.
+          checkout=/boot/home/restunts
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$checkout"
+          cp -a "$GITHUB_WORKSPACE/." "$checkout/"
+          bash "$checkout/tools/scripts/build-package.sh" "$PACKAGE_TARGET"
+          mkdir -p dist/packages
+          cp -a "$checkout/dist/packages/." dist/packages/
+          tar --exclude='*.o' --exclude='*.obj' --exclude='*.o.d' --exclude='*.gch' \
+            -czf "$RUNNER_TEMP/haiku-validation.tar.gz" -C "$checkout" \
+            "build/packages/$PACKAGE_TARGET" "build/package-runtime/$PACKAGE_TARGET"
+
+      - name: Run parallel native tests in the Haiku VM
+        run: |
+          python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
+            upload "$RUNNER_TEMP/haiku-validation.tar.gz" /boot/home/haiku-validation.tar.gz
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" ssh env \
             PACKAGE_TARGET="$PACKAGE_TARGET" \
             RESTUNTS_BUILD_JOBS="$RESTUNTS_BUILD_JOBS" \
             RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER" \
-            GITHUB_SHA="$GITHUB_SHA" GITHUB_REF="$GITHUB_REF" \
-            GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             bash -c 'set -eu; cd /boot/home/restunts
-              bash tools/scripts/build-package.sh "$PACKAGE_TARGET"'
-          mkdir -p dist
-          python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
-            download /boot/home/restunts/dist/packages dist/
+              tar -xzf /boot/home/haiku-validation.tar.gz
+              bash tools/scripts/test-haiku-build.sh "$PACKAGE_TARGET" --cross-built'
 
       - name: Shut down the Haiku VM
         if: always()

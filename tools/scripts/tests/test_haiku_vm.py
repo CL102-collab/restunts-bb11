@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -290,8 +291,12 @@ class HaikuVmTests(unittest.TestCase):
         unmount = commands / "unmount"
         unmount.write_text("#!/bin/sh\nexit 0\n")
         unmount.chmod(SCRIPT_MODE)
-        return {**os.environ, "PATH": f"{commands}:{os.environ['PATH']}",
-                "COMMAND_LOG": str(log)}, log
+        environment = {**os.environ, "PATH": f"{commands}:{os.environ['PATH']}",
+                       "COMMAND_LOG": str(log)}
+        # These fixtures exercise native host guards/configuration. CI also sets
+        # a Linux cross SDK for the real package build later in the same job.
+        environment.pop("RESTUNTS_HAIKU_SDK_ROOT", None)
+        return environment, log
 
     def test_disk_preparation_rejects_boot_disk_before_mounting_or_formatting(self):
         environment, log = self.shell_environment("Haiku")
@@ -360,6 +365,74 @@ class HaikuVmTests(unittest.TestCase):
         self.assertIn("-DRESTUNTS_BUILD_TESTS=OFF", arguments)
         self.assertFalse(any(argument.startswith("-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=")
                              for argument in arguments))
+
+
+class HaikuWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        workflow = (SCRIPTS.parents[1] / ".github" / "workflows" /
+                    "build-packages.yml").read_text()
+        match = re.search(r"(?ms)^  haiku:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)", workflow)
+        self.assertIsNotNone(match)
+        self.job = match.group(1)
+        self.steps = re.split(r"(?m)^      - ", self.job)[1:]
+        self.runs = [step for step in self.steps if re.search(r"(?m)^\s*run:", step)]
+
+    def run_step(self, script):
+        matches = [step for step in self.runs if script in step]
+        self.assertEqual(len(matches), 1, f"Expected one run step for {script}")
+        return matches[0]
+
+    def test_cross_sdk_toolchain_and_vm_regressions_are_registered(self):
+        validation = "\n".join(step for step in self.runs if "unittest discover" in step)
+        for name in ("test_haiku_vm.py", "test_haiku_cross_sdk.py",
+                     "test_haiku_cross_toolchain.py"):
+            self.assertTrue("test_haiku*.py" in validation or name in validation,
+                            f"The Haiku workflow must run {name}")
+
+    def test_both_architectures_cache_only_linux_compilers(self):
+        self.assertRegex(self.job, r"target:\s*\[haiku-x64,\s*haiku-x86\]")
+        self.assertIn('RESTUNTS_BUILD_JOBS=$(nproc)', self.job)
+        caches = [step for step in self.steps if re.search(r"uses:\s*actions/cache@", step)]
+        self.assertTrue(caches)
+        for step in caches:
+            paths = re.search(r"(?m)^\s*path:\s*(.+)$", step)
+            self.assertIsNotNone(paths)
+            self.assertIn("/toolchain", paths.group(1))
+            self.assertNotIn("sysroot", paths.group(1).lower())
+            self.assertNotIn(".tar", paths.group(1).lower())
+
+    def test_active_guest_dependencies_are_exported_before_linux_preparation(self):
+        install = self.run_step("install-haiku-package-dependencies.sh")
+        export = self.run_step("export-haiku-cross-sysroot.sh")
+        prepare = self.run_step("prepare-haiku-cross.sh")
+        self.assertIn("ssh", install)
+        self.assertIn("ssh", export)
+        self.assertLess(self.runs.index(install), self.runs.index(export))
+        self.assertLess(self.runs.index(export), self.runs.index(prepare))
+        activated = self.job[self.job.index("install-haiku-package-dependencies.sh"):
+                             self.job.index("export-haiku-cross-sysroot.sh")]
+        self.assertRegex(activated, r"\bstop\b")
+        self.assertRegex(activated, r"\bstart\s+--arch")
+        exported = "\n".join(self.runs[self.runs.index(export):self.runs.index(prepare)])
+        self.assertIn("download", exported)
+        self.assertIn("/boot/home/haiku-sysroot.tar.gz", export)
+        self.assertNotRegex(prepare, r"\bssh\b")
+
+    def test_compilation_runs_on_linux_and_guest_runs_cross_built_tests(self):
+        build = self.run_step("build-package.sh")
+        test = self.run_step("test-haiku-build.sh")
+        self.assertNotRegex(build, r"\bssh\b")
+        self.assertIn("/boot/home/restunts", build)
+        self.assertIn("RESTUNTS_HAIKU_SDK_ROOT", self.job)
+        self.assertRegex(test, r"\bssh\b")
+        self.assertIn("/boot/home/restunts", test)
+        self.assertIn("--cross-built", test)
+        self.assertNotIn("cmake --build", test)
+        self.assertLess(self.runs.index(build), self.runs.index(test))
+        transfer = "\n".join(self.runs[self.runs.index(build):self.runs.index(test) + 1])
+        self.assertIn("upload", transfer)
+        self.assertTrue(any("if: always()" in step and "stop" in step
+                            for step in self.runs))
 
 
 if __name__ == "__main__":

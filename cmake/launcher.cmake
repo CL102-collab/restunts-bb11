@@ -16,6 +16,14 @@ function(restunts_add_desktop_launcher)
         add_compile_options(-mno-mmx)
     endif()
     if(RESTUNTS_SYSTEM_WX)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_CROSSCOMPILING
+                AND NOT wxWidgets_CONFIG_EXECUTABLE)
+            # The guest's wx-config shell script needs a host wrapper that
+            # roots its compiler/linker flags in the matching target SDK.
+            find_program(wxWidgets_CONFIG_EXECUTABLE NAMES wx-config
+                HINTS "${RESTUNTS_HAIKU_SDK_ROOT}/bin"
+                NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED)
+        endif()
         if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_HAIKU_SECONDARY_ARCH
                 AND NOT wxWidgets_CONFIG_EXECUTABLE)
             # Hybrid Haiku's primary and modern C++ libraries use different ABIs.
@@ -137,6 +145,22 @@ function(restunts_add_desktop_launcher)
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" OR RESTUNTS_WX_TOOLKIT STREQUAL "qt"
             OR "__WXQT__" IN_LIST wxWidgets_DEFINITIONS)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_CROSSCOMPILING AND NOT Qt5_DIR)
+            set(restunts_haiku_qt_arch "")
+            if(RESTUNTS_HAIKU_TARGET STREQUAL "haiku-x86")
+                set(restunts_haiku_qt_arch /x86)
+            endif()
+            # Keep imported Qt libraries in the same ABI as the SDK's wxQt.
+            # Target Qt tools may be imported but are never executed: these
+            # windows do not use CMake's AUTOMOC, AUTOUIC or AUTORCC features.
+            find_path(Qt5_DIR Qt5Config.cmake
+                HINTS
+                    "${CMAKE_SYSROOT}/boot/system/non-packaged/lib${restunts_haiku_qt_arch}/cmake/Qt5"
+                    "${CMAKE_SYSROOT}/boot/system/lib${restunts_haiku_qt_arch}/cmake/Qt5"
+                    "${CMAKE_SYSROOT}/boot/system/non-packaged/develop/lib${restunts_haiku_qt_arch}/cmake/Qt5"
+                    "${CMAKE_SYSROOT}/boot/system/develop/lib${restunts_haiku_qt_arch}/cmake/Qt5"
+                NO_DEFAULT_PATH REQUIRED)
+        endif()
         if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_HAIKU_SECONDARY_ARCH AND NOT Qt5_DIR)
             # Keep direct Qt calls in the same modern ABI as the wxQt library.
             find_path(Qt5_DIR Qt5Config.cmake

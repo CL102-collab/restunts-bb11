@@ -11,12 +11,11 @@ package_dir="$repo_dir/build/package-runtime/$target"
 archive_dir="$repo_dir/dist/packages"
 default_jobs=2
 jobs=${RESTUNTS_BUILD_JOBS:-$default_jobs}
-default_test_timeout_seconds=600
-test_timeout_seconds=${RESTUNTS_TEST_TIMEOUT_SECONDS:-$default_test_timeout_seconds}
 default_genghost_test_timeout_multiplier=1
 cmake_options=(-DCMAKE_BUILD_TYPE=Release -DRESTUNTS_BUILD_TESTS=OFF)
 python_command=${PYTHON:-python3}
 bsd_cross_sysroot=${RESTUNTS_BSD_SYSROOT:-}
+haiku_cross_sdk=
 
 verify_bsd_host() {
     local host_system host_architecture
@@ -91,15 +90,23 @@ case "$target" in
         fi
         ;;
     haiku-*)
-        verify_haiku_host
-        # Haiku has en_US.UTF-8, but not C.UTF-8. wxWidgets needs a UTF-8
-        # locale to use consistent encodings for non-ASCII filesystem paths.
-        export LANG=en_US.UTF-8
-        export LC_ALL="$LANG"
-        if [[ "$target" == haiku-x86 ]]; then
-            # Hybrid Haiku defaults to GCC 2; select the modern x86 toolchain.
-            PATH=$(setarch -p x86)
-            export PATH
+        haiku_cross_sdk=${RESTUNTS_HAIKU_SDK_ROOT:-}
+        if [[ -n "$haiku_cross_sdk" ]]; then
+            if [[ "$(uname -s)" != Linux ]]; then
+                echo "The Haiku cross SDK requires a Linux build host." >&2
+                exit 1
+            fi
+            jobs=${RESTUNTS_BUILD_JOBS:-$(nproc)}
+            cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$repo_dir/cmake/toolchains/haiku-cross.cmake"
+                "-DRESTUNTS_HAIKU_TARGET=$target" "-DRESTUNTS_HAIKU_SDK_ROOT=$haiku_cross_sdk"
+                -DRESTUNTS_TESTS_ON_TARGET=ON)
+        else
+            verify_haiku_host
+            # Haiku's wxQt needs a UTF-8 locale and the modern x86 toolchain.
+            export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+            if [[ "$target" == haiku-x86 ]]; then
+                export PATH="$(setarch -p x86)"
+            fi
         fi
         ;;
 esac
@@ -221,11 +228,8 @@ case "$target" in
         esac
         cmake -S "$repo_dir" -B "$build_dir" -G Ninja "${cmake_options[@]}"
         cmake --build "$build_dir" --parallel "$jobs"
-        if [[ "$target" == haiku-* ]]; then
-            SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-                ctest --test-dir "$build_dir" --output-on-failure --no-tests=error \
-                    --timeout "$test_timeout_seconds"
-            "$python_command" "$script_dir/test-nuked-package.py" --build-directory "$build_dir"
+        if [[ "$target" == haiku-* && -z "$haiku_cross_sdk" ]]; then
+            bash "$script_dir/test-haiku-build.sh" "$target"
         fi
         cmake --install "$build_dir" --prefix "$package_dir" --component Runtime
         if [[ "$target" == dos32 ]]; then
@@ -243,7 +247,7 @@ fi
 
 case "$target" in
     freebsd-*|openbsd-*|netbsd-*|haiku-*)
-        if [[ -z "$bsd_cross_sysroot" ]]; then
+        if [[ -z "$bsd_cross_sysroot" && -z "$haiku_cross_sdk" ]]; then
             # Cross packages have separate runtime checks where a target VM exists.
             sh "$script_dir/test-relocated-runtime.sh" "$package_dir"
         fi

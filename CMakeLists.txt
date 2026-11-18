@@ -31,6 +31,15 @@ elseif(APPLE)
     # Keep the installed package movable and its OPL dylib replaceable.
     set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
 endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_CROSSCOMPILING)
+    # The same build tree runs in the guest before installation. Both layouts
+    # must find replaceable sibling libraries without retaining Linux SDK paths.
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
+    set(CMAKE_INSTALL_RPATH
+        "${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}"
+        "${CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN}/../lib")
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+endif()
 if(CMAKE_SYSTEM_NAME MATCHES "^(OpenBSD|NetBSD)$")
     # These kernels skip oversized ELF note segments, including the OS identification.
     set(SDL_DLOPEN_NOTES OFF CACHE BOOL "Keep BSD ELF notes compatible with the kernel" FORCE)
@@ -637,6 +646,8 @@ if(TARGET nuked_opl2)
         LIBRARY DESTINATION lib COMPONENT Runtime)
 endif()
 
+include(cmake/native-tests.cmake)
+
 if(RESTUNTS_BUILD_LAUNCHER)
     include(cmake/launcher.cmake)
 endif()
@@ -955,7 +966,11 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-track COMMAND test-extended-track)
     set_tests_properties(extended-track PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/stunts"
         SKIP_RETURN_CODE 77)
-    find_program(RESTUNTS_NODE_EXECUTABLE NAMES node nodejs)
+    if(RESTUNTS_TESTS_ON_TARGET)
+        set(RESTUNTS_NODE_EXECUTABLE "${RESTUNTS_TARGET_TEST_NODE}")
+    else()
+        find_program(RESTUNTS_NODE_EXECUTABLE NAMES node nodejs)
+    endif()
     if(RESTUNTS_NODE_EXECUTABLE)
         add_test(NAME html-track-editor COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor.js")
@@ -965,7 +980,7 @@ if(RESTUNTS_BUILD_TESTS)
             add_test(NAME html-track-${editor_feature} COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-${editor_feature}.js")
         endforeach()
-        if(NOT CMAKE_CROSSCOMPILING)
+        if(restunts_tests_runnable)
             add_executable(editor-route-oracle src/restunts/tests/editor-route-oracle.c)
             target_link_libraries(editor-route-oracle PRIVATE restunts_game)
             add_test(NAME html-track-validation-native COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
@@ -988,7 +1003,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-extended-replay-runtime PRIVATE ${restunts_test_section_options})
     target_link_options(test-extended-replay-runtime PRIVATE ${restunts_test_gc_sections})
     enable_testing()
-    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+    if(UNIX AND restunts_tests_runnable)
         add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
             ${platform_files} ${core}/extended/extended_file_dialog.c)
         target_compile_definitions(test-sdl3-file-replace PRIVATE RESTUNTS_SDL3 __EMSCRIPTEN__)
@@ -996,7 +1011,7 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-sdl3-file-replace PRIVATE -UNDEBUG -Wno-pointer-sign)
         add_test(NAME browser-file-replace COMMAND test-sdl3-file-replace)
     endif()
-    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+    if(UNIX AND restunts_tests_runnable)
         add_executable(test-car-zip src/restunts/tests/test-car-zip.c ${platform_files}
             ${platform}/memory.c ${core}/fileio.c ${core}/file_car.c ${core}/file_decomp.c
             ${core}/extended/extended_fileio.c ${core}/extended/extended_file_dialog.c
@@ -1088,7 +1103,7 @@ if(RESTUNTS_BUILD_TESTS)
         target_link_options(test-unit-penalty PRIVATE ${restunts_test_gc_sections})
         add_test(NAME unit-penalty COMMAND test-unit-penalty)
     endif()
-    if(NOT CMAKE_CROSSCOMPILING)
+    if(restunts_tests_runnable)
         # Information switches must work without game files or a working data path.
         set(command_line_test_directory "${CMAKE_CURRENT_BINARY_DIR}/command-line-test")
         file(MAKE_DIRECTORY "${command_line_test_directory}")
@@ -1136,26 +1151,35 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_options(test-sdl3-asset-stream PRIVATE -UNDEBUG)
         add_test(NAME sdl3-asset-stream COMMAND test-sdl3-asset-stream)
     endif()
-    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+    if(UNIX AND restunts_tests_runnable)
         add_executable(test-sdl3-asset-path src/restunts/tests/test-sdl3-asset-path.c)
         target_link_libraries(test-sdl3-asset-path PRIVATE restunts_options)
         target_compile_options(test-sdl3-asset-path PRIVATE -UNDEBUG)
         add_test(NAME sdl3-asset-path COMMAND test-sdl3-asset-path)
-        add_test(NAME host-regressions COMMAND ${CMAKE_COMMAND} -E env "CC=${CMAKE_C_COMPILER}"
+        add_test(NAME host-regressions COMMAND "${restunts_test_cmake}" -E env "CC=${restunts_test_compiler}"
             bash ${CMAKE_SOURCE_DIR}/src/restunts/tests/run-host-tests.sh)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+            # This fixture already compiles its own workload on all available cores.
+            set_tests_properties(host-regressions PROPERTIES RUN_SERIAL TRUE)
+        endif()
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
-            add_test(NAME html-track-route-data COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME html-track-route-data COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-route-data.py" --check)
-            add_test(NAME html-track-scene-data COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME html-track-scene-data COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-scene-data.py" --check)
-            add_test(NAME opl-trace-renderer COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME opl-trace-renderer COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-opl-trace.py")
-            add_test(NAME skybox-assets COMMAND "${Python3_EXECUTABLE}"
+            if(RESTUNTS_TESTS_ON_TARGET)
+                # This Python fixture compiles a small native helper at runtime.
+                set_tests_properties(opl-trace-renderer PROPERTIES
+                    ENVIRONMENT "CC=${restunts_test_compiler}")
+            endif()
+            add_test(NAME skybox-assets COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/check-skyboxes.py")
-            add_test(NAME mcmurtry-hypervision COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME mcmurtry-hypervision COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-mcmurtry-hypervision.py")
-            add_test(NAME mcmurtry-assets COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME mcmurtry-assets COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/generate-mcmurtry-speirling.py" --check)
         endif()
     endif()
@@ -1244,7 +1268,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoints
         unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
         unit-race-glacier-worker unit-race-glacier-owoot-worker)
-    add_test(NAME unit-fixed-work-budget COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME unit-fixed-work-budget COMMAND "${restunts_test_python}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-preparation.py"
         "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
         "${unit_race_fixture}")
@@ -1308,7 +1332,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         set_tests_properties(unit-race-${unit_classic_track}-manual PROPERTIES RUN_SERIAL TRUE)
     endforeach()
     list(APPEND unit_race_tests unit-race-skids-manual-faster)
-    add_test(NAME unit-race-skids-manual-faster COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME unit-race-skids-manual-faster COMMAND "${restunts_test_python}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-opponent.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk"
@@ -1363,7 +1387,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             --frames 180 --human "${unit_human}" --verify-replay --require-clean)
     endforeach()
     list(APPEND unit_race_tests unit-learning-persistence)
-    add_test(NAME unit-learning-persistence COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME unit-learning-persistence COMMAND "${restunts_test_python}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-learning.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${unit_race_fixture}"
@@ -1371,7 +1395,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/skids.trk")
     set_tests_properties(unit-learning-persistence PROPERTIES RUN_SERIAL TRUE)
     list(APPEND unit_race_tests unit-bank-replay)
-    add_test(NAME unit-bank-replay COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME unit-bank-replay COMMAND "${restunts_test_python}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-bank-replay.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/assets/cars"
@@ -1387,7 +1411,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set(unit_human_mode slow)
         endif()
         list(APPEND unit_race_tests "${unit_human_test}")
-        add_test(NAME "${unit_human_test}" COMMAND "${Python3_EXECUTABLE}"
+        add_test(NAME "${unit_human_test}" COMMAND "${restunts_test_python}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
             "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
             "${unit_race_fixture}" --human-mode "${unit_human_mode}"
@@ -1397,7 +1421,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     foreach(unit_human_planner sync threaded)
         set(unit_human_test "unit-human-independent-near-prepared-${unit_human_planner}")
         list(APPEND unit_race_tests "${unit_human_test}")
-        add_test(NAME "${unit_human_test}" COMMAND "${Python3_EXECUTABLE}"
+        add_test(NAME "${unit_human_test}" COMMAND "${restunts_test_python}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
             "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
             "${unit_race_fixture}" --human-mode blocked --distance 350
@@ -1405,7 +1429,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         set_tests_properties("${unit_human_test}" PROPERTIES RUN_SERIAL TRUE)
     endforeach()
     list(APPEND unit_race_tests unit-human-independent-near-owoot-sync)
-    add_test(NAME unit-human-independent-near-owoot-sync COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME unit-human-independent-near-owoot-sync COMMAND "${restunts_test_python}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${unit_race_fixture}" --human-mode blocked --distance 350 --planner sync --owoot)
@@ -1417,7 +1441,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             list(APPEND unit_grid_rule_args --owoot)
         endif()
         list(APPEND unit_race_tests "${unit_grid_test}")
-        add_test(NAME "${unit_grid_test}" COMMAND "${Python3_EXECUTABLE}"
+        add_test(NAME "${unit_grid_test}" COMMAND "${restunts_test_python}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
             "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
             "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk"
@@ -1499,22 +1523,22 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             COMMAND test-genghost-extended-${extended_feature})
     endforeach()
     add_test(NAME genghost-regions COMMAND test-genghost-simulation --geometry-only)
-    if(NOT CMAKE_CROSSCOMPILING)
+    if(restunts_tests_runnable)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
-            add_test(NAME repldump-time COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME repldump-time COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-repldump-time.py"
                 "$<TARGET_FILE:repldump>" "${CMAKE_SOURCE_DIR}/stunts"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(repldump-time PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
-            add_test(NAME genghost-analysis COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-analysis COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_genghost_analysis.py")
-            add_test(NAME genghost-android-request COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-android-request COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-android-request.py")
             set_tests_properties(genghost-android-request PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
-            add_test(NAME genghost-stunt-analysis COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-stunt-analysis COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
-            add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME regression-timeouts COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
             set(restunts_genghost_shard_tests "")
             foreach(restunts_extended_part 1 2 3 4)
@@ -1525,7 +1549,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 foreach(restunts_extended_shard RANGE 1 ${restunts_extended_shard_count})
                     set(restunts_extended_test
                         genghost-extended-${restunts_extended_part}-${restunts_extended_shard})
-                    add_test(NAME ${restunts_extended_test} COMMAND "${Python3_EXECUTABLE}"
+                    add_test(NAME ${restunts_extended_test} COMMAND "${restunts_test_python}"
                         "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
                         "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
                         "${CMAKE_SOURCE_DIR}/stunts" --part "${restunts_extended_part}"
@@ -1535,14 +1559,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                     list(APPEND restunts_genghost_shard_tests ${restunts_extended_test})
                 endforeach()
             endforeach()
-            add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-simulation COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-simulation PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
             foreach(restunts_search_part 1 2)
                 set(restunts_search_test genghost-search-${restunts_search_part})
-                add_test(NAME ${restunts_search_test} COMMAND "${Python3_EXECUTABLE}"
+                add_test(NAME ${restunts_search_test} COMMAND "${restunts_test_python}"
                     "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-search.py"
                     "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                     "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip"
@@ -1550,23 +1574,23 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 set_tests_properties(${restunts_search_test} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
                 list(APPEND restunts_genghost_shard_tests ${restunts_search_test})
             endforeach()
-            add_test(NAME genghost-fine-tune COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-fine-tune COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-fine-tune.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip"
                 "$<TARGET_FILE:test-genghost-state>")
             set_tests_properties(genghost-fine-tune PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
-            add_test(NAME genghost-stop-file COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-stop-file COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stop.py"
                 "$<TARGET_FILE:genghost>" "${CMAKE_SOURCE_DIR}/stunts"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-stop-file PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 90)
-            add_test(NAME genghost-parallel COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-parallel COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-parallel.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-parallel PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
-            add_test(NAME genghost-state COMMAND "${Python3_EXECUTABLE}"
+            add_test(NAME genghost-state COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-state.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "$<TARGET_FILE:test-genghost-state>"
@@ -1620,7 +1644,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-frame-interpolation PRIVATE restunts_options)
     target_compile_options(test-frame-interpolation PRIVATE -UNDEBUG)
     add_test(NAME frame-interpolation COMMAND test-frame-interpolation)
-    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+    if(UNIX AND restunts_tests_runnable)
         add_executable(test-sdl3-race-frames src/restunts/tests/test-race-frames.c
             ${core}/extended/extended_replay_ui.c
             ${core}/legacy.c ${core}/data/full_data.c ${core}/headless/headless_data.c
@@ -1645,7 +1669,7 @@ if(RESTUNTS_BUILD_TESTS)
         target_link_options(test-replay-widescreen PRIVATE ${restunts_test_gc_sections})
         add_test(NAME replay-widescreen COMMAND test-replay-widescreen)
     endif()
-    if(UNIX AND NOT CMAKE_CROSSCOMPILING AND Python3_Interpreter_FOUND)
+    if(UNIX AND restunts_tests_runnable AND Python3_Interpreter_FOUND)
         math(EXPR restunts_render_test_timeout
             "120 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
         add_executable(test-extended-render ${platform}/main.c
@@ -1697,10 +1721,10 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_definitions(test-render-replay PRIVATE RESTUNTS_PIXLDUMP)
         target_link_libraries(test-render-replay PRIVATE restunts_game)
         target_compile_options(test-render-replay PRIVATE -UNDEBUG)
-        add_test(NAME render-replay COMMAND "${Python3_EXECUTABLE}"
+        add_test(NAME render-replay COMMAND "${restunts_test_python}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-replay.py"
             "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
-        add_test(NAME video-mode-replay COMMAND "${Python3_EXECUTABLE}"
+        add_test(NAME video-mode-replay COMMAND "${restunts_test_python}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-video-mode-replay.py"
             "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
         add_executable(test-ghost-racing-line ${platform}/main.c

@@ -37,13 +37,19 @@ Use a separate output directory for each architecture. For x86, replace
 cmake -S . -B out/sdl3-haiku-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build out/sdl3-haiku-x64 --parallel 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    ctest --test-dir out/sdl3-haiku-x64 --output-on-failure
+    ctest --test-dir out/sdl3-haiku-x64 --parallel 2 --output-on-failure
 cmake --install out/sdl3-haiku-x64 --prefix "$PWD/out/package-haiku-x64" \
     --component Runtime
 out/package-haiku-x64/bin/restunts-launcher
 # Direct command-line launch remains available:
 out/package-haiku-x64/bin/restunts --data-dir "$PWD/stunts" --nointro
 ```
+
+The package and VM test helpers run independent CTest cases in parallel using
+`RESTUNTS_BUILD_JOBS`, which defaults to `2`. Set it to the number of CPUs available
+to the guest. CTest keeps the existing timing-sensitive UNIT cases serial. The
+`host-regressions` case also runs alone because it already compiles its fixture
+variants in parallel; its fixture execution remains serial.
 
 The package helper supplies a 600-second default CTest timeout;
 `RESTUNTS_TEST_TIMEOUT_SECONDS` overrides it for slower emulated machines.
@@ -77,6 +83,52 @@ Archives and SHA-256 sidecars are written to `dist/packages/`. The release
 validator checks ELF architecture and executable permissions as well as all
 required files, licenses, sources, artwork, and file hashes. Original game
 resources are excluded from the archives.
+
+## Cross builds and target testing
+
+CI compiles the game, tools, and CMake test executables on Ubuntu using a Haiku
+cross compiler and a sysroot imported from the matching Haiku R1/beta6 guest.
+The SDK helper requires x86-64 Linux with GCC/G++, 32-bit C++ development libraries,
+GNU Make, Bison, Flex, gawk, Texinfo, Python 3, curl, and the usual archive utilities.
+The project build also needs CMake 3.25 or later, Ninja, and pkg-config. Choose an
+SDK path without whitespace.
+
+After installing and activating dependencies, export that guest's sysroot:
+
+```sh
+sh tools/scripts/export-haiku-cross-sysroot.sh haiku-x64 /boot/home/haiku-sysroot.tar.gz
+```
+
+Copy the archive to Linux, then prepare the SDK and build:
+
+```sh
+export RESTUNTS_HAIKU_SDK_ROOT="$PWD/out/haiku-sdk-x64"
+sh tools/scripts/prepare-haiku-cross.sh haiku-x64 "$RESTUNTS_HAIKU_SDK_ROOT" \
+    /path/to/haiku-sysroot.tar.gz
+export GITHUB_SHA="$(git rev-parse HEAD)"
+bash tools/scripts/build-package.sh haiku-x64
+```
+
+The SDK helper verifies the pinned Haiku build-tools sources and retains the
+compiler under the SDK root. Import a fresh sysroot after changing the guest's
+packages. Both cross compilers use the modern ABI; the hybrid x86 target does not
+use GCC 2.
+
+The cross configuration enables `RESTUNTS_TESTS_ON_TARGET` so the target tests
+remain available for execution inside Haiku. CI keeps the source checkout at
+`/boot/home/restunts` on both Linux and Haiku, copies the configured test build tree
+and staged runtime into the guest without compiler objects, then runs:
+
+```sh
+bash tools/scripts/test-haiku-build.sh haiku-x64 --cross-built
+```
+
+Use `haiku-x86` for the hybrid 32-bit guest. This runs the Haiku executables with
+the guest's Python, CMake, and compiler tools. Node-based tests remain optional;
+configure with `-DRESTUNTS_TARGET_TEST_NODE=node` only if Node is installed in the
+guest. The native compiler is still required: `host-regressions` builds source
+fixtures with Haiku's compiler, and the Nuked library replacement test builds a
+replacement shared library. Native builds also use the same test helper.
 
 ## QEMU validation
 
@@ -128,7 +180,7 @@ python3 tools/scripts/haiku-vm.py --directory /tmp/restunts-haiku64 ssh bash -c 
     cmake -S . -B out/sdl3-haiku-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
     cmake --build out/sdl3-haiku-x64 --parallel 2
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-        ctest --test-dir out/sdl3-haiku-x64 --output-on-failure --timeout 600
+        ctest --test-dir out/sdl3-haiku-x64 --parallel 2 --output-on-failure --timeout 600
     python3 tools/scripts/test-nuked-package.py --build-directory out/sdl3-haiku-x64
     cmake --install out/sdl3-haiku-x64 --prefix "$PWD/out/package-haiku-x64" \
         --component Runtime
@@ -168,17 +220,20 @@ python3 tools/scripts/haiku-vm.py --directory /tmp/restunts-haiku32 stop
 
 ## CI and downloads
 
-The shared package workflow builds both Haiku targets, runs native CTest
-regressions and the Nuked library replacement test, verifies relocated startup,
-and validates the resulting archives. Regression game data is checksum-verified
-and used only in the test checkout; it is excluded from all runtime archives.
+The shared package workflow cross-builds both Haiku targets on Linux, then runs
+native CTest regressions and the Nuked library replacement test inside each matching
+guest. It verifies relocated startup and validates the resulting archives.
+Regression game data is checksum-verified and used only in the test checkout;
+it is excluded from all runtime archives.
 
 Both jobs use the repository's VM helper with checksum-pinned images: the x64
 builder image and the official x86 install media. After dependency installation,
-they restart the guest to activate any system update before building and packaging.
-Hosted CI enables and requires KVM to meet its build and test time limits. Local
-validation can use the software-emulation options described above. Full golden replay
-corpus validation remains in the existing Linux SDL3 and DOS jobs.
+they restart the guest to activate any system update before testing. Hosted CI
+requires KVM and assigns all available runner CPUs to the VM and the build/test
+helpers. The Linux cross build moves compilation out of the guest; parallel CTest
+execution reduces the remaining native test time while retaining serial exclusions.
+Local validation can use the software-emulation options described above. Full golden
+replay corpus validation remains in the existing Linux SDL3 and DOS jobs.
 
 GitHub Pages links to these build instructions until a release includes the
 new archives. See [release verification](releases.md) and

@@ -110,7 +110,8 @@ def verify_elf_linkage(binary, *, needs_nuked):
     search_paths = re.findall(r"\((?:RPATH|RUNPATH)\).*?\[([^]]*)\]", output)
     for entry in search_paths:
         for path in entry.split(":"):
-            require(path in ELF_SYSTEM_PATHS or path.startswith(("$ORIGIN/", "${ORIGIN}/")),
+            require(path in ELF_SYSTEM_PATHS or path in ("$ORIGIN", "${ORIGIN}")
+                    or path.startswith(("$ORIGIN/", "${ORIGIN}/")),
                     f"non-relocatable library search path in {binary}: {path!r}")
     if needs_nuked:
         require(any("$ORIGIN/../lib" in entry.split(":") or
@@ -191,7 +192,7 @@ def instrument_replacement(source):
     implementation.write_bytes(text.encode("utf-8"))
 
 
-def test_package(build, cmake):
+def test_package(build, cmake, *, native_rebuild=False):
     require(sys.platform.startswith(ELF_PLATFORMS) or MACOS,
             "this package regression requires native Linux, BSD, Haiku, or macOS")
     build = build.resolve()
@@ -202,7 +203,7 @@ def test_package(build, cmake):
             f"{LINKAGE_TOOL} is required to inspect dynamic dependencies")
     asset = source / "stunts/ADSKIDMS.VCE"
     require(asset.is_file(), f"missing audio fixture asset: {asset}")
-    compiler = cache.get("CMAKE_C_COMPILER")
+    compiler = shutil.which("gcc") if native_rebuild else cache.get("CMAKE_C_COMPILER")
     require(compiler is not None, "existing build does not identify its C compiler")
     generator = cache.get("CMAKE_GENERATOR")
     require(generator, "existing build does not identify its CMake generator")
@@ -247,17 +248,20 @@ def test_package(build, cmake):
         configure_arguments = [
             cmake, "-G", generator, "-S", replacement_source, "-B", replacement_build,
             f"-DCMAKE_BUILD_TYPE={build_type}", f"-DCMAKE_C_COMPILER={compiler}",
-            f"-DCMAKE_C_FLAGS={cache.get('CMAKE_C_FLAGS', '')}",
-            f"-DCMAKE_C_FLAGS_{build_configuration}=" +
-            cache.get(f"CMAKE_C_FLAGS_{build_configuration}", ""),
-            f"-DCMAKE_SHARED_LINKER_FLAGS={cache.get('CMAKE_SHARED_LINKER_FLAGS', '')}",
             f"-DNUKED_OPL2_SSE2={cache.get('RESTUNTS_SSE2', 'ON')}",
         ]
-        if cache.get("CMAKE_MAKE_PROGRAM"):
-            configure_arguments.append(f"-DCMAKE_MAKE_PROGRAM={cache['CMAKE_MAKE_PROGRAM']}")
-        if MACOS:
-            configure_arguments.extend(f"-D{name}={cache[name]}" for name in MACOS_BUILD_SETTINGS
-                                       if name in cache)
+        if not native_rebuild:
+            configure_arguments.extend([
+                f"-DCMAKE_C_FLAGS={cache.get('CMAKE_C_FLAGS', '')}",
+                f"-DCMAKE_C_FLAGS_{build_configuration}=" +
+                cache.get(f"CMAKE_C_FLAGS_{build_configuration}", ""),
+                f"-DCMAKE_SHARED_LINKER_FLAGS={cache.get('CMAKE_SHARED_LINKER_FLAGS', '')}",
+            ])
+            if cache.get("CMAKE_MAKE_PROGRAM"):
+                configure_arguments.append(f"-DCMAKE_MAKE_PROGRAM={cache['CMAKE_MAKE_PROGRAM']}")
+            if MACOS:
+                configure_arguments.extend(f"-D{name}={cache[name]}" for name in MACOS_BUILD_SETTINGS
+                                           if name in cache)
         command(configure_arguments)
         jobs = os.environ.get("RESTUNTS_BUILD_JOBS") or str(os.cpu_count() or 1)
         command([cmake, "--build", replacement_build, "--parallel", jobs])
@@ -280,11 +284,13 @@ def test_package(build, cmake):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-directory", type=Path, required=True,
-                        help="existing native Linux, BSD, Haiku, or macOS CMake build with tests enabled")
+                        help="existing CMake build for this host with tests enabled")
     parser.add_argument("--cmake", default="cmake", help="CMake executable (default: cmake)")
+    parser.add_argument("--native-rebuild", action="store_true",
+                        help="rebuild the replacement with local GCC for a cross-built package")
     arguments = parser.parse_args()
     try:
-        test_package(arguments.build_directory, arguments.cmake)
+        test_package(arguments.build_directory, arguments.cmake, native_rebuild=arguments.native_rebuild)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"Nuked package regression failed: {error}", file=sys.stderr)
         return 1
