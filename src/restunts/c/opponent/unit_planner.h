@@ -130,6 +130,9 @@ struct UNIT_PLANNER *unit_planner_create(const struct UNIT_ROUTE_POINT *points, 
  * and starts live mode without workers.
  * It does not stop or take ownership of the source planner. */
 struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner);
+/* Use the live fallback limits and alignment for a synchronous preview clone.
+ * This policy survives resets of the clone's search state during native trials. */
+void unit_planner_use_live_recheck_guidance(struct UNIT_PLANNER *planner);
 /* Branch a paused synchronous pilot at the same native snapshot. Unlike the
  * fresh clone, this preserves candidate order and recent request/publication. */
 struct UNIT_PLANNER *unit_planner_clone_continuation(struct UNIT_PLANNER *planner);

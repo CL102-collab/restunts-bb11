@@ -741,6 +741,11 @@ static legacy_int unit_pilot_recheck_start(struct UNIT_PLANNER *source, legacy_u
 	if (!unit_planner_restore_continuation(unit_pilot_state->planner, source)) {
 		return 0;
 	}
+	if (!unit_pilot_state->route->classic_track) {
+		/* A bank ahead can withhold the entire admitted prefix. Use the live
+		 * braking and alignment margins so rechecks can prove its support. */
+		unit_planner_use_live_recheck_guidance(unit_pilot_state->planner);
+	}
 	unit_pilot_state->continuation = unit_pilot_state->continuation_matched = 0;
 	unit_pilot_state->recheck = 1;
 	unit_pilot_state->recheck_rolling = rolling;

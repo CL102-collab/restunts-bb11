@@ -35,6 +35,12 @@ struct UNIT_WORKER {
 #endif
 };
 
+enum UNIT_GUIDANCE_POLICY {
+	UNIT_GUIDANCE_LIVE,
+	UNIT_GUIDANCE_NATIVE_PREVIEW,
+	UNIT_GUIDANCE_LIVE_RECHECK
+};
+
 struct UNIT_PLANNER {
 	struct UNIT_ROUTE_POINT *points;
 	struct UNIT_CAR_LIMITS limits;
@@ -50,7 +56,7 @@ struct UNIT_PLANNER {
 	legacy_u32 completed_request_serial;
 	legacy_u32 sync_candidate;
 	legacy_s32 requested_workers;
-	legacy_u8 owoot, startup, stopping, have_request, allow_threads, native_preview;
+	legacy_u8 owoot, startup, stopping, have_request, allow_threads, guidance_policy;
 #ifdef UNIT_PLANNER_THREADS
 	SDL_Mutex *mutex;
 	SDL_Condition *condition;
@@ -438,8 +444,13 @@ struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *planner)
 	planner_clear_reserved_profile(&clone->route_profile);
 	planner_clear_reserved_profile(&clone->search_profile);
 	clone->startup = 0U;
-	clone->native_preview = 1U;
+	clone->guidance_policy = UNIT_GUIDANCE_NATIVE_PREVIEW;
 	return clone;
+}
+
+void unit_planner_use_live_recheck_guidance(struct UNIT_PLANNER *planner)
+{
+	planner->guidance_policy = UNIT_GUIDANCE_LIVE_RECHECK;
 }
 
 static legacy_int valid_learning_profile(const struct UNIT_PLANNER_PROFILE *profile)
@@ -487,8 +498,8 @@ legacy_int unit_planner_export_learning(struct UNIT_PLANNER *planner,
 legacy_int unit_planner_import_learning(struct UNIT_PLANNER *planner,
 										const struct UNIT_PLANNER_LEARNING *state)
 {
-	if (!planner || !valid_learning(state) || !planner->startup || planner->native_preview ||
-		planner->have_request) {
+	if (!planner || !valid_learning(state) || !planner->startup ||
+		planner->guidance_policy != UNIT_GUIDANCE_LIVE || planner->have_request) {
 		return 0;
 	}
 	legacy_u32 workers = planner->worker_count;
@@ -754,7 +765,7 @@ legacy_int unit_planner_plan(struct UNIT_PLANNER *planner, const struct UNIT_VEH
 	request.unit = *unit;
 	request.cursor = route_cursor;
 	request.generation = generation;
-	request.native_preview = planner->native_preview;
+	request.native_preview = planner->guidance_policy == UNIT_GUIDANCE_NATIVE_PREVIEW;
 	planner_lock(planner);
 	struct UNIT_PROFILE profile = planner->route_profile;
 	struct UNIT_ROLLOUT published = planner->published;

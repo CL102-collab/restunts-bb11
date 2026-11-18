@@ -6,11 +6,11 @@ import csv
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import tempfile
 
 from regression_timeouts import scaled_timeout
+from unit_replay_assets import stage_mcmu_game
 
 
 RECORDED_FRAMES = 3811
@@ -22,7 +22,6 @@ LAST_BANK_ROUTE = 83
 BELOW_BANK_HEIGHT = 1700.0
 GRASS_CONTACT_SUM = 16
 POSITION_TOLERANCE = 1.0 / 64.0
-MCMU_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH")
 
 
 def main():
@@ -36,11 +35,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="restunts-unit-bank-") as temporary:
         work = Path(temporary)
         game = work / "game"
-        shutil.copytree(args.data.resolve(), game)
-        for name in MCMU_FILES:
-            destination = game / name
-            destination.unlink(missing_ok=True)
-            shutil.copyfile(args.assets / name, destination)
+        stage_mcmu_game(args.data, args.assets, game)
         cache = work / "learning"
         cache.mkdir()
 

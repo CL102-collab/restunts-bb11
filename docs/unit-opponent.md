@@ -62,8 +62,10 @@ plane as the original opponents; explicitly placed custom-track finishes retain
 their height check.
 
 Under normal rules, fresh unverified guidance uses a centered banked-road line and
-conservative bank and elevated-corner speed limits, including braking before those pieces. Native
-previews and verified cached commands retain their physics-validated speeds.
+conservative bank and elevated-corner speed limits, including braking before those
+pieces. Live native rechecks on custom tracks use the same limits and alignment
+when validating a new approach. Preparation previews can try faster lines, and
+verified cached commands retain their physics-validated speeds.
 OWOOT keeps its existing strict-road speed and line policy.
 Ramp guidance releases on genuine partial road contact so ordinary braking can
 resume; grass alone does not release it.

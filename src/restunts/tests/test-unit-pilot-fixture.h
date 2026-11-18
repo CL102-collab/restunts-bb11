@@ -145,6 +145,10 @@ struct UNIT_PLANNER *unit_planner_clone_sync(struct UNIT_PLANNER *source)
 	}
 	return clone;
 }
+void unit_planner_use_live_recheck_guidance(struct UNIT_PLANNER *planner)
+{
+	assert(planner);
+}
 legacy_int unit_planner_export_profile(struct UNIT_PLANNER *source,
 									   struct UNIT_PLANNER_PROFILE *profile)
 {

@@ -1399,6 +1399,12 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "${CMAKE_SOURCE_DIR}/assets/cars"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/ninhbinh-banked.csrpl")
     set_tests_properties(unit-bank-replay PROPERTIES RUN_SERIAL TRUE)
+    list(APPEND unit_race_tests unit-checkpoint-replay)
+    add_test(NAME unit-checkpoint-replay COMMAND "${restunts_test_python}"
+        "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-checkpoint-replay.py"
+        "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
+        "${CMAKE_SOURCE_DIR}/assets/cars"
+        "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/ninhbinh-checkpoint-stall.csrpl")
     foreach(unit_human_case near long-range slow)
         set(unit_human_test "unit-human-independent-${unit_human_case}-sync")
         set(unit_human_mode blocked)
