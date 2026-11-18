@@ -192,6 +192,9 @@
 #define CAMERA_MODE_FOLLOW 1
 #define CAMERA_MODE_CUSTOM 2
 #define CAMERA_MODE_TRACKSIDE 3
+#define CUSTOM_CAMERA_PRESET_ORIGINAL (-1+1)
+#define CUSTOM_CAMERA_PRESET_FAR ((((-1+1)+1)+1)+1)
+#define CUSTOM_CAMERA_PRESET_COUNT (((((-1+1)+1)+1)+1)+1)
 #define SHAPE3D_PRIMITIVE_EMPTY 0
 #define SHAPE3D_PRIMITIVE_POLYGON_FIRST 3
 #define SHAPE3D_PRIMITIVE_SPHERE 11
@@ -234,9 +237,6 @@
 #define MENU_BLIT_MODE_INITIAL 255
 #define FATAL_FORMAT_DECIMAL_RADIX 10
 #define FATAL_FORMAT_HEXADECIMAL_RADIX 16
-#define CUSTOM_CAMERA_PRESET_ORIGINAL (-1+1)
-#define CUSTOM_CAMERA_PRESET_FAR ((((-1+1)+1)+1)+1)
-#define CUSTOM_CAMERA_PRESET_COUNT (((((-1+1)+1)+1)+1)+1)
 #define CREDITS_LINE_SHAPE 0
 #define CREDITS_LINE_TEXT 1
 #define HIGHSCORE_READ_RETRY_OPERATION 9
@@ -1046,6 +1046,20 @@ class CAudioContext
   legacy_u8 reserved_driver_channel_byte;
 };
 
+class CRacePenaltyState
+{
+  legacy_s16 confirmed_route;
+  legacy_s16 previous_route;
+  legacy_s16 last_skipped;
+  legacy_s16 minimum_column;
+  legacy_s16 maximum_column;
+  legacy_s16 minimum_row;
+  legacy_s16 maximum_row;
+  legacy_s8 status;
+  legacy_s8 confirmations;
+  legacy_s8 laps;
+};
+
 class CGhostCameraState
 {
   CVector follow_position;
@@ -1603,6 +1617,7 @@ class CIntroSession
 
 class CPenaltyRouteSearch
 {
+  CRacePenaltyState *rules;
   legacy_u8 visited[904];
   legacy_s16 pending_track[128];
   legacy_s16 pending_distance[128];

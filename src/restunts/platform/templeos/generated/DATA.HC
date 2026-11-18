@@ -98,7 +98,6 @@ legacy_s8 rs_game_input_input_draw_mode_stack[8];
 MemSet(&rs_game_input_input_draw_mode_stack,0,sizeof(rs_game_input_input_draw_mode_stack));
 legacy_s8 rs_game_input_input_device_mode_stack[8];
 MemSet(&rs_game_input_input_device_mode_stack,0,sizeof(rs_game_input_input_device_mode_stack));
-legacy_u8 rs_game_input_shortcuts_custom_camera_preset=0;
 CCustomCamera rs_game_input_shortcuts_custom_camera_original;
 MemSet(&rs_game_input_shortcuts_custom_camera_original,0,
     sizeof(rs_game_input_shortcuts_custom_camera_original));
@@ -624,6 +623,7 @@ CRectangle *active_frame_rects=0;
 CRectangle *alternate_frame_rects=0;
 CCustomCamera custom_camera;
 MemSet(&custom_camera,0,sizeof(custom_camera));
+legacy_u8 custom_camera_preset=0;
 CButtonArea menu_buttons[5];
 MemSet(&menu_buttons,0,sizeof(menu_buttons));
 CButtonArea trackmenu_buttons[3];

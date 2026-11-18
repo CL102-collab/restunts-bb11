@@ -462,7 +462,7 @@ extern legacy_void RsSupersightTrackPreviewDrawCoveredWater(legacy_u8 track,lega
 extern legacy_s16 RsSupersightTrackPreviewBatchScene();
 extern legacy_void RsSupersightTrackPreviewFlushScene(legacy_s16 batch_scene);
 extern legacy_s16 RsExtendedRaceRouteAlternate(legacy_s16 legacy_track);
-extern legacy_s16 RsExtendedRaceRoutePlayerRow(legacy_s16 fallback);
+extern legacy_s16 RsExtendedRaceRoutePositionRow(legacy_s16 fallback,CVectorLong *position);
 extern legacy_s16 RsExtendedRaceRouteOutside(
     legacy_s16 column,legacy_s16 row,legacy_s16 fallback);
 extern legacy_s16 RsExtendedRaceRouteSentinelBounds(legacy_s16 piece,legacy_u8 *minimum_row,

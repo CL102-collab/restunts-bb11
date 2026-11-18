@@ -2,38 +2,38 @@
 
 legacy_s8 RsGameInputShortcutsLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_1353;
+  legacy_s32 noreg temple_tmp_1354;
   if((value<=127)) {
-    temple_tmp_1353=TempleCastS32(TempleCastS8(value));
+    temple_tmp_1354=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_1353=TempleCastS32(TempleCastS8(
+    temple_tmp_1354=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_1353);
+  return TempleCastS8(temple_tmp_1354);
 }
 
 legacy_s16 RsGameInputShortcutsLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_1354;
+  legacy_s32 noreg temple_tmp_1355;
   if((value<=32767)) {
-    temple_tmp_1354=TempleCastS32(TempleCastS16(value));
+    temple_tmp_1355=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_1354=TempleCastS32(TempleCastS16(
+    temple_tmp_1355=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_1354);
+  return TempleCastS16(temple_tmp_1355);
 }
 
 legacy_s32 RsGameInputShortcutsLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_1355;
+  legacy_s32 noreg temple_tmp_1356;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_1355=TempleCastS32(TempleCastS32(value));
+    temple_tmp_1356=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_1355=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_1356=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_1355);
+  return TempleCastS32(temple_tmp_1356);
 }
 
 legacy_s16 RsGameInputShortcutsCameraAdjustCustomDirection(legacy_u16 direction)
@@ -75,28 +75,28 @@ legacy_s16 RsGameInputShortcutsCameraAdjustCustomDirection(legacy_u16 direction)
 
 legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
 {
-  legacy_s32 noreg temple_tmp_1356;
   legacy_s32 noreg temple_tmp_1357;
-  legacy_s8 *temple_tmp_1358;
-  legacy_u8 *temple_tmp_1359;
-  legacy_s8 *temple_tmp_1360;
+  legacy_s32 noreg temple_tmp_1358;
+  legacy_s8 *temple_tmp_1359;
+  legacy_u8 *temple_tmp_1360;
+  legacy_s8 *temple_tmp_1361;
   switch(key) {
     case 26112:
       if((mph_display_enabled==FRAME_MPH_DISPLAY_OFF)) {
-        temple_tmp_1356=TempleCastS32(FRAME_MPH_DISPLAY_ON);
+        temple_tmp_1357=TempleCastS32(FRAME_MPH_DISPLAY_ON);
       } else {
-        temple_tmp_1356=TempleCastS32(FRAME_MPH_DISPLAY_OFF);
+        temple_tmp_1357=TempleCastS32(FRAME_MPH_DISPLAY_OFF);
       }
-      (mph_display_enabled=TempleCastU8(temple_tmp_1356));
+      (mph_display_enabled=TempleCastU8(temple_tmp_1357));
       (full_redraw_frames_remaining=TempleCastS8(TempleCastS8(video_page_count)));
       return TempleCastS16(1);
     case-31488:
       if((fps_display_enabled==FRAME_FPS_DISPLAY_OFF)) {
-        temple_tmp_1357=TempleCastS32(FRAME_FPS_DISPLAY_ON);
+        temple_tmp_1358=TempleCastS32(FRAME_FPS_DISPLAY_ON);
       } else {
-        temple_tmp_1357=TempleCastS32(FRAME_FPS_DISPLAY_OFF);
+        temple_tmp_1358=TempleCastS32(FRAME_FPS_DISPLAY_OFF);
       }
-      (fps_display_enabled=TempleCastU8(temple_tmp_1357));
+      (fps_display_enabled=TempleCastU8(temple_tmp_1358));
       RsFrameFpsReset();
       (full_redraw_frames_remaining=TempleCastS8(TempleCastS8(video_page_count)));
       return TempleCastS16(1);
@@ -105,13 +105,13 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 68:
     case 100:
-      temple_tmp_1358=&(dashb_toggle);
-      ((*temple_tmp_1358)=TempleCastS8(((*temple_tmp_1358)^1)));
+      temple_tmp_1359=&(dashb_toggle);
+      ((*temple_tmp_1359)=TempleCastS8(((*temple_tmp_1359)^1)));
       return TempleCastS16(1);
     case 72:
     case 104:
-      temple_tmp_1359=&(rs_game_input_shortcuts_h_key_toggle);
-      ((*temple_tmp_1359)=TempleCastU8(((*temple_tmp_1359)^1)));
+      temple_tmp_1360=&(rs_game_input_shortcuts_h_key_toggle);
+      ((*temple_tmp_1360)=TempleCastU8(((*temple_tmp_1360)^1)));
       return TempleCastS16(1);
     case 77:
     case 109:
@@ -121,8 +121,8 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 82:
     case 114:
-      temple_tmp_1360=&(replaybar_toggle);
-      ((*temple_tmp_1360)=TempleCastS8(((*temple_tmp_1360)^1)));
+      temple_tmp_1361=&(replaybar_toggle);
+      ((*temple_tmp_1361)=TempleCastS8(((*temple_tmp_1361)^1)));
       return TempleCastS16(1);
   }
   return TempleCastS16(0);
@@ -130,11 +130,11 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
 
 legacy_void RsGameInputShortcutsInputRestoreCustomCamera()
 {
-  if((rs_game_input_shortcuts_custom_camera_preset!=CUSTOM_CAMERA_PRESET_ORIGINAL)) {
+  if((custom_camera_preset!=CUSTOM_CAMERA_PRESET_ORIGINAL)) {
     MemCpy(
         &(custom_camera),&(rs_game_input_shortcuts_custom_camera_original),sizeof(CCustomCamera));
     (dashb_toggle=TempleCastS8(rs_game_input_shortcuts_custom_camera_original_dashboard));
-    (rs_game_input_shortcuts_custom_camera_preset=TempleCastU8(CUSTOM_CAMERA_PRESET_ORIGINAL));
+    (custom_camera_preset=TempleCastU8(CUSTOM_CAMERA_PRESET_ORIGINAL));
   }
 }
 
@@ -146,31 +146,30 @@ legacy_void RsCameraSelectMode(legacy_s8 mode)
   (cameramode=TempleCastS8(mode));
 }
 
-legacy_s16 temple_distances_1361[CUSTOM_CAMERA_PRESET_COUNT];
-MemSet(&temple_distances_1361,0,sizeof(temple_distances_1361));
+legacy_s16 temple_distances_1362[CUSTOM_CAMERA_PRESET_COUNT];
+MemSet(&temple_distances_1362,0,sizeof(temple_distances_1362));
 legacy_void RsGameInputShortcutsInputCycleCustomCamera()
 {
-  legacy_u8 *temple_tmp_1362;
-  legacy_u8 noreg temple_tmp_1363;
+  legacy_u8 *temple_tmp_1363;
+  legacy_u8 noreg temple_tmp_1364;
   if((cameramode!=CAMERA_MODE_CUSTOM)) {
     RsCameraSelectMode(TempleCastS8(CAMERA_MODE_CUSTOM));
     return;
   }
-  if((rs_game_input_shortcuts_custom_camera_preset==CUSTOM_CAMERA_PRESET_FAR)) {
+  if((custom_camera_preset==CUSTOM_CAMERA_PRESET_FAR)) {
     RsGameInputShortcutsInputRestoreCustomCamera();
     return;
   }
-  if((rs_game_input_shortcuts_custom_camera_preset==CUSTOM_CAMERA_PRESET_ORIGINAL)) {
+  if((custom_camera_preset==CUSTOM_CAMERA_PRESET_ORIGINAL)) {
     MemCpy(
         &(rs_game_input_shortcuts_custom_camera_original),&(custom_camera),sizeof(CCustomCamera));
     (rs_game_input_shortcuts_custom_camera_original_dashboard=TempleCastS8(dashb_toggle));
   }
-  temple_tmp_1362=&(rs_game_input_shortcuts_custom_camera_preset);
-  temple_tmp_1363=*temple_tmp_1362;
-  *temple_tmp_1362=TempleCastU8((temple_tmp_1363+1));
-  temple_tmp_1363;
-  (custom_camera.distance=
-          TempleCastS16(temple_distances_1361[rs_game_input_shortcuts_custom_camera_preset]));
+  temple_tmp_1363=&(custom_camera_preset);
+  temple_tmp_1364=*temple_tmp_1363;
+  *temple_tmp_1363=TempleCastU8((temple_tmp_1364+1));
+  temple_tmp_1364;
+  (custom_camera.distance=TempleCastS16(temple_distances_1362[custom_camera_preset]));
   (custom_camera.elevation_angle=TempleCastS16(TempleCastS32((80-TempleCastS32((2*16))))));
   (custom_camera.azimuth_angle=TempleCastS16(TempleCastS32((464+TempleCastS32((3*16))))));
   (dashb_toggle=TempleCastS8(0));
@@ -204,21 +203,21 @@ legacy_s16 RsGameInputShortcutsInputHandleCameraShortcut(legacy_s16 key)
 
 legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
 {
-  legacy_s32 noreg temple_tmp_1364;
   legacy_s32 noreg temple_tmp_1365;
   legacy_s32 noreg temple_tmp_1366;
-  legacy_s8 *temple_tmp_1367;
-  temple_tmp_1364=0;
+  legacy_s32 noreg temple_tmp_1367;
+  legacy_s8 *temple_tmp_1368;
+  temple_tmp_1365=0;
   if(RsGameInputShortcutsInputHandleDisplayShortcut(TempleCastS16(key))) {
-    temple_tmp_1364=1;
+    temple_tmp_1365=1;
   }
-  if(!temple_tmp_1364) {
-    temple_tmp_1364=0;
+  if(!temple_tmp_1365) {
+    temple_tmp_1365=0;
     if(RsGameInputShortcutsInputHandleCameraShortcut(TempleCastS16(key))) {
-      temple_tmp_1364=1;
+      temple_tmp_1365=1;
     }
   }
-  if(temple_tmp_1364) {
+  if(temple_tmp_1365) {
     return TempleCastS16(1);
   }
   switch(key) {
@@ -229,29 +228,29 @@ legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
       (race_exit_request=TempleCastU8(1));
       return TempleCastS16(1);
     case 116:
-      temple_tmp_1365=0;
-      if((follow_opponent_flag!=0)) {
-        temple_tmp_1365=1;
-      }
-      if(!temple_tmp_1365) {
-        temple_tmp_1365=0;
-        if((gameconfig.game_opponenttype!=0)) {
-          temple_tmp_1365=1;
-        }
-      }
       temple_tmp_1366=0;
-      if(temple_tmp_1365) {
+      if((follow_opponent_flag!=0)) {
         temple_tmp_1366=1;
       }
       if(!temple_tmp_1366) {
         temple_tmp_1366=0;
-        if((RsGhostCarState()!=0)) {
+        if((gameconfig.game_opponenttype!=0)) {
           temple_tmp_1366=1;
         }
       }
+      temple_tmp_1367=0;
       if(temple_tmp_1366) {
-        temple_tmp_1367=&(follow_opponent_flag);
-        ((*temple_tmp_1367)=TempleCastS8(((*temple_tmp_1367)^1)));
+        temple_tmp_1367=1;
+      }
+      if(!temple_tmp_1367) {
+        temple_tmp_1367=0;
+        if((RsGhostCarState()!=0)) {
+          temple_tmp_1367=1;
+        }
+      }
+      if(temple_tmp_1367) {
+        temple_tmp_1368=&(follow_opponent_flag);
+        ((*temple_tmp_1368)=TempleCastS8(((*temple_tmp_1368)^1)));
       }
       return TempleCastS16(1);
   }
