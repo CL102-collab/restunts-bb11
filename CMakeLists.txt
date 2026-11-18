@@ -1158,10 +1158,8 @@ if(RESTUNTS_BUILD_TESTS)
         add_test(NAME sdl3-asset-path COMMAND test-sdl3-asset-path)
         add_test(NAME host-regressions COMMAND "${restunts_test_cmake}" -E env "CC=${restunts_test_compiler}"
             bash ${CMAKE_SOURCE_DIR}/src/restunts/tests/run-host-tests.sh)
-        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-            # This fixture already compiles its own workload on all available cores.
-            set_tests_properties(host-regressions PROPERTIES RUN_SERIAL TRUE)
-        endif()
+        # This fixture already compiles its own workload on all available cores.
+        set_tests_properties(host-regressions PROPERTIES RUN_SERIAL TRUE)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
             add_test(NAME html-track-route-data COMMAND "${restunts_test_python}"
@@ -1589,7 +1587,9 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-parallel.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
-            set_tests_properties(genghost-parallel PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
+            # This test checks worker progress against wall-clock deadlines.
+            set_tests_properties(genghost-parallel PROPERTIES
+                SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
             add_test(NAME genghost-state COMMAND "${restunts_test_python}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-state.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
