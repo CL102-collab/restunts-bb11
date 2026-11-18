@@ -1191,7 +1191,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         unit-race-default unit-race-prepared unit-race-prepared-worker unit-race-owoot
         unit-race-ansx unit-race-lm02 unit-race-manual unit-race-10hz unit-race-checkpoints
         unit-race-glacier-sync unit-race-glacier-owoot-sync unit-race-native-grid
-        unit-race-glacier-human unit-race-glacier-owoot-human)
+        unit-race-glacier-worker unit-race-glacier-owoot-worker)
     add_test(NAME unit-fixed-work-budget COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-preparation.py"
         "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
@@ -1220,19 +1220,18 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         ${unit_race_preparation_args} --planner-yield-ms 2 --frames 60 --human grid --owoot:on
         --verify-replay --require-clean)
     set_tests_properties(unit-race-native-grid PROPERTIES RUN_SERIAL TRUE)
-    add_test(NAME unit-race-glacier-human COMMAND test-unit-race
+    add_test(NAME unit-race-glacier-worker COMMAND test-unit-race
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000 --human grid-then-park
-        --verify-replay --require-finish --require-clean --require-worker)
-    set_tests_properties(unit-race-glacier-human PROPERTIES RUN_SERIAL TRUE)
-    add_test(NAME unit-race-glacier-owoot-human COMMAND test-unit-race-fixed-work
+        ${unit_race_preparation_args} --planner-yield-ms 2 --frames 18000
+        --verify-replay --require-finish --require-clean --require-worker-search)
+    set_tests_properties(unit-race-glacier-worker PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME unit-race-glacier-owoot-worker COMMAND test-unit-race-fixed-work
         --data-dir "${CMAKE_SOURCE_DIR}/stunts"
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk" 7
-        ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --frames 18000
-        --human grid-then-park --owoot:on
-        --verify-replay --require-finish --require-clean --require-worker)
-    set_tests_properties(unit-race-glacier-owoot-human PROPERTIES RUN_SERIAL TRUE)
+        ${unit_race_fixed_preparation_args} --planner-yield-ms 2 --frames 18000 --owoot:on
+        --verify-replay --require-finish --require-clean --require-worker-search)
+    set_tests_properties(unit-race-glacier-owoot-worker PROPERTIES RUN_SERIAL TRUE)
     foreach(unit_regression_track branches keukenhof ninhbinh default)
         if(unit_regression_track STREQUAL "default")
             set(unit_regression_fixture "${CMAKE_SOURCE_DIR}/stunts/DEFAULT.TRK")
@@ -1359,6 +1358,22 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         "$<TARGET_FILE:test-unit-race>" "${CMAKE_SOURCE_DIR}/stunts"
         "${unit_race_fixture}" --human-mode blocked --distance 350 --planner sync --owoot)
     set_tests_properties(unit-human-independent-near-owoot-sync PROPERTIES RUN_SERIAL TRUE)
+    foreach(unit_grid_rules normal owoot)
+        set(unit_grid_test "unit-human-independent-grid-${unit_grid_rules}-prepared-threaded")
+        set(unit_grid_rule_args)
+        if(unit_grid_rules STREQUAL "owoot")
+            list(APPEND unit_grid_rule_args --owoot)
+        endif()
+        list(APPEND unit_race_tests "${unit_grid_test}")
+        add_test(NAME "${unit_grid_test}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-unit-human-independence.py"
+            "$<TARGET_FILE:test-unit-race-fixed-work>" "${CMAKE_SOURCE_DIR}/stunts"
+            "${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/unit/glacier.cstrk"
+            --human-mode grid-then-park --transmission automatic --planner threaded --prepared
+            --prepare-steps ${restunts_unit_fixed_preparation_steps}
+            --prepare-ms ${restunts_unit_fixed_preparation_ms} ${unit_grid_rule_args})
+        set_tests_properties("${unit_grid_test}" PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
     # Instrumentation slows the fixed native workload. Match the ghost tests'
     # budgets; CTest --timeout cannot override an explicit test TIMEOUT.
     set_tests_properties(${unit_race_tests} PROPERTIES TIMEOUT ${restunts_unit_test_timeout}

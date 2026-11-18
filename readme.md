@@ -1947,21 +1947,26 @@ chunk limits, exact-state handoffs, and race-frame limits remain unchanged.
 Timed-target normal runs retain the ten-second preparation window and original
 CPU guards.
 
-The Glacier OWOOT, four no-stall, and prepared-worker regressions use
-`test-unit-race-fixed-work` in every build configuration. This test-only target
-uses the same 1,024 preparation callbacks, stopping early if a clean native lap
-is ready, and the same bounded native tick quotas under normal builds and
-sanitizers. Startup route evaluation runs synchronously. Each live request waits
-for the previous worker batch; rollouts and physics still run alongside newly
-published work.
-Track completion, penalties, stalls, worker proposals, and full replay checks
-remain enabled. The prepared-worker case requires an accepted live proposal
-without forcing it to replace cached controls. The preparation watchdog reserves half the scaled CTest limit;
-expiry fails the test instead of selecting a different partial preparation state.
-`unit-fixed-work`, `unit-fixed-work-budget`, and `unit-planner-fixed-work` check
-the logical work policy and reject incomplete preparation budgets.
-The standard timed race target, native-grid, threaded-planner, and desktop tests
-retain their timer and asynchronous startup coverage.
+The Glacier OWOOT, native-grid independence, four no-stall, and prepared-worker
+regressions use `test-unit-race-fixed-work` in every build configuration. This test-only
+target uses the same bounded native tick quotas in normal builds and sanitizers.
+Completion tests stop after 1,024 preparation callbacks or a clean native lap; paired grid
+runs complete exactly 1,024 callbacks. Startup route evaluation runs synchronously. Each
+live request waits for the previous worker batch; rollouts and physics still run alongside
+newly published work.
+
+Track completion, penalties, stalls, worker proposals, and full replay checks remain
+enabled. Clear-road threaded completion cases require accepted live proposals without
+forcing them to replace cached controls. Native-grid encounters compare UNIT controls
+before physical contact and verify the resulting replay. The preparation watchdog reserves
+half the scaled CTest limit; expiry fails the test instead of selecting a different
+partial preparation state. `unit-fixed-work`, `unit-fixed-work-budget`, and
+`unit-planner-fixed-work` check the logical work policy and reject incomplete preparation
+budgets.
+
+The standard timed race target, native-grid, threaded-planner, and desktop tests retain
+their timer and asynchronous startup coverage.
+
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need

@@ -164,10 +164,9 @@ and applied commands for every simulation frame. Playback, seeking, and ghosts
 consume recorded commands without rerunning the planner. See
 [CSRPL](csrpl-format.md).
 
-The native tests include complete Glacier laps with normal rules and OWOOT using
-the synchronous fallback, full laps under both rule modes after a human starts
-from the real grid and brakes to a stop, car and transmission variants,
-checkpoint rules, and planning isolation. Full-lap regressions for Branches,
+The native tests include clear-road Glacier laps with normal rules and OWOOT
+using both the synchronous fallback and a live planner worker, car and
+transmission variants, checkpoint rules, and planning isolation. Full-lap regressions for Branches,
 Keukenhof, Ninh Binh, and DEFAULT park the human outside the track. These clear-road
 runs require clean finishes, deterministic replays, and no prolonged unexplained
 low-speed waits. Separate human-independence tests retain real car collisions.
@@ -191,7 +190,12 @@ python3 tools/scripts/test-unit-opponent.py out/sdl3-linux-x64/test-unit-race st
 
 Human-independence regressions compare UNIT's native controls and car states
 with distant and in-path humans before physical contact, including prepared
-routes and both planner modes. They also verify replay states. Planner tests
+routes and both planner modes. Paired native-grid cases retain UNIT's original
+starting pose, park the baseline human outside the track, and let the encounter
+human accelerate for three seconds before braking through recorded inputs.
+They compare UNIT's decisions until the first physical contact in either run,
+or throughout the full window if neither car makes contact. A finish after
+contact is not required. All cases verify replay states. Planner tests
 compare decisions for absent, invalid, stopped, slow, crossing, airborne, and
 overlapping human snapshots on straight, curved, clearance, and stunt routes.
 Actual collision effects after contact remain part of the shared physics.
