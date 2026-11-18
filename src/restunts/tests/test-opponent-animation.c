@@ -75,6 +75,10 @@ legacy_s32 hires_render_scale(void)
 {
 	return render_scale;
 }
+legacy_s32 hires_artwork_scale(void)
+{
+	return HIRES_SCALE;
+}
 
 legacy_s32 hires_begin_argb(const struct SPRITE *sprite)
 {
@@ -102,10 +106,10 @@ void hires_end(void)
 
 static legacy_s32 draw(void)
 {
-	draw_left = TEST_DRAW_X * render_scale;
-	draw_right = draw_left + TEST_DRAW_WIDTH * render_scale;
-	draw_top = TEST_DRAW_Y * render_scale;
-	draw_bottom = draw_top + TEST_DRAW_HEIGHT * render_scale;
+	draw_left = TEST_DRAW_X * HIRES_SCALE;
+	draw_right = draw_left + TEST_DRAW_WIDTH * HIRES_SCALE;
+	draw_top = TEST_DRAW_Y * HIRES_SCALE;
+	draw_bottom = draw_top + TEST_DRAW_HEIGHT * HIRES_SCALE;
 	drawn_pixels = 0;
 	return opponent_animation_draw(&target, TEST_DRAW_X, TEST_DRAW_Y, TEST_DRAW_WIDTH,
 								   TEST_DRAW_HEIGHT);

@@ -65,6 +65,7 @@ static struct HIRES_RASTER_TARGET target;
 static legacy_u8 rows[TEST_HEIGHT * LEGACY_WORD_BYTES];
 static legacy_u8 *screen;
 static legacy_u8 reference[HIRES_WIDTH * HIRES_HEIGHT];
+static legacy_u8 scene_samples[HIRES_WIDTH * HIRES_HEIGHT];
 
 static void begin_frame(legacy_s32 scale)
 {
@@ -84,8 +85,27 @@ static const legacy_u8 *finish_frame(legacy_s32 preserve_depth)
 	hires_end();
 	legacy_s32 width, height;
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
-	assert(pixels != NULL && width == target.width && height == target.height);
-	return pixels;
+	assert(pixels != NULL && width == hires_presentation_width() &&
+		   height == hires_presentation_height());
+	assert(target.scale > 0 && HIRES_SCALE % target.scale == 0);
+	legacy_s32 expansion = HIRES_SCALE / target.scale;
+	assert(width == target.width * expansion && height == target.height * expansion);
+	/* Keep every mathematical visibility/depth oracle in its original scene
+	 * raster. Also verify presentation replicates each complete scene sample,
+	 * so extracting one pixel cannot conceal a broken upscale or cell stride. */
+	for (legacy_s32 y = 0; y < target.height; y++) {
+		for (legacy_s32 x = 0; x < target.width; x++) {
+			legacy_u8 color = pixels[(size_t)y * expansion * width + x * expansion];
+			scene_samples[(size_t)y * target.width + x] = color;
+			for (legacy_s32 row = 0; row < expansion; row++) {
+				for (legacy_s32 column = 0; column < expansion; column++) {
+					assert(pixels[((size_t)y * expansion + row) * width + x * expansion + column] ==
+						   color);
+				}
+			}
+		}
+	}
+	return scene_samples;
 }
 
 static const legacy_u8 *end_frame(void)

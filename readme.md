@@ -351,8 +351,14 @@ original proportions, leaving scenery visible beside it. Corner HUD text follows
 the race image's edges; replay controls remain centered. DOS32 selects a suitable
 VESA mode and fits the chosen race aspect inside it.
 
-Quality-level resolution changes affect the internal renderer. The output keeps
-its selected presentation aspect, window/fullscreen size, and DOS VESA display mode.
+Quality-level resolution changes affect only the 3D scene. The completed frame
+stays at the maximum resolution for its aspect ratio, preserving dashboard,
+replay controls, OSD text, restored backgrounds and other artwork at the same
+quality in every preset. Menus and other 2D screens remain high resolution.
+The selected 3D resolution also applies to the intro night-driving scene,
+showroom car and 3D track preview; their text and artwork stay full resolution.
+The output keeps its selected presentation aspect, window/fullscreen size, and
+DOS VESA display mode.
 At quarter resolution, HyperVision disables car shadows and uses the original horizon artwork. This
 applies to locked Low and both of Auto's lowest stages; higher resolutions restore
 shadows and enhanced horizons. Physics and replay data are unaffected. Switching HyperVision

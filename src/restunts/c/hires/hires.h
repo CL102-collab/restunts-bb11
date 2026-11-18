@@ -52,14 +52,16 @@ struct HIRES_RASTER_CONTEXT {
 /* SDL3-only companion pixels. Legacy sprite offsets and resources stay 16-bit. */
 void hires_set_enabled(legacy_s32 enabled);
 legacy_s32 hires_enabled(void);
-/* Select 4, 2 or 1 samples per axis between joined frames. Changing scale discards
- * cached companion pixels, so the next frame must redraw its scene. Invalid values
- * and changes inside hires_begin/end are ignored. Enable transitions reset to 4.
- * Getters describe the enhanced raster even when HyperVision is disabled. */
+/* Select 4, 2 or 1 scene samples per logical axis between joined frames. Only
+ * scene quality changes; artwork, saved sprites and presentation retain four
+ * samples per axis. Enable transitions reset the scene scale to4. */
 void hires_set_render_scale(legacy_s32 scale);
 legacy_s32 hires_render_scale(void);
 legacy_s32 hires_render_width(void);
 legacy_s32 hires_render_height(void);
+legacy_s32 hires_presentation_width(void);
+legacy_s32 hires_presentation_height(void);
+legacy_s32 hires_artwork_scale(void);
 legacy_s32 hires_begin(const struct SPRITE *target);
 void hires_end(void);
 enum HIRES_DEPTH_MODE { HIRES_DEPTH_SURFACE, HIRES_DEPTH_ATTACHED, HIRES_DEPTH_ORDERED };
@@ -103,7 +105,8 @@ void hires_raster_fill_row(struct HIRES_RASTER_CONTEXT *context, legacy_s32 y, l
 void hires_raster_write_row(struct HIRES_RASTER_CONTEXT *context, legacy_s32 y,
 							const legacy_u8 *samples);
 void hires_raster_finish(const struct HIRES_RASTER_TARGET *target, legacy_u32 cleared_argb_cells);
-/* Optional full-color artwork uses the same clipping and sprite-copy lifetime.
+/* Optional full-color artwork always uses four samples per logical axis,
+ * independently of scene quality, with the same clipping and sprite-copy lifetime.
  * Allocation failure leaves the indexed fallback intact. */
 legacy_s32 hires_begin_argb(const struct SPRITE *target);
 void hires_argb_pixel(legacy_s32 x, legacy_s32 y, legacy_u32 color);

@@ -89,27 +89,29 @@ legacy_s32 widescreen_racing(void)
 static void widescreen_capture_modal_background(void)
 {
 	legacy_u8 *legacy = dos_memory_make_pointer(WIDESCREEN_VGA_SEGMENT, 0);
-	legacy_s32 width, height;
+	legacy_s32 presentation_width, presentation_height;
 	/* Crop the world and centered cockpit first. Edge text is relocated below
 	 * instead of leaving clipped glyphs along the narrower modal backdrop. */
 	overlay_hide_edges = 1;
-	const legacy_u8 *pixels = hires_framebuffer(legacy, &width, &height);
+	const legacy_u8 *pixels = hires_framebuffer(legacy, &presentation_width, &presentation_height);
 	overlay_hide_edges = 0;
 	if (pixels == NULL) {
 		return;
 	}
 	memcpy(modal_background, legacy, sizeof(modal_background));
 	modal_background_saved = 1;
-	legacy_s32 crop_width = height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
-	legacy_s32 left = (width - crop_width) / 2;
-	/* Dialogs save and restore their own authored pixels. Seed their background
-	 * from the centered 4:3 portion before changing companion dimensions. */
+	legacy_s32 crop_width =
+		presentation_height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
+	legacy_s32 left = (presentation_width - crop_width) / 2;
+	/* Read the full presentation, even when the scene uses half/quarter quality.
+	 * Dialogs save and restore authored pixels, so seed their background from
+	 * the centered 4:3 portion before changing companion dimensions. */
 	for (legacy_s32 y = 0; y < VIDEO_FRAMEBUFFER_HEIGHT; y++) {
-		legacy_s32 source_y = y * height / VIDEO_FRAMEBUFFER_HEIGHT;
+		legacy_s32 source_y = y * presentation_height / VIDEO_FRAMEBUFFER_HEIGHT;
 		for (legacy_s32 x = 0; x < VIDEO_FRAMEBUFFER_WIDTH; x++) {
 			legacy_s32 source_x = left + x * crop_width / VIDEO_FRAMEBUFFER_WIDTH;
 			legacy_s32 offset = y * VIDEO_FRAMEBUFFER_WIDTH + x;
-			legacy_u8 color = pixels[source_y * width + source_x];
+			legacy_u8 color = pixels[source_y * presentation_width + source_x];
 			for (legacy_s32 kind = WIDESCREEN_OVERLAY_LEFT; kind < WIDESCREEN_OVERLAY_COUNT;
 				 kind++) {
 				if (overlay_valid[kind][offset]) {

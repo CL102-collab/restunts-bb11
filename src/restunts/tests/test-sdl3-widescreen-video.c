@@ -152,14 +152,14 @@ static void test_replay_pointer_mapping(void)
 	assert_pointer(1070, 740, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT);
 	assert_pointer(590, 380, TEST_LEGACY_CENTER_X, TEST_LEGACY_CENTER_Y);
 
-	/* 16:10 artwork rounds its 4:3 width at the selected quality level. */
+	/* 16:10 artwork keeps its full-presentation 4:3 rounding at every quality. */
 	presentation_width = TEST_RENDER_WIDTH;
 	presentation_height = 800;
-	presentation_raster_width = 320;
-	presentation_raster_height = 200;
+	presentation_raster_width = TEST_RENDER_WIDTH;
+	presentation_raster_height = 800;
 	surface_viewport = (SDL_Rect){0, 0, TEST_RENDER_WIDTH, 800};
-	assert_pointer(108, 0, 0, 0);
-	assert_pointer(1172, 800, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT);
+	assert_pointer(107, 0, 0, 0);
+	assert_pointer(1173, 800, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT);
 	assert_pointer(640, 400, TEST_LEGACY_CENTER_X, TEST_LEGACY_CENTER_Y);
 
 	/* Menus stay 4:3, and the letterbox offset participates in hit testing. */

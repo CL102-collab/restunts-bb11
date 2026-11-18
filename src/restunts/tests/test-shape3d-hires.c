@@ -37,13 +37,49 @@ static void reset_target(void)
 	assert(hires_begin(&target));
 }
 
+/* Geometry oracles use scene-sample coordinates. Presentation retains the
+ * maximum raster and repeats those samples when the selected 3D quality is low. */
 static const legacy_u8 *pixels(void)
 {
+	static legacy_u8 scene[HIRES_WIDTH * HIRES_HEIGHT];
 	legacy_s32 width;
 	legacy_s32 height;
 	const legacy_u8 *result = video_framebuffer(screen, &width, &height);
-	assert(width == hires_render_width() && height == hires_render_height());
-	return result;
+	legacy_s32 scene_width = hires_render_width();
+	legacy_s32 scene_height = hires_render_height();
+	legacy_s32 repeat = HIRES_SCALE / hires_render_scale();
+	assert(width == hires_presentation_width() && height == hires_presentation_height());
+	assert(width == scene_width * repeat && height == scene_height * repeat);
+	if (repeat == 1) {
+		return result;
+	}
+	for (legacy_s32 y = 0; y < scene_height; y++) {
+		for (legacy_s32 x = 0; x < scene_width; x++) {
+			scene[y * scene_width + x] = result[y * repeat * width + x * repeat];
+		}
+	}
+	return scene;
+}
+
+static const legacy_u32 *scene_argb_pixels(const legacy_u32 *palette)
+{
+	static legacy_u32 scene[HIRES_WIDTH * HIRES_HEIGHT];
+	const legacy_u32 *result = hires_framebuffer_argb(screen, palette);
+	legacy_s32 repeat = HIRES_SCALE / hires_render_scale();
+	if (result == NULL || repeat == 1) {
+		return result;
+	}
+	legacy_s32 width = hires_presentation_width();
+	legacy_s32 height = hires_presentation_height();
+	legacy_s32 scene_width = hires_render_width();
+	legacy_s32 scene_height = hires_render_height();
+	assert(width == scene_width * repeat && height == scene_height * repeat);
+	for (legacy_s32 y = 0; y < scene_height; y++) {
+		for (legacy_s32 x = 0; x < scene_width; x++) {
+			scene[y * scene_width + x] = result[y * repeat * width + x * repeat];
+		}
+	}
+	return scene;
 }
 
 static legacy_u32 count_color(legacy_u8 color)
@@ -2872,7 +2908,7 @@ static legacy_u32 finish_shadow_scene(legacy_s16 receiver_height, legacy_s16 hea
 	shape3d_hires_draw_shadows();
 	hires_end();
 	assert(memcmp(indexed, pixels(), (size_t)width * height) == 0);
-	const legacy_u32 *image = hires_framebuffer_argb(screen, palette);
+	const legacy_u32 *image = scene_argb_pixels(palette);
 	legacy_u32 changed = 0;
 	shadow_image.pixels = image;
 	shadow_image.centroid_x = shadow_image.centroid_z = 0;

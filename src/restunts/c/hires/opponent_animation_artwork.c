@@ -468,7 +468,7 @@ legacy_s32 hires_opponent_animation_draw(const struct SPRITE *target, legacy_s16
 	if (!hires_begin_argb(target)) {
 		return 0;
 	}
-	legacy_s32 scale = hires_render_scale();
+	legacy_s32 scale = hires_artwork_scale();
 	legacy_s32 output_width = width * scale;
 	legacy_s32 output_height = height * scale;
 	for (legacy_s32 row = 0; row < output_height; row++) {

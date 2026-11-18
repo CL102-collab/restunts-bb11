@@ -131,7 +131,7 @@ static void benchmark_render_frame(legacy_u32 *composed, const struct GAMESTATE 
 	if (composed != NULL) {
 		video_copy_framebuffer_argb(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0),
 									benchmark_palette, composed,
-									hires_render_width() * sizeof(*composed));
+									hires_presentation_width() * sizeof(*composed));
 	}
 }
 
@@ -250,10 +250,10 @@ static void benchmark_initialize_track(void)
 static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 {
 	legacy_f64 *times = malloc((size_t)count * sizeof(*times));
-	legacy_u32 *composed =
-		benchmark_compose
-			? malloc((size_t)hires_render_width() * hires_render_height() * sizeof(*composed))
-			: NULL;
+	legacy_u32 *composed = benchmark_compose
+							   ? malloc((size_t)hires_presentation_width() *
+										hires_presentation_height() * sizeof(*composed))
+							   : NULL;
 	if (times == NULL || (benchmark_compose && composed == NULL)) {
 		free(composed);
 		free(times);
@@ -337,10 +337,10 @@ static legacy_s32 benchmark_drive(void)
 	hires_set_render_scale(HIRES_SCALE);
 	legacy_u32 ticks = benchmark_drive_seconds * BENCH_TRACK_FRAME_RATE;
 	legacy_u32 count = benchmark_drive_seconds * BENCH_PRESENTATION_RATE;
-	legacy_u32 *composed =
-		benchmark_compose
-			? malloc((size_t)hires_render_width() * hires_render_height() * sizeof(*composed))
-			: NULL;
+	legacy_u32 *composed = benchmark_compose
+							   ? malloc((size_t)hires_presentation_width() *
+										hires_presentation_height() * sizeof(*composed))
+							   : NULL;
 	legacy_f64 *times = malloc((size_t)count * sizeof(*times));
 	if (times == NULL || (benchmark_compose && composed == NULL)) {
 		free(composed);

@@ -16,6 +16,7 @@
 #include "../c/game_input.h"
 #include "../c/hires/hires.h"
 #include "../c/hires/frame_adaptive.h"
+#include "../c/hires/widescreen.h"
 #include "../c/video/video_frame.h"
 #include "../c/hires/presentation.h"
 #include "../c/shape2d/shape2d.h"
@@ -48,12 +49,22 @@ void hires_set_render_scale(legacy_s32 scale)
 
 legacy_s32 hires_render_width(void)
 {
-	return SDL3_SCREEN_WIDTH * active_render_scale;
+	return widescreen_logical_width() * active_render_scale;
 }
 
 legacy_s32 hires_render_height(void)
 {
-	return SDL3_SCREEN_HEIGHT * active_render_scale;
+	return widescreen_logical_height() * active_render_scale;
+}
+
+legacy_s32 hires_presentation_width(void)
+{
+	return widescreen_render_width();
+}
+
+legacy_s32 hires_presentation_height(void)
+{
+	return widescreen_render_height();
 }
 
 static legacy_u32 render_timing_samples;
@@ -97,8 +108,8 @@ const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u
 
 const legacy_u8 *video_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
 {
-	*width = high_resolution_active ? hires_render_width() : SDL3_SCREEN_WIDTH;
-	*height = high_resolution_active ? hires_render_height() : SDL3_SCREEN_HEIGHT;
+	*width = high_resolution_active ? hires_presentation_width() : SDL3_SCREEN_WIDTH;
+	*height = high_resolution_active ? hires_presentation_height() : SDL3_SCREEN_HEIGHT;
 	return high_resolution_active ? high_resolution_framebuffer : legacy;
 }
 
@@ -1484,9 +1495,7 @@ static void test_screenshots(void)
 	release_screenshot_key();
 	sdl3_video_end_frame();
 	press_screenshot_key(SDL_KMOD_LCTRL);
-	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH * FRAME_HIRES_ADAPTIVE_HALF_SCALE,
-					  SDL3_SCREEN_HEIGHT * FRAME_HIRES_ADAPTIVE_HALF_SCALE, PAGE_VIDEO_BLUE,
-					  PAGE_VIDEO_BLUE);
+	assert_screenshot(image_number++, HIRES_WIDTH, HIRES_HEIGHT, PAGE_VIDEO_BLUE, PAGE_VIDEO_BLUE);
 	release_screenshot_key();
 
 	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL | SDL_KMOD_SHIFT, SDL_KMOD_CTRL | SDL_KMOD_ALT,
@@ -1684,11 +1693,11 @@ static void test_dynamic_resolution_video(void)
 	high_resolution_active = 1;
 	for (size_t pass = 0; pass < sizeof(scales) / sizeof(scales[0]); pass++) {
 		hires_set_render_scale(scales[pass]);
-		legacy_s32 width = SDL3_SCREEN_WIDTH * scales[pass];
-		legacy_s32 height = SDL3_SCREEN_HEIGHT * scales[pass];
-		legacy_s32 source_x = SCALE_VIDEO_MARKER_X * scales[pass] + scales[pass] - 1;
-		legacy_s32 source_y = SCALE_VIDEO_MARKER_Y * scales[pass] + scales[pass] - 1;
-		legacy_s32 output_scale = HIRES_SCALE / scales[pass];
+		legacy_s32 width = HIRES_WIDTH;
+		legacy_s32 height = HIRES_HEIGHT;
+		legacy_s32 source_x = SCALE_VIDEO_MARKER_X * HIRES_SCALE + HIRES_SCALE - 1;
+		legacy_s32 source_y = SCALE_VIDEO_MARKER_Y * HIRES_SCALE + HIRES_SCALE - 1;
+		legacy_s32 output_scale = 1;
 		legacy_s32 output_left = source_x * output_scale;
 		legacy_s32 output_x = output_left + output_scale / 2;
 		legacy_s32 output_y =
@@ -1701,6 +1710,8 @@ static void test_dynamic_resolution_video(void)
 		frame_generation++;
 		sdl3_video_begin_track_frame(0);
 		assert(hires_render_scale() == scales[pass]);
+		assert(hires_render_width() == SDL3_SCREEN_WIDTH * scales[pass]);
+		assert(hires_render_height() == SDL3_SCREEN_HEIGHT * scales[pass]);
 		sdl3_video_end_frame();
 		assert(presented_raster_width == width && presented_raster_height == height);
 		assert_scale_video_layout();
@@ -1724,7 +1735,7 @@ static void test_dynamic_resolution_video(void)
 							   SCALE_VIDEO_BORDER_TOP + SCALE_VIDEO_VIEW_HEIGHT - 1, 0,
 							   LEGACY_U8_MAX, 0);
 	}
-	/* Menu/intro frames restore full artwork resolution; classic mode still
+	/* Menu/intro frames keep full artwork resolution; classic mode still
 	 * uploads the original framebuffer without resizing the window. */
 	hires_set_render_scale(FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE);
 	sdl3_video_begin_frame();
@@ -1738,6 +1749,116 @@ static void test_dynamic_resolution_video(void)
 	assert_scale_video_layout();
 	assert_presented_color(SCALE_VIDEO_WINDOW_WIDTH / 2, SCALE_VIDEO_WINDOW_HEIGHT / 2,
 						   LEGACY_U8_MAX, 0, 0);
+}
+
+static void assert_wide_video_capture(legacy_s32 width, legacy_s32 height, legacy_s32 marker_x,
+									  legacy_s32 marker_y)
+{
+	legacy_char path[sizeof(SCREENSHOT_TEST_FILENAME)];
+	screenshot_test_path(SCREENSHOT_TEST_EXISTING_FILE, path);
+	sdl3_video_screenshot();
+	SDL_Surface *surface = SDL_LoadPNG(path);
+	assert(surface != NULL && surface->w == width && surface->h == height);
+	legacy_u8 red, green, blue, alpha;
+	assert(SDL_ReadSurfacePixel(surface, marker_x, marker_y, &red, &green, &blue, &alpha));
+	assert(red == 0 && green == 0 && blue == LEGACY_U8_MAX && alpha == SDL_ALPHA_OPAQUE);
+	assert(SDL_ReadSurfacePixel(surface, marker_x - 1, marker_y, &red, &green, &blue, &alpha));
+	assert(red == LEGACY_U8_MAX && green == 0 && blue == 0 && alpha == SDL_ALPHA_OPAQUE);
+	SDL_DestroySurface(surface);
+	assert(SDL_RemovePath(path));
+}
+
+static void test_wide_quality_presentation(void)
+{
+	static const struct {
+		legacy_s32 window_width, window_height, width, height;
+	} cases[] = {{1280, 720, 1280, 720},
+				 {1280, 800, 1280, 800},
+				 {1080, 720, 1080, 720},
+				 {1680, 720, 1280, 720}};
+	static const legacy_s32 scales[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE};
+	legacy_char *original_directory = SDL_GetCurrentDirectory();
+	assert(original_directory != NULL);
+	legacy_char directory[SCREENSHOT_TEST_DIRECTORY_BYTES];
+	legacy_s32 length = snprintf(directory, sizeof(directory), "wide-video-test-%" LEGACY_PRIu64,
+								 (legacy_u64)SDL_GetTicksNS());
+	assert(length > 0 && (size_t)length < sizeof(directory));
+	assert(SDL_CreateDirectory(directory));
+	assert(chdir(directory) == 0);
+	legacy_u8 colors[] = {SCALE_VIDEO_DAC_MAX, 0, 0, 0, 0, SCALE_VIDEO_DAC_MAX};
+	dos_video_set_palette(SCALE_VIDEO_RED_INDEX, 2, colors);
+	widescreen_set_enabled(1);
+	widescreen_set_racing(1);
+	high_resolution_active = 1;
+	const legacy_s32 marker_x = SCALE_VIDEO_MARKER_X * HIRES_SCALE + HIRES_SCALE - 1;
+	const legacy_s32 marker_y = SCALE_VIDEO_MARKER_Y * HIRES_SCALE + HIRES_SCALE - 1;
+	for (size_t index = 0; index < SDL_arraysize(cases); index++) {
+		assert(SDL_SetWindowSize(sdl3_video_window(), cases[index].window_width,
+								 cases[index].window_height));
+		assert(SDL_SyncWindow(sdl3_video_window()));
+		SDL_PumpEvents();
+		sdl3_video_update_widescreen();
+		assert(widescreen_active());
+		for (size_t quality = 0; quality < SDL_arraysize(scales); quality++) {
+			hires_set_render_scale(scales[quality]);
+			assert(hires_render_width() == cases[index].width / HIRES_SCALE * scales[quality]);
+			assert(hires_render_height() == cases[index].height / HIRES_SCALE * scales[quality]);
+			memset(high_resolution_framebuffer, SCALE_VIDEO_RED_INDEX,
+				   sizeof(high_resolution_framebuffer));
+			high_resolution_framebuffer[(size_t)marker_y * cases[index].width + marker_x] =
+				SCALE_VIDEO_BLUE_INDEX;
+			frame_generation++;
+			sdl3_video_begin_track_frame(0);
+			sdl3_video_end_frame();
+			assert(presented_raster_width == cases[index].width);
+			assert(presented_raster_height == cases[index].height);
+			SDL_FRect bounds;
+			assert(SDL_GetRenderLogicalPresentationRect(SDL_GetRenderer(sdl3_video_window()),
+														&bounds));
+			legacy_s32 border = (cases[index].window_width - cases[index].width) / 2;
+			assert_coordinate(bounds.x, (legacy_f32)border);
+			assert_coordinate(bounds.y, 0);
+			assert_coordinate(bounds.w, (legacy_f32)cases[index].width);
+			assert_coordinate(bounds.h, (legacy_f32)cases[index].height);
+			assert_presented_color(border + marker_x, marker_y, 0, 0, LEGACY_U8_MAX);
+			assert_presented_color(border + marker_x - 1, marker_y, LEGACY_U8_MAX, 0, 0);
+			assert_presented_color(border + marker_x + 1, marker_y, LEGACY_U8_MAX, 0, 0);
+			legacy_s32 artwork_width =
+				cases[index].height * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
+			legacy_s32 artwork_left = border + (cases[index].width - artwork_width) / 2;
+			legacy_f32 x, y;
+			sdl3_video_game_to_window(0, 0, &x, &y);
+			assert_coordinate(x, (legacy_f32)artwork_left);
+			assert_coordinate(y, 0);
+			sdl3_video_game_to_window(SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT, &x, &y);
+			assert_coordinate(x, (legacy_f32)(artwork_left + artwork_width));
+			assert_coordinate(y, (legacy_f32)cases[index].height);
+			sdl3_video_window_to_game(x, y, &x, &y);
+			assert_coordinate(x, SDL3_SCREEN_WIDTH);
+			assert_coordinate(y, SDL3_SCREEN_HEIGHT);
+			assert_wide_video_capture(cases[index].width, cases[index].height, marker_x, marker_y);
+		}
+	}
+	/* Wide monitor geometry remains in place while menus and classic scenes use 4:3. */
+	widescreen_set_racing(0);
+	sdl3_video_begin_frame();
+	sdl3_video_end_frame();
+	assert(presented_raster_width == HIRES_WIDTH && presented_raster_height == HIRES_HEIGHT);
+	SDL_FRect bounds;
+	assert(SDL_GetRenderLogicalPresentationRect(SDL_GetRenderer(sdl3_video_window()), &bounds));
+	assert_coordinate(bounds.w * WIDESCREEN_ASPECT_HEIGHT, bounds.h * WIDESCREEN_ASPECT_WIDTH);
+	widescreen_set_racing(1);
+	hires_shutdown();
+	sdl3_video_present();
+	assert(presented_raster_width == SDL3_SCREEN_WIDTH &&
+		   presented_raster_height == SDL3_SCREEN_HEIGHT);
+	assert(SDL_GetRenderLogicalPresentationRect(SDL_GetRenderer(sdl3_video_window()), &bounds));
+	assert_coordinate(bounds.w * WIDESCREEN_ASPECT_HEIGHT, bounds.h * WIDESCREEN_ASPECT_WIDTH);
+	widescreen_set_racing(0);
+	widescreen_set_enabled(0);
+	assert(chdir(original_directory) == 0);
+	assert(SDL_RemovePath(directory));
+	SDL_free(original_directory);
 }
 
 static void check_fullscreen(legacy_u8 expected)
@@ -3076,6 +3197,7 @@ legacy_int main(void)
 	test_remote_shifts();
 	test_high_resolution_video();
 	test_dynamic_resolution_video();
+	test_wide_quality_presentation();
 	test_completed_video_pages();
 	test_video_page_lifetime();
 	test_classic_video_modes_and_hypervision();

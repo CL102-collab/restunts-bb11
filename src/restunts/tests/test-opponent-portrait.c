@@ -323,12 +323,13 @@ static void test_render_scale_roundtrip(struct SHAPE2D *shape)
 	reset();
 	hires_set_enabled(1);
 	for (legacy_u32 step = 0; step < SDL_arraysize(scales); step++) {
-		legacy_s32 scale = scales[step];
+		hires_set_render_scale(scales[step]);
+		legacy_s32 scale = hires_artwork_scale();
 		legacy_s32 source_step = HIRES_SCALE / scale;
-		hires_set_render_scale(scale);
+		assert(hires_render_scale() == scales[step] && scale == HIRES_SCALE);
 		opponent_portrait_draw(&target, shape, 1);
-		legacy_s32 width = hires_render_width();
-		legacy_s32 height = hires_render_height();
+		legacy_s32 width = hires_presentation_width();
+		legacy_s32 height = hires_presentation_height();
 		const legacy_u32 *image = hires_framebuffer_argb(screen, palette);
 		assert(image != NULL && hires_enabled());
 		legacy_s32 left = (shape->position_x + SCALE_PORTRAIT_LEFT) * scale;
@@ -355,7 +356,7 @@ static void test_render_scale_roundtrip(struct SHAPE2D *shape)
 		assert(drawn == (SCALE_PORTRAIT_WIDTH * SCALE_PORTRAIT_HEIGHT - 1U) * scale * scale);
 		if (step == 0) {
 			memcpy(full_resolution, image, sizeof(full_resolution));
-		} else if (step == SDL_arraysize(scales) - 1) {
+		} else {
 			assert(memcmp(full_resolution, image, sizeof(full_resolution)) == 0);
 		}
 		for (legacy_u32 pixel = 0;

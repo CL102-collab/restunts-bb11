@@ -132,9 +132,9 @@ void hires_menu_background_draw(const struct SPRITE *target, const struct SHAPE2
 	if (bottom > hires_heights[background]) {
 		bottom = hires_heights[background];
 	}
-	legacy_s32 scale = hires_render_scale();
-	/* Keep the authored 2x pixels crisp at every adaptive render scale. At 1x,
-	 * sample the center of each original cell; at 4x, repeat each artwork pixel. */
+	legacy_s32 scale = hires_artwork_scale();
+	/* Authored artwork keeps its full detail independently of scene quality.
+	 * Repeat each restored 2x pixel across the fixed 4x presentation samples. */
 	legacy_s32 sample_center = MENU_BACKGROUND_ASSET_SCALE / scale / 2;
 	for (legacy_s32 row = top * scale; row < bottom * scale; row++) {
 		legacy_s32 source_y = row * MENU_BACKGROUND_ASSET_SCALE / scale + sample_center;
@@ -177,7 +177,7 @@ void hires_menu_background_draw_overlay(const struct SPRITE *target, const struc
 		return;
 	}
 	const legacy_u8 *mask = (const legacy_u8 *)overlay + SHAPE2D_HEADER_SIZE;
-	legacy_s32 scale = hires_render_scale();
+	legacy_s32 scale = hires_artwork_scale();
 	legacy_s32 sample_center = MENU_BACKGROUND_ASSET_SCALE / scale / 2;
 	for (legacy_s32 row = top * scale; row < bottom * scale; row++) {
 		const legacy_u8 *mask_row = mask + (row / scale - y) * width;

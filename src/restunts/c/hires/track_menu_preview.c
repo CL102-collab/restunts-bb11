@@ -55,7 +55,7 @@ void hires_track_menu_preview_present(struct HIRES_TRACK_MENU_PREVIEW *preview,
 		return;
 	}
 	preview->tick = tick;
-	/* Keep the selected render scale and measure only completed preview frames,
+	/* Keep the selected 3D scene scale and measure only completed preview frames,
 	 * excluding the pacing wait above and presentation synchronization. */
 	sdl3_video_begin_track_frame(0);
 	/* The scene fills the header too; repaint its text without rereading scores. */

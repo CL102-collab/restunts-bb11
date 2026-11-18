@@ -707,11 +707,26 @@ static legacy_s16 fractional_render_width(struct SHAPE3D *classic)
 	shape3d_render_queued_primitives();
 	legacy_s32 width, height;
 	const legacy_u8 *image = video_framebuffer(screen, &width, &height);
-	assert(width == TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_SCALE &&
-		   height == TEST_FRACTION_RENDER_HEIGHT * TEST_FRACTION_RENDER_SCALE);
+	legacy_s32 scene_width = hires_render_width(), scene_height = hires_render_height();
+	assert(scene_width == TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_SCALE &&
+		   scene_height == TEST_FRACTION_RENDER_HEIGHT * TEST_FRACTION_RENDER_SCALE);
+	assert(width == TEST_FRACTION_RENDER_WIDTH * HIRES_SCALE &&
+		   height == TEST_FRACTION_RENDER_HEIGHT * HIRES_SCALE);
+	legacy_s32 repeat = HIRES_SCALE / TEST_FRACTION_RENDER_SCALE;
+	assert(width == scene_width * repeat && height == scene_height * repeat);
+	/* Count each original 3D sample once, keeping the geometry coverage oracle
+	 * independent of its replication into the full presentation framebuffer. */
 	legacy_u32 covered = 0;
-	for (legacy_s32 pixel = 0; pixel < width * height; pixel++) {
-		covered += image[pixel] != TEST_FRACTION_RENDER_BACKGROUND;
+	for (legacy_s32 y = 0; y < scene_height; y++) {
+		for (legacy_s32 x = 0; x < scene_width; x++) {
+			legacy_u8 color = image[(y * repeat) * width + x * repeat];
+			covered += color != TEST_FRACTION_RENDER_BACKGROUND;
+			for (legacy_s32 row = 0; row < repeat; row++) {
+				for (legacy_s32 column = 0; column < repeat; column++) {
+					assert(image[(y * repeat + row) * width + x * repeat + column] == color);
+				}
+			}
+		}
 	}
 	assert(covered > TEST_FRACTION_RENDER_MIN_PIXELS);
 	hires_shutdown();

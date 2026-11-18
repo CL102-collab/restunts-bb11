@@ -488,9 +488,36 @@ static const legacy_u8 *render_panorama(legacy_s32 scale, legacy_s16 roll, legac
 	struct MATRIX rotation = test_rotation(roll);
 	assert(skybox_hires_render(&target, &skybox, skyboxes, loaded_skybox_index, &rotation, 1,
 							   ANGLE_HALF_TURN, 0, 0));
-	const legacy_u8 *pixels = video_framebuffer(screen, width, height);
+	legacy_s32 presentation_width, presentation_height;
+	const legacy_u8 *pixels = video_framebuffer(screen, &presentation_width, &presentation_height);
+	assert(presentation_width == hires_presentation_width());
+	assert(presentation_height == hires_presentation_height());
+	*width = hires_render_width();
+	*height = hires_render_height();
 	assert(*width == TEST_SCREEN_WIDTH * scale && *height == TEST_SCREEN_HEIGHT * scale);
-	return pixels;
+	if (scale == HIRES_SCALE) {
+		return pixels;
+	}
+	/* Keep the independent panorama/projection oracle in scene coordinates.
+	 * Presentation expands each scene sample, retaining the authored UI size. */
+	static legacy_u8 scene[HIRES_WIDTH * HIRES_HEIGHT];
+	legacy_s32 factor = HIRES_SCALE / scale;
+	assert(presentation_width == *width * factor && presentation_height == *height * factor);
+	for (legacy_s32 y = 0; y < *height; y++) {
+		for (legacy_s32 x = 0; x < *width; x++) {
+			legacy_u8 sample = pixels[y * factor * presentation_width + x * factor];
+			scene[y * *width + x] = sample;
+			/* Every replicated pixel must agree; taking one sample must not hide
+			 * incorrect expansion or mixed samples within the presentation block. */
+			for (legacy_s32 row = 0; row < factor; row++) {
+				for (legacy_s32 column = 0; column < factor; column++) {
+					assert(pixels[(y * factor + row) * presentation_width + x * factor + column] ==
+						   sample);
+				}
+			}
+		}
+	}
+	return scene;
 }
 
 static legacy_u32 frame_hash(legacy_s32 scale, legacy_s16 roll)

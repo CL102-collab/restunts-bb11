@@ -23,6 +23,8 @@ struct HIRES_STATE hires_state = {
 	.render_cell_shift = HIRES_MAXIMUM_SCALE_SHIFT * HIRES_CELL_DIMENSIONS,
 	.render_width = HIRES_WIDTH,
 	.render_height = HIRES_HEIGHT,
+	.presentation_width = HIRES_WIDTH,
+	.presentation_height = HIRES_HEIGHT,
 };
 
 void *hires_allocate(size_t size)
@@ -35,7 +37,7 @@ void *hires_allocate(size_t size)
 	return result;
 }
 
-static struct HIRES_SURFACE *hires_find(const legacy_u8 *base)
+struct HIRES_SURFACE *hires_surface_find(const legacy_u8 *base)
 {
 	for (struct HIRES_SURFACE *surface = hires_state.surfaces; surface != NULL;
 		 surface = surface->next) {
@@ -48,7 +50,7 @@ static struct HIRES_SURFACE *hires_find(const legacy_u8 *base)
 
 static struct HIRES_SURFACE *hires_create(const legacy_u8 *base)
 {
-	struct HIRES_SURFACE *surface = hires_find(base);
+	struct HIRES_SURFACE *surface = hires_surface_find(base);
 	if (surface == NULL) {
 		surface = hires_allocate(sizeof(*surface));
 		surface->base = base;
@@ -131,13 +133,15 @@ static void hires_configure_scale(legacy_s32 scale)
 							   : scale == HIRES_MEDIUM_SCALE ? HIRES_MEDIUM_SCALE_SHIFT
 															 : 0;
 	hires_state.render_mask = scale - 1;
-	hires_state.render_cell_pixels = scale * scale;
-	hires_state.render_cell_shift = hires_state.render_shift * HIRES_CELL_DIMENSIONS;
+	hires_state.render_cell_pixels = HIRES_CELL_PIXELS;
+	hires_state.render_cell_shift = HIRES_MAXIMUM_SCALE_SHIFT * HIRES_CELL_DIMENSIONS;
 	hires_state.render_width = widescreen_logical_width() * scale;
 	hires_state.render_height = widescreen_logical_height() * scale;
+	hires_state.presentation_width = widescreen_logical_width() * HIRES_SCALE;
+	hires_state.presentation_height = widescreen_logical_height() * HIRES_SCALE;
 }
 
-static void hires_refresh_render_dimensions(void)
+void hires_refresh_render_dimensions(void)
 {
 	if (hires_state.active == NULL &&
 		(hires_state.render_width != widescreen_logical_width() * hires_state.render_scale ||
@@ -157,14 +161,20 @@ void hires_shutdown(void)
 
 void hires_set_render_scale(legacy_s32 scale)
 {
+	hires_refresh_render_dimensions();
 	if (hires_state.active != NULL || scale == hires_state.render_scale ||
 		(scale != HIRES_SCALE && scale != HIRES_MEDIUM_SCALE && scale != HIRES_MINIMUM_SCALE)) {
 		return;
 	}
-	/* Callers have joined all raster work. Retire every representation together
-	 * so no saved sprite, overlay or depth row retains the preceding stride. */
-	hires_release_buffers();
+	/* Retire joined scene work while preserving fixed-size companion cells,
+	 * artwork and saved backgrounds across adaptive quality changes. */
+	free(hires_state.inverse_depth);
+	free(hires_state.depth_family);
+	hires_state.inverse_depth = NULL;
+	hires_state.depth_family = NULL;
+	hires_depth_reset();
 	hires_configure_scale(scale);
+	hires_state.generation++;
 }
 
 legacy_s32 hires_render_scale(void)
@@ -182,6 +192,23 @@ legacy_s32 hires_render_height(void)
 {
 	hires_refresh_render_dimensions();
 	return hires_state.render_height;
+}
+
+legacy_s32 hires_presentation_width(void)
+{
+	hires_refresh_render_dimensions();
+	return hires_state.presentation_width;
+}
+
+legacy_s32 hires_presentation_height(void)
+{
+	hires_refresh_render_dimensions();
+	return hires_state.presentation_height;
+}
+
+legacy_s32 hires_artwork_scale(void)
+{
+	return HIRES_SCALE;
 }
 
 void hires_set_enabled(legacy_s32 value)
@@ -214,6 +241,7 @@ legacy_s32 hires_begin(const struct SPRITE *target)
 		dos_memory_make_pointer(dos_memory_pointer_segment(target->sprite_bitmapptr), 0);
 	hires_state.active = hires_create(base);
 	hires_state.active_sprite = *target;
+	hires_state.active_artwork = 0;
 	hires_depth_reset();
 	/* Seed the background before the legacy 3D pass overwrites its pixels. */
 	for (legacy_u32 y = target->sprite_top; y < target->sprite_bottom && y < HIRES_LOGICAL_HEIGHT;
@@ -232,6 +260,7 @@ legacy_s32 hires_begin_argb(const struct SPRITE *target)
 	if (!hires_begin(target)) {
 		return 0;
 	}
+	hires_state.active_artwork = 1;
 	if (!hires_allocate_argb(hires_state.active)) {
 		hires_end();
 		return 0;
@@ -275,38 +304,46 @@ void hires_write_pixel(legacy_s32 x, legacy_s32 y, const legacy_u8 *samples)
 	legacy_u16 row =
 		LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
 	legacy_u16 offset = (legacy_u16)(row + x);
-	memcpy(hires_cell(hires_state.active, offset), samples, hires_state.render_cell_pixels);
+	hires_expand_cell(hires_cell(hires_state.active, offset), samples, hires_state.render_scale);
 	hires_clear_argb(hires_state.active, offset);
 }
 
-static legacy_u32 *hires_argb_sample(legacy_s32 x, legacy_s32 y)
+/* Scene samples cover fixed presentation blocks; artwork uses scale four. */
+static legacy_u32 *hires_argb_sample(legacy_s32 x, legacy_s32 y, legacy_s32 scale)
 {
+	legacy_s32 width = widescreen_logical_width() * scale;
+	legacy_s32 height = widescreen_logical_height() * scale;
 	if (hires_state.active == NULL || hires_state.active->argb == NULL || x < 0 || y < 0 ||
-		x >= hires_state.render_width || y >= hires_state.render_height ||
-		x < hires_state.active_sprite.sprite_raster_left * hires_state.render_scale ||
-		x >= hires_state.active_sprite.sprite_raster_right * hires_state.render_scale ||
-		y < hires_state.active_sprite.sprite_top * hires_state.render_scale ||
-		y >= hires_state.active_sprite.sprite_bottom * hires_state.render_scale) {
+		x >= width || y >= height || x < hires_state.active_sprite.sprite_raster_left * scale ||
+		x >= hires_state.active_sprite.sprite_raster_right * scale ||
+		y < hires_state.active_sprite.sprite_top * scale ||
+		y >= hires_state.active_sprite.sprite_bottom * scale) {
 		return NULL;
 	}
 	legacy_u16 row = LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs +
-										(y >> hires_state.render_shift) * LEGACY_WORD_BYTES);
-	legacy_u16 offset = (legacy_u16)(row + (x >> hires_state.render_shift));
+										(y / scale) * LEGACY_WORD_BYTES);
+	legacy_u16 offset = (legacy_u16)(row + x / scale);
 	legacy_u32 *cell = hires_state.active->argb + ((size_t)offset << hires_state.render_cell_shift);
 	if (hires_state.active->valid[offset] != HIRES_CELL_ARGB) {
-		memset(cell, 0, hires_state.render_cell_pixels * sizeof(*cell));
+		memset(cell, 0, HIRES_CELL_PIXELS * sizeof(*cell));
 		hires_state.active->valid[offset] = HIRES_CELL_ARGB;
 		hires_state.active->argb_cells++;
 	}
-	return cell + (y & hires_state.render_mask) * hires_state.render_scale +
-		   (x & hires_state.render_mask);
+	legacy_s32 repeat = HIRES_SCALE / scale;
+	return cell + (y % scale) * repeat * HIRES_SCALE + (x % scale) * repeat;
 }
 
 void hires_argb_pixel(legacy_s32 x, legacy_s32 y, legacy_u32 color)
 {
-	legacy_u32 *sample = hires_argb_sample(x, y);
+	legacy_s32 scale = hires_state.active_artwork ? HIRES_SCALE : hires_state.render_scale;
+	legacy_u32 *sample = hires_argb_sample(x, y, scale);
 	if (sample != NULL) {
-		*sample = color;
+		legacy_s32 repeat = HIRES_SCALE / scale;
+		for (legacy_s32 row = 0; row < repeat; row++) {
+			for (legacy_s32 column = 0; column < repeat; column++) {
+				sample[row * HIRES_SCALE + column] = color;
+			}
+		}
 	}
 }
 
@@ -316,17 +353,8 @@ legacy_s32 hires_shadow_begin(void)
 		   hires_allocate_argb(hires_state.active);
 }
 
-void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity)
+static void hires_shadow_sample(legacy_u32 *sample, legacy_u8 opacity)
 {
-	if (opacity == 0) {
-		return;
-	}
-	legacy_u32 *sample = hires_argb_sample(x, y);
-	if (sample == NULL) {
-		return;
-	}
-	/* Store black over the existing straight-alpha overlay. Its transparent
-	 * portion continues to reveal the unchanged indexed sample underneath. */
 	legacy_u32 retained = (*sample >> LEGACY_THREE_BYTE_BITS) * (LEGACY_U8_MAX - opacity);
 	legacy_u32 alpha = opacity + retained / LEGACY_U8_MAX;
 	legacy_u32 color = alpha << LEGACY_THREE_BYTE_BITS;
@@ -336,6 +364,23 @@ void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity)
 		color |= channel << shift;
 	}
 	*sample = color;
+}
+
+void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity)
+{
+	if (opacity == 0) {
+		return;
+	}
+	legacy_u32 *sample = hires_argb_sample(x, y, hires_state.render_scale);
+	if (sample == NULL) {
+		return;
+	}
+	legacy_s32 repeat = HIRES_SCALE / hires_state.render_scale;
+	for (legacy_s32 row = 0; row < repeat; row++) {
+		for (legacy_s32 column = 0; column < repeat; column++) {
+			hires_shadow_sample(sample + row * HIRES_SCALE + column, opacity);
+		}
+	}
 }
 
 void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
@@ -349,7 +394,7 @@ void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
 	if (!hires_state.enabled || hires_state.active != NULL) {
 		return;
 	}
-	struct HIRES_SURFACE *surface = hires_find(base);
+	struct HIRES_SURFACE *surface = hires_surface_find(base);
 	if (surface != NULL && surface->valid[offset]) {
 		/* A 2D write replaces the whole pixel even when its colour is unchanged. */
 		hires_clear_argb(surface, offset);
@@ -414,13 +459,7 @@ static void hires_raster_copy_indexed(struct HIRES_SURFACE *dst, legacy_u16 dest
 		if (src != NULL && src->valid[so]) {
 			const legacy_u8 *samples = src->pixels + ((size_t)so << hires_state.render_cell_shift);
 			if (cell != samples) {
-				if (hires_state.render_scale == HIRES_SCALE) {
-					memcpy(cell, samples, HIRES_CELL_PIXELS);
-				} else if (hires_state.render_scale == HIRES_MEDIUM_SCALE) {
-					memcpy(cell, samples, HIRES_MEDIUM_SCALE * HIRES_MEDIUM_SCALE);
-				} else {
-					*cell = *samples;
-				}
+				memcpy(cell, samples, HIRES_CELL_PIXELS);
 			}
 		} else {
 			memset(cell, source[so], hires_state.render_cell_pixels);
@@ -445,8 +484,8 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 	if (!hires_state.enabled || hires_state.active != NULL || count == 0) {
 		return;
 	}
-	struct HIRES_SURFACE *src = hires_find(source);
-	struct HIRES_SURFACE *dst = hires_find(destination);
+	struct HIRES_SURFACE *src = hires_surface_find(source);
+	struct HIRES_SURFACE *dst = hires_surface_find(destination);
 	if (src == NULL && dst == NULL) {
 		return;
 	}
@@ -560,256 +599,4 @@ void hires_forget_range(const void *base, legacy_u32 size)
 		}
 		link = &surface->next;
 	}
-}
-
-const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
-{
-	hires_refresh_render_dimensions();
-	if (!hires_state.enabled) {
-		return NULL;
-	}
-	*width = hires_state.render_width;
-	*height = hires_state.render_height;
-	if (hires_state.framebuffer == NULL) {
-		hires_state.framebuffer =
-			hires_allocate(hires_state.render_width * hires_state.render_height);
-	}
-	struct HIRES_SURFACE *surface = hires_find(legacy);
-	const legacy_s32 scale = hires_state.render_scale, stride = hires_state.render_width;
-	const legacy_s32 cell_shift = hires_state.render_cell_shift;
-	for (legacy_s32 y = 0; y < hires_state.render_height / scale; y++) {
-		for (legacy_s32 x = 0; x < hires_state.render_width / scale; x++) {
-			legacy_u32 offset = y * HIRES_LOGICAL_WIDTH + x;
-			const legacy_u8 *cell = surface != NULL && surface->valid[offset]
-										? surface->pixels + ((size_t)offset << cell_shift)
-										: NULL;
-			for (legacy_s32 row = 0; row < scale; row++) {
-				legacy_u8 *out = hires_state.framebuffer + (y * scale + row) * stride + x * scale;
-				if (cell != NULL) {
-					memcpy(out, cell + row * scale, scale);
-				} else {
-					memset(out, legacy[offset], scale);
-				}
-			}
-		}
-	}
-	if (widescreen_active()) {
-		for (legacy_s32 y = 0; y < hires_state.render_height; y++) {
-			for (legacy_s32 x = 0; x < hires_state.render_width; x++) {
-				legacy_u8 color;
-				if (widescreen_overlay_sample(x, y, hires_state.render_width,
-											  hires_state.render_height, &color)) {
-					hires_state.framebuffer[y * stride + x] = color;
-				}
-			}
-		}
-	}
-	return hires_state.framebuffer;
-}
-
-#define HIRES_COMPOSE_JOB_ROWS 8
-#define HIRES_COMPOSE_JOB_COUNT                                                                    \
-	((HIRES_LOGICAL_HEIGHT + HIRES_COMPOSE_JOB_ROWS - 1) / HIRES_COMPOSE_JOB_ROWS)
-
-struct HIRES_COMPOSE_JOB {
-	const legacy_u8 *legacy;
-	const legacy_u32 *palette;
-	const struct HIRES_SURFACE *surface;
-	legacy_u32 *destination;
-	legacy_s32 pitch;
-};
-
-/* Indexed cells have only the supported 4x4, 2x2, or 1x1 layouts. Fixed-width
- * stores expose the common rows without a dynamic inner sample loop. */
-static void hires_compose_palette_cell(const legacy_u8 *indices, const legacy_u8 *fallback,
-									   const legacy_u32 *palette, legacy_u32 *output,
-									   legacy_s32 pitch, legacy_s32 scale)
-{
-	/* Uniform companion cells can share one palette lookup. Their index may
-	 * differ from the legacy fallback, and every palette bit must survive. */
-	if (indices != NULL && scale == HIRES_SCALE) {
-		legacy_u32 words[HIRES_CELL_PIXELS / sizeof(legacy_u32)];
-		memcpy(words, indices, sizeof(words));
-		legacy_u32 repeated = indices[0] * (LEGACY_U32_MAX / LEGACY_U8_MAX);
-		if (((words[0] ^ repeated) | (words[1] ^ repeated) | (words[2] ^ repeated) |
-			 (words[3] ^ repeated)) == 0) {
-			fallback = indices;
-			indices = NULL;
-		}
-	}
-	if (indices == NULL) {
-		legacy_u32 color = palette[*fallback];
-		if (scale == HIRES_SCALE) {
-			for (legacy_s32 row = 0; row < HIRES_SCALE; row++) {
-				output[0] = color;
-				output[1] = color;
-				output[2] = color;
-				output[3] = color;
-				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-			}
-		} else if (scale == HIRES_MEDIUM_SCALE) {
-			for (legacy_s32 row = 0; row < HIRES_MEDIUM_SCALE; row++) {
-				output[0] = color;
-				output[1] = color;
-				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-			}
-		} else {
-			for (legacy_s32 row = 0; row < scale; row++) {
-				for (legacy_s32 column = 0; column < scale; column++) {
-					output[column] = color;
-				}
-				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-			}
-		}
-		return;
-	}
-	if (scale == HIRES_SCALE) {
-		for (legacy_s32 row = 0; row < HIRES_SCALE; row++) {
-			output[0] = palette[indices[0]];
-			output[1] = palette[indices[1]];
-			output[2] = palette[indices[2]];
-			output[3] = palette[indices[3]];
-			indices += HIRES_SCALE;
-			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-		}
-	} else if (scale == HIRES_MEDIUM_SCALE) {
-		for (legacy_s32 row = 0; row < HIRES_MEDIUM_SCALE; row++) {
-			output[0] = palette[indices[0]];
-			output[1] = palette[indices[1]];
-			indices += HIRES_MEDIUM_SCALE;
-			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-		}
-	} else {
-		for (legacy_s32 row = 0; row < scale; row++) {
-			for (legacy_s32 column = 0; column < scale; column++) {
-				output[column] = palette[indices[row * scale + column]];
-			}
-			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-		}
-	}
-}
-
-static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_s32 top,
-									legacy_s32 bottom)
-{
-	const legacy_u8 *legacy = job->legacy;
-	const legacy_u32 *palette = job->palette;
-	const struct HIRES_SURFACE *surface = job->surface;
-	legacy_u32 *destination = job->destination;
-	legacy_s32 pitch = job->pitch;
-	/* Palette entry 15 is the menu's white. Match its fade so artwork follows
-	 * the same black-to-white transition as the original indexed pixels. */
-	legacy_u32 fade = palette[HIRES_MENU_WHITE_INDEX];
-	const legacy_s32 scale = hires_state.render_scale, cell_shift = hires_state.render_cell_shift;
-	for (legacy_s32 y = top; y < bottom; y++) {
-		for (legacy_s32 x = 0; x < hires_state.render_width / scale; x++) {
-			legacy_u32 offset = y * HIRES_LOGICAL_WIDTH + x;
-			legacy_u8 valid = surface != NULL ? surface->valid[offset] : HIRES_CELL_EMPTY;
-			const legacy_u8 *indices =
-				valid != HIRES_CELL_EMPTY ? surface->pixels + ((size_t)offset << cell_shift) : NULL;
-			legacy_u32 *output =
-				(legacy_u32 *)((legacy_u8 *)destination + y * scale * pitch) + x * scale;
-			if (valid != HIRES_CELL_ARGB) {
-				/* Full-color overlays retain their general alpha/fade path. */
-				hires_compose_palette_cell(indices, legacy + offset, palette, output, pitch, scale);
-				continue;
-			}
-			const legacy_u32 *colors = surface->argb + ((size_t)offset << cell_shift);
-			for (legacy_s32 row = 0; row < scale; row++) {
-				for (legacy_s32 column = 0; column < scale; column++) {
-					legacy_u32 sample = row * scale + column;
-					legacy_u32 background = palette[indices[sample]];
-					legacy_u32 color = colors[sample];
-					legacy_u32 alpha = color >> LEGACY_THREE_BYTE_BITS;
-					if (alpha == 0) {
-						output[column] = background;
-						continue;
-					}
-					legacy_u32 blended = ((legacy_u32)LEGACY_U8_MAX << LEGACY_THREE_BYTE_BITS);
-					for (legacy_s32 shift = 0; shift < (legacy_s32)LEGACY_THREE_BYTE_BITS;
-						 shift += (legacy_s32)LEGACY_BYTE_BITS) {
-						legacy_u32 channel = ((color >> shift) & LEGACY_U8_MAX) *
-											 ((fade >> shift) & LEGACY_U8_MAX) / LEGACY_U8_MAX;
-						channel = (channel * alpha + ((background >> shift) & LEGACY_U8_MAX) *
-														 (LEGACY_U8_MAX - alpha)) /
-								  LEGACY_U8_MAX;
-						blended |= channel << shift;
-					}
-					output[column] = blended;
-				}
-				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-			}
-		}
-	}
-}
-
-static void hires_compose_argb_job(void *argument, legacy_s32 index)
-{
-	const struct HIRES_COMPOSE_JOB *job = argument;
-	legacy_s32 top = index * HIRES_COMPOSE_JOB_ROWS;
-	legacy_s32 bottom = top + HIRES_COMPOSE_JOB_ROWS;
-	if (bottom > hires_state.render_height / hires_state.render_scale) {
-		bottom = hires_state.render_height / hires_state.render_scale;
-	}
-	hires_compose_argb_rows(job, top, bottom);
-}
-
-static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
-							   const struct HIRES_SURFACE *surface, legacy_u32 *destination,
-							   legacy_s32 pitch)
-{
-	struct HIRES_COMPOSE_JOB job = {legacy, palette, surface, destination, pitch};
-	/* Composition reads frozen surfaces and owns complete output rows. Leave
-	 * unusual overlapping pitches and the smallest framebuffer serial. */
-	if (hires_state.render_scale > HIRES_MINIMUM_SCALE &&
-		pitch >= (legacy_s32)(hires_state.render_width * sizeof(*destination)) &&
-		hires_render_workers_count() != 0) {
-		hires_render_workers_run(HIRES_COMPOSE_JOB_COUNT, hires_compose_argb_job, &job);
-	} else {
-		hires_compose_argb_rows(&job, 0, hires_state.render_height / hires_state.render_scale);
-	}
-	if (widescreen_active()) {
-		for (legacy_s32 y = 0; y < hires_state.render_height; y++) {
-			legacy_u32 *row = (legacy_u32 *)((legacy_u8 *)destination + y * pitch);
-			for (legacy_s32 x = 0; x < hires_state.render_width; x++) {
-				legacy_u8 color;
-				if (widescreen_overlay_sample(x, y, hires_state.render_width,
-											  hires_state.render_height, &color)) {
-					row[x] = palette[color];
-				}
-			}
-		}
-	}
-}
-
-void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
-								 legacy_u32 *destination, legacy_s32 pitch)
-{
-	hires_refresh_render_dimensions();
-	if (!hires_state.enabled) {
-		return;
-	}
-	hires_compose_argb(legacy, palette, hires_find(legacy), destination, pitch);
-}
-
-const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette)
-{
-	hires_refresh_render_dimensions();
-	struct HIRES_SURFACE *surface = hires_state.enabled ? hires_find(legacy) : NULL;
-	if (surface == NULL || surface->argb_cells == 0) {
-		free(hires_state.argb_framebuffer);
-		hires_state.argb_framebuffer = NULL;
-		return NULL;
-	}
-	if (hires_state.argb_framebuffer == NULL) {
-		hires_state.argb_framebuffer =
-			malloc((size_t)hires_state.render_width * hires_state.render_height *
-				   sizeof(*hires_state.argb_framebuffer));
-		if (hires_state.argb_framebuffer == NULL) {
-			return NULL;
-		}
-	}
-	hires_compose_argb(legacy, palette, surface, hires_state.argb_framebuffer,
-					   hires_state.render_width * sizeof(*hires_state.argb_framebuffer));
-	return hires_state.argb_framebuffer;
 }

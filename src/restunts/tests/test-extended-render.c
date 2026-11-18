@@ -2758,6 +2758,10 @@ static legacy_u16 check_sloped_road_occlusion(void)
 				legacy_s32 width, height;
 				assert(video_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
 										 &width, &height));
+				/* Interior coverage is measured one scene sample from an edge,
+				 * regardless of how many presentation pixels repeat that sample. */
+				legacy_s32 margin = renderer_active ? HIRES_SCALE / hires_render_scale() : 1;
+				size_t row_margin = (size_t)margin * width;
 				if (renderer_active) {
 					struct CSTRK_TRACK bare = track;
 					bare.object_count = 0;
@@ -2767,22 +2771,22 @@ static legacy_u16 check_sloped_road_occlusion(void)
 					assert(ground_size == actual_size);
 					assert(extended_track_activate(&track, error, sizeof(error)));
 					size_t gaps = 0;
-					for (legacy_s32 y = 1; y + 1 < height; y++) {
-						for (legacy_s32 x = 1; x + 1 < width; x++) {
+					for (legacy_s32 y = margin; y + margin < height; y++) {
+						for (legacy_s32 x = margin; x + margin < width; x++) {
 							size_t pixel = (size_t)y * width + x;
-							/* A one-pixel interior margin excludes the open map and
+							/* A one-scene-sample margin excludes the open map and
 							 * hill silhouettes. A distinct sky marker distinguishes
 							 * gaps from enhanced highlights sharing the sky's RGB. */
 							if (actual[pixel] == RENDER_CAPTURE_SKY_COLOR &&
 								slope_occlusion_grass_pixel(ground[pixel]) &&
-								slope_occlusion_grass_pixel(ground[pixel - 1U]) &&
-								slope_occlusion_grass_pixel(ground[pixel + 1U]) &&
-								slope_occlusion_grass_pixel(ground[pixel - width]) &&
-								slope_occlusion_grass_pixel(ground[pixel + width]) &&
-								slope_occlusion_grass_pixel(ground[pixel - width - 1U]) &&
-								slope_occlusion_grass_pixel(ground[pixel - width + 1U]) &&
-								slope_occlusion_grass_pixel(ground[pixel + width - 1U]) &&
-								slope_occlusion_grass_pixel(ground[pixel + width + 1U])) {
+								slope_occlusion_grass_pixel(ground[pixel - margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel + margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel - row_margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel + row_margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel - row_margin - margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel - row_margin + margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel + row_margin - margin]) &&
+								slope_occlusion_grass_pixel(ground[pixel + row_margin + margin])) {
 								gaps++;
 							}
 						}
@@ -2804,13 +2808,13 @@ static legacy_u16 check_sloped_road_occlusion(void)
 					(legacy_u32)material_clrlist_ptr[CLASSIC_RENDER_PAVED_MATERIAL] *
 						RENDER_CAPTURE_INDEX_RGB_STEP;
 				size_t visible = 0, covered = 0;
-				for (legacy_s32 y = 1; y + 1 < height; y++) {
-					for (legacy_s32 x = 1; x + 1 < width; x++) {
+				for (legacy_s32 y = margin; y + margin < height; y++) {
+					for (legacy_s32 x = margin; x + margin < width; x++) {
 						size_t pixel = (size_t)y * width + x;
-						if (reference[pixel] == asphalt && reference[pixel - 1U] == asphalt &&
-							reference[pixel + 1U] == asphalt &&
-							reference[pixel - width] == asphalt &&
-							reference[pixel + width] == asphalt) {
+						if (reference[pixel] == asphalt && reference[pixel - margin] == asphalt &&
+							reference[pixel + margin] == asphalt &&
+							reference[pixel - row_margin] == asphalt &&
+							reference[pixel + row_margin] == asphalt) {
 							visible++;
 							covered += actual[pixel] != asphalt;
 						}
@@ -3149,7 +3153,7 @@ static legacy_u16 check_generated_terrain_bounds(void)
 				assert(sizes[mode] == sizes[GENERATED_BOUNDS_EMPTY]);
 				frames++;
 			}
-			legacy_s32 width = hires_render_width(), height = hires_render_height();
+			legacy_s32 width = hires_presentation_width(), height = hires_presentation_height();
 			size_t visible = 0, missing = 0;
 			for (legacy_s32 y = 1; y + 1 < height; y++) {
 				for (legacy_s32 x = 1; x + 1 < width; x++) {
@@ -4510,7 +4514,7 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 	assert(copy != NULL);
 	memcpy(copy, pixels, (size_t)*width * *height);
 	if (hires_enabled()) {
-		legacy_s32 scale = hires_render_scale();
+		legacy_s32 scale = hires_artwork_scale();
 		/* The preview now reaches behind the title and scores. A reserved
 		 * untouched header would leave this first scene row at the guard color. */
 		assert(copy[0] != OVERVIEW_RENDER_MARKER);

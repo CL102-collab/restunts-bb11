@@ -537,8 +537,14 @@ static void test_procedural_materials_and_ui(void)
 		assert(memcmp(screen, reference, sizeof(reference)) == 0);
 		legacy_s32 width = 0, height = 0;
 		const legacy_u8 *enhanced = hires_framebuffer(screen, &width, &height);
-		assert(enhanced != NULL && width == TEST_WIDTH && height == TEST_HEIGHT);
-		assert(memcmp(enhanced, reference, sizeof(reference)) == 0);
+		assert(enhanced != NULL && width == HIRES_WIDTH && height == HIRES_HEIGHT);
+		/* Low-quality scene samples still fill the maximum presentation size. */
+		for (legacy_s32 y = 0; y < height; y++) {
+			for (legacy_s32 x = 0; x < width; x++) {
+				assert(enhanced[y * width + x] ==
+					   reference[(y / HIRES_SCALE) * TEST_WIDTH + x / HIRES_SCALE]);
+			}
+		}
 	}
 	hires_shutdown();
 }

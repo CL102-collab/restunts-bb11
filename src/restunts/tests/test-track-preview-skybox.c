@@ -127,18 +127,22 @@ static void assert_frame(legacy_s32 enhanced)
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	legacy_s32 scale = enhanced ? hires_render_scale() : HIRES_MINIMUM_SCALE;
 	legacy_s32 source_step = HIRES_SCALE / scale;
-	assert(width == 320 * scale && height == 200 * scale);
+	legacy_s32 presentation_scale = enhanced ? hires_artwork_scale() : HIRES_MINIMUM_SCALE;
+	legacy_s32 expansion = presentation_scale / scale;
+	assert(width == 320 * presentation_scale && height == 200 * presentation_scale);
 	for (legacy_s32 y = 0; y < height; y++) {
 		for (legacy_s32 x = 0; x < width; x++) {
+			legacy_s32 scene_x = x / expansion, scene_y = y / expansion;
 			legacy_u8 expected = skybox.sky_color;
-			if (y >= HORIZON * scale) {
+			if (scene_y >= HORIZON * scale) {
 				expected = skybox.ground_color;
-			} else if (y >= (HORIZON - SKY_HEIGHT) * scale) {
-				expected = enhanced && scale != HIRES_MINIMUM_SCALE
-							   ? fixture_color(x * source_step + source_step / 2,
-											   (y - (HORIZON - SKY_HEIGHT) * scale) * source_step +
-												   source_step / 2)
-							   : LEGACY_SKY_COLOR;
+			} else if (scene_y >= (HORIZON - SKY_HEIGHT) * scale) {
+				expected =
+					enhanced && scale != HIRES_MINIMUM_SCALE
+						? fixture_color(scene_x * source_step + source_step / 2,
+										(scene_y - (HORIZON - SKY_HEIGHT) * scale) * source_step +
+											source_step / 2)
+						: LEGACY_SKY_COLOR;
 			}
 			assert(pixels[y * width + x] == expected);
 		}
@@ -235,15 +239,14 @@ static void test_populated_preview(legacy_s32 scale)
 	sprite_putimage(preview.sprite_bitmapptr);
 	legacy_s32 width, height;
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
-	assert(width == HIRES_WIDTH / HIRES_SCALE * scale &&
-		   height == HIRES_HEIGHT / HIRES_SCALE * scale);
+	assert(width == hires_presentation_width() && height == hires_presentation_height());
 	/* Distinct cells must both survive the batch. The farther panel is queued
 	 * later but cannot cover the nearer panel where their projections overlap. */
-	assert(pixels[HORIZON * scale * width + PREVIEW_TEST_NEAR_SAMPLE_X * scale] ==
+	assert(pixels[HORIZON * HIRES_SCALE * width + PREVIEW_TEST_NEAR_SAMPLE_X * HIRES_SCALE] ==
 		   PREVIEW_TEST_NEAR_COLOR);
-	assert(pixels[HORIZON * scale * width + PREVIEW_TEST_OVERLAP_SAMPLE_X * scale] ==
+	assert(pixels[HORIZON * HIRES_SCALE * width + PREVIEW_TEST_OVERLAP_SAMPLE_X * HIRES_SCALE] ==
 		   PREVIEW_TEST_NEAR_COLOR);
-	assert(pixels[HORIZON * scale * width + PREVIEW_TEST_FAR_SAMPLE_X * scale] ==
+	assert(pixels[HORIZON * HIRES_SCALE * width + PREVIEW_TEST_FAR_SAMPLE_X * HIRES_SCALE] ==
 		   PREVIEW_TEST_FAR_COLOR);
 	assert(shape3d_queued_primitive_count() == 0);
 	track_element_map = empty_track;
@@ -277,19 +280,23 @@ static void test_custom_preview(legacy_s32 enhanced, legacy_s32 scale)
 	legacy_s32 width, height;
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	legacy_s32 output_scale = enhanced ? scale : HIRES_MINIMUM_SCALE;
+	legacy_s32 presentation_scale = enhanced ? HIRES_SCALE : HIRES_MINIMUM_SCALE;
+	legacy_s32 expansion = presentation_scale / output_scale;
 	legacy_s32 source_step = EXTENDED_HORIZON_SAMPLE_SCALE / output_scale;
-	assert(width == SKYBOX_SCREEN_WIDTH * output_scale &&
-		   height == SKYBOX_SCREEN_BOTTOM * output_scale);
+	assert(width == SKYBOX_SCREEN_WIDTH * presentation_scale &&
+		   height == SKYBOX_SCREEN_BOTTOM * presentation_scale);
 	for (legacy_s32 row = 0; row < height; row++) {
 		for (legacy_s32 column = 0; column < width; column++) {
+			legacy_s32 scene_row = row / expansion, scene_column = column / expansion;
 			legacy_u8 expected = skybox.sky_color;
-			if (row >= HORIZON * output_scale) {
+			if (scene_row >= HORIZON * output_scale) {
 				expected = skybox.ground_color;
-			} else if (row >= (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) {
+			} else if (scene_row >= (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) {
 				expected = fixture_color(
-					SKYBOX_IMAGE_HALF_WRAP * EXTENDED_HORIZON_SAMPLE_SCALE + column * source_step +
-						source_step / 2,
-					(row - (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) * source_step +
+					SKYBOX_IMAGE_HALF_WRAP * EXTENDED_HORIZON_SAMPLE_SCALE +
+						scene_column * source_step + source_step / 2,
+					(scene_row - (HORIZON - PREVIEW_CUSTOM_LOGICAL_HEIGHT) * output_scale) *
+							source_step +
 						source_step / 2);
 			}
 			assert(pixels[row * width + column] == expected);

@@ -26,7 +26,8 @@ void widescreen_set_output_size(legacy_s32 width, legacy_s32 height);
 void widescreen_dimensions_for_output(legacy_s32 width, legacy_s32 height, legacy_s32 *render_width,
 									  legacy_s32 *render_height);
 legacy_s32 widescreen_active(void);
-/* Maximum dimensions; HyperVision quality selects full, half or quarter. */
+/* Fixed presentation maxima, independent of the scene's full/half/quarter
+ * quality. Authored UI keeps these dimensions while only 3D sampling changes. */
 legacy_s32 widescreen_render_width(void);
 legacy_s32 widescreen_render_height(void);
 legacy_s32 widescreen_logical_width(void);
@@ -43,6 +44,8 @@ legacy_s32 widescreen_overlay_raster(const legacy_u8 *destination, legacy_u16 de
 									 const legacy_u8 *source, legacy_u16 source_offset,
 									 legacy_u16 count, legacy_s16 operation,
 									 const legacy_u8 *palette);
+/* x/y and width/height describe the full presentation raster, not the reduced
+ * 3D raster returned by hires_render_width/height at Medium and Low quality. */
 legacy_s32 widescreen_overlay_sample(legacy_s32 x, legacy_s32 y, legacy_s32 width,
 									 legacy_s32 height, legacy_u8 *color);
 

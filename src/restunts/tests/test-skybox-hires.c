@@ -51,8 +51,21 @@ static const legacy_u8 *pixels(void)
 	legacy_s32 width;
 	legacy_s32 height;
 	const legacy_u8 *result = video_framebuffer(screen, &width, &height);
-	assert(width == hires_render_width() && height == hires_render_height());
-	return result;
+	assert(width == hires_presentation_width() && height == hires_presentation_height());
+	if (hires_render_scale() == HIRES_SCALE) {
+		return result;
+	}
+	/* The projection oracle uses scene coordinates. Sample each replicated
+	 * presentation block without changing the expected projection. */
+	static legacy_u8 scene[HIRES_WIDTH * HIRES_HEIGHT];
+	legacy_s32 factor = HIRES_SCALE / hires_render_scale();
+	legacy_s32 scene_width = hires_render_width(), scene_height = hires_render_height();
+	for (legacy_s32 y = 0; y < scene_height; y++) {
+		for (legacy_s32 x = 0; x < scene_width; x++) {
+			scene[y * scene_width + x] = result[(y * factor) * width + x * factor];
+		}
+	}
+	return scene;
 }
 
 static legacy_u8 fixture_color(legacy_s32 x, legacy_s32 y)
@@ -961,6 +974,9 @@ static void test_render_scale_roundtrip(void)
 		legacy_s32 scale = scales[step];
 		legacy_s32 source_step = HIRES_SCALE / scale;
 		hires_set_render_scale(scale);
+		/* Scale changes retain companion pixels. Isolate this partial skybox
+		 * pass against the declared background instead of the previous draw. */
+		hires_forget(screen);
 		skybox_hires_draw(&target, 0, 0, 2, 2, -1, -1);
 		const legacy_u8 *output = pixels();
 		for (legacy_s32 y = 0; y < hires_render_height(); y++) {

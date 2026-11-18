@@ -185,7 +185,7 @@ void hires_opponent_portrait_draw_at(const struct SPRITE *target, const struct S
 	legacy_s32 x = tile_x + PORTRAIT_LEFT;
 	legacy_s32 y = tile_y + PORTRAIT_TOP;
 	const legacy_u8 *indexed = (const legacy_u8 *)original + SHAPE2D_HEADER_SIZE;
-	legacy_s32 scale = hires_render_scale();
+	legacy_s32 scale = hires_artwork_scale();
 	legacy_s32 source_step = HIRES_SCALE / scale;
 	legacy_s32 scale_shift = 0;
 	for (legacy_s32 samples = scale; samples > 1; samples /= 2) {

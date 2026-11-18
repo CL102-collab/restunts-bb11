@@ -18,6 +18,19 @@ replace repeated strip lookup while rotating the horizon. Enhanced artwork stays
 cached across resolution changes. Classic mode and missing enhanced assets also
 use the original horizon strips.
 
+## Scene and presentation resolution
+
+HyperVision quality controls the 3D raster and depth buffers. The final frame
+stays at full presentation resolution: 1280x800 at 4:3, or the maximum for the
+selected widescreen aspect. Lower-quality 3D samples are expanded into fixed
+4x4 companion cells before artwork and HUD composition. Changing scene quality
+preserves the detail in saved sprite backgrounds, restored menu artwork,
+portraits and full-color overlays.
+
+Only the night-driving intro scene, showroom car, 3D track preview, racing and
+replay scenes use the reduced 3D resolution. Dashboard art, OSD text, replay
+controls, menus and other 2D intro screens retain their normal high quality.
+
 ## Visibility architecture
 
 The enhanced path separates scene preparation from software visibility and
@@ -160,8 +173,10 @@ VSync does not alter physics timing or create a different replay format.
 ## Performance measurement
 
 Measure the actual renderer using identical scene states, camera paths,
-resolutions, build settings, and hardware. The supported internal resolutions
-remain 1280x800, 640x400, and 320x200. Use locked presets during comparisons so
+resolutions, build settings, and hardware. At 4:3, the supported 3D raster sizes
+are 1280x800, 640x400, and 320x200, with fixed 1280x800 frame composition.
+Widescreen uses the corresponding aspect-specific scene sizes and maximum
+presentation dimensions. Use locked presets during comparisons so
 automatic quality changes do not make a slower run appear faster by reducing
 the workload. Compare equivalent geometry and visual features at each resolution.
 

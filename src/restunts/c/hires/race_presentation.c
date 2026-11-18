@@ -184,7 +184,8 @@ void race_hires_presentation_begin_frame(void)
 		hires_active != 0 ? frame_hires_adaptive_render_scale(&frame_hires_adaptive) : HIRES_SCALE;
 	if (hires_render_scale() != render_scale) {
 		hires_set_render_scale(render_scale);
-		/* Companion pixels were invalidated; rebuild static dashboard/replay art. */
+		/* Recompose every page after the scene raster changes. Artwork retains
+		 * its fixed presentation detail. */
 		full_redraw_frames_remaining = video_page_count;
 	}
 	sdl3_video_begin_track_frame(hires_active);
@@ -251,7 +252,8 @@ void race_hires_presentation_finish(void)
 {
 	widescreen_set_racing(0);
 	sdl3_video_update_widescreen();
-	/* Auto restores menu resolution; a manually locked scale stays selected. */
+	/* Auto restarts later preview scenes at full quality; locked scene quality
+	 * persists. Artwork and presentation resolution are independent of it. */
 	hires_set_render_scale(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO
 							   ? HIRES_SCALE
 							   : frame_hires_adaptive_render_scale(&frame_hires_adaptive));

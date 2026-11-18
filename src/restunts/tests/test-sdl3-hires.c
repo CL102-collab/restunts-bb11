@@ -1451,11 +1451,11 @@ static void assert_scaled_cell(const struct TEST_SURFACE *screen, legacy_s32 x, 
 	legacy_s32 width, height;
 	const legacy_u8 *indexed = video_framebuffer(screen->base, &width, &height);
 	const legacy_u32 *argb = hires_framebuffer_argb(screen->base, palette);
-	assert(width == TEST_WIDTH * scale && height == TEST_HEIGHT * scale);
-	for (legacy_s32 row = 0; row < scale; row++) {
-		for (legacy_s32 column = 0; column < scale; column++) {
-			legacy_s32 sample = row * scale + column;
-			size_t pixel = (size_t)(y * scale + row) * width + x * scale + column;
+	assert(width == TEST_HIRES_WIDTH && height == TEST_HIRES_HEIGHT);
+	for (legacy_s32 row = 0; row < TEST_SCALE; row++) {
+		for (legacy_s32 column = 0; column < TEST_SCALE; column++) {
+			legacy_s32 sample = (row * scale / TEST_SCALE) * scale + column * scale / TEST_SCALE;
+			size_t pixel = (size_t)(y * TEST_SCALE + row) * width + x * TEST_SCALE + column;
 			assert(indexed[pixel] == samples[sample]);
 			legacy_u32 actual = argb != NULL ? argb[pixel] : palette[indexed[pixel]];
 			assert(actual == (colors != NULL ? colors[sample] : palette[samples[sample]]));
@@ -1566,13 +1566,15 @@ static void test_raster_copy_cells(void)
 					struct SPRITE clip = source.sprite;
 					clip.sprite_bottom = 1;
 					clip.sprite_raster_right = COPY_TEST_CELLS;
-					assert(hires_begin_argb(&clip));
+					assert(hires_begin(&clip));
+					assert(hires_shadow_begin());
 					hires_argb_pixel(COPY_TEST_ARGB_SOURCE * scale, 0, overlay);
 					hires_end();
 					clip = destination.sprite;
 					clip.sprite_bottom = 1;
 					clip.sprite_raster_right = COPY_TEST_CELLS;
-					assert(hires_begin_argb(&clip));
+					assert(hires_begin(&clip));
+					assert(hires_shadow_begin());
 					hires_argb_pixel(COPY_TEST_ARGB_DESTINATION * scale, 0, overlay);
 					hires_end();
 				}
@@ -1647,8 +1649,8 @@ static void test_raster_copy_cells(void)
 	hires_shutdown();
 }
 
-/* Use logical cells and an independent full-image index oracle: smaller rasters
- * must really have fewer samples, including sprite copies and partial overlays. */
+/* A small 3D oracle expands into fixed presentation cells. Scene depth and
+ * sample counts shrink while cached copies and composition retain 4x4 storage. */
 static void test_scaled_pixels(legacy_s32 scale)
 {
 	struct TEST_SURFACE screen, window;
@@ -1666,6 +1668,7 @@ static void test_scaled_pixels(legacy_s32 scale)
 	palette[TEST_SCALE_FILL] = TEST_SCALE_SHADOW_BACKGROUND;
 	legacy_s32 width = TEST_WIDTH * scale, height = TEST_HEIGHT * scale;
 	legacy_s32 cells = scale * scale;
+	legacy_s32 expansion = TEST_SCALE / scale;
 	legacy_u8 *samples = malloc(cells);
 	legacy_u8 *expected = malloc((size_t)width * height);
 	assert(samples != NULL && expected != NULL);
@@ -1705,8 +1708,8 @@ static void test_scaled_pixels(legacy_s32 scale)
 	struct HIRES_RASTER_TARGET target;
 	assert(hires_raster_prepare(&target));
 	assert(target.width == width && target.height == height && target.scale == scale);
-	assert(target.cell_pixels == cells && (1 << target.scale_shift) == scale);
-	assert((1 << target.cell_shift) == cells && target.scale_mask == scale - 1);
+	assert(target.cell_pixels == TEST_SCALE * TEST_SCALE && (1 << target.scale_shift) == scale);
+	assert((1 << target.cell_shift) == TEST_SCALE * TEST_SCALE && target.scale_mask == scale - 1);
 	assert(target.depth_left == TEST_SCALE_LEFT * scale);
 	assert(target.depth_right == (TEST_SCALE_LEFT + TEST_SCALE_CLIP_WIDTH) * scale);
 	assert(target.depth_top == TEST_SCALE_TOP * scale);
@@ -1732,22 +1735,30 @@ static void test_scaled_pixels(legacy_s32 scale)
 	hires_end();
 	legacy_s32 actual_width, actual_height;
 	const legacy_u8 *indexed = video_framebuffer(screen.base, &actual_width, &actual_height);
-	assert(actual_width == width && actual_height == height);
-	assert(memcmp(indexed, expected, (size_t)width * height) == 0);
+	assert(actual_width == TEST_HIRES_WIDTH && actual_height == TEST_HIRES_HEIGHT);
 	const legacy_u32 *argb = hires_framebuffer_argb(screen.base, palette);
 	assert(argb != NULL);
-	for (size_t pixel = 0; pixel < (size_t)width * height; pixel++) {
-		legacy_u32 color = pixel == depth_pixel			  ? TEST_SCALE_OVERLAY
-						   : pixel == depth_pixel + scale ? TEST_SCALE_SHADOW_RESULT
-														  : palette[expected[pixel]];
-		assert(argb[pixel] == color);
+	for (legacy_s32 output_y = 0; output_y < actual_height; output_y++) {
+		for (legacy_s32 output_x = 0; output_x < actual_width; output_x++) {
+			size_t source = (size_t)(output_y / expansion) * width + output_x / expansion;
+			size_t destination = (size_t)output_y * actual_width + output_x;
+			assert(indexed[destination] == expected[source]);
+			legacy_u32 color = source == depth_pixel		   ? TEST_SCALE_OVERLAY
+							   : source == depth_pixel + scale ? TEST_SCALE_SHADOW_RESULT
+															   : palette[expected[source]];
+			assert(argb[destination] == color);
+		}
 	}
+	/* Depth remains a small 3D raster while composition expands its samples. */
+	size_t presented_depth_pixel = (size_t)y * expansion * actual_width + x * expansion;
 	assert_framebuffer_copy(&screen, palette);
 	palette[TEST_WHITE_INDEX] = TEST_SCALE_FADE;
-	assert(hires_framebuffer_argb(screen.base, palette)[depth_pixel] == TEST_SCALE_FADED_OVERLAY);
+	assert(hires_framebuffer_argb(screen.base, palette)[presented_depth_pixel] ==
+		   TEST_SCALE_FADED_OVERLAY);
 	assert_framebuffer_copy(&screen, palette);
 	palette[TEST_WHITE_INDEX] = TEST_OPAQUE_ALPHA;
-	assert(hires_framebuffer_argb(screen.base, palette)[depth_pixel] == TEST_OPAQUE_ALPHA);
+	assert(hires_framebuffer_argb(screen.base, palette)[presented_depth_pixel] ==
+		   TEST_OPAQUE_ALPHA);
 	assert_framebuffer_copy(&screen, palette);
 	palette[TEST_WHITE_INDEX] = TEST_WHITE_ARGB;
 	for (legacy_s32 pixel = 0; pixel < TEST_BYTES; pixel++) {
@@ -1805,7 +1816,8 @@ static void test_scaled_pixels(legacy_s32 scale)
 	assert(hires_framebuffer_argb(screen.base, palette) == NULL);
 	assert_scaled_cell(&screen, TEST_SCALE_LEFT, TEST_SCALE_TOP, scale, samples, NULL, palette);
 	/* The last packed row and column must be valid at every active size. */
-	assert(hires_begin_argb(&screen.sprite));
+	assert(hires_begin(&screen.sprite));
+	assert(hires_shadow_begin());
 	hires_depth_begin(0, HIRES_WIDTH, 0, HIRES_HEIGHT);
 	assert(hires_raster_prepare(&target));
 	assert(target.depth_right == width && target.depth_bottom == height);
@@ -1820,11 +1832,12 @@ static void test_scaled_pixels(legacy_s32 scale)
 	hires_argb_pixel(width - 1, height, TEST_WHITE_ARGB);
 	assert(target.depth_family[(size_t)width * height - 1] == TEST_SPAN_SAME_FAMILY);
 	hires_end();
-	assert(hires_framebuffer_argb(screen.base, palette)[(size_t)width * height - 1] ==
+	assert(hires_framebuffer_argb(screen.base,
+								  palette)[(size_t)TEST_HIRES_WIDTH * TEST_HIRES_HEIGHT - 1] ==
 		   TEST_SCALE_OVERLAY);
 	free(expected);
 	free(samples);
-	/* Leave both cached surfaces populated for the next scale's invalidation check. */
+	/* Quality changes must leave these cached companion pixels intact. */
 }
 
 enum {
@@ -1853,8 +1866,8 @@ static void raster_row_job(void *opaque, legacy_s32 job)
 			for (legacy_s32 row = 0; row < target->scale; row++) {
 				for (legacy_s32 x = target->left; x < target->right; x++) {
 					legacy_s32 cell = (x - target->left) / target->scale;
-					legacy_s32 sample =
-						cell * target->cell_pixels + row * target->scale + (x & target->scale_mask);
+					legacy_s32 sample = cell * target->scale * target->scale + row * target->scale +
+										(x & target->scale_mask);
 					legacy_u8 color = (y & 1) != 0 ? jobs->samples[sample] : TEST_SPAN_COLOR;
 					hires_raster_pixel(context, x, y * target->scale + row, color);
 				}
@@ -1878,7 +1891,7 @@ static void test_raster_rows(legacy_s32 scale, legacy_s32 columns, legacy_s32 wr
 		legacy_u16 start = (legacy_u16)(LEGACY_U16_MAX - TEST_ROW_LEFT - columns / 2);
 		LEGACY_WRITE_U16_LE(screen.lines + TEST_ROW_TOP * LEGACY_WORD_BYTES, start);
 	}
-	legacy_s32 width = TEST_WIDTH * scale, height = TEST_HEIGHT * scale;
+	legacy_s32 width = TEST_HIRES_WIDTH, height = TEST_HIRES_HEIGHT;
 	size_t bytes = (size_t)width * height;
 	legacy_u8 *reference = malloc(bytes);
 	assert(reference != NULL);
@@ -1886,7 +1899,8 @@ static void test_raster_rows(legacy_s32 scale, legacy_s32 columns, legacy_s32 wr
 	for (legacy_s32 backend = TEST_SPAN_REFERENCE; backend < TEST_SPAN_BACKEND_COUNT; backend++) {
 		hires_forget(screen.base);
 		hires_forget(readback.base);
-		assert(hires_begin_argb(&screen.sprite));
+		assert(hires_begin(&screen.sprite));
+		assert(hires_shadow_begin());
 		for (legacy_s32 y = TEST_ROW_TOP - 1; y <= TEST_ROW_TOP + TEST_ROW_COUNT; y++) {
 			for (legacy_s32 x = TEST_ROW_LEFT - 1; x <= TEST_ROW_LEFT + columns; x++) {
 				for (legacy_s32 sample_y = 0; sample_y < scale; sample_y++) {
@@ -1916,7 +1930,7 @@ static void test_raster_rows(legacy_s32 scale, legacy_s32 columns, legacy_s32 wr
 			{{&target, target.top - scale, middle, 0}, {&target, middle, target.bottom + scale, 0}},
 			{0},
 			backend == TEST_SPAN_REFERENCE};
-		for (legacy_s32 sample = 0; sample < columns * target.cell_pixels; sample++) {
+		for (legacy_s32 sample = 0; sample < columns * scale * scale; sample++) {
 			jobs.samples[sample] = (legacy_u8)(TEST_SPAN_COLOR + sample * TEST_ROW_SAMPLE_STEP);
 		}
 		if (jobs.reference) {
@@ -1997,7 +2011,8 @@ static void test_scaled_workers(legacy_s32 scale)
 	setup_surface(&screen, TEST_SCALE_WORKER_SEGMENT, 0);
 	legacy_s32 width = TEST_WIDTH * scale, height = TEST_HEIGHT * scale;
 	size_t bytes = (size_t)width * height;
-	legacy_u8 *reference = malloc(bytes);
+	size_t presentation_bytes = (size_t)TEST_HIRES_WIDTH * TEST_HIRES_HEIGHT;
+	legacy_u8 *reference = malloc(presentation_bytes);
 	legacy_f32 *depth = malloc(bytes * sizeof(*depth));
 	legacy_u32 *family = malloc(bytes * sizeof(*family));
 	assert(reference != NULL && depth != NULL && family != NULL);
@@ -2010,7 +2025,8 @@ static void test_scaled_workers(legacy_s32 scale)
 		clip.sprite_raster_right = TEST_SCALE_LEFT + WORKER_COLUMNS;
 		clip.sprite_top = TEST_SCALE_TOP;
 		clip.sprite_bottom = TEST_SCALE_TOP + WORKER_ROWS;
-		assert(hires_begin_argb(&clip));
+		assert(hires_begin(&clip));
+		assert(hires_shadow_begin());
 		hires_depth_begin(0, width, 0, height);
 		struct HIRES_RASTER_TARGET target;
 		assert(hires_raster_prepare(&target));
@@ -2039,13 +2055,13 @@ static void test_scaled_workers(legacy_s32 scale)
 		hires_end();
 		legacy_s32 actual_width, actual_height;
 		const legacy_u8 *pixels = video_framebuffer(screen.base, &actual_width, &actual_height);
-		assert(actual_width == width && actual_height == height);
+		assert(actual_width == TEST_HIRES_WIDTH && actual_height == TEST_HIRES_HEIGHT);
 		assert(hires_framebuffer_argb(screen.base, palette) == NULL);
 		if (backend == TEST_SPAN_REFERENCE) {
-			memcpy(reference, pixels, bytes);
+			memcpy(reference, pixels, presentation_bytes);
 			cleared = actual_cleared;
 		} else {
-			assert(memcmp(reference, pixels, bytes) == 0 && cleared == actual_cleared);
+			assert(memcmp(reference, pixels, presentation_bytes) == 0 && cleared == actual_cleared);
 		}
 		for (legacy_s32 y = target.top; y < target.bottom; y++) {
 			size_t start = (size_t)y * width + target.left;
@@ -2087,14 +2103,21 @@ static void test_render_scales(void)
 		assert(hires_render_width() == TEST_WIDTH * scales[pass]);
 		assert(hires_render_height() == TEST_HEIGHT * scales[pass]);
 		assert((hires_generation() != generation) == (previous != scales[pass]));
+		/* Each oracle starts from a fresh fallback. Separate coverage below
+		 * verifies that changing quality preserves authored/cached detail. */
+		hires_forget(screen.base);
+		setup_surface(&screen, TEST_SCALE_SCREEN_SEGMENT, 0);
 		assert(hires_framebuffer_argb(screen.base, palette) == NULL);
+		assert(hires_artwork_scale() == TEST_SCALE);
+		assert(hires_presentation_width() == TEST_HIRES_WIDTH);
+		assert(hires_presentation_height() == TEST_HIRES_HEIGHT);
 		legacy_s32 width, height;
 		const legacy_u8 *pixels = video_framebuffer(screen.base, &width, &height);
-		assert(width == TEST_WIDTH * scales[pass] && height == TEST_HEIGHT * scales[pass]);
+		assert(width == TEST_HIRES_WIDTH && height == TEST_HIRES_HEIGHT);
 		for (legacy_s32 y = 0; y < height; y++) {
 			for (legacy_s32 x = 0; x < width; x++) {
 				assert(pixels[(size_t)y * width + x] ==
-					   screen.base[(y / scales[pass]) * TEST_WIDTH + x / scales[pass]]);
+					   screen.base[(y / TEST_SCALE) * TEST_WIDTH + x / TEST_SCALE]);
 			}
 		}
 		generation = hires_generation();
@@ -2128,6 +2151,72 @@ static void test_render_scales(void)
 	hires_set_render_scale(TEST_SCALE_MEDIUM);
 	hires_shutdown();
 	assert(!hires_enabled() && hires_render_scale() == TEST_SCALE);
+}
+
+static void test_artwork_detail_survives_scene_quality(void)
+{
+	enum { ART_X = 10, ART_Y = 20, COPY_X = 30, COPY_Y = 40, SAVED_X = 50, SAVED_Y = 60 };
+	static const legacy_s32 qualities[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE,
+										   HIRES_SCALE, HIRES_MINIMUM_SCALE};
+	struct TEST_SURFACE screen, artwork, saved;
+	setup_surface(&screen, TEST_SCALE_SCREEN_SEGMENT, 0);
+	setup_surface(&artwork, TEST_SCALE_WINDOW_SEGMENT, SHAPE2D_HEADER_SIZE);
+	setup_surface(&saved, COPY_TEST_READBACK_SEGMENT, SHAPE2D_HEADER_SIZE);
+	hires_shutdown();
+	hires_set_enabled(1);
+	legacy_u32 palette[TEST_PALETTE_SIZE];
+	for (legacy_u32 index = 0; index < TEST_PALETTE_SIZE; index++) {
+		palette[index] = TEST_OPAQUE_ALPHA | index * TEST_GRAYSCALE_CHANNELS;
+	}
+	palette[TEST_WHITE_INDEX] = TEST_WHITE_ARGB;
+	/* A 4x4 checkerboard with unique sample colors exposes both nearest-neighbor
+	 * degradation and accidental loss of the cached straight-alpha overlay. */
+	assert(hires_begin_argb(&artwork.sprite));
+	for (legacy_s32 row = 0; row < TEST_SCALE; row++) {
+		for (legacy_s32 column = 0; column < TEST_SCALE; column++) {
+			legacy_s32 sample = row * TEST_SCALE + column;
+			hires_pixel(ART_X * TEST_SCALE + column, ART_Y * TEST_SCALE + row,
+						COPY_TEST_SAMPLE_BASE + sample);
+			hires_argb_pixel(ART_X * TEST_SCALE + column, ART_Y * TEST_SCALE + row,
+							 TEST_OPAQUE_ALPHA |
+								 ((row + column) % 2 != 0 ? 0x00d04020U : 0x002080d0U) |
+								 (legacy_u32)sample << LEGACY_BYTE_BITS);
+		}
+	}
+	hires_end();
+	raster_pixel(&screen, COPY_X, COPY_Y, &artwork, ART_X, ART_Y, SHAPE2D_RASTER_COPY, NULL);
+	raster_pixel(&saved, SAVED_X, SAVED_Y, &screen, COPY_X, COPY_Y, SHAPE2D_RASTER_COPY, NULL);
+	size_t presentation_pixels = (size_t)TEST_HIRES_WIDTH * TEST_HIRES_HEIGHT;
+	legacy_u8 *expected_indices = malloc(presentation_pixels);
+	legacy_u32 *expected_colors = malloc(presentation_pixels * sizeof(*expected_colors));
+	assert(expected_indices != NULL && expected_colors != NULL);
+	legacy_s32 width, height;
+	memcpy(expected_indices, video_framebuffer(screen.base, &width, &height), presentation_pixels);
+	assert(width == TEST_HIRES_WIDTH && height == TEST_HIRES_HEIGHT);
+	const legacy_u32 *colors = hires_framebuffer_argb(screen.base, palette);
+	assert(colors != NULL);
+	memcpy(expected_colors, colors, presentation_pixels * sizeof(*expected_colors));
+	for (size_t pass = 0; pass < sizeof(qualities) / sizeof(qualities[0]); pass++) {
+		hires_set_render_scale(qualities[pass]);
+		assert(hires_render_width() == TEST_WIDTH * qualities[pass]);
+		assert(hires_render_height() == TEST_HEIGHT * qualities[pass]);
+		assert(hires_artwork_scale() == TEST_SCALE);
+		assert(hires_presentation_width() == TEST_HIRES_WIDTH);
+		assert(hires_presentation_height() == TEST_HIRES_HEIGHT);
+		/* Restore from saved header-relative sprite data after the quality
+		 * switch, exercising real copies rather than only cached readback. */
+		raster_pixel(&screen, COPY_X, COPY_Y, &saved, SAVED_X, SAVED_Y, SHAPE2D_RASTER_COPY, NULL);
+		const legacy_u8 *indices = video_framebuffer(screen.base, &width, &height);
+		colors = hires_framebuffer_argb(screen.base, palette);
+		assert(width == TEST_HIRES_WIDTH && height == TEST_HIRES_HEIGHT && colors != NULL);
+		assert(memcmp(indices, expected_indices, presentation_pixels) == 0);
+		assert(memcmp(colors, expected_colors, presentation_pixels * sizeof(*expected_colors)) ==
+			   0);
+		assert_framebuffer_copy(&screen, palette);
+	}
+	free(expected_colors);
+	free(expected_indices);
+	hires_shutdown();
 }
 
 legacy_int main(void)
@@ -2166,6 +2255,7 @@ legacy_int main(void)
 	test_depth_lifetime(&screen);
 	test_raster_copy_cells();
 	test_render_scales();
+	test_artwork_detail_survives_scene_quality();
 	hires_shutdown();
 	puts("SDL3 high-resolution composition tests passed.");
 	return 0;

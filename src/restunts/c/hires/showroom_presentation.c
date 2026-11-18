@@ -27,7 +27,7 @@ void hires_showroom_present_begin(struct HIRES_SHOWROOM *showroom, legacy_u8 bli
 {
 	showroom->complete_frame = blit_mode == MENU_BLIT_MODE_REFRESH;
 	if (showroom->complete_frame != 0) {
-		/* Geometry is already queued at the current scale. Keep that scale and
+		/* Geometry is already queued at the selected scene scale. Keep it and
 		 * leave the initial dissolve free to present each of its phases. */
 		sdl3_video_begin_track_frame(0);
 		sdl3_video_add_render_work(showroom->prepared_render_ns);

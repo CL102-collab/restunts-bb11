@@ -29,6 +29,7 @@
 #define TEST_MODAL_HUD_WIDTH 50
 #define TEST_MODAL_LEFT_INDEX 7
 #define TEST_MODAL_RIGHT_INDEX 8
+#define TEST_CHECKERBOARD_PERIOD 2
 
 struct SPRITE drawing_sprite;
 
@@ -128,12 +129,16 @@ static void test_activation_and_resolutions(void)
 			hires_set_render_scale(scales[scale]);
 			assert(hires_render_width() == cases[index].width * scales[scale] / HIRES_SCALE);
 			assert(hires_render_height() == cases[index].height * scales[scale] / HIRES_SCALE);
+			assert(hires_presentation_width() == cases[index].width);
+			assert(hires_presentation_height() == cases[index].height);
 		}
 	}
 	widescreen_set_racing(0);
 	assert(!widescreen_active());
 	assert(hires_render_width() == VIDEO_FRAMEBUFFER_WIDTH);
 	assert(hires_render_height() == VIDEO_FRAMEBUFFER_HEIGHT);
+	assert(hires_presentation_width() == HIRES_WIDTH);
+	assert(hires_presentation_height() == HIRES_HEIGHT);
 	widescreen_set_racing(1);
 	assert(widescreen_active());
 	widescreen_set_output_size(1280, 960);
@@ -165,8 +170,8 @@ static void test_composition_guards(void)
 		widescreen_set_output_size(cases[index].width, cases[index].height);
 		for (legacy_u32 scale = 0; scale < sizeof(scales) / sizeof(scales[0]); scale++) {
 			hires_set_render_scale(scales[scale]);
-			legacy_s32 width = cases[index].width * scales[scale] / HIRES_SCALE;
-			legacy_s32 height = cases[index].height * scales[scale] / HIRES_SCALE;
+			legacy_s32 width = cases[index].width, height = cases[index].height;
+			assert(hires_presentation_width() == width && hires_presentation_height() == height);
 			legacy_s32 pitch_words = width + TEST_PADDING_WORDS;
 			legacy_s32 words = TEST_GUARD_WORDS + height * pitch_words + TEST_GUARD_WORDS;
 			legacy_u32 *guarded = malloc((size_t)words * sizeof(*guarded));
@@ -254,7 +259,7 @@ static void test_overlay_geometry_and_retirement(void)
 		widescreen_set_output_size(cases[index].width, cases[index].height);
 		for (legacy_u32 scale = 0; scale < sizeof(scales) / sizeof(scales[0]); scale++) {
 			hires_set_render_scale(scales[scale]);
-			legacy_s32 width = hires_render_width(), height = hires_render_height();
+			legacy_s32 width = hires_presentation_width(), height = hires_presentation_height();
 			hires_forget(legacy);
 			memset(legacy, TEST_BACKGROUND_INDEX,
 				   VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT);
@@ -315,6 +320,91 @@ static void test_overlay_geometry_and_retirement(void)
 	hires_shutdown();
 }
 
+static void test_draw_overlay_checkerboard(legacy_u8 *legacy, enum WIDESCREEN_OVERLAY overlay,
+										   legacy_s32 left, legacy_s32 top, legacy_s32 right,
+										   legacy_s32 bottom, legacy_u8 color)
+{
+	widescreen_overlay_begin(overlay);
+	for (legacy_s32 y = top; y < bottom; y++) {
+		for (legacy_s32 x = left; x < right; x++) {
+			legacy_u16 offset = y * VIDEO_FRAMEBUFFER_WIDTH + x;
+			legacy_u8 pixel = (x + y) % TEST_CHECKERBOARD_PERIOD ? color : TEST_BACKGROUND_INDEX;
+			hires_write(legacy, offset, pixel);
+			legacy[offset] = pixel;
+		}
+	}
+	widescreen_overlay_end();
+}
+
+static void test_artwork_pixels_do_not_follow_scene_quality(void)
+{
+	static const struct {
+		legacy_s32 width, height;
+	} cases[] = {{1280, 720}, {1280, 800}, {1080, 720}};
+	static const legacy_s32 scales[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE};
+	legacy_u8 *legacy = dos_memory_make_pointer(TEST_VGA_SEGMENT, 0);
+	legacy_u8 rows[VIDEO_FRAMEBUFFER_HEIGHT * LEGACY_WORD_BYTES];
+	legacy_u32 palette[TEST_PALETTE_SIZE] = {0};
+	palette[TEST_BACKGROUND_INDEX] = TEST_BACKGROUND_COLOR;
+	palette[TEST_DASHBOARD_INDEX] = TEST_DASHBOARD_COLOR;
+	palette[TEST_LEFT_HUD_INDEX] = TEST_LEFT_HUD_COLOR;
+	palette[TEST_RIGHT_HUD_INDEX] = TEST_RIGHT_HUD_COLOR;
+	widescreen_set_enabled(1);
+	widescreen_set_racing(1);
+	hires_set_enabled(1);
+	for (legacy_u32 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		widescreen_set_output_size(cases[index].width, cases[index].height);
+		legacy_s32 width = cases[index].width, height = cases[index].height;
+		legacy_u32 *reference = malloc((size_t)width * height * sizeof(*reference));
+		legacy_u32 *output = malloc((size_t)width * height * sizeof(*output));
+		assert(reference != NULL && output != NULL);
+		for (legacy_u32 scale = 0; scale < sizeof(scales) / sizeof(scales[0]); scale++) {
+			hires_set_render_scale(scales[scale]);
+			assert(hires_render_width() == width * scales[scale] / HIRES_SCALE);
+			assert(hires_render_height() == height * scales[scale] / HIRES_SCALE);
+			assert(hires_presentation_width() == width && hires_presentation_height() == height);
+			if (scale != 0) {
+				/* Cached dashboard and text planes survive a quality transition
+				 * before the next race frame redraws any authored artwork. */
+				hires_copy_framebuffer_argb(legacy, palette, output, width * sizeof(*output));
+				assert(memcmp(reference, output, (size_t)width * height * sizeof(*reference)) == 0);
+			}
+			hires_forget(legacy);
+			memset(legacy, TEST_BACKGROUND_INDEX,
+				   VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT);
+			test_setup_overlay_target(legacy, rows);
+			assert(hires_begin(&drawing_sprite));
+			hires_end();
+			widescreen_begin_frame();
+			test_draw_overlay_checkerboard(legacy, WIDESCREEN_OVERLAY_CENTER, 0, TEST_DASHBOARD_TOP,
+										   VIDEO_FRAMEBUFFER_WIDTH, VIDEO_FRAMEBUFFER_HEIGHT,
+										   TEST_DASHBOARD_INDEX);
+			test_draw_overlay_checkerboard(legacy, WIDESCREEN_OVERLAY_LEFT, TEST_HUD_MARGIN,
+										   TEST_HUD_MARGIN, TEST_HUD_MARGIN + TEST_HUD_SIZE,
+										   TEST_HUD_MARGIN + TEST_HUD_SIZE, TEST_LEFT_HUD_INDEX);
+			test_draw_overlay_checkerboard(
+				legacy, WIDESCREEN_OVERLAY_RIGHT,
+				VIDEO_FRAMEBUFFER_WIDTH - TEST_HUD_MARGIN - TEST_HUD_SIZE,
+				VIDEO_FRAMEBUFFER_HEIGHT - TEST_HUD_MARGIN - TEST_HUD_SIZE,
+				VIDEO_FRAMEBUFFER_WIDTH - TEST_HUD_MARGIN,
+				VIDEO_FRAMEBUFFER_HEIGHT - TEST_HUD_MARGIN, TEST_RIGHT_HUD_INDEX);
+			hires_copy_framebuffer_argb(legacy, palette, output, width * sizeof(*output));
+			if (scale == 0) {
+				memcpy(reference, output, (size_t)width * height * sizeof(*reference));
+			} else {
+				/* Fine authored patterns, their positions and their margins must
+				 * remain identical while only the 3D raster changes resolution. */
+				assert(memcmp(reference, output, (size_t)width * height * sizeof(*reference)) == 0);
+			}
+		}
+		free(output);
+		free(reference);
+	}
+	widescreen_set_racing(0);
+	widescreen_set_enabled(0);
+	hires_shutdown();
+}
+
 static void test_unseeded_overlay_preserves_world(void)
 {
 	legacy_u8 *legacy = dos_memory_make_pointer(TEST_VGA_SEGMENT, 0);
@@ -334,7 +424,7 @@ static void test_unseeded_overlay_preserves_world(void)
 	test_draw_overlay_rectangle(legacy, WIDESCREEN_OVERLAY_LEFT, TEST_UNSEEDED_X, TEST_UNSEEDED_Y,
 								TEST_UNSEEDED_X + 1, TEST_UNSEEDED_Y + 1, TEST_LEFT_HUD_INDEX);
 	widescreen_begin_frame();
-	legacy_s32 width = hires_render_width(), height = hires_render_height();
+	legacy_s32 width = hires_presentation_width(), height = hires_presentation_height();
 	legacy_u32 *output = malloc((size_t)width * height * sizeof(*output));
 	assert(output != NULL);
 	hires_copy_framebuffer_argb(legacy, palette, output, width * sizeof(*output));
@@ -370,6 +460,7 @@ static void test_nested_modal_background_and_restoration(void)
 	hires_set_enabled(1);
 	hires_set_render_scale(HIRES_MINIMUM_SCALE);
 	assert(hires_render_width() == 270 && hires_render_height() == 180);
+	assert(hires_presentation_width() == 1080 && hires_presentation_height() == 720);
 	hires_forget(legacy);
 	memset(legacy, TEST_BACKGROUND_INDEX, VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT);
 	test_setup_overlay_target(legacy, rows);
@@ -398,6 +489,8 @@ static void test_nested_modal_background_and_restoration(void)
 	assert(widescreen_modal_active() && !widescreen_active());
 	assert(hires_render_width() == VIDEO_FRAMEBUFFER_WIDTH);
 	assert(hires_render_height() == VIDEO_FRAMEBUFFER_HEIGHT);
+	assert(hires_presentation_width() == HIRES_WIDTH);
+	assert(hires_presentation_height() == HIRES_HEIGHT);
 	assert(widescreen_generation() != generation);
 	/* Capture must use the central visible companion, not the VGA fallback
 	 * or the wide scene's outer strips. */
@@ -423,6 +516,7 @@ static void test_nested_modal_background_and_restoration(void)
 	assert(!widescreen_modal_active() && widescreen_active());
 	assert(widescreen_generation() != generation);
 	assert(hires_render_width() == 270 && hires_render_height() == 180);
+	assert(hires_presentation_width() == 1080 && hires_presentation_height() == 720);
 	for (legacy_s32 pixel = 0; pixel < VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT;
 		 pixel++) {
 		assert(legacy[pixel] == test_modal_hud_pixel(pixel % VIDEO_FRAMEBUFFER_WIDTH,
@@ -448,6 +542,7 @@ legacy_int main(void)
 	test_activation_and_resolutions();
 	test_composition_guards();
 	test_overlay_geometry_and_retirement();
+	test_artwork_pixels_do_not_follow_scene_quality();
 	test_unseeded_overlay_preserves_world();
 	test_nested_modal_background_and_restoration();
 	puts("Widescreen tests passed");

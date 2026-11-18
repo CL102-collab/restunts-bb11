@@ -293,7 +293,7 @@ set(game_sources
     shape3d/shape3d_render.c shape3d/shape3d_resources.c shape3d/shape3d_car.c
     shape3d/shape3d_prerender.c shape3d/shape3d_polygon.c shape3d/shape3d_lines.c
     shape3d/shape3d_line_setup.c shape2d/shape2d.c shape2d/shape2d_image.c shape2d/shape2d_blit.c
-    shape2d/shape2d_window.c video/video_pages.c hires/hires.c hires/hires_raster.c hires/widescreen.c hires/hypervision.c
+    shape2d/shape2d_window.c video/video_pages.c hires/hires.c hires/hires_composition.c hires/hires_raster.c hires/widescreen.c hires/hypervision.c
     hires/render_workers.c hires/frame_interpolation.c hires/shape3d_hires.c
     hires/shape3d_geometry.c
     hires/shape3d_car_ground.c hires/shape3d_hires_draw.c hires/shape3d_mesh.c
@@ -1729,7 +1729,7 @@ if(RESTUNTS_BUILD_TESTS)
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/hires-mesh-test")
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
         ${core}/extended/extended_horizon.c ${core}/extended/extended_cstrk_horizon.c
-        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
+        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
@@ -1742,7 +1742,7 @@ if(RESTUNTS_BUILD_TESTS)
     add_executable(test-extended-horizon src/restunts/tests/test-extended-horizon.c
         ${core}/extended/extended_horizon.c ${core}/extended/extended_horizon_skybox.c
         ${core}/extended/extended_cstrk_horizon.c ${core}/race/race_resources.c
-        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
+        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c ${platform}/memory.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-extended-horizon PRIVATE restunts_options)
@@ -1762,7 +1762,7 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(track-preview-skybox PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/track-preview-test")
     add_executable(test-opponent-portrait src/restunts/tests/test-opponent-portrait.c
-        ${core}/opponent/opponent_portrait.c ${core}/hires/hires.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
+        ${core}/opponent/opponent_portrait.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/opponent_portrait_artwork.c
@@ -1783,7 +1783,7 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(opponent-animation PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-animation-test")
     add_executable(test-menu-background src/restunts/tests/test-menu-background.c
-        ${core}/menu/menu_background.c ${core}/hires/hires.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
+        ${core}/menu/menu_background.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/widescreen.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/menu_artwork.c
@@ -1794,7 +1794,7 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME menu-background COMMAND test-menu-background)
     set_tests_properties(menu-background PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
-    add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires/hires.c ${core}/hires/widescreen.c
+    add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/widescreen.c
         ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c ${platform}/memory.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
@@ -1802,7 +1802,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-sdl3-hires PRIVATE -UNDEBUG)
     add_test(NAME sdl3-hires COMMAND test-sdl3-hires)
     add_executable(test-widescreen src/restunts/tests/test-widescreen.c
-        ${core}/hires/widescreen.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
+        ${core}/hires/widescreen.c ${core}/hires/hires.c ${core}/hires/hires_composition.c ${core}/hires/hires_raster.c
         ${platform}/memory.c)
     target_link_libraries(test-widescreen PRIVATE restunts_options)
     target_compile_options(test-widescreen PRIVATE -UNDEBUG)

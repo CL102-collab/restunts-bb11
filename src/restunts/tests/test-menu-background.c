@@ -113,12 +113,15 @@ static void assert_indexed_unchanged(void)
 	}
 }
 
-static void assert_drawing(legacy_s32 height, legacy_s32 scale)
+static void assert_drawing(legacy_s32 height)
 {
 	const legacy_u32 *pixels = hires_framebuffer_argb(screen, palette);
 	assert(pixels != NULL);
-	legacy_s32 width = hires_render_width();
-	for (legacy_s32 y = 0; y < hires_render_height(); y++) {
+	legacy_s32 scale = hires_artwork_scale();
+	legacy_s32 width = hires_presentation_width();
+	assert(scale == HIRES_SCALE && width == HIRES_WIDTH);
+	assert(hires_presentation_height() == HIRES_HEIGHT);
+	for (legacy_s32 y = 0; y < hires_presentation_height(); y++) {
 		for (legacy_s32 x = 0; x < width; x++) {
 			legacy_u32 expected = palette[TEST_BACKGROUND_COLOR];
 			if (x >= target.sprite_raster_left * scale && x < target.sprite_raster_right * scale &&
@@ -144,14 +147,15 @@ static void test_scales_and_toggles(enum MENU_BACKGROUND kind, legacy_s32 height
 		hires_set_enabled(1);
 		hires_set_render_scale(scales[pass]);
 		menu_background_draw(&target, &original, kind);
-		assert_drawing(height, scales[pass]);
+		assert(hires_render_scale() == scales[pass]);
+		assert_drawing(height);
 	}
 	hires_set_enabled(0);
 	menu_background_draw(&target, &original, kind);
 	assert(hires_framebuffer_argb(screen, palette) == NULL);
 	hires_set_enabled(1);
 	menu_background_draw(&target, &original, kind);
-	assert_drawing(height, HIRES_SCALE);
+	assert_drawing(height);
 
 	/* Optional artwork follows the menu palette's fade through white entry 15. */
 	palette[TEST_MENU_WHITE_INDEX] = TEST_ALPHA_MASK | TEST_FADE_CHANNEL * TEST_PALETTE_STEP;
@@ -164,7 +168,7 @@ static void test_scales_and_toggles(enum MENU_BACKGROUND kind, legacy_s32 height
 	}
 	assert(hires_framebuffer_argb(screen, palette)[0] == faded_color);
 	palette[TEST_MENU_WHITE_INDEX] = LEGACY_U32_MAX;
-	assert_drawing(height, HIRES_SCALE);
+	assert_drawing(height);
 
 	/* A later indexed UI/car write retires the optional image at that cell.
 	 * Restoring just its dirty rectangle recovers the original enhanced pixels. */
@@ -183,7 +187,7 @@ static void test_scales_and_toggles(enum MENU_BACKGROUND kind, legacy_s32 height
 	target.sprite_raster_left = target.sprite_top = 0;
 	target.sprite_raster_right = TEST_WIDTH;
 	target.sprite_bottom = TEST_HEIGHT;
-	assert_drawing(height, HIRES_SCALE);
+	assert_drawing(height);
 
 	for (legacy_u32 pass = 0; pass < SDL_arraysize(scales); pass++) {
 		reset(height);
@@ -194,14 +198,14 @@ static void test_scales_and_toggles(enum MENU_BACKGROUND kind, legacy_s32 height
 		target.sprite_top = TEST_CLIP_TOP;
 		target.sprite_bottom = TEST_CLIP_BOTTOM;
 		menu_background_draw(&target, &original, kind);
-		assert_drawing(height, scales[pass]);
+		assert_drawing(height);
 	}
 }
 
 static void seed_portrait(const struct SHAPE2D *overlay)
 {
 	assert(hires_begin_argb(&target));
-	legacy_s32 scale = hires_render_scale();
+	legacy_s32 scale = hires_artwork_scale();
 	for (legacy_s32 y = overlay->position_y * scale;
 		 y < (overlay->position_y + overlay->height) * scale; y++) {
 		for (legacy_s32 x = overlay->position_x * scale;
@@ -217,9 +221,9 @@ static void assert_overlay(const struct SHAPE2D *overlay, legacy_u8 applied)
 	const legacy_u32 *pixels = hires_framebuffer_argb(screen, palette);
 	assert(pixels != NULL);
 	const legacy_u8 *mask = (const legacy_u8 *)overlay + SHAPE2D_HEADER_SIZE;
-	legacy_s32 scale = hires_render_scale();
-	legacy_s32 width = hires_render_width();
-	for (legacy_s32 y = 0; y < hires_render_height(); y++) {
+	legacy_s32 scale = hires_artwork_scale();
+	legacy_s32 width = hires_presentation_width();
+	for (legacy_s32 y = 0; y < hires_presentation_height(); y++) {
 		for (legacy_s32 x = 0; x < width; x++) {
 			legacy_s32 column = x / scale, row = y / scale;
 			legacy_u32 expected = palette[TEST_BACKGROUND_COLOR];

@@ -501,8 +501,7 @@ void sdl3_video_game_to_window(legacy_f32 x, legacy_f32 y, legacy_f32 *window_x,
 		return;
 	}
 	legacy_f32 content_width = legacy_content_width();
-	x = x * content_width / SDL3_SCREEN_WIDTH +
-		((legacy_f32)presentation_width - content_width) / 2;
+	x = x * content_width / SDL3_SCREEN_WIDTH + legacy_content_left();
 	y *= (legacy_f32)presentation_height / SDL3_SCREEN_HEIGHT;
 	if (renderer != NULL) {
 		SDL_RenderCoordinatesToWindow(renderer, x, y, window_x, window_y);
@@ -588,8 +587,8 @@ static void prepare_presentation_page(const legacy_u8 *legacy_pixels)
 {
 	legacy_u32 back_page = (front_page + 1U) % PRESENTATION_PAGE_COUNT;
 	struct PRESENTATION_PAGE *page = &presentation_pages[back_page];
-	legacy_s32 width = hires_enabled() ? hires_render_width() : SDL3_SCREEN_WIDTH;
-	legacy_s32 height = hires_enabled() ? hires_render_height() : SDL3_SCREEN_HEIGHT;
+	legacy_s32 width = hires_enabled() ? hires_presentation_width() : SDL3_SCREEN_WIDTH;
+	legacy_s32 height = hires_enabled() ? hires_presentation_height() : SDL3_SCREEN_HEIGHT;
 	if (page->pixels == NULL || page->width != width || page->height != height) {
 		legacy_u32 *pixels = SDL_realloc(page->pixels, (size_t)width * height * sizeof(*pixels));
 		if (pixels == NULL) {
@@ -736,8 +735,8 @@ void sdl3_video_present(void)
 		const legacy_u8 *pixels = NULL;
 		if (argb != NULL) {
 			/* ARGB composition already expands every indexed sample. */
-			width = hires_render_width();
-			height = hires_render_height();
+			width = hires_presentation_width();
+			height = hires_presentation_height();
 		} else {
 			pixels = video_framebuffer(legacy_pixels, &width, &height);
 			if (!hires_enabled()) {

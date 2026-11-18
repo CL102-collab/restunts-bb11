@@ -100,8 +100,8 @@ void hires_showroom_car_bounds(struct RECTANGLE *rectangle)
 void hires_showroom_background_bounds(struct HIRES_SHOWROOM *showroom, struct RECTANGLE *rectangle)
 {
 	if (showroom->background_dirty != 0) {
-		/* Mode/scale changes discard companion pixels. Restore the complete
-		 * showroom, including the wall outside the rotating car's bounds. */
+		/* Mode changes discard companion pixels. Restore the complete showroom,
+		 * including the wall outside the rotating car's bounds. */
 		struct RECTANGLE background = {0, SHOWROOM_SCREEN_WIDTH, 0, SHOWROOM_BACKGROUND_HEIGHT};
 		rect_union(rectangle, &background, rectangle);
 	}

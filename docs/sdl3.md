@@ -535,7 +535,10 @@ Desktop windows apply the VGA vertical 6:5 pixel-aspect correction: the original
 pixel edges, and resizing adds black borders to retain that aspect. Renderer dump
 images use the classic renderer's original 320x200 pixel data for parity checks.
 With HyperVision on, the 3D scene and both car-selection previews start at 1280x800;
-its lower quality presets also support 640x400 and 320x200. Their geometry
+its lower quality presets also support 640x400 and 320x200. Only the 3D raster
+changes resolution; the completed HyperVision frame remains full size. OSD text,
+dashboard art, restored menu backgrounds and other 2D content retain their
+quality, including in the intro, showroom and track preview. Their geometry
 is projected and rasterized at the higher resolution; menu artwork, dashboard,
 and replay controls keep their original pixel detail. F12 works in both car
 selection screens and the track preview as well as driving and replay views.

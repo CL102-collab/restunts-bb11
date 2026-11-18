@@ -119,7 +119,7 @@ small_source_companions() {
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
         math.c) printf '%s\n' math/math_rectangles.c ;;
         shape3d_hires.c) printf '%s\n' hires/shape3d_hires_draw.c hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c ;;
-        hires.c) printf '%s\n' hires/hires_raster.c hires/widescreen.c ;;
+        hires.c) printf '%s\n' hires/hires_raster.c hires/hires_composition.c hires/widescreen.c ;;
         shape2d.c) printf '%s\n' shape2d/shape2d_image.c ;;
         shape2d_blit.c) printf '%s\n' shape2d/shape2d_window.c ;;
         trackobj.c) printf '%s\n' track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c ;;
