@@ -382,7 +382,7 @@ private func sendKey(pid: pid_t, name: String, seconds: Double) async throws -> 
     guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
         throw SmokeError("Target application is no longer running")
     }
-    try require(app.activate(options: [.activateIgnoringOtherApps]), "Cannot activate target game")
+    try require(app.activate(options: []), "Cannot activate target game")
     try await sleepSeconds(Limits.activationSeconds)
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true),
           let up = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false) else {
@@ -405,7 +405,7 @@ private func click(pid: pid_t, point: CGPoint) async throws -> [String: Any] {
     guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
         throw SmokeError("Target application is no longer running")
     }
-    try require(app.activate(options: [.activateIgnoringOtherApps]), "Cannot activate target game")
+    try require(app.activate(options: []), "Cannot activate target game")
     try await sleepSeconds(Limits.activationSeconds)
     try require(app.isActive, "Target application did not become active for mouse input")
     let window = try await visibleWindow(pid: pid)

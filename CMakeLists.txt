@@ -66,6 +66,9 @@ endif()
 # Enable languages before dependency directories capture their compiler rules.
 if(APPLE)
     # Keep SDL's .m sources as Objective-C when the launcher enables Objective-C++.
+    # Its Cocoa Vulkan and Metal sources use compatible typedef redeclarations from C11.
+    set(CMAKE_OBJC_STANDARD 11)
+    set(CMAKE_OBJC_STANDARD_REQUIRED ON)
     enable_language(OBJC)
 endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS" AND NOT RESTUNTS_GENGHOST_ONLY)

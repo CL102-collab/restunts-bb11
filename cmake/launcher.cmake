@@ -111,6 +111,17 @@ function(restunts_add_desktop_launcher)
             URL_HASH SHA256=a62719bb5e1dcc41c1a6fc1eecd499c7ee8521f70402c7b1bb3342a1e16344e0
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
         FetchContent_MakeAvailable(wxWidgets)
+        if(APPLE AND RESTUNTS_WX_TOOLKIT STREQUAL "osx_cocoa")
+            # wxAdv is an empty compatibility archive in wxWidgets 3.2.
+            set_property(TARGET wxadv PROPERTY EXCLUDE_FROM_ALL TRUE)
+            if(CMAKE_OBJCXX_COMPILER_ID MATCHES "Clang")
+                # The pinned Cocoa sources leave a label and clipping argument unused.
+                set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/osx/cocoa/button.mm"
+                    TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-variable)
+                set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/osx/cocoa/window.mm"
+                    TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
+            endif()
+        endif()
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
                 CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12 AND
                 CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
