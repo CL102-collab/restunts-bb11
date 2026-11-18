@@ -14,6 +14,8 @@
 #undef font_draw_text_opaque
 #undef input_checking
 
+#include "../c/hires/widescreen.h"
+
 #define TEST_EXTENDED_FILE_RED_COLOR 4
 #define TEST_EXTENDED_STEM_CAPACITY 13U
 
@@ -42,6 +44,18 @@ void sdl3_input_pop_modal(void)
 {
 	assert(modal_depth != 0);
 	modal_depth--;
+}
+
+/* The file selector uses the ordinary modal path throughout this fixture. */
+void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
+{
+	(void)overlay;
+	assert(0 && "Unexpected overlay capture in file dialog");
+}
+
+void widescreen_overlay_end(void)
+{
+	assert(0 && "Unexpected overlay capture in file dialog");
 }
 
 void font_set_colors(legacy_s16 color, legacy_s16 background_color)
