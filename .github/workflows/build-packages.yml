@@ -539,7 +539,8 @@ jobs:
             set -eu
             export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
             if [ "$PACKAGE_TARGET" = freebsd-x64 ]; then
-              sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+              RESTUNTS_FREEBSD_PACKAGE_CHANNEL=latest \
+                sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
             else
               export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
               sh tools/scripts/prepare-freebsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"

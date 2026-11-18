@@ -36,12 +36,26 @@ elif command == "pkg_admin":
         sys.exit("Cannot query package configuration")
     print(package_path)
 elif command == "timeout":
+    os.environ["BSD_HELPER_TEST_DEADLINE"] = sys.argv[1]
     os.execvp(sys.argv[2], sys.argv[2:])
 elif command in ("pkg_add", "pkg", "pkgin"):
+    arguments = sys.argv[1:]
+    event = {"command": command, "arguments": arguments, "path": package_path,
+             "environment_path": os.environ.get("PKG_PATH"), "repository": os.environ.get("PKG_REPOS")}
+    if command == "pkg" and "-R" in arguments:
+        directory = Path(arguments[arguments.index("-R") + 1])
+        event["repo_config"] = (directory / "FreeBSD.conf").read_text()
+        event["deadline"] = os.environ.get("BSD_HELPER_TEST_DEADLINE")
+        event["fetch_timeout"] = os.environ.get("FETCH_TIMEOUT")
+        event["fetch_retry"] = os.environ.get("FETCH_RETRY")
     with open(os.environ["BSD_HELPER_TEST_EVENTS"], "a") as output:
-        output.write(json.dumps({"command": command, "arguments": sys.argv[1:],
-                                 "path": package_path, "environment_path": os.environ.get("PKG_PATH"),
-                                 "repository": os.environ.get("PKG_REPOS")}) + "\\n")
+        output.write(json.dumps(event) + "\\n")
+    if "repo_config" in event:
+        failure = os.environ.get("BSD_HELPER_TEST_FREEBSD_FAILURE")
+        if failure == "catalogue" and "update" in arguments and "pkg0.pao" in event["repo_config"]:
+            sys.exit("No route to host")
+        if failure == "download" and "-F" in arguments:
+            sys.exit("Package download interrupted")
     if command == "pkg_add" and sys.argv[-1].endswith("/pkgin-3.tgz"):
         if any((Path(package_path) / name).read_bytes() != name.encode()
                for name in bootstrap_packages):
@@ -106,6 +120,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.environment = dict(os.environ)
         self.environment.pop("PKG_PATH", None)
         self.environment.pop("PKG_REPOS", None)
+        self.environment.pop("RESTUNTS_FREEBSD_PACKAGE_CHANNEL", None)
         self.environment.update({
             "PATH": str(self.commands) + os.pathsep + os.environ["PATH"],
             "BSD_HELPER_TEST_ARCH": "amd64",
@@ -226,6 +241,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
 
     def test_freebsd_and_openbsd_cross_targets_install_native_dependencies(self):
         for system, target, machine, processor in (
+                ("FreeBSD", "freebsd-x64", "amd64", "amd64"),
                 ("FreeBSD", "freebsd-arm64", "arm64", "aarch64"),
                 ("FreeBSD", "freebsd-x86", "i386", "i386"),
                 ("FreeBSD", "freebsd-armv7", "arm", "armv7"),
@@ -247,6 +263,43 @@ class BsdPackageDependencyTests(unittest.TestCase):
                                "gtk3" if system == "FreeBSD" else "gtk+3")
                 self.assertIn(cmake_package, events[0]["arguments"])
                 self.assertIn(gtk_package, events[0]["arguments"])
+
+    def test_freebsd_ci_uses_signed_failover_and_installs_after_staging(self):
+        result, events = self.run_helper("freebsd-x64", {
+            "BSD_HELPER_TEST_SYSTEM": "FreeBSD", "RESTUNTS_FREEBSD_PACKAGE_CHANNEL": "latest",
+            "BSD_HELPER_TEST_FREEBSD_FAILURE": "catalogue",
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event["arguments"][3:5] for event in events],
+                         [["update", "-f"], ["update", "-f"], ["install", "-y"], ["install", "-y"]])
+        self.assertIn("No route to host", result.stderr)
+        self.assertIn('url: "https://pkg0.pao.freebsd.org/${ABI}/latest"', events[0]["repo_config"])
+        for event in events[1:]:
+            self.assertIn('url: "https://pkg0.nyi.freebsd.org/${ABI}/latest"', event["repo_config"])
+        for event in events:
+            self.assertEqual(event["arguments"][:2], ["-4", "-R"])
+            self.assertEqual(event["fetch_timeout"], "20")
+            self.assertEqual(event["fetch_retry"], "1")
+            self.assertIn('mirror_type: "none"', event["repo_config"])
+            self.assertIn('signature_type: "fingerprints"', event["repo_config"])
+            self.assertIn('fingerprints: "/usr/share/keys/pkg"', event["repo_config"])
+            self.assertNotIn("FreeBSD-kmods", event["repo_config"])
+            self.assertFalse(Path(event["arguments"][2]).exists())
+        self.assertEqual([event["deadline"] for event in events], ["2m", "2m", "10m", None])
+        download, install = (event["arguments"][5:] for event in events[2:])
+        self.assertEqual(download, ["-U", "-F", *install[1:]])
+        self.assertEqual(install[0], "-U")
+        self.assertIn("gtk3", install)
+
+    def test_freebsd_ci_does_not_install_when_downloads_fail(self):
+        result, events = self.run_helper("freebsd-x64", {
+            "BSD_HELPER_TEST_SYSTEM": "FreeBSD", "RESTUNTS_FREEBSD_PACKAGE_CHANNEL": "latest",
+            "BSD_HELPER_TEST_FREEBSD_FAILURE": "download",
+        })
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not download FreeBSD packages", result.stderr)
+        self.assertEqual([event["arguments"][3] for event in events], ["update", "install"] * 2)
+        self.assertTrue(all("-F" in event["arguments"] for event in events[1::2]))
 
     def test_wrong_architecture_is_rejected_before_installing_packages(self):
         for target in ("freebsd-x86", "freebsd-armv7", "freebsd-arm64", "openbsd-x86",
