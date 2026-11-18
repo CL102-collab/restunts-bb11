@@ -16,6 +16,8 @@ import tarfile
 import tempfile
 import threading
 import unittest
+import urllib.error
+import urllib.parse
 from unittest import mock
 
 
@@ -109,6 +111,33 @@ class SysrootTests(unittest.TestCase):
                 mock.patch.object(sdk.urllib.request, "urlopen", side_effect=responses) as opened:
             sdk.download("https://example.org/archive", hashlib.sha256(content).hexdigest(), destination)
         self.assertEqual(opened.call_count, len(responses))
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
+
+    def test_registry_retries_refresh_expired_blob_redirects(self):
+        content = b"verified compiler input"
+        destination = self.root / "cache" / "layer.tar.gz"
+        url = "https://quay.io/v2/sdk/blobs/sha256:example?source=sdk"
+        responses = [
+            urllib.error.HTTPError("https://cdn01.quay.io/expired", 400, "Bad Request", {}, None)
+            for _ in range(sdk.DOWNLOAD_ATTEMPTS - 1)
+        ] + [io.BytesIO(content)]
+        with mock.patch.object(sdk.time, "sleep"), \
+                mock.patch.object(sdk.urllib.request, "urlopen", side_effect=responses) as opened:
+            sdk.download(url, hashlib.sha256(content).hexdigest(), destination)
+
+        requests = [call.args[0] for call in opened.call_args_list]
+        self.assertEqual(requests[0].full_url, url)
+        self.assertEqual(len({request.full_url for request in requests}), sdk.DOWNLOAD_ATTEMPTS)
+        for request in requests:
+            self.assertEqual(request.get_header("Cache-control"), "no-cache")
+        for request in requests[1:]:
+            parsed = urllib.parse.urlsplit(request.full_url)
+            self.assertEqual(parsed.netloc, "quay.io")
+            self.assertEqual(parsed.path, urllib.parse.urlsplit(url).path)
+            query = urllib.parse.parse_qs(parsed.query)
+            self.assertEqual(query["source"], ["sdk"])
+            self.assertTrue(query["_restunts_retry"][0])
         self.assertEqual(destination.read_bytes(), content)
         self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
 

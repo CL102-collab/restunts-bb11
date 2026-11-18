@@ -23,11 +23,13 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+import uuid
 
 from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
 
 
 DOWNLOAD_ATTEMPTS = 3
+REGISTRY_BLOB_HOSTS = frozenset({"quay.io", "registry-1.docker.io"})
 
 
 def sha256(path):
@@ -42,8 +44,9 @@ def download(url, checksum, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file() and sha256(destination) == checksum:
         return destination
-    headers = {}
     parsed = urllib.parse.urlsplit(url)
+    registry_blob = parsed.hostname in REGISTRY_BLOB_HOSTS and "/blobs/" in parsed.path
+    headers = {"Cache-Control": "no-cache"} if registry_blob else {}
     if parsed.hostname == "registry-1.docker.io":
         repository = parsed.path.removeprefix("/v2/").split("/blobs/", 1)[0]
         token_url = "https://auth.docker.io/token?" + urllib.parse.urlencode({
@@ -59,13 +62,22 @@ def download(url, checksum, destination):
     partial = Path(partial_name)
     try:
         for attempt in range(DOWNLOAD_ATTEMPTS):
+            request_url = url
+            if registry_blob and attempt:
+                # A registry redirect can stay cached longer than its signed URL.
+                # Give each retry a fresh cache key at the registry itself.
+                query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+                query.append(("_restunts_retry", uuid.uuid4().hex))
+                request_url = parsed._replace(query=urllib.parse.urlencode(query)).geturl()
             try:
-                request = urllib.request.Request(url, headers=headers)
+                request = urllib.request.Request(request_url, headers=headers)
                 with urllib.request.urlopen(request, timeout=60) as response, partial.open("wb") as output:
                     shutil.copyfileobj(response, output, 1024 * 1024)
-            except (OSError, http.client.HTTPException):
+            except (OSError, http.client.HTTPException) as error:
                 if attempt == DOWNLOAD_ATTEMPTS - 1:
-                    raise
+                    raise RuntimeError(
+                        f"Download of {destination.name} from {parsed.hostname or parsed.scheme} "
+                        f"failed after {DOWNLOAD_ATTEMPTS} attempts") from error
             else:
                 # A server can close a successful response early without a read
                 # error. Retry incomplete or corrupt bodies, but never cache them.
