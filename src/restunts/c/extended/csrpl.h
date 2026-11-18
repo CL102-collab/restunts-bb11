@@ -119,7 +119,7 @@ struct CSRPL_VIEW {
 /* Functions return 1 on success and 0 on failure. Output is unchanged on failure.
  * encode allocates *out_data with malloc; the caller must free it. An input is
  * one six-bit control sample for each simulation frame, at 10 or 20 Hz. */
-int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size);
+legacy_int csrpl_encoded_size(size_t track_size, legacy_u32 frame_count, size_t *out_size);
 int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char *error,
 				 size_t error_size);
 int csrpl_encode(const struct CSRPL_METADATA *metadata, const uint8_t *track_data,
