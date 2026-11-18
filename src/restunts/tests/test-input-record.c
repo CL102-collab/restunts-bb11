@@ -363,7 +363,7 @@ static void reset_inputs(void)
 	input_mouse_idle_frames = input_combined_flags = input_joystick_flags = 0;
 	input_new_joystick_flags = input_joystick_keycode = input_mouse_keycode = 0;
 	input_mouse_previous_x = input_mouse_previous_y = input_mouse_previous_buttons = 0;
-	mouse_transparent_mode = mouse_background_dirty = kbormouse = h_key_toggle = 0;
+	mouse_transparent_mode = mouse_background_dirty = kbormouse = 0;
 	frame_callback_active = 0;
 	frame_callback_count = 0;
 	audio_car_state_interval = 0;
@@ -575,7 +575,6 @@ static legacy_u32 shortcut_fingerprint(void)
 			hash_word(cameramode);
 			hash_word(dashb_toggle);
 			hash_word(replaybar_toggle);
-			hash_word(h_key_toggle);
 			hash_word(followOpponentFlag);
 			hash_word(mouse_driving_enabled);
 			hash_word(race_start_sequence_state);
@@ -1273,9 +1272,9 @@ int main(void)
 	/* Display shortcuts, including Ctrl+F9, bypass the paused-race fallback.
 	 * SDL additionally recognizes Shift+F12. */
 #ifdef RESTUNTS_SDL3
-	assert(shortcut_hash == 0x9b7973b6UL);
+	assert(shortcut_hash == 0x70a2f36aUL);
 #else
-	assert(shortcut_hash == 0x9c849fb2UL);
+	assert(shortcut_hash == 0x5446d392UL);
 #endif
 #endif
 	return 0;

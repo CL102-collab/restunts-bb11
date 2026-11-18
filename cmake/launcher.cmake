@@ -112,16 +112,35 @@ function(restunts_add_desktop_launcher)
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
         FetchContent_MakeAvailable(wxWidgets)
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-                CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13 AND
+                CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12 AND
                 CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
-            # GCC 13 misdiagnoses the zero-iteration initialization loop after
+            # GCC 12 and 13 misdiagnose the zero-iteration initialization loop after
             # inlining the deprecated hash table's unsupported copy operation.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/hash.cpp"
                 TARGET_DIRECTORY wx::base APPEND PROPERTY COMPILE_OPTIONS -Wno-array-bounds)
+            if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13)
+                # GCC 12 reports iterator reuse even though wxVector saves the indices first.
+                set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/datavcmn.cpp"
+                    TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-use-after-free)
+                # It also warns about the empty header label in the inlined wide-string copy.
+                set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/msw/headerctrl.cpp"
+                    TARGET_DIRECTORY wx::core APPEND PROPERTY
+                    COMPILE_OPTIONS -Wno-array-bounds -Wno-stringop-overread)
+            endif()
         endif()
         if(NOT wxUSE_LIBPNG AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             # Pinned wx leaves PNG factory arguments unused when PNG is disabled.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/bmpbase.cpp"
+                TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
+        endif()
+        if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            # Pinned wx implements IFileDialogEvents without override specifiers.
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/msw/filedlg.cpp"
+                TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-inconsistent-missing-override)
+        endif()
+        if(WIN32 AND RESTUNTS_TARGET_X86 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            # The XP file-dialog fallback omits the AddShortcut implementation.
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/msw/filedlg.cpp"
                 TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-parameter)
         endif()
         set(launcher_wx_libraries wx::core wx::base)

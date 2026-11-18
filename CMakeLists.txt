@@ -197,6 +197,33 @@ else()
         URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(SDL3)
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-Werror=unused-but-set-global" RESTUNTS_SDL_UNUSED_GLOBAL_WARNING)
+        if(RESTUNTS_SDL_UNUSED_GLOBAL_WARNING)
+            # The pinned SDL updates an unread event counter and loads unused optional
+            # Vulkan entry points.
+            foreach(restunts_sdl_target SDL3-static SDL3-shared)
+                if(TARGET ${restunts_sdl_target})
+                    set_property(SOURCE
+                        "${SDL3_SOURCE_DIR}/src/events/SDL_events.c"
+                        "${SDL3_SOURCE_DIR}/src/render/vulkan/SDL_render_vulkan.c"
+                        TARGET_DIRECTORY ${restunts_sdl_target} APPEND PROPERTY
+                        COMPILE_OPTIONS -Wno-unused-but-set-global)
+                endif()
+            endforeach()
+        endif()
+    endif()
+    if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        # MinGW GCC loses track of the guards that confirm both stick calibration reads.
+        foreach(restunts_sdl_target SDL3-static SDL3-shared)
+            if(TARGET ${restunts_sdl_target})
+                set_property(SOURCE "${SDL3_SOURCE_DIR}/src/joystick/hidapi/SDL_hidapi_switch.c"
+                    TARGET_DIRECTORY ${restunts_sdl_target} APPEND PROPERTY
+                    COMPILE_OPTIONS -Wno-maybe-uninitialized)
+            endif()
+        endforeach()
+    endif()
     if(SDL_X11 AND NOT SDL_X11_XRANDR AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         # Pinned SDL leaves a fallback label outside its disabled XRandR block.
         foreach(restunts_sdl_target SDL3-static SDL3-shared)

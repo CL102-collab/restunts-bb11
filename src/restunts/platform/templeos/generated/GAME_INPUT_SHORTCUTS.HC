@@ -78,8 +78,7 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
   legacy_s32 noreg temple_tmp_1357;
   legacy_s32 noreg temple_tmp_1358;
   legacy_s8 *temple_tmp_1359;
-  legacy_u8 *temple_tmp_1360;
-  legacy_s8 *temple_tmp_1361;
+  legacy_s8 *temple_tmp_1360;
   switch(key) {
     case 26112:
       if((mph_display_enabled==FRAME_MPH_DISPLAY_OFF)) {
@@ -110,8 +109,6 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 72:
     case 104:
-      temple_tmp_1360=&(rs_game_input_shortcuts_h_key_toggle);
-      ((*temple_tmp_1360)=TempleCastU8(((*temple_tmp_1360)^1)));
       return TempleCastS16(1);
     case 77:
     case 109:
@@ -121,8 +118,8 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 82:
     case 114:
-      temple_tmp_1361=&(replaybar_toggle);
-      ((*temple_tmp_1361)=TempleCastS8(((*temple_tmp_1361)^1)));
+      temple_tmp_1360=&(replaybar_toggle);
+      ((*temple_tmp_1360)=TempleCastS8(((*temple_tmp_1360)^1)));
       return TempleCastS16(1);
   }
   return TempleCastS16(0);
@@ -146,12 +143,12 @@ legacy_void RsCameraSelectMode(legacy_s8 mode)
   (cameramode=TempleCastS8(mode));
 }
 
-legacy_s16 temple_distances_1362[CUSTOM_CAMERA_PRESET_COUNT];
-MemSet(&temple_distances_1362,0,sizeof(temple_distances_1362));
+legacy_s16 temple_distances_1361[CUSTOM_CAMERA_PRESET_COUNT];
+MemSet(&temple_distances_1361,0,sizeof(temple_distances_1361));
 legacy_void RsGameInputShortcutsInputCycleCustomCamera()
 {
-  legacy_u8 *temple_tmp_1363;
-  legacy_u8 noreg temple_tmp_1364;
+  legacy_u8 *temple_tmp_1362;
+  legacy_u8 noreg temple_tmp_1363;
   if((cameramode!=CAMERA_MODE_CUSTOM)) {
     RsCameraSelectMode(TempleCastS8(CAMERA_MODE_CUSTOM));
     return;
@@ -165,11 +162,11 @@ legacy_void RsGameInputShortcutsInputCycleCustomCamera()
         &(rs_game_input_shortcuts_custom_camera_original),&(custom_camera),sizeof(CCustomCamera));
     (rs_game_input_shortcuts_custom_camera_original_dashboard=TempleCastS8(dashb_toggle));
   }
-  temple_tmp_1363=&(custom_camera_preset);
-  temple_tmp_1364=*temple_tmp_1363;
-  *temple_tmp_1363=TempleCastU8((temple_tmp_1364+1));
-  temple_tmp_1364;
-  (custom_camera.distance=TempleCastS16(temple_distances_1362[custom_camera_preset]));
+  temple_tmp_1362=&(custom_camera_preset);
+  temple_tmp_1363=*temple_tmp_1362;
+  *temple_tmp_1362=TempleCastU8((temple_tmp_1363+1));
+  temple_tmp_1363;
+  (custom_camera.distance=TempleCastS16(temple_distances_1361[custom_camera_preset]));
   (custom_camera.elevation_angle=TempleCastS16(TempleCastS32((80-TempleCastS32((2*16))))));
   (custom_camera.azimuth_angle=TempleCastS16(TempleCastS32((464+TempleCastS32((3*16))))));
   (dashb_toggle=TempleCastS8(0));
@@ -203,21 +200,21 @@ legacy_s16 RsGameInputShortcutsInputHandleCameraShortcut(legacy_s16 key)
 
 legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
 {
+  legacy_s32 noreg temple_tmp_1364;
   legacy_s32 noreg temple_tmp_1365;
   legacy_s32 noreg temple_tmp_1366;
-  legacy_s32 noreg temple_tmp_1367;
-  legacy_s8 *temple_tmp_1368;
-  temple_tmp_1365=0;
+  legacy_s8 *temple_tmp_1367;
+  temple_tmp_1364=0;
   if(RsGameInputShortcutsInputHandleDisplayShortcut(TempleCastS16(key))) {
-    temple_tmp_1365=1;
+    temple_tmp_1364=1;
   }
-  if(!temple_tmp_1365) {
-    temple_tmp_1365=0;
+  if(!temple_tmp_1364) {
+    temple_tmp_1364=0;
     if(RsGameInputShortcutsInputHandleCameraShortcut(TempleCastS16(key))) {
-      temple_tmp_1365=1;
+      temple_tmp_1364=1;
     }
   }
-  if(temple_tmp_1365) {
+  if(temple_tmp_1364) {
     return TempleCastS16(1);
   }
   switch(key) {
@@ -228,29 +225,29 @@ legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
       (race_exit_request=TempleCastU8(1));
       return TempleCastS16(1);
     case 116:
-      temple_tmp_1366=0;
+      temple_tmp_1365=0;
       if((follow_opponent_flag!=0)) {
+        temple_tmp_1365=1;
+      }
+      if(!temple_tmp_1365) {
+        temple_tmp_1365=0;
+        if((gameconfig.game_opponenttype!=0)) {
+          temple_tmp_1365=1;
+        }
+      }
+      temple_tmp_1366=0;
+      if(temple_tmp_1365) {
         temple_tmp_1366=1;
       }
       if(!temple_tmp_1366) {
         temple_tmp_1366=0;
-        if((gameconfig.game_opponenttype!=0)) {
+        if((RsGhostCarState()!=0)) {
           temple_tmp_1366=1;
         }
       }
-      temple_tmp_1367=0;
       if(temple_tmp_1366) {
-        temple_tmp_1367=1;
-      }
-      if(!temple_tmp_1367) {
-        temple_tmp_1367=0;
-        if((RsGhostCarState()!=0)) {
-          temple_tmp_1367=1;
-        }
-      }
-      if(temple_tmp_1367) {
-        temple_tmp_1368=&(follow_opponent_flag);
-        ((*temple_tmp_1368)=TempleCastS8(((*temple_tmp_1368)^1)));
+        temple_tmp_1367=&(follow_opponent_flag);
+        ((*temple_tmp_1367)=TempleCastS8(((*temple_tmp_1367)^1)));
       }
       return TempleCastS16(1);
   }

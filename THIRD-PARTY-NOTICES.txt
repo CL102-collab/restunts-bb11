@@ -103,8 +103,9 @@ Source: https://github.com/nothings/stb/blob/2c980bb59875b0d32144a71867fbdebb2f7
 
 All SDL3 builds include this Ogg Vorbis decoder under its MIT license option.
 See the complete license in share/licenses/restunts/stb-LICENSE (or LICENSE
-beside its source in third_party/stb). The decoder is unmodified apart from
-working-tree line endings. The unused push-data API is disabled when compiling.
+beside its source in third_party/stb). Memory seeks check offsets against the
+buffer length before forming a pointer. The unused push-data API is disabled
+when compiling.
 
 libvpx and nestegg
 ------------------

@@ -526,7 +526,6 @@ CMatrix *RsMatRotZxy(legacy_s16 z,legacy_s16 x,legacy_s16 y,legacy_s16 rotation_
 {
   RsMatRotZ((&(rs_math_math_mat_z_rot)),TempleCastS16(z));
   RsMatRotX((&(rs_math_math_mat_x_rot)),TempleCastS16(x));
-  (rs_math_math_mat_y_rot_angle=TempleCastU16(y));
   RsMatRotY((&(rs_math_math_mat_y_rot)),TempleCastS16(y));
   if((TempleCastU32((TempleCastU32(rotation_order)&1))==
         TempleCastU32(MATRIX_ROTATION_ORDER_YXZ))) {

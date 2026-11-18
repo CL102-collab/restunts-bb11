@@ -23,7 +23,6 @@ CMatrix rs_math_math_mat_y_rot;
 MemSet(&rs_math_math_mat_y_rot,0,sizeof(rs_math_math_mat_y_rot));
 CMatrix rs_math_math_mat_rot_temp;
 MemSet(&rs_math_math_mat_rot_temp,0,sizeof(rs_math_math_mat_rot_temp));
-legacy_u16 rs_math_math_mat_y_rot_angle=0;
 legacy_s16 sintab[257];
 MemSet(&sintab,0,sizeof(sintab));
 legacy_u16 mmgr_arena_end_segment=0;
@@ -102,7 +101,6 @@ CCustomCamera rs_game_input_shortcuts_custom_camera_original;
 MemSet(&rs_game_input_shortcuts_custom_camera_original,0,
     sizeof(rs_game_input_shortcuts_custom_camera_original));
 legacy_s8 rs_game_input_shortcuts_custom_camera_original_dashboard=0;
-legacy_u8 rs_game_input_shortcuts_h_key_toggle=0;
 legacy_u8 *active_font_definition=0;
 legacy_u16 rs_ui_input_text_edit_cursor_width=0;
 legacy_u16 rs_ui_input_text_edit_x=0;

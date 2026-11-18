@@ -57,8 +57,10 @@ static SDL_Surface *frame_surface;
 static legacy_s32 texture_width;
 static legacy_s32 texture_height;
 static legacy_u8 surface_output;
+#ifdef __DJGPP__
 static legacy_u8 high_resolution_output;
 static legacy_u8 widescreen_output;
+#endif
 static legacy_s32 presentation_width = SDL3_SCREEN_WIDTH;
 static legacy_s32 presentation_height = PRESENTATION_HEIGHT;
 static legacy_s32 presentation_raster_width = SDL3_SCREEN_WIDTH;
@@ -899,8 +901,10 @@ void sdl3_video_shutdown(void)
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 	surface_output = false;
+#ifdef __DJGPP__
 	high_resolution_output = false;
 	widescreen_output = false;
+#endif
 	presentation_width = SDL3_SCREEN_WIDTH;
 	presentation_height = PRESENTATION_HEIGHT;
 	presentation_raster_width = SDL3_SCREEN_WIDTH;

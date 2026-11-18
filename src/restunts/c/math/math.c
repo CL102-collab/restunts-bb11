@@ -30,7 +30,6 @@ static struct MATRIX math_mat_z_rot;
 static struct MATRIX math_mat_x_rot;
 static struct MATRIX math_mat_y_rot;
 static struct MATRIX math_mat_rot_temp;
-static legacy_u16 math_mat_y_rot_angle;
 
 legacy_s16 sintab[] = {
 	0,	   101,	  201,	 302,	402,   503,	  603,	 704,	804,   904,	  1005,	 1105,	1205,
@@ -398,12 +397,6 @@ struct MATRIX *mat_rot_zxy(legacy_s16 z, legacy_s16 x, legacy_s16 y, legacy_s16 
 	mat_rot_z(&math_mat_z_rot, z);
 	mat_rot_x(&math_mat_x_rot, x);
 
-	// y rotation matrix cache
-	/*if (mat_y_rot_angle != y) {
-		mat_rot_y(&mat_y_rot, y);
-		mat_y_rot_angle = y;
-	}*/
-	math_mat_y_rot_angle = y; // dont forget this!!
 	mat_rot_y(&math_mat_y_rot, y);
 
 	if ((rotation_order & MATRIX_ROTATION_ORDER_MASK) == MATRIX_ROTATION_ORDER_YXZ) {

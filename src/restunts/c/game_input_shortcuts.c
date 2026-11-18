@@ -33,8 +33,6 @@
 static struct CUSTOM_CAMERA custom_camera_original;
 static legacy_s8 custom_camera_original_dashboard;
 
-static legacy_u8 h_key_toggle;
-
 static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 {
 	switch (key) {
@@ -67,7 +65,7 @@ static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 
 		case 'H':
 		case 'h':
-			h_key_toggle ^= 1;
+			/* Consume the reserved shortcut without pausing the race. */
 			return 1;
 
 		case 'M':
