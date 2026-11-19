@@ -12,6 +12,7 @@ static const legacy_char SETTINGS_FILENAME[] = "launcher.ini";
 static const legacy_char SETTINGS_FOLDER_KEY[] = "folder";
 static const legacy_char SETTINGS_HYPERVISION_KEY[] = "hypervision";
 static const legacy_char SETTINGS_VIDEO_MODE_KEY[] = "video_mode";
+static const legacy_char SETTINGS_INPUT_METHOD_KEY[] = "input_method";
 static const legacy_char SETTINGS_SOUND_MODE_KEY[] = "sound_mode";
 static const legacy_char SETTINGS_MT32_FOLDER_KEY[] = "mt32_rom_folder";
 static const legacy_char SETTINGS_MT32_MODEL_KEY[] = "mt32_model";
@@ -45,6 +46,11 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"amiga_grass", "Amiga Grass", "--amigagrass", nullptr, false},
 	{"owoot", "OWOOT", "--owoot", nullptr, false}};
 
+const LauncherInputDefinition launcher_input_definitions[LAUNCHER_INPUT_METHOD_COUNT] = {
+	{"keyboard", "Keyboard", "--input-method:keyboard"},
+	{"joystick", "Joystick", "--input-method:joystick"},
+	{"mouse", "Mouse", "--input-method:mouse"}};
+
 const LauncherSoundDefinition launcher_sound_definitions[LAUNCHER_SOUND_MODE_COUNT] = {
 	{"none", "No sound", "--nosound"},
 	{"pc-speaker", "PC Speaker", "--soundmode:pc-speaker"},
@@ -67,8 +73,8 @@ const LauncherVideoDefinition launcher_video_definitions[LAUNCHER_VIDEO_MODE_COU
 	{"tandy", "Tandy", "--videomode:tandy"}};
 
 LauncherOptions::LauncherOptions()
-	: sound_mode(LAUNCHER_SOUND_ADLIB), hypervision(LAUNCHER_HV_AUTO),
-	  video_mode(LAUNCHER_VIDEO_VGA)
+	: input_method(LAUNCHER_INPUT_KEYBOARD), sound_mode(LAUNCHER_SOUND_ADLIB),
+	  hypervision(LAUNCHER_HV_AUTO), video_mode(LAUNCHER_VIDEO_VGA)
 {
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		enabled[index] = launcher_option_definitions[index].initial;
@@ -381,6 +387,14 @@ void launcher_read_options(const wxString &path, LauncherOptions &options)
 	config.Read(SETTINGS_FOLDER_KEY, &options.folder);
 	config.Read(SETTINGS_MT32_FOLDER_KEY, &options.mt32_rom_folder);
 	config.Read(SETTINGS_MT32_MODEL_KEY, &options.mt32_model);
+	wxString input_method;
+	config.Read(SETTINGS_INPUT_METHOD_KEY, &input_method);
+	for (legacy_int index = 0; index < LAUNCHER_INPUT_METHOD_COUNT; ++index) {
+		if (input_method == launcher_input_definitions[index].value) {
+			options.input_method = index;
+			break;
+		}
+	}
 	wxString sound_mode;
 	if (config.Read(SETTINGS_SOUND_MODE_KEY, &sound_mode)) {
 		for (legacy_int index = 0; index < LAUNCHER_SOUND_MODE_COUNT; ++index) {
@@ -414,6 +428,14 @@ void launcher_read_options(const wxString &path, LauncherOptions &options)
 	}
 }
 
+static const LauncherInputDefinition &launcher_input_definition(legacy_int index)
+{
+	if (index < LAUNCHER_INPUT_KEYBOARD || index >= LAUNCHER_INPUT_METHOD_COUNT) {
+		index = LAUNCHER_INPUT_KEYBOARD;
+	}
+	return launcher_input_definitions[index];
+}
+
 wxString launcher_save_options(const wxString &path, const LauncherOptions &options)
 {
 	if (path.empty()) {
@@ -427,6 +449,9 @@ wxString launcher_save_options(const wxString &path, const LauncherOptions &opti
 	wxFileConfig config(wxEmptyString, wxEmptyString, path, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
 	config.DisableAutoSave();
 	legacy_bool written = config.Write(SETTINGS_FOLDER_KEY, options.folder);
+	written = config.Write(SETTINGS_INPUT_METHOD_KEY,
+						   launcher_input_definition(options.input_method).value) &&
+			  written;
 	const legacy_int sound_mode =
 		options.sound_mode >= LAUNCHER_SOUND_NONE && options.sound_mode < LAUNCHER_SOUND_MODE_COUNT
 			? options.sound_mode
@@ -487,6 +512,7 @@ std::vector<wxString> launcher_game_arguments(const wxString &game, const Launch
 		options.video_mode >= LAUNCHER_VIDEO_VGA && options.video_mode < LAUNCHER_VIDEO_MODE_COUNT
 			? options.video_mode
 			: LAUNCHER_VIDEO_VGA;
+	arguments.push_back(launcher_input_definition(options.input_method).argument);
 	arguments.push_back(launcher_video_definitions[video_mode].argument);
 	if (options.hypervision > LAUNCHER_HV_OFF && options.hypervision < LAUNCHER_HV_COUNT) {
 		arguments.push_back(launcher_hypervision_definitions[options.hypervision].argument);

@@ -51,6 +51,19 @@ enum {
 	LAUNCHER_HV_COUNT
 };
 
+enum LauncherInputMethod {
+	LAUNCHER_INPUT_KEYBOARD,
+	LAUNCHER_INPUT_JOYSTICK,
+	LAUNCHER_INPUT_MOUSE,
+	LAUNCHER_INPUT_METHOD_COUNT
+};
+
+struct LauncherInputDefinition {
+	const legacy_char *value;
+	const legacy_char *label;
+	const legacy_char *argument;
+};
+
 enum LauncherSoundMode {
 	LAUNCHER_SOUND_NONE,
 	LAUNCHER_SOUND_PC_SPEAKER,
@@ -89,6 +102,7 @@ struct LauncherOptions {
 	wxString folder;
 	wxString mt32_rom_folder;
 	wxString mt32_model;
+	legacy_int input_method;
 	legacy_int sound_mode;
 	legacy_bool enabled[LAUNCHER_OPTION_COUNT];
 	legacy_int hypervision;
@@ -97,6 +111,7 @@ struct LauncherOptions {
 };
 
 extern const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT];
+extern const LauncherInputDefinition launcher_input_definitions[LAUNCHER_INPUT_METHOD_COUNT];
 extern const LauncherSoundDefinition launcher_sound_definitions[LAUNCHER_SOUND_MODE_COUNT];
 extern const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT];
 extern const LauncherVideoDefinition launcher_video_definitions[LAUNCHER_VIDEO_MODE_COUNT];

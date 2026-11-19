@@ -207,6 +207,36 @@ static legacy_u8 startup_parse_video_mode(const legacy_s8 *argument,
 	return 1;
 }
 
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+static legacy_u8 startup_parse_input_method(const legacy_s8 *argument,
+											struct STARTUP_OPTIONS *options)
+{
+	const legacy_s8 *value = startup_option_suffix(argument, STARTUP_INPUT_METHOD_PREFIX);
+	if (value == NULL) {
+		return 0;
+	}
+	if (options->input_method_specified != 0) {
+		startup_option_error_text("Only one input method may be specified (--input-method:).\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	if (stricmp(value, "keyboard") == 0) {
+		options->input_method = SDL3_DRIVING_KEYBOARD;
+	} else if (stricmp(value, "joystick") == 0) {
+		options->input_method = SDL3_DRIVING_JOYSTICK;
+	} else if (stricmp(value, "mouse") == 0) {
+		options->input_method = SDL3_DRIVING_MOUSE;
+	} else {
+		startup_option_error_text("Invalid input method; use --input-method:keyboard, "
+								  "--input-method:joystick or --input-method:mouse.\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	options->input_method_specified = 1;
+	return 1;
+}
+#endif
+
 static legacy_u8 startup_parse_sound_option(legacy_s16 argc, legacy_s8 *argv[], legacy_u16 *index,
 											struct STARTUP_OPTIONS *options)
 {
@@ -292,6 +322,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	options->fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
 	options->fullscreen_specified = 0;
+	options->input_method = SDL3_DRIVING_KEYBOARD;
+	options->input_method_specified = 0;
 #endif
 #ifndef __ANDROID__
 	options->controller_vibration_enabled = 1;
@@ -311,6 +343,11 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 		if (startup_parse_video_mode(argv[i], options) != 0) {
 			continue;
 		}
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+		if (startup_parse_input_method(argv[i], options) != 0) {
+			continue;
+		}
+#endif
 		if (startup_parse_sound_option(argc, argv, &i, options) != 0) {
 			continue;
 		}
@@ -471,6 +508,9 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);
+	dos_joystick_set_enabled(startup_options.input_method == SDL3_DRIVING_JOYSTICK);
+	mouse_driving_enabled = startup_options.input_method == SDL3_DRIVING_MOUSE;
+	sdl3_input_set_driving_mode(startup_options.input_method);
 #endif
 #ifndef __ANDROID__
 	sdl3_controller_set_vibration_enabled(startup_options.controller_vibration_enabled);

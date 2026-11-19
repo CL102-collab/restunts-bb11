@@ -82,23 +82,25 @@ same game folder. The app-owned TV fallback folder is deleted on uninstall;
 back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
-**Startup options** contains **Skip intro** and **Vibration**. **Sound settings**
-contains **Sound mode** and **OGG music replacement** (formerly **New MIDI**).
+**Startup options** contains **Skip intro**. **Input settings** contains
+**Vibration** for phone and controller feedback during impacts, **Tilt steering**
+and **Show Control Layout** for the touch circles. **Sound settings** contains
+**Sound mode** and **OGG music replacement** (formerly **New MIDI**).
 The modes are ordered **No sound**, **PC Speaker**, **Tandy**, **Ad Lib**, **MT-32**.
-Vibration enables phone and controller feedback for impacts; Ogg replaces music
-independently of the selected sound mode. MT-32 reveals its ROM-folder and ROM-set controls. Ad Lib and Vibration
-start enabled and Skip intro starts disabled. These choices are
+Ogg replaces music independently of the selected sound mode. MT-32 reveals its
+ROM-folder and ROM-set controls. Ad Lib and Vibration start enabled, and Skip
+intro starts disabled. These choices are
 remembered without resetting existing preferences. PC Speaker plays the original
 PC music/effects as PCM through the normal audio output; it requires no ROMs
 or extra dependency installation. Tandy plays the original TD instruments as
 PCM and requires no ROM files. Selecting No sound passes `--nosound`, and
-selecting Skip intro passes `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
-**Graphics settings** group starts with **Widescreen** (off by default), followed
-by **Show FPS** for the FPS/render-time display,
-followed by **Show MPH (Ctrl+F9)** for speed at the bottom right while driving,
-**Show Control Layout** for the touch circles, **Multi-core rendering**
-(`--multi-core:on/off`, initially on unless a saved choice overrides it),
-**Video mode**, and finally the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
+selecting Skip intro passes `--nointro`.
+
+**Graphics settings** contains **Video mode**, **Widescreen** (off by default),
+**Show FPS** for the FPS/render-time display, **Show MPH (Ctrl+F9)** for speed at
+the bottom right while driving, **Multi-core rendering** (`--multi-core:on/off`,
+initially on unless a saved choice overrides it), and the **HyperVision**
+selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
 Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group
@@ -176,7 +178,7 @@ editing highscore names, track/replay filenames, or file-picker directories.
 
 ## Tilt steering
 
-Enable **Controls → Tilt steering** before starting to steer by tilting your
+Enable **Input settings → Tilt steering** before starting to steer by tilting your
 phone, tablet or handheld console. The game runs in landscape: lower the left
 edge to steer left and the right edge to steer right. Both landscape rotations
 work.

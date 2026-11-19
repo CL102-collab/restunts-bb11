@@ -117,6 +117,20 @@ void sdl3_video_set_startup_fullscreen(legacy_u8 enabled)
 	++startup_fullscreen_set_calls;
 }
 #endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+static enum SDL3_DRIVING_INPUT startup_driving_mode;
+static legacy_u8 startup_joystick_enabled;
+
+void sdl3_input_set_driving_mode(enum SDL3_DRIVING_INPUT mode)
+{
+	startup_driving_mode = mode;
+}
+
+void dos_joystick_set_enabled(legacy_u8 enabled)
+{
+	startup_joystick_enabled = enabled;
+}
+#endif
 #ifndef __ANDROID__
 static legacy_u8 startup_controller_vibration_enabled = 1;
 static legacy_u32 startup_controller_vibration_set_calls;
@@ -858,6 +872,11 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	legacy_u32 before_fullscreen_calls = startup_fullscreen_set_calls;
 	legacy_u8 before_fullscreen_enabled = startup_fullscreen_enabled;
 #endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+	enum SDL3_DRIVING_INPUT before_driving_mode = startup_driving_mode;
+	legacy_u8 before_joystick_enabled = startup_joystick_enabled;
+	legacy_s8 before_mouse_enabled = mouse_driving_enabled;
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	legacy_u32 before_vibration_calls = startup_controller_vibration_set_calls;
 	legacy_u8 before_vibration_enabled = startup_controller_vibration_enabled;
@@ -889,6 +908,11 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 #ifdef STARTUP_FULLSCREEN_PREFIX
 	assert(startup_fullscreen_set_calls == before_fullscreen_calls);
 	assert(startup_fullscreen_enabled == before_fullscreen_enabled);
+#endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+	assert(startup_driving_mode == before_driving_mode);
+	assert(startup_joystick_enabled == before_joystick_enabled);
+	assert(mouse_driving_enabled == before_mouse_enabled);
 #endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	assert(startup_controller_vibration_set_calls == before_vibration_calls);
@@ -1414,6 +1438,53 @@ static void test_startup_fullscreen_options(void)
 #endif
 }
 
+static void test_startup_input_method_options(void)
+{
+#ifdef STARTUP_INPUT_METHOD_PREFIX
+	static const struct {
+		const legacy_s8 *argument;
+		enum SDL3_DRIVING_INPUT mode;
+	} cases[] = {{"--input-method:joystick", SDL3_DRIVING_JOYSTICK},
+				 {"--input-method:mouse", SDL3_DRIVING_MOUSE},
+				 {"--input-method:keyboard", SDL3_DRIVING_KEYBOARD},
+				 {"--INPUT-METHOD:Mouse", SDL3_DRIVING_MOUSE}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument,
+								  (legacy_s8 *)"--controller-vibration:off"};
+		reset_startup_hypervision();
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_driving_mode == cases[index].mode);
+		assert(startup_joystick_enabled == (cases[index].mode == SDL3_DRIVING_JOYSTICK));
+		assert(mouse_driving_enabled == (cases[index].mode == SDL3_DRIVING_MOUSE));
+		assert(startup_controller_vibration_enabled == 0);
+		assert(startup_options.input_method_specified != 0);
+	}
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_driving_mode == SDL3_DRIVING_KEYBOARD);
+	assert(startup_joystick_enabled == 0 && mouse_driving_enabled == 0);
+	assert(startup_options.input_method_specified == 0);
+
+	static const legacy_s8 *invalid[] = {"--input-method:", "--input-method:controller"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)"--input-method:mouse",
+							  (legacy_s8 *)"--input-method:joystick"};
+	expect_startup_option_error(sizeof(duplicate) / sizeof(duplicate[0]), duplicate);
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--input-method:mouse",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+#else
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--input-method:joystick",
+							  (legacy_s8 *)"--input-method:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
+
 static void test_startup_mph_display_options(void)
 {
 	static const struct {
@@ -1755,6 +1826,7 @@ int main(void)
 	test_startup_multi_core_options();
 	test_startup_video_mode_options();
 	test_startup_fullscreen_options();
+	test_startup_input_method_options();
 	test_startup_widescreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");

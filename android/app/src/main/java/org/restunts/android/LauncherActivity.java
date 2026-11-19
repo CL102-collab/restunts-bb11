@@ -261,10 +261,22 @@ public final class LauncherActivity extends Activity {
         int textSize = television ? TEXT_SIZE_SP : OPTION_TEXT_SIZE_SP;
         int spacing = Math.round(OPTION_SPACING_DP * getResources().getDisplayMetrics().density);
         WrappingLayout startup = settingsGroup(layout, "Startup options", textSize, spacing);
-        vibration = option(startup, "Vibration", LaunchOptions.VIBRATION_KEY,
-            LaunchOptions.DEFAULT_VIBRATION, textSize);
         skipIntro = option(startup, "Skip intro", LaunchOptions.SKIP_INTRO_KEY,
             LaunchOptions.DEFAULT_SKIP_INTRO, textSize);
+
+        WrappingLayout input = settingsGroup(layout, "Input settings", textSize, spacing);
+        vibration = option(input, "Vibration", LaunchOptions.VIBRATION_KEY,
+            LaunchOptions.DEFAULT_VIBRATION, textSize);
+        tiltSteering = option(input, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
+            LaunchOptions.DEFAULT_TILT_STEERING, textSize);
+        boolean tiltAvailable = TiltSteering.isAvailable(this);
+        tiltSteering.setEnabled(tiltAvailable);
+        if (!tiltAvailable) {
+            tiltSteering.setChecked(false);
+        }
+        showControlLayout = option(input, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
+            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
+
         addSoundSettings(layout, textSize, spacing);
 
         WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
@@ -293,8 +305,6 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_SHOW_MPH, textSize);
         multiCore = option(graphics, "Multi-core rendering", LaunchOptions.MULTI_CORE_KEY,
             LaunchOptions.DEFAULT_MULTI_CORE, textSize);
-        showControlLayout = option(graphics, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
-            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
         LinearLayout hyperVisionOption = new LinearLayout(this);
         hyperVisionOption.setOrientation(LinearLayout.HORIZONTAL);
         hyperVisionOption.setGravity(Gravity.CENTER_VERTICAL);
@@ -314,15 +324,6 @@ public final class LauncherActivity extends Activity {
         hyperVisionOption.addView(hyperVision);
         graphics.addView(hyperVisionOption, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
-        tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
-            LaunchOptions.DEFAULT_TILT_STEERING, textSize);
-        boolean tiltAvailable = TiltSteering.isAvailable(this);
-        tiltSteering.setEnabled(tiltAvailable);
-        if (!tiltAvailable) {
-            tiltSteering.setChecked(false);
-        }
 
         WrappingLayout drivingRules = settingsGroup(layout, "Driving rules", textSize, spacing);
         powerGear = option(drivingRules, "Power Gear", LaunchOptions.POWER_GEAR_KEY,

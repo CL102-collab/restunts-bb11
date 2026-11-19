@@ -28,10 +28,16 @@ the same browser-opening path. The copy remains usable after the game or
 launcher exits or the AppImage is unmounted. Flatpak browser entries are granted
 explicit read access through the document portal.
 
+**Input settings** follows **Startup options**. **Input method** selects the
+initial driving device in the game. Choose **Keyboard** (the default),
+**Joystick**, or **Mouse**. The launcher remembers your selection for the next
+launch.
+**Controller vibration** starts enabled and controls rumble for connected
+controllers that support it.
+
 The **Sound settings** group contains the sound mode, **OGG music replacement**
-(formerly **New MIDI**), and the MT-32 ROM-folder/model controls. Controller
-vibration remains in **Startup options**. The mode list is ordered **No sound**,
-**PC Speaker**, **Tandy**, **Ad Lib**, **MT-32**. Ad Lib remains the default;
+(formerly **New MIDI**), and the MT-32 ROM-folder/model controls. The mode list
+is ordered **No sound**, **PC Speaker**, **Tandy**, **Ad Lib**, **MT-32**. Ad Lib remains the default;
 Ogg replacements start disabled unless a saved preference enables them. Existing saved choices
 are preserved. PC Speaker uses the original PC instrument resources and plays
 PCM through the normal audio device, with no ROM folder or extra dependencies.

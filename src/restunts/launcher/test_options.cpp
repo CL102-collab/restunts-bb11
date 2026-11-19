@@ -59,6 +59,8 @@ legacy_int main()
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_WIDESCREEN], "Widescreen must default to disabled.");
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
+	check(options.input_method == LAUNCHER_INPUT_KEYBOARD,
+		  "Input method must default to Keyboard.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
 	check(options.video_mode == LAUNCHER_VIDEO_VGA, "Video mode must default to VGA.");
 	check(wxString(launcher_option_definitions[LAUNCHER_NEW_MIDI].label) ==
@@ -70,12 +72,22 @@ legacy_int main()
 	check(arguments[GAME_ARGUMENT_INDEX] == game && arguments[DATA_OPTION_INDEX] == "--data-dir" &&
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
-	const legacy_char *defaults[] = {
-		"--soundmode:adlib", "--videomode:vga",	 "--ogg:off",
-		"--hv:auto",		 "--widescreen:off", "--fullscreen:off",
-		"--fps:off",		 "--showmph:off",	 "--controller-vibration:on",
-		"--multi-core:on",	 "--pg:on",			 "--lc:on",
-		"--lcb:on",			 "--dws:on",		 "--cfg:on"};
+	const legacy_char *defaults[] = {"--soundmode:adlib",
+									 "--videomode:vga",
+									 "--ogg:off",
+									 "--hv:auto",
+									 "--widescreen:off",
+									 "--fullscreen:off",
+									 "--fps:off",
+									 "--showmph:off",
+									 "--controller-vibration:on",
+									 "--multi-core:on",
+									 "--pg:on",
+									 "--lc:on",
+									 "--lcb:on",
+									 "--dws:on",
+									 "--cfg:on",
+									 "--input-method:keyboard"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -107,6 +119,26 @@ legacy_int main()
 		check(contains(launcher_game_arguments(game, options), presets[index - LAUNCHER_HV_AUTO]),
 			  "HyperVision selection must reach the game unchanged.");
 	}
+
+	const legacy_char *input_labels[] = {"Keyboard", "Joystick", "Mouse"};
+	const legacy_char *input_arguments[] = {"--input-method:keyboard", "--input-method:joystick",
+											"--input-method:mouse"};
+	for (legacy_int index = 0; index < LAUNCHER_INPUT_METHOD_COUNT; ++index) {
+		options.input_method = index;
+		arguments = launcher_game_arguments(game, options);
+		legacy_int input_argument_count = 0;
+		for (const wxString &argument : arguments) {
+			input_argument_count += argument.StartsWith("--input-method:");
+		}
+		check(wxString(launcher_input_definitions[index].label) == input_labels[index] &&
+				  input_argument_count == 1 && contains(arguments, input_arguments[index]) &&
+				  contains(arguments, "--controller-vibration:off"),
+			  "Each input method must have its own label and argument independent of vibration.");
+	}
+	options.input_method = LAUNCHER_INPUT_METHOD_COUNT;
+	check(contains(launcher_game_arguments(game, options), "--input-method:keyboard"),
+		  "An invalid input method must safely produce the Keyboard argument.");
+	options.input_method = LAUNCHER_INPUT_JOYSTICK;
 
 	const legacy_char *video_modes[] = {"--videomode:vga", "--videomode:ega", "--videomode:cga",
 										"--videomode:tandy"};
@@ -228,6 +260,8 @@ legacy_int main()
 	check(restored.folder == options.folder && restored.hypervision == options.hypervision &&
 			  restored.video_mode == options.video_mode,
 		  "Folder, HyperVision and video mode must round-trip through configuration.");
+	check(restored.input_method == LAUNCHER_INPUT_JOYSTICK && !restored.enabled[LAUNCHER_VIBRATION],
+		  "The selected input method and disabled vibration must round-trip independently.");
 	for (legacy_int mode = LAUNCHER_VIDEO_VGA; mode < LAUNCHER_VIDEO_MODE_COUNT; mode++) {
 		LauncherOptions video_options = options;
 		video_options.video_mode = mode;
@@ -279,6 +313,10 @@ legacy_int main()
 		wxString saved_mode;
 		config.Read("sound_mode", &saved_mode);
 		check(saved_mode == "pc-speaker", "PC Speaker must persist as the stable pc-speaker ID.");
+		wxString saved_method;
+		config.Read("input_method", &saved_method);
+		check(saved_method == "joystick", "Joystick must persist as the stable joystick ID.");
+		config.Write("input_method", "unknown-future-method");
 		config.Write("hypervision", "unknown-future-preset");
 		config.Write("video_mode", "unknown-future-mode");
 		config.DeleteEntry("sound_mode");
@@ -301,6 +339,8 @@ legacy_int main()
 		  "Configurations without a saved Widescreen setting must use the disabled default.");
 	check(!restored.enabled[LAUNCHER_SHOW_MPH],
 		  "Configurations without a saved Show MPH setting must use the disabled default.");
+	check(restored.input_method == LAUNCHER_INPUT_KEYBOARD,
+		  "An unknown stored input method must use the Keyboard default.");
 	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
 		  "An unknown stored video mode must use the VGA default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
@@ -335,9 +375,12 @@ legacy_int main()
 		config.DeleteEntry("sound_mode");
 		config.Write("sound", true);
 		config.DeleteEntry("video_mode");
+		config.DeleteEntry("input_method");
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
+	check(restored.input_method == LAUNCHER_INPUT_KEYBOARD && !restored.enabled[LAUNCHER_VIBRATION],
+		  "Existing settings must default to Keyboard without changing vibration.");
 	check(restored.video_mode == LAUNCHER_VIDEO_VGA,
 		  "Configurations without a video mode must use the VGA default.");
 	check(restored.sound_mode == LAUNCHER_SOUND_ADLIB,

@@ -143,7 +143,8 @@ class LauncherDialog : public wxDialog
 		folder_row->Add(browse, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		fields->Add(folder_row, FIXED_LAYOUT, wxEXPAND | wxALL, border);
 
-		add_group(content, fields, "Startup options", LAUNCHER_SKIP_INTRO, LAUNCHER_FULLSCREEN);
+		add_group(content, fields, "Startup options", LAUNCHER_SKIP_INTRO, LAUNCHER_SKIP_INTRO + 1);
+		add_input_group(content, fields);
 		add_sound_group(content, fields);
 		wxStaticBoxSizer *graphics = new wxStaticBoxSizer(wxVERTICAL, content, "Graphics settings");
 		wxFlexGridSizer *graphics_grid = new wxFlexGridSizer(OPTION_COLUMNS, spacing, border);
@@ -257,6 +258,30 @@ class LauncherDialog : public wxDialog
 			add_option(group->GetStaticBox(), grid, index);
 		}
 		group->Add(grid, FIXED_LAYOUT, wxEXPAND | wxALL, FromDIP(CONTROL_SPACING));
+		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
+					FromDIP(OUTER_BORDER));
+	}
+
+	void add_input_group(wxWindow *parent, wxSizer *layout)
+	{
+		const legacy_int spacing = FromDIP(CONTROL_SPACING);
+		wxStaticBoxSizer *group = new wxStaticBoxSizer(wxVERTICAL, parent, "Input settings");
+		wxWindow *box = group->GetStaticBox();
+		wxBoxSizer *method_row = new wxBoxSizer(wxHORIZONTAL);
+		method_row->Add(new wxStaticText(box, wxID_ANY, "Input method"), FIXED_LAYOUT,
+						wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		input_method_ = new wxChoice(box, wxID_ANY);
+		input_method_->SetName("Input method");
+		for (const LauncherInputDefinition &method : launcher_input_definitions) {
+			input_method_->Append(method.label);
+		}
+		input_method_->SetSelection(options_.input_method);
+		method_row->Add(input_method_, GROW_LAYOUT, wxEXPAND);
+		group->Add(method_row, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
+
+		wxBoxSizer *vibration_row = new wxBoxSizer(wxHORIZONTAL);
+		add_option(box, vibration_row, LAUNCHER_VIBRATION);
+		group->Add(vibration_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
 		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
 					FromDIP(OUTER_BORDER));
 	}
@@ -499,6 +524,7 @@ class LauncherDialog : public wxDialog
 		for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 			options_.enabled[index] = checks_[index]->GetValue();
 		}
+		options_.input_method = input_method_->GetSelection();
 		options_.hypervision = hypervision_->GetSelection();
 		options_.video_mode = video_mode_->GetSelection();
 		wxString save_error;
@@ -595,6 +621,7 @@ class LauncherDialog : public wxDialog
 	wxTextCtrl *folder_;
 	wxChoice *hypervision_;
 	wxChoice *video_mode_;
+	wxChoice *input_method_;
 	wxChoice *sound_mode_;
 	wxChoice *rom_set_;
 	wxTextCtrl *rom_folder_;

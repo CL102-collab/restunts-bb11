@@ -86,6 +86,7 @@ engine. **Sound** enabled means `/ns` is omitted.
 | Ogg replacement music `--ogg:on/off` | SDL3 builds. Launchers label this **OGG music replacement** (formerly **New MIDI**), independent of PC Speaker/Ad Lib/MT-32. Off by default on all platforms; saved launcher choices take precedence. |
 | Widescreen `--widescreen:on/off` | All SDL3 builds, including Android, web and DOS32. Off by default; applies only to HyperVision races and replays. |
 | Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
+| Initial driving input `--input-method:keyboard/joystick/mouse` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to Keyboard. |
 | Touch control layout `--control-layout:on/off` | Android and web. |
 | Tilt steering | Android launcher and sensor backend. |
 | DOS audio driver `/sXX` | DOS16: AD, PC, MT, TD; SB selects AdLib FM. Other ports use their native audio backend. |
@@ -123,6 +124,11 @@ remembers your choice and requests browser fullscreen directly from the
 **Start game** click. It does not pass a fullscreen argument to the game. If the
 browser refuses fullscreen, the game continues in the page; the manual
 **Fullscreen** button and **Alt+Enter** remain available.
+
+Use `--input-method:keyboard`, `--input-method:joystick`, or `--input-method:mouse`
+to set the initial driving input device in the desktop game. The option name
+and value are case-insensitive. Supply it once. The in-game Options menu can
+still change the driving input device during play.
 
 See [Android](android.md), [web](wasm.md), [Amiga](amiga.md), and
 [SDL3](sdl3.md) for platform controls and build instructions.
