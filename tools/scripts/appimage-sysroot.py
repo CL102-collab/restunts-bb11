@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch pinned public container layers and extract a link-only legacy SDK.
+"""Fetch pinned public archives and extract a link-only legacy SDK.
 
 No program from an old root filesystem is executed.  The files selected here
 are compiler inputs; prepare-appimage-sysroot.sh chooses the separate runtime
@@ -656,11 +656,10 @@ def main():
         return
     archives = {}
     for resource in ("base", "development", "runtime"):
+        url = getattr(args, resource + "_url")
         checksum = getattr(args, resource + "_sha256")
-        archives[resource] = download(
-            getattr(args, resource + "_url"), checksum,
-            args.cache / (checksum + ".tar.gz"),
-        )
+        suffix = ".tar.xz" if urllib.parse.urlsplit(url).path.endswith(".tar.xz") else ".tar.gz"
+        archives[resource] = download(url, checksum, args.cache / (checksum + suffix))
     extract(archives["base"], args.sysroot)
     extract(archives["development"], args.sysroot)
     patch_cxx_headers(args.sysroot)

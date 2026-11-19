@@ -13,7 +13,7 @@ case "$target" in
     linux-appimage-x64)
         architecture=x64; lib_directory=lib64; host_triple=x86_64-linux-gnu
         legacy_cxx_target=x86_64-redhat-linux
-        sdk_image=$APPIMAGE_LEGACY_X64_IMAGE; glibc_image=$APPIMAGE_GLIBC_X64_IMAGE
+        sdk_image=$APPIMAGE_LEGACY_X64_IMAGE
         base_url=$APPIMAGE_LEGACY_X64_BASE_URL; base_sha=$APPIMAGE_LEGACY_X64_BASE_SHA256
         development_url=$APPIMAGE_LEGACY_X64_DEVELOPMENT_URL
         development_sha=$APPIMAGE_LEGACY_X64_DEVELOPMENT_SHA256
@@ -24,7 +24,7 @@ case "$target" in
     linux-appimage-x86|linux-appimage-x86-no-sse2)
         architecture=x86; lib_directory=lib; host_triple=i686-linux-gnu
         legacy_cxx_target=i386-redhat-linux
-        sdk_image=$APPIMAGE_LEGACY_X86_IMAGE; glibc_image=$APPIMAGE_GLIBC_X86_IMAGE
+        sdk_image=$APPIMAGE_LEGACY_X86_IMAGE
         base_url=$APPIMAGE_LEGACY_X86_BASE_URL; base_sha=$APPIMAGE_LEGACY_X86_BASE_SHA256
         development_url=$APPIMAGE_LEGACY_X86_DEVELOPMENT_URL
         development_sha=$APPIMAGE_LEGACY_X86_DEVELOPMENT_SHA256
@@ -271,7 +271,8 @@ for path in prefix.rglob('*'):
 PY
     chmod 755 "$stage/deps/bin/restunts-gtk-modules"
     {
-        printf 'Legacy SDK image: %s\nLink-only glibc image: %s\n' "$sdk_image" "$glibc_image"
+        printf 'Legacy SDK image: %s\nLink-only glibc rootfs: %s\nLink-only glibc SHA256: %s\n' \
+            "$sdk_image" "$runtime_url" "$runtime_sha"
         printf 'Recipe SHA256: %s\nALSA source SHA256: %s\n' "$recipe_sha" "$APPIMAGE_ALSA_SHA256"
         printf 'ALSA configure: --prefix=/usr --libdir=/usr/%s --host=%s --disable-python\n' "$lib_directory" "$host_triple"
         printf 'Architecture flags: %s %s\n' "$architecture_flags" "$dependency_flags"
