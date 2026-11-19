@@ -108,4 +108,4 @@ legacy_u8 subst_hillroad_track(legacy_u8 terrain, legacy_u8 track)
 }
 
 struct PLANE far plan_memres = {
-	0, 0, {0, 0, 0}, {0, DEFAULT_PLANE_NORMAL_Y, 0}, {{0, 0, 0, 0, 0, 0, 0, 0, 0}}};
+	0, 0, {0, 0, 0}, {0, DEFAULT_PLANE_NORMAL_Y, 0}, {{{0, 0, 0, 0, 0, 0, 0, 0, 0}}}};
