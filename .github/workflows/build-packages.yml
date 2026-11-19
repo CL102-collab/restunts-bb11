@@ -565,7 +565,10 @@ jobs:
             if [ "$PACKAGE_TARGET" = openbsd-x64 ]; then
               sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
             else
-              export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
+              # Daily maintenance purges old release-set files under /tmp.
+              RESTUNTS_BSD_SYSROOT=$(mktemp -d /var/tmp/restunts-bsd-sysroot.XXXXXXXX)
+              export RESTUNTS_BSD_SYSROOT
+              trap 'rm -rf -- "$RESTUNTS_BSD_SYSROOT"' 0
               sh tools/scripts/prepare-openbsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
             fi
             bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
