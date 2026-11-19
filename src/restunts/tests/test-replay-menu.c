@@ -551,9 +551,9 @@ legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_
 	return (scenario / 4) % 4 - 1;
 }
 #ifdef RESTUNTS_SDL3
-legacy_u16 show_replay_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_u16 x,
-							  legacy_u16 y, legacy_s16 color, legacy_s16 *disabled,
-							  legacy_s16 initial)
+legacy_u16 show_race_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_u16 x,
+							legacy_u16 y, legacy_s16 color, legacy_s16 *disabled,
+							legacy_s16 initial)
 {
 	return show_dialog(type, save, text, x, y, color, disabled, initial);
 }

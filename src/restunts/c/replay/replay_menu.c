@@ -28,11 +28,11 @@ static legacy_s8 replay_choose_pause_action(void)
 		options[REPLAY_PAUSE_ACTION_FINISH] = 1;
 	}
 	full_redraw_frames_remaining = (legacy_u8)video_page_count;
-	return LEGACY_S8_FROM_BITS(show_replay_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-												  locate_text_res(gameresptr, replay_pause_menu_id),
-												  DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-												  VIDEO_UI_COLOR(dialog_border_color), options,
-												  REPLAY_DIALOG_INITIAL_CHOICE));
+	return LEGACY_S8_FROM_BITS(show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+												locate_text_res(gameresptr, replay_pause_menu_id),
+												DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+												VIDEO_UI_COLOR(dialog_border_color), options,
+												REPLAY_DIALOG_INITIAL_CHOICE));
 }
 
 static legacy_s16 replay_confirm_restart(void)
@@ -58,10 +58,10 @@ static legacy_s16 replay_confirm_restart(void)
 		return 0;
 	}
 	question[length] = 0;
-	return show_replay_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, question,
-							  DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-							  VIDEO_UI_COLOR(dialog_border_color), 0,
-							  REPLAY_DIALOG_INITIAL_CHOICE) == REPLAY_DIALOG_CONFIRMED_CHOICE;
+	return show_race_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, question,
+							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+							VIDEO_UI_COLOR(dialog_border_color), 0,
+							REPLAY_DIALOG_INITIAL_CHOICE) == REPLAY_DIALOG_CONFIRMED_CHOICE;
 }
 
 static void replay_restart_recording(void)
@@ -87,10 +87,10 @@ static legacy_s16 replay_continue_recording(void)
 		replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG | REPLAY_RECORDING_MODIFIED_FLAG;
 	} else if (replay_recorded_frames() != replay_input_frame()) {
 		legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(
-			show_replay_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-							   locate_text_res(gameresptr, replay_continue_dialog_id),
-							   DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-							   VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE));
+			show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
+							 locate_text_res(gameresptr, replay_continue_dialog_id),
+							 DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+							 VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE));
 		if (dialog_result < REPLAY_DIALOG_ACCEPTED_MINIMUM) {
 			return 0;
 		}
@@ -240,7 +240,7 @@ static legacy_s8 replay_choose_save_path(void)
 		save_status = REPLAY_SAVE_READY;
 		g_is_busy = 1;
 		if (file_find(g_path_buf) != 0) {
-			legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_replay_dialog(
+			legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_race_dialog(
 				DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
 				locate_text_res(mainresptr, replay_overwrite_dialog_id), DIALOG_AUTO_POSITION,
 				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(performGraphColor), 0,
@@ -267,10 +267,10 @@ static void replay_save_recording(void)
 		if ((legacy_u8)file_write_replay(g_path_buf) == 0) {
 			break;
 		}
-		show_replay_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_NO_BACKGROUND_SAVE,
-						   locate_text_res(mainresptr, replay_save_error_message_id),
-						   DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-						   VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE);
+		show_race_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_NO_BACKGROUND_SAVE,
+						 locate_text_res(mainresptr, replay_save_error_message_id),
+						 DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+						 VIDEO_UI_COLOR(performGraphColor), 0, REPLAY_DIALOG_INITIAL_CHOICE);
 	}
 }
 
@@ -283,7 +283,7 @@ static void replay_display_options(void)
 	if (gameconfig.game_opponenttype == 0 && ghost_car_state() == 0) {
 		mode_options[REPLAY_MODE_ACTION_FOLLOW_OPPONENT] = 1;
 	}
-	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(show_replay_dialog(
+	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(show_race_dialog(
 		DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
 		locate_text_res(gameresptr, replay_mode_options_dialog_id), DIALOG_AUTO_POSITION,
 		DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), mode_options,

@@ -21,14 +21,14 @@ enum DIALOG_TYPE {
 legacy_u16 show_dialog(legacy_s16 dialog_type, legacy_s16 save_background, void far *text_resource,
 					   legacy_u16 x_argument, legacy_u16 y_argument, legacy_s16 border_color,
 					   legacy_s16 *disabled_choices, legacy_s16 initial_choice);
-/* Replay popups follow the scene behind them. */
+/* Race and replay dialogs preserve the scene behind them. */
 #ifdef RESTUNTS_SDL3
-legacy_u16 show_replay_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
-							  void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
-							  legacy_s16 border_color, legacy_s16 *disabled_choices,
-							  legacy_s16 initial_choice);
+legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
+							void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
+							legacy_s16 border_color, legacy_s16 *disabled_choices,
+							legacy_s16 initial_choice);
 #else
-#define show_replay_dialog show_dialog
+#define show_race_dialog show_dialog
 #endif
 
 /* Text entry stays above the Android keyboard; other builds retain their layout. */

@@ -12,6 +12,7 @@ enum WIDESCREEN_OVERLAY {
 	WIDESCREEN_OVERLAY_LEFT,
 	WIDESCREEN_OVERLAY_RIGHT,
 	WIDESCREEN_OVERLAY_DIALOG,
+	WIDESCREEN_OVERLAY_NESTED_DIALOG,
 	WIDESCREEN_OVERLAY_CURSOR,
 	WIDESCREEN_OVERLAY_COUNT
 };
@@ -42,6 +43,7 @@ void widescreen_begin_frame(void);
 void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay);
 void widescreen_overlay_end(void);
 void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay);
+legacy_s32 widescreen_overlay_visible(enum WIDESCREEN_OVERLAY overlay);
 legacy_s32 widescreen_overlay_only(void);
 legacy_u32 widescreen_overlay_generation(void);
 legacy_s32 widescreen_overlay_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color);

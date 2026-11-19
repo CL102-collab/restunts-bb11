@@ -241,9 +241,9 @@ void show_exit_to_dos_dialog(void)
 	input_push_status();
 	dos_timer_set_callbacks_suspended(1);
 	audio_suspend();
-	legacy_s16 result = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
-									locate_text_res(mainresptr, exit_to_dos_dialog_id), -1, -1,
-									VIDEO_UI_COLOR(dialog_border_color), 0, 0);
+	legacy_s16 result = show_race_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND,
+										 locate_text_res(mainresptr, exit_to_dos_dialog_id), -1, -1,
+										 VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	if (result == 1) {
 		call_exitlist2();
 	}

@@ -170,6 +170,14 @@ legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void *text, legacy_u16 
 	assert(dialog_index < 24U);
 	return (legacy_u16)dialog_answers[dialog_index++];
 }
+#ifdef RESTUNTS_SDL3
+legacy_u16 show_race_dialog(legacy_s16 type, legacy_s16 save, void *text, legacy_u16 x,
+							legacy_u16 y, legacy_s16 border, legacy_s16 *positions,
+							legacy_s16 selected)
+{
+	return show_dialog(type, save, text, x, y, border, positions, selected);
+}
+#endif
 void call_exitlist2(void)
 {
 	trace_word(2018);

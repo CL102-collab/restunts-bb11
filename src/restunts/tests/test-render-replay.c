@@ -25,11 +25,16 @@
 #include "../c/hires/hires.h"
 #include "../c/crash_state.h"
 #include "../c/hires/frame_adaptive.h"
+#include "../c/hires/widescreen.h"
+#include "../c/startup_internal.h"
+#include "../c/ui/ui_dialog.h"
+#include "../platform/sdl3/touch.h"
 #include "../platform/sdl3/video_mode.h"
 
 #define RENDER_REPLAY_ADAPTIVE_MODE 3
 #define RENDER_REPLAY_SHORT_ARGUMENT_COUNT 7
 #define RENDER_REPLAY_LONG_ARGUMENT_COUNT 9
+#define RENDER_REPLAY_VGA_SEGMENT 0xA000U
 
 static const legacy_char RENDER_REPLAY_VIDEO_MODE_PREFIX[] = "--videomode:";
 
@@ -39,7 +44,9 @@ static const legacy_char RENDER_REPLAY_VIDEO_MODE_PREFIX[] = "--videomode:";
 /* Keep the production timer pump, but control its UI timestamp during exact
  * framebuffer comparisons. No wall-clock overlay may expire between snapshots. */
 #define dos_timer_get_realtime_counter render_replay_realtime_counter
+#define timer_get_delta render_replay_timer_delta
 #include "../platform/sdl3/timer.c"
+#undef timer_get_delta
 #undef dos_timer_get_realtime_counter
 
 static legacy_u8 visual_clock_frozen;
@@ -299,13 +306,130 @@ static legacy_u8 *capture_snapshot_pixels(const struct GAMESTATE *snapshot, size
 	legacy_s32 width;
 	legacy_s32 height;
 	const legacy_u8 *pixels =
-		video_framebuffer(dos_memory_make_pointer(0xA000U, 0), &width, &height);
+		video_framebuffer(dos_memory_make_pointer(RENDER_REPLAY_VGA_SEGMENT, 0), &width, &height);
 	assert(pixels != NULL);
 	*size = (size_t)width * height;
 	legacy_u8 *copy = malloc(*size);
 	assert(copy != NULL);
 	memcpy(copy, pixels, *size);
 	return copy;
+}
+
+enum {
+	RENDER_REPLAY_DIALOG_WIDTH = 1280,
+	RENDER_REPLAY_DIALOG_HEIGHT = 720,
+	RENDER_REPLAY_DIALOG_OPEN_POLLS = 2,
+	RENDER_REPLAY_DIALOG_CLOSE_POLLS = 1
+};
+
+enum REPLAY_QUIT_STAGE {
+	REPLAY_QUIT_PARENT_OPEN,
+	REPLAY_QUIT_CONFIRM_OPEN,
+	REPLAY_QUIT_PARENT_RESTORED,
+	REPLAY_QUIT_DONE
+};
+
+struct REPLAY_QUIT_TEST {
+	enum REPLAY_QUIT_STAGE stage;
+	legacy_u16 polls_remaining;
+	legacy_u8 *background_pixels;
+	size_t pixel_count;
+	legacy_u8 nested;
+};
+
+static struct REPLAY_QUIT_TEST *replay_quit_test;
+
+static const legacy_u8 *quit_dialog_pixels(void)
+{
+	legacy_s32 width, height;
+	const legacy_u8 *pixels =
+		video_framebuffer(dos_memory_make_pointer(RENDER_REPLAY_VGA_SEGMENT, 0), &width, &height);
+	assert(pixels != NULL);
+	assert(widescreen_active());
+	assert(width == RENDER_REPLAY_DIALOG_WIDTH && height == RENDER_REPLAY_DIALOG_HEIGHT);
+	assert(hires_render_scale() == HIRES_MEDIUM_SCALE);
+	return pixels;
+}
+
+legacy_u32 timer_get_delta(void)
+{
+	legacy_u32 delta = render_replay_timer_delta();
+	struct REPLAY_QUIT_TEST *test = replay_quit_test;
+	if (test == NULL || test->stage == REPLAY_QUIT_DONE) {
+		return delta;
+	}
+	if (test->polls_remaining > 0) {
+		test->polls_remaining--;
+		return delta;
+	}
+
+	const legacy_u8 *pixels = quit_dialog_pixels();
+	switch (test->stage) {
+		case REPLAY_QUIT_PARENT_OPEN:
+			memcpy(test->background_pixels, pixels, test->pixel_count);
+			test->stage = REPLAY_QUIT_CONFIRM_OPEN;
+			test->polls_remaining = RENDER_REPLAY_DIALOG_OPEN_POLLS;
+			sdl3_input_queue_key(CALLBACK_DOS_HELP_KEY);
+			break;
+		case REPLAY_QUIT_CONFIRM_OPEN:
+			assert(memcmp(pixels, test->background_pixels, test->pixel_count) != 0);
+			test->stage = test->nested ? REPLAY_QUIT_PARENT_RESTORED : REPLAY_QUIT_DONE;
+			test->polls_remaining = RENDER_REPLAY_DIALOG_CLOSE_POLLS;
+			sdl3_input_queue_key(KEY_ESCAPE);
+			break;
+		case REPLAY_QUIT_PARENT_RESTORED:
+			assert(memcmp(pixels, test->background_pixels, test->pixel_count) == 0);
+			test->stage = REPLAY_QUIT_DONE;
+			sdl3_input_queue_key(KEY_ESCAPE);
+			break;
+		case REPLAY_QUIT_DONE:
+			break;
+	}
+	return delta;
+}
+
+static void check_race_quit_dialogs(void)
+{
+	widescreen_set_enabled(1);
+	widescreen_set_racing(1);
+	widescreen_set_output_size(RENDER_REPLAY_DIALOG_WIDTH, RENDER_REPLAY_DIALOG_HEIGHT);
+	hires_set_render_scale(HIRES_MEDIUM_SCALE);
+	widescreen_begin_frame();
+
+	size_t scene_size;
+	legacy_u8 *scene_pixels = capture_snapshot_pixels(&state, &scene_size);
+	assert(scene_size == (size_t)RENDER_REPLAY_DIALOG_WIDTH * RENDER_REPLAY_DIALOG_HEIGHT);
+
+	/* Use the form of Ctrl+Q queued by the SDL keyboard handler. The real
+	 * callback and menu run while the timer hook inspects the presentation. */
+	struct REPLAY_QUIT_TEST test = {REPLAY_QUIT_CONFIRM_OPEN, RENDER_REPLAY_DIALOG_OPEN_POLLS,
+									scene_pixels, scene_size, 0};
+	replay_quit_test = &test;
+	sdl3_input_queue_key(CALLBACK_DOS_HELP_KEY);
+	assert(dos_kb_get_char() == 0);
+	assert(test.stage == REPLAY_QUIT_DONE);
+	mouse_draw_opaque_check();
+	assert(memcmp(quit_dialog_pixels(), scene_pixels, scene_size) == 0);
+
+	/* Let the entry polls finish before sending Ctrl+Q and Escape. The
+	 * confirmation's final poll drains input before reinstating its parent. */
+	test = (struct REPLAY_QUIT_TEST){REPLAY_QUIT_PARENT_OPEN, RENDER_REPLAY_DIALOG_OPEN_POLLS,
+									 malloc(scene_size), scene_size, 1};
+	assert(test.background_pixels != NULL);
+	static legacy_s8 replay_menu[] = "Replay options]}[Continue][Save Replay]";
+	assert(show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE, replay_menu,
+							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, NULL,
+							0) == DIALOG_FAILURE_RESULT);
+	replay_quit_test = NULL;
+
+	assert(test.stage == REPLAY_QUIT_DONE);
+	assert(memcmp(scene_pixels, test.background_pixels, scene_size) != 0);
+	mouse_draw_opaque_check();
+	assert(memcmp(quit_dialog_pixels(), scene_pixels, scene_size) == 0);
+	free(test.background_pixels);
+	free(scene_pixels);
+	widescreen_set_racing(0);
+	widescreen_set_enabled(0);
 }
 
 static void check_authoritative_event_visuals(void)
@@ -556,6 +680,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		   trackside_follow_samples);
 	assert(fclose(output) == 0);
 	free(recording);
+	if (mode == RENDER_REPLAY_ADAPTIVE_MODE && expected_video_mode == SDL3_VIDEO_MODE_VGA) {
+		check_race_quit_dialogs();
+	}
 	/* Match pixldump shutdown: this fixture never loaded dashboard resources. */
 	call_exitlist();
 	return 0;

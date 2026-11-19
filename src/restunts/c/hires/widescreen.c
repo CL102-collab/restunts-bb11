@@ -257,9 +257,15 @@ void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay)
 	}
 }
 
+legacy_s32 widescreen_overlay_visible(enum WIDESCREEN_OVERLAY overlay)
+{
+	return overlay_used[overlay];
+}
+
 legacy_s32 widescreen_overlay_only(void)
 {
 	return overlay_target.kind == WIDESCREEN_OVERLAY_DIALOG ||
+		   overlay_target.kind == WIDESCREEN_OVERLAY_NESTED_DIALOG ||
 		   overlay_target.kind == WIDESCREEN_OVERLAY_CURSOR;
 }
 

@@ -98,7 +98,7 @@ static void dialog_begin_overlay(legacy_u8 overlay)
 {
 #ifdef RESTUNTS_SDL3
 	if (overlay) {
-		widescreen_overlay_begin(WIDESCREEN_OVERLAY_DIALOG);
+		widescreen_overlay_begin((enum WIDESCREEN_OVERLAY)overlay);
 	}
 #else
 	(void)overlay;
@@ -443,25 +443,28 @@ legacy_u16 show_dialog(legacy_s16 dialog_type, legacy_s16 save_background, void 
 }
 
 #ifdef RESTUNTS_SDL3
-legacy_u16 show_replay_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
-							  void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
-							  legacy_s16 border_color, legacy_s16 *disabled_choices,
-							  legacy_s16 initial_choice)
+legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
+							void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
+							legacy_s16 border_color, legacy_s16 *disabled_choices,
+							legacy_s16 initial_choice)
 {
 	if (!widescreen_active()) {
 		return show_dialog(dialog_type, save_background, text_resource, x_argument, y_argument,
 						   border_color, disabled_choices, initial_choice);
 	}
 
-	/* Center the dialog over the current replay. Clearing its own layer
-	 * reveals the replay again, including full-resolution scene samples. */
+	/* A shortcut can open a confirmation while the replay menu is visible.
+	 * Draw above it so cancel reveals it intact. */
+	enum WIDESCREEN_OVERLAY overlay = widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG)
+										  ? WIDESCREEN_OVERLAY_NESTED_DIALOG
+										  : WIDESCREEN_OVERLAY_DIALOG;
 	struct SPRITE saved_context[SPRITE_STATE_COUNT];
 	sprite_save_context(saved_context);
 	sdl3_input_push_overlay_modal();
 	legacy_u16 result =
 		show_dialog_impl(dialog_type, DIALOG_NO_BACKGROUND_SAVE, text_resource, x_argument,
-						 y_argument, border_color, disabled_choices, initial_choice, 1);
-	widescreen_overlay_clear(WIDESCREEN_OVERLAY_DIALOG);
+						 y_argument, border_color, disabled_choices, initial_choice, overlay);
+	widescreen_overlay_clear(overlay);
 	sprite_restore_context(saved_context);
 	sdl3_input_pop_overlay_modal();
 	return result;
