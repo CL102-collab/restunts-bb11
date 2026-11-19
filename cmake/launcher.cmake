@@ -112,8 +112,10 @@ function(restunts_add_desktop_launcher)
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
         FetchContent_MakeAvailable(wxWidgets)
         if(APPLE AND RESTUNTS_WX_TOOLKIT STREQUAL "osx_cocoa")
-            # wxAdv is an empty compatibility archive in wxWidgets 3.2.
-            set_property(TARGET wxadv PROPERTY EXCLUDE_FROM_ALL TRUE)
+            if(TARGET wxadv)
+                # wxAdv is an empty compatibility archive in wxWidgets 3.2.
+                set_property(TARGET wxadv PROPERTY EXCLUDE_FROM_ALL TRUE)
+            endif()
             if(CMAKE_OBJCXX_COMPILER_ID MATCHES "Clang")
                 # The pinned Cocoa sources leave a label and clipping argument unused.
                 set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/osx/cocoa/button.mm"
