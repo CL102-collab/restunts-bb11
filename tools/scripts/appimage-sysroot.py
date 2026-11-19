@@ -45,6 +45,12 @@ def download(url, checksum, destination):
     if destination.is_file() and sha256(destination) == checksum:
         return destination
     parsed = urllib.parse.urlsplit(url)
+    retry_url = url
+    if (parsed.scheme == "https" and parsed.netloc == "archive.ubuntu.com"
+            and parsed.path.startswith("/ubuntu/pool/")):
+        # The Azure Ubuntu mirror serves the same pool paths. Keep verifying
+        # each download against the caller's pinned checksum.
+        retry_url = parsed._replace(netloc="azure.archive.ubuntu.com").geturl()
     registry_blob = parsed.hostname in REGISTRY_BLOB_HOSTS and "/blobs/" in parsed.path
     headers = {"Cache-Control": "no-cache"} if registry_blob else {}
     if parsed.hostname == "registry-1.docker.io":
@@ -62,7 +68,7 @@ def download(url, checksum, destination):
     partial = Path(partial_name)
     try:
         for attempt in range(DOWNLOAD_ATTEMPTS):
-            request_url = url
+            request_url = retry_url if attempt else url
             if registry_blob and attempt:
                 # A registry redirect can stay cached longer than its signed URL.
                 # Give each retry a fresh cache key at the registry itself.
@@ -75,8 +81,9 @@ def download(url, checksum, destination):
                     shutil.copyfileobj(response, output, 1024 * 1024)
             except (OSError, http.client.HTTPException) as error:
                 if attempt == DOWNLOAD_ATTEMPTS - 1:
+                    host = urllib.parse.urlsplit(request_url).hostname or parsed.scheme
                     raise RuntimeError(
-                        f"Download of {destination.name} from {parsed.hostname or parsed.scheme} "
+                        f"Download of {destination.name} from {host} "
                         f"failed after {DOWNLOAD_ATTEMPTS} attempts") from error
             else:
                 # A server can close a successful response early without a read

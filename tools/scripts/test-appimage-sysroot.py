@@ -114,6 +114,23 @@ class SysrootTests(unittest.TestCase):
         self.assertEqual(destination.read_bytes(), content)
         self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
 
+    def test_ubuntu_pool_retry_checks_the_mirror_download(self):
+        content = b"verified compiler input"
+        destination = self.root / "cache" / "archive"
+        path = "/ubuntu/pool/main/a/archive/archive.deb"
+        primary = "https://archive.ubuntu.com" + path
+        mirror = "https://azure.archive.ubuntu.com" + path
+        responses = [urllib.error.HTTPError(primary, 403, "Forbidden", {}, None),
+                     io.BytesIO(b"incorrect mirror content"), io.BytesIO(content)]
+        with mock.patch.object(sdk.time, "sleep"), \
+                mock.patch.object(sdk.urllib.request, "urlopen", side_effect=responses) as opened:
+            sdk.download(primary, hashlib.sha256(content).hexdigest(), destination)
+
+        self.assertEqual([call.args[0].full_url for call in opened.call_args_list],
+                         [primary, mirror, mirror])
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
+
     def test_registry_retries_refresh_expired_blob_redirects(self):
         content = b"verified compiler input"
         destination = self.root / "cache" / "layer.tar.gz"
