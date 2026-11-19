@@ -290,7 +290,7 @@ static void race_handle_driving_input(void)
 		legacy_s16 start_requested = ((mouse_butstate & MOUSE_BUTTON_MASK) != 0) ||
 									 ((get_kb_or_joy_flags() & INPUT_ACTION_BUTTON_MASK) != 0);
 #ifdef RESTUNTS_SDL3
-		start_requested |= sdl3_controller_take_race_start_request() != 0;
+		start_requested |= sdl3_input_take_race_start_request() != 0;
 #endif
 		if (start_requested != 0) {
 			game_replay_mode = REPLAY_MODE_LIVE;

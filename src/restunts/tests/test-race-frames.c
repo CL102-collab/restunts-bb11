@@ -151,7 +151,7 @@ static legacy_u8 controller_menu_request, controller_menu_testing;
 static legacy_u8 controller_start_request, controller_start_testing;
 static legacy_u16 controller_start_polls, controller_start_resets;
 
-legacy_u8 sdl3_controller_take_race_start_request(void)
+legacy_u8 sdl3_input_take_race_start_request(void)
 {
 	legacy_u8 requested = controller_start_request;
 	controller_start_request = 0;

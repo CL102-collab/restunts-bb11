@@ -321,7 +321,11 @@ static void input_translate_joystick_key(void)
 	if (((legacy_u16)input_new_joystick_flags & INPUT_SECONDARY_ACTION_FLAG) != 0) {
 		input_joystick_keycode = KEY_ENTER;
 	} else if (((legacy_u16)input_new_joystick_flags & INPUT_PRIMARY_ACTION_FLAG) != 0) {
+#ifdef RESTUNTS_SDL3
+		input_joystick_keycode = KEY_ESCAPE;
+#else
 		input_joystick_keycode = KEY_SPACE;
+#endif
 	} else if (((legacy_u16)input_new_joystick_flags & INPUT_ACCELERATE_FLAG) != 0) {
 		input_joystick_keycode = KEY_UP;
 	} else if (((legacy_u16)input_new_joystick_flags & INPUT_BRAKE_FLAG) != 0) {

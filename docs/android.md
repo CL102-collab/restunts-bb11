@@ -279,10 +279,12 @@ channel-button events to the app.
 An external keyboard works with **Keyboard** selected: arrows drive, A/Z shift,
 Q rewinds, Enter selects and Escape leaves racing/replay. Recognized gamepads
 use SDL's standard controller mappings automatically, alongside keyboard input.
-The right stick steers, accelerates and brakes; the left stick adjusts the F3
-camera. The D-pad navigates menus and replay controls. While racing, D-pad
-up/down shifts and D-pad left holds Q. A/Cross confirms; B/Circle or either
-bumper sends Escape. Menu/Options opens the race or replay menu. See the full
+While racing, steer with the left stick, brake with the left trigger and
+accelerate with the right trigger. A/Cross shifts down and B/Circle shifts up.
+The right stick adjusts the F3 camera, and Menu/Options opens the race or
+replay menu. In menus, use the left stick to navigate. A/Cross, the right
+bumper or clicking the left stick confirms. B/Circle, the left bumper or the
+left trigger goes back. See the full
 [SDL3 controller bindings](sdl3.md) for the remaining buttons and steering rules.
 Remote-only racing is not a supported setup; controller guidance follows
 [Android TV controller requirements](https://developer.android.com/training/tv/get-started/controllers).

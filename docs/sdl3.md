@@ -568,43 +568,54 @@ select the default explicitly. Supply the option once; its name and value are
 case-insensitive. Android uses the launcher's existing **Vibration** option
 instead.
 
-During a race, moving the right stick selects controller steering; pressing a
-keyboard steering key selects keyboard steering. Only the most recently used
-steering source affects the wheel. Returning the stick to center does not take
-steering back from the keyboard. Controller pedals and gear changes remain
-available independently of steering ownership. The original Mouse and Joystick
-driving selections also remain available.
+During a race, horizontal movement of the left stick selects controller
+steering. Pressing a keyboard steering key selects keyboard steering. Only the
+most recently used steering source affects the wheel. Returning the stick to
+center keeps the current steering source. Controller pedals and gear changes
+remain available independently of steering ownership.
 
-The right stick steers and navigates menus. Right-stick up accelerates and down
-brakes, using the existing joystick's on/off pedal behavior. Horizontal steering
-is graded and can be combined with either pedal. The left stick rotates the F3
-custom camera during driving and replay playback; it has no driving action.
-Moving the right stick also starts the race during the truck unloading sequence,
-just like pressing a keyboard arrow.
-Holding a right-stick or D-pad direction repeats menu navigation, including
-track and replay file selection. Both the right stick and all four D-pad
-directions navigate the replay controls. While driving, D-pad left retains Q
-and D-pad right has no action.
+The triggers operate the accelerator and brake as on/off pedals. Left-stick
+steering is graded and can be combined with either pedal. Move the left stick
+horizontally or press either trigger to start driving during truck unloading.
+The right stick adjusts the F3 custom camera during driving and replay playback.
+In menus and dialogs, holding a left-stick direction repeats navigation,
+including track and replay file selection.
 
-| Controller input | Xbox / PlayStation label | Action |
+| Xbox / PlayStation control | Driving | Menus, dialogs, and replay controls |
 | --- | --- | --- |
-| Bottom face button | A / Cross | Enter |
-| Left or right trigger | LT or RT / L2 or R2 | Space |
-| Right stick click | R3 | Enter in menus and at replay controls |
-| D-pad up / down | Same | Up / Down in menus and replay controls; shift up / down while driving |
-| Right face button | B / Circle | Escape |
-| Left or right bumper | LB or RB / L1 or R1 | Escape |
-| Top face button | Y / Triangle | T: switch player / opponent view |
-| Left face button | X / Square | D: show / hide dashboard |
-| D-pad left | Same | Left in menus and replay controls; Q while driving |
-| D-pad right | Same | Right in menus and replay controls |
-| View button | View / Share or Create | C: cycle camera |
-| Menu button | Menu / Options | Open the race or replay menu |
+| Left stick | Steer left and right | Navigate |
+| Left stick click / L3 | | Enter |
+| Right stick | Adjust the F3 custom camera | |
+| LT / L2 | Brake | Escape |
+| RT / R2 | Accelerate | Space |
+| A / Cross | Shift down | Enter |
+| B / Circle | Shift up | Escape |
+| LB / L1 | Escape | Escape |
+| RB / R1 | Escape | Enter |
+| D-pad up | F11, toggle FPS and render time | |
+| D-pad down | Ctrl+F9, toggle MPH | |
+| D-pad left | Hold Q to rewind | |
+| D-pad right | R, toggle the replay bar | |
+| X / Square | D, toggle the dashboard | |
+| Y / Triangle | T, switch player or opponent view | |
+| Xbox View / Back on other pads | C, cycle the camera | |
+| Menu / Options | Open the race menu | Escape in menus and dialogs |
+
+During replay playback the D-pad keeps its driving shortcuts. Menu / Options
+opens the replay menu. On supported gamepads, Xbox Share, Nintendo Capture,
+PlayStation 4 Share, and PlayStation 5 Create save a screenshot anywhere
+Ctrl+F12 works.
+
+When no mapped gamepad is connected, select **Joystick** in the driving options
+to drive with a raw joystick. Its horizontal axis steers, its vertical axis
+accelerates when pushed up and brakes when pushed down, and A and B shift down
+and up. Moving either axis starts driving during truck unloading. In menus,
+either axis navigates. A confirms and B cancels or exits.
 
 Escape or B / Circle returns from opponent selection or either car-selection
 screen to its previous menu without activating the highlighted button.
 Choosing Re-start driving from the replay menu asks "Re-start driving?" using
-the same No / Yes choices as Exit to Dos. Escape, B / Circle, or either bumper
+the same No / Yes choices as Exit to Dos. Escape, B / Circle, LB / L1, or LT / L2
 cancels without restarting the race.
 
 Controller steering uses the same incremental steering commands as the existing

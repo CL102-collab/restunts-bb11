@@ -99,7 +99,7 @@
             <dl class="guide-list">
                 <div>
                     <dt>Plug in a controller — Drive on desktop, web, and Android.</dt>
-                    <dd>Recognized gamepads connect automatically. Use the right stick to steer, accelerate, and brake; the left stick adjusts the F3 camera. A/Cross confirms, B/Circle or either bumper goes back, and Menu/Options opens the race or replay menu. The D-pad navigates menus; while racing, up/down shifts and holding left rewinds. View cycles cameras, Y/Triangle switches the followed car, and X/Square toggles the dashboard. Keyboard controls remain available alongside the controller.</dd>
+                    <dd>Recognized gamepads connect automatically. Use the left stick to steer, the left trigger to brake, and the right trigger to accelerate. Keyboard controls remain available alongside the controller.</dd>
                 </div>
                 <div>
                     <dt>Show Control Layout — Play Android or the web version on your phone.</dt>
@@ -110,12 +110,35 @@
                     <dd>Supported controllers rumble when the player’s impact sounds play. On Android, the startup Vibration option controls phone and controller feedback; other modern ports offer <code>--controller-vibration:off</code> to disable controller feedback.</dd>
                 </div>
             </dl>
-            <figure class="control-diagram" id="controller-layout">
-                <a href="assets/controls/stunts-xbox-controls-final.png" aria-label="Open the Xbox controller layout at full size">
-                    <img src="assets/controls/stunts-xbox-controls-final.png" alt="Xbox controller layout: the right stick drives, the left stick adjusts the F3 camera, A confirms, B goes back, and the D-pad shifts or rewinds while racing." width="1536" height="1024" loading="lazy" decoding="async">
-                </a>
-                <figcaption>Xbox controller bindings for racing, menus, and replays. Select the picture to view the full-size layout.</figcaption>
-            </figure>
+            <table class="controller-bindings" id="controller-layout">
+                <caption>Gamepad bindings</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Xbox / PlayStation</th>
+                        <th scope="col">Driving</th>
+                        <th scope="col">Menus and replay controls</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><th scope="row">Left stick</th><td>Steer left and right</td><td>Navigate</td></tr>
+                    <tr><th scope="row">Left stick click / L3</th><td></td><td>Confirm</td></tr>
+                    <tr><th scope="row">Right stick</th><td>Adjust the F3 camera</td><td></td></tr>
+                    <tr><th scope="row">LT / L2</th><td>Brake</td><td>Go back</td></tr>
+                    <tr><th scope="row">RT / R2</th><td>Accelerate</td><td>Space</td></tr>
+                    <tr><th scope="row">A / Cross</th><td>Shift down</td><td>Confirm</td></tr>
+                    <tr><th scope="row">B / Circle</th><td>Shift up</td><td>Go back</td></tr>
+                    <tr><th scope="row">LB / L1</th><td>Escape</td><td>Go back</td></tr>
+                    <tr><th scope="row">RB / R1</th><td>Escape</td><td>Confirm</td></tr>
+                    <tr><th scope="row">D-pad up / down</th><td>Toggle FPS / MPH, respectively</td><td></td></tr>
+                    <tr><th scope="row">D-pad left / right</th><td>Hold left to rewind. Tap right to toggle the replay bar.</td><td></td></tr>
+                    <tr><th scope="row">X / Square</th><td>Toggle the dashboard</td><td></td></tr>
+                    <tr><th scope="row">Y / Triangle</th><td>Switch the followed car</td><td></td></tr>
+                    <tr><th scope="row">Xbox View / Back on other pads</th><td>Cycle cameras</td><td></td></tr>
+                    <tr><th scope="row">Menu / Options</th><td>Open the race menu</td><td>Go back in menus</td></tr>
+                </tbody>
+            </table>
+            <p class="note">During replay, the right stick still adjusts the F3 camera, the D-pad keeps its driving shortcuts, and Menu/Options opens the replay menu. On supported gamepads, Xbox Share, Nintendo Capture, PlayStation 4 Share, and PlayStation 5 Create save a screenshot anywhere Ctrl+F12 works.</p>
+            <p class="note">With a standalone joystick and no mapped gamepad, choose Joystick in the game’s Options. Push the stick left or right to steer, up to accelerate, and down to brake. A shifts down and B shifts up. Use the stick to navigate menus, A to confirm, and B to go back.</p>
         </section>
 
         <section class="guide-section" id="parameters" aria-labelledby="parameters-title">

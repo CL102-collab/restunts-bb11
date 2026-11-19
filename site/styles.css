@@ -176,6 +176,11 @@ details[open] > .download-summary::after { transform: rotate(90deg); }
 .control-diagram a { display: block; }
 .control-diagram img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius); }
 .control-diagram figcaption { margin-top: 12px; color: var(--muted); font-size: .875rem; }
+.controller-bindings { width: 100%; max-width: 960px; margin-top: var(--guide-gap); border-collapse: collapse; text-align: left; font-size: .875rem; }
+.controller-bindings caption { padding-bottom: 8px; text-align: left; font-size: 1.0625rem; font-weight: 650; }
+.controller-bindings th, .controller-bindings td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.controller-bindings thead { background: var(--surface); }
+.controller-bindings tbody td { color: var(--muted); }
 
 @media (max-width: 960px) {
     .hero { gap: 32px; }

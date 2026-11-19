@@ -30,8 +30,8 @@ legacy_s16 sdl3_tilt_scaled_x(void);
 /* Direction flags repeat at a fixed interval, independently of polling frequency. */
 legacy_s16 sdl3_controller_camera_flags(void);
 legacy_u8 sdl3_controller_take_menu_request(void);
-/* Preserve a quick right-stick movement until the truck start wait polls it. */
-legacy_u8 sdl3_controller_take_race_start_request(void);
+/* Preserve a quick gamepad or joystick input until the truck start wait polls it. */
+legacy_u8 sdl3_input_take_race_start_request(void);
 
 #ifndef __ANDROID__
 legacy_u8 sdl3_controller_vibration_enabled(void);

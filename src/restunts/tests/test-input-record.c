@@ -606,9 +606,14 @@ static void test_event_priority(void)
 #endif
 	reset_inputs();
 	joystick_flags = INPUT_PRIMARY_ACTION_FLAG;
-	assert(input_checking(0) == KEY_SPACE);
+#ifdef RESTUNTS_SDL3
+	const legacy_s16 joystick_primary_key = KEY_ESCAPE;
+#else
+	const legacy_s16 joystick_primary_key = KEY_SPACE;
+#endif
+	assert(input_checking(0) == joystick_primary_key);
 	assert(input_checking(INPUT_REPEAT_DELAY_FRAMES) == 0);
-	assert(input_checking(1) == KEY_SPACE);
+	assert(input_checking(1) == joystick_primary_key);
 }
 
 static void test_recording_input_modes(void)
@@ -795,9 +800,11 @@ static void test_raw_joystick_menu_release(void)
 	reset_inputs();
 	controller_mode_set = 1;
 	controller_mode = SDL3_DRIVING_KEYBOARD;
+	joystick_flags = INPUT_SECONDARY_ACTION_FLAG;
+	assert(input_checking(0) == KEY_ENTER);
 	joystick_flags = INPUT_PRIMARY_ACTION_FLAG;
 	assert(joystick_enabled == 0 && get_kb_or_joy_flags() == 0);
-	assert(input_checking(0) == KEY_SPACE);
+	assert(input_checking(0) == KEY_ESCAPE);
 	assert((input_combined_flags & INPUT_PRIMARY_ACTION_FLAG) != 0);
 	joystick_flags = 0;
 	joystick_menu_polls = 0;
@@ -1258,8 +1265,8 @@ int main(void)
 #else
 #ifdef RESTUNTS_SDL3
 	/* SDL samples independent menu devices and combines pedal sources. The
-	 * additional device reads intentionally differ from the original DOS trace. */
-	assert(input_hash == 0x2425c54cUL);
+	 * menu mapping uses Escape for joystick cancel. */
+	assert(input_hash == 0x3028dd7eUL);
 	assert(scrollbar_hash == 0xb5a5d357UL);
 	assert(record_hash == 0x0942aa8eUL);
 	assert(callback_hash == 0x61d0c8c0UL);
