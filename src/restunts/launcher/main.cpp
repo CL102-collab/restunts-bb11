@@ -9,6 +9,7 @@
 #include <wx/stdpaths.h>
 #include <wx/utils.h>
 #include "options.h"
+#include "controller_bindings_dialog.h"
 #include "game_data.h"
 #include "editor_open.h"
 #include <cstdio>
@@ -281,6 +282,15 @@ class LauncherDialog : public wxDialog
 
 		wxBoxSizer *vibration_row = new wxBoxSizer(wxHORIZONTAL);
 		add_option(box, vibration_row, LAUNCHER_VIBRATION);
+		vibration_row->AddStretchSpacer();
+		wxButton *bindings = new wxButton(box, wxID_ANY, "Controller bindings...");
+		vibration_row->Add(bindings, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxLEFT, spacing);
+		bindings->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
+			if (launcher_edit_controller_bindings(this, settings_path_,
+												  options_.controller_bindings)) {
+				set_status("Controller bindings saved.");
+			}
+		});
 		group->Add(vibration_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
 		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
 					FromDIP(OUTER_BORDER));

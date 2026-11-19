@@ -385,6 +385,7 @@ set(platform_files ${platform}/file.c ${platform}/car_zip.c third_party/puff/puf
 set(platform_common ${platform}/memory.c ${platform_files} ${platform}/runtime.c
     ${core}/extended/extended_file_dialog.c)
 set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c
+    ${core}/controller_bindings.c
     ${platform}/video_mode.c ${platform}/video_mode_bitmaps.c ${platform}/video_mode_primitives.c
 ${platform}/timer.c
     ${platform}/audio.c ${platform}/music.c ${platform}/pc_speaker_driver.c
@@ -1677,6 +1678,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_test(NAME sdl3-soft-keyboard COMMAND test-sdl3-soft-keyboard)
     add_executable(test-sdl3-input src/restunts/tests/test-sdl3-input.c
         ${platform}/input.c ${platform}/video.c ${platform}/timer.c ${platform}/touch.c
+        ${core}/controller_bindings.c
         ${platform}/soft_keyboard.c ${core}/hires/frame_adaptive.c ${core}/hires/widescreen.c
         ${platform}/video_mode.c ${platform}/video_mode_bitmaps.c)
     target_link_libraries(test-sdl3-input PRIVATE restunts_options)

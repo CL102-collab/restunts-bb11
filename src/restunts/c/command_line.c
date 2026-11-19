@@ -75,6 +75,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --fullscreen:on|off  Start fullscreen/windowed; supply once." COMMAND_LINE_NEWLINE
 	"  --input-method:keyboard|joystick|mouse  Select initial driving input; default "
 	"keyboard; supply once." COMMAND_LINE_NEWLINE
+	"  --controller-bindings:PROFILE  Apply a profile from the desktop "
+	"launcher." COMMAND_LINE_NEWLINE
 #endif
 #ifndef __ANDROID__
 	"  --controller-vibration:on|off  Enable/disable controller vibration; supply "

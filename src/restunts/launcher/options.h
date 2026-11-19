@@ -3,6 +3,7 @@
 
 #include <wx/string.h>
 #include <vector>
+#include "../c/controller_bindings.h"
 #include "../c/legacy.h"
 
 /* wxWidgets overrides and configuration values require the exact bool ABI. */
@@ -102,6 +103,7 @@ struct LauncherOptions {
 	wxString folder;
 	wxString mt32_rom_folder;
 	wxString mt32_model;
+	CONTROLLER_BINDINGS controller_bindings;
 	legacy_int input_method;
 	legacy_int sound_mode;
 	legacy_bool enabled[LAUNCHER_OPTION_COUNT];
@@ -121,6 +123,8 @@ legacy_bool launcher_parse_rom_inventory(const wxString &json, std::vector<Launc
 wxString launcher_settings_path();
 void launcher_read_options(const wxString &path, LauncherOptions &options);
 wxString launcher_save_options(const wxString &path, const LauncherOptions &options);
+wxString launcher_save_controller_bindings(const wxString &path,
+										   const CONTROLLER_BINDINGS &bindings);
 std::vector<wxString> launcher_game_arguments(const wxString &game, const LauncherOptions &options);
 
 #endif

@@ -13,6 +13,8 @@ enum SDL3_DRIVING_INPUT {
 };
 
 void sdl3_input_set_driving_mode(enum SDL3_DRIVING_INPUT mode);
+struct CONTROLLER_BINDINGS;
+void sdl3_input_set_controller_bindings(const struct CONTROLLER_BINDINGS *bindings);
 enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void);
 void sdl3_input_set_gameplay_active(legacy_u8 active);
 void sdl3_input_set_replay_active(legacy_u8 active);

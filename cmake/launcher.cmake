@@ -12,6 +12,7 @@ function(restunts_add_desktop_launcher)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(launcher_directory "${CMAKE_SOURCE_DIR}/src/restunts/launcher")
     set(genghost_gui_directory "${CMAKE_SOURCE_DIR}/src/restunts/genghost_gui")
+    set(controller_bindings_source "${CMAKE_SOURCE_DIR}/src/restunts/c/controller_bindings.c")
     if(RESTUNTS_TARGET_X86 AND NOT RESTUNTS_SSE2)
         add_compile_options(-mno-mmx)
     endif()
@@ -165,6 +166,7 @@ function(restunts_add_desktop_launcher)
     endif()
     add_executable(restunts-launcher WIN32
         "${launcher_directory}/main.cpp" "${launcher_directory}/options.cpp"
+        "${launcher_directory}/controller_bindings_dialog.cpp" "${controller_bindings_source}"
         "${launcher_directory}/game_data.cpp" "${launcher_directory}/host_environment.cpp"
         "${launcher_directory}/browser.cpp" "${launcher_directory}/browser_command.cpp"
         "${launcher_directory}/editor_export.cpp" "${launcher_directory}/editor_open.cpp")
@@ -172,6 +174,7 @@ function(restunts_add_desktop_launcher)
         "${genghost_gui_directory}/main.cpp" "${genghost_gui_directory}/options.cpp"
         "${genghost_gui_directory}/extended_options.cpp"
         "${launcher_directory}/options.cpp" "${launcher_directory}/game_data.cpp"
+        "${controller_bindings_source}"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
@@ -292,10 +295,12 @@ function(restunts_add_desktop_launcher)
             endif()
             add_test(NAME launcher-${test_suffix} COMMAND test-launcher-${test_suffix})
         endforeach()
+        target_sources(test-launcher-options PRIVATE "${controller_bindings_source}")
         add_executable(test-genghost-gui-options
             "${genghost_gui_directory}/test_options.cpp" "${genghost_gui_directory}/options.cpp"
             "${genghost_gui_directory}/extended_options.cpp"
             "${launcher_directory}/options.cpp"
+            "${controller_bindings_source}"
             "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
             "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
             "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")

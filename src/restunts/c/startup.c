@@ -237,6 +237,30 @@ static legacy_u8 startup_parse_input_method(const legacy_s8 *argument,
 }
 #endif
 
+#ifdef STARTUP_CONTROLLER_BINDINGS
+static legacy_u8 startup_parse_controller_bindings(const legacy_s8 *argument,
+												   struct STARTUP_OPTIONS *options)
+{
+	const legacy_s8 *value = startup_option_suffix(argument, CONTROLLER_BINDINGS_OPTION_PREFIX);
+	if (value == NULL) {
+		return 0;
+	}
+	if (options->controller_bindings_specified) {
+		startup_option_error_text("Only one --controller-bindings profile may be specified.\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	if (!controller_bindings_decode(&options->controller_bindings, (const legacy_char *)value)) {
+		startup_option_error_text("Invalid --controller-bindings profile. Save a profile in the "
+								  "desktop launcher's Controller bindings window.\n");
+		dos_process_exit(1);
+		return 1;
+	}
+	options->controller_bindings_specified = 1;
+	return 1;
+}
+#endif
+
 static legacy_u8 startup_parse_sound_option(legacy_s16 argc, legacy_s8 *argv[], legacy_u16 *index,
 											struct STARTUP_OPTIONS *options)
 {
@@ -325,6 +349,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->input_method = SDL3_DRIVING_KEYBOARD;
 	options->input_method_specified = 0;
 #endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+	options->controller_bindings_specified = 0;
+#endif
 #ifndef __ANDROID__
 	options->controller_vibration_enabled = 1;
 	options->controller_vibration_specified = 0;
@@ -345,6 +372,11 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 		}
 #ifdef STARTUP_INPUT_METHOD_PREFIX
 		if (startup_parse_input_method(argv[i], options) != 0) {
+			continue;
+		}
+#endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+		if (startup_parse_controller_bindings(argv[i], options)) {
 			continue;
 		}
 #endif
@@ -505,6 +537,11 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	sdl3_video_set_startup_mode(startup_options.video_mode);
 #ifndef __DJGPP__
 	hires_render_workers_set_enabled(startup_options.multi_core_enabled);
+#endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+	sdl3_input_set_controller_bindings(startup_options.controller_bindings_specified
+										   ? &startup_options.controller_bindings
+										   : NULL);
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);

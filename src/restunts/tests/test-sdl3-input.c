@@ -14,6 +14,7 @@
 #include "../c/platform.h"
 #include "../c/keyboard.h"
 #include "../c/game_input.h"
+#include "../c/controller_bindings.h"
 #include "../c/hires/hires.h"
 #include "../c/hires/frame_adaptive.h"
 #include "../c/hires/widescreen.h"
@@ -2944,6 +2945,85 @@ static void test_controller_tilt_arbitration(SDL_Joystick *device)
 	kb_init_interrupt();
 }
 
+static void test_controller_remapped_bindings(SDL_Joystick *device)
+{
+	struct CONTROLLER_BINDINGS bindings;
+	controller_bindings_reset(&bindings);
+	bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_WEST] =
+		CONTROLLER_ACTION_ACCELERATE;
+	bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_RIGHT_TRIGGER] =
+		CONTROLLER_ACTION_REWIND;
+	bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_LEFT_STICK_AXES] =
+		CONTROLLER_ACTION_ADJUST_CAMERA;
+	bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_RIGHT_STICK_AXES] =
+		CONTROLLER_ACTION_STEER;
+	bindings.actions[CONTROLLER_CONTEXT_REPLAY][CONTROLLER_CONTROL_WEST] =
+		CONTROLLER_ACTION_F3_CAMERA;
+	bindings.actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_WEST] = CONTROLLER_ACTION_CONFIRM;
+	bindings.actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_DPAD_LEFT] =
+		CONTROLLER_ACTION_NAV_LEFT;
+	bindings.actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_LEFT_STICK_AXES] =
+		CONTROLLER_ACTION_NONE;
+	bindings.actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_RIGHT_STICK_AXES] =
+		CONTROLLER_ACTION_NAVIGATE;
+	sdl3_input_set_controller_bindings(&bindings);
+
+	sdl3_input_set_gameplay_active(true);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, true);
+	assert(sdl3_controller_driving_flags() == INPUT_ACCELERATE_FLAG);
+	assert(kb_read_char() == 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, false);
+	assert(sdl3_controller_driving_flags() == 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, TEST_CONTROLLER_AXIS_MAX);
+	assert(sdl3_controller_camera_flags() == INPUT_STEER_RIGHT_FLAG);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_AXIS_MIN);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	assert(sdl3_controller_scaled_x() == -TEST_CONTROLLER_AXIS_SCALE);
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+
+	sdl3_input_set_replay_active(true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, true);
+	assert(kb_read_char() == KEY_F3);
+	assert(sdl3_controller_driving_flags() == 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, false);
+	sdl3_input_push_modal();
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, true);
+	assert(kb_read_char() == KEY_ENTER);
+	controller_button(device, SDL_GAMEPAD_BUTTON_WEST, false);
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTY, TEST_CONTROLLER_AXIS_MIN);
+	assert(kb_read_char() == 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, TEST_CONTROLLER_AXIS_MIN);
+	assert(kb_read_char() == KEY_UP);
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTY, 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_LEFT, true);
+	assert(kb_read_char() == KEY_LEFT);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_LEFT, false);
+	sdl3_input_pop_modal();
+	sdl3_input_set_replay_active(false);
+
+	/* Each control owns its held key independently until released or rebound. */
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MAX);
+	assert(kb_read_char() == 'q');
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_Q) == 1);
+	assert(sdl3_controller_driving_flags() == 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_LEFT, true);
+	assert(kb_read_char() == 'q');
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_LEFT, false);
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_Q) == 1);
+	sdl3_input_set_controller_bindings(NULL);
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_Q) == 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MIN);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MAX);
+	assert(sdl3_controller_driving_flags() == INPUT_ACCELERATE_FLAG);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MIN);
+	assert(kb_read_char() == 0);
+	sdl3_input_set_gameplay_active(false);
+}
+
 static void test_controller(void)
 {
 	kb_init_interrupt();
@@ -2962,6 +3042,7 @@ static void test_controller(void)
 	test_controller_race_start(device);
 	test_controller_remote_shifts(device);
 	test_controller_tilt_arbitration(device);
+	test_controller_remapped_bindings(device);
 	sdl3_input_set_gameplay_active(true);
 	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, TEST_CONTROLLER_PARTIAL_TURN);
 	/* Focus loss clears shortcuts while preserving physical key ownership. */

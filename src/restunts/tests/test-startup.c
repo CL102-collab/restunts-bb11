@@ -131,6 +131,20 @@ void dos_joystick_set_enabled(legacy_u8 enabled)
 	startup_joystick_enabled = enabled;
 }
 #endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+static struct CONTROLLER_BINDINGS startup_applied_bindings;
+static legacy_u32 startup_bindings_calls;
+
+void sdl3_input_set_controller_bindings(const struct CONTROLLER_BINDINGS *bindings)
+{
+	++startup_bindings_calls;
+	if (bindings == NULL) {
+		controller_bindings_reset(&startup_applied_bindings);
+	} else {
+		startup_applied_bindings = *bindings;
+	}
+}
+#endif
 #ifndef __ANDROID__
 static legacy_u8 startup_controller_vibration_enabled = 1;
 static legacy_u32 startup_controller_vibration_set_calls;
@@ -877,6 +891,9 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	legacy_u8 before_joystick_enabled = startup_joystick_enabled;
 	legacy_s8 before_mouse_enabled = mouse_driving_enabled;
 #endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+	legacy_u32 before_bindings_calls = startup_bindings_calls;
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	legacy_u32 before_vibration_calls = startup_controller_vibration_set_calls;
 	legacy_u8 before_vibration_enabled = startup_controller_vibration_enabled;
@@ -913,6 +930,9 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(startup_driving_mode == before_driving_mode);
 	assert(startup_joystick_enabled == before_joystick_enabled);
 	assert(mouse_driving_enabled == before_mouse_enabled);
+#endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
+	assert(startup_bindings_calls == before_bindings_calls);
 #endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	assert(startup_controller_vibration_set_calls == before_vibration_calls);
@@ -1485,6 +1505,37 @@ static void test_startup_input_method_options(void)
 #endif
 }
 
+#ifdef STARTUP_CONTROLLER_BINDINGS
+static void test_startup_controller_bindings(void)
+{
+	struct CONTROLLER_BINDINGS bindings;
+	controller_bindings_reset(&bindings);
+	bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_SOUTH] =
+		CONTROLLER_ACTION_F3_CAMERA;
+	legacy_char argument[sizeof(CONTROLLER_BINDINGS_OPTION_PREFIX) - 1U +
+						 CONTROLLER_BINDINGS_TEXT_CAPACITY] = CONTROLLER_BINDINGS_OPTION_PREFIX;
+	controller_bindings_encode(&bindings,
+							   argument + sizeof(CONTROLLER_BINDINGS_OPTION_PREFIX) - 1U);
+	legacy_s8 *valid[] = {(legacy_s8 *)"game", (legacy_s8 *)argument};
+	reset_startup_hypervision();
+	legacy_u32 before = startup_bindings_calls;
+	init_main(sizeof(valid) / sizeof(valid[0]), valid);
+	assert(startup_bindings_calls == before + 1U);
+	assert(memcmp(&bindings, &startup_applied_bindings, sizeof(bindings)) == 0);
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(controller_bindings_are_default(&startup_applied_bindings));
+	legacy_s8 *invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--controller-bindings:1:0"};
+	expect_startup_option_error(sizeof(invalid) / sizeof(invalid[0]), invalid);
+	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)argument, (legacy_s8 *)argument};
+	expect_startup_option_error(sizeof(duplicate) / sizeof(duplicate[0]), duplicate);
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)argument,
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+}
+#endif
+
 static void test_startup_mph_display_options(void)
 {
 	static const struct {
@@ -1827,6 +1878,9 @@ int main(void)
 	test_startup_video_mode_options();
 	test_startup_fullscreen_options();
 	test_startup_input_method_options();
+#ifdef STARTUP_CONTROLLER_BINDINGS
+	test_startup_controller_bindings();
+#endif
 	test_startup_widescreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");

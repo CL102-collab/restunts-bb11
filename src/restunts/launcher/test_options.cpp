@@ -262,6 +262,41 @@ legacy_int main()
 		  "Folder, HyperVision and video mode must round-trip through configuration.");
 	check(restored.input_method == LAUNCHER_INPUT_JOYSTICK && !restored.enabled[LAUNCHER_VIBRATION],
 		  "The selected input method and disabled vibration must round-trip independently.");
+	check(controller_bindings_are_default(&restored.controller_bindings),
+		  "Existing configurations must use the default controller bindings.");
+	CONTROLLER_BINDINGS custom = restored.controller_bindings;
+	custom.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_SOUTH] =
+		CONTROLLER_ACTION_SCREENSHOT;
+	custom.actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_RIGHT_TRIGGER] =
+		CONTROLLER_ACTION_BACK;
+	check(launcher_save_controller_bindings(settings, custom).empty(),
+		  "Controller bindings must save without starting the game.");
+	check(launcher_save_options(settings, options).empty(),
+		  "Saving other options must preserve the separately saved controller bindings.");
+	launcher_read_options(settings, restored);
+	check(restored.controller_bindings.actions[CONTROLLER_CONTEXT_RACE][CONTROLLER_CONTROL_SOUTH] ==
+				  CONTROLLER_ACTION_SCREENSHOT &&
+			  restored.controller_bindings
+					  .actions[CONTROLLER_CONTEXT_MENU][CONTROLLER_CONTROL_RIGHT_TRIGGER] ==
+				  CONTROLLER_ACTION_BACK &&
+			  restored.folder == options.folder && !restored.enabled[LAUNCHER_VIBRATION],
+		  "Controller bindings and existing startup preferences must round-trip independently.");
+	legacy_char encoded_bindings[CONTROLLER_BINDINGS_TEXT_CAPACITY];
+	controller_bindings_encode(&custom, encoded_bindings);
+	const wxString profile_argument =
+		wxString(CONTROLLER_BINDINGS_OPTION_PREFIX) + wxString::FromAscii(encoded_bindings);
+	check(contains(launcher_game_arguments(game, restored), profile_argument) &&
+			  !contains(launcher_game_arguments(game, options), profile_argument),
+		  "The custom profile must reach the game as a single argument.");
+	{
+		wxFileConfig damaged(wxEmptyString, wxEmptyString, settings, wxEmptyString,
+							 wxCONFIG_USE_LOCAL_FILE);
+		damaged.Write("controller_bindings", "invalid");
+		damaged.Flush();
+	}
+	launcher_read_options(settings, restored);
+	check(controller_bindings_are_default(&restored.controller_bindings),
+		  "An invalid saved controller profile must load the default bindings.");
 	for (legacy_int mode = LAUNCHER_VIDEO_VGA; mode < LAUNCHER_VIDEO_MODE_COUNT; mode++) {
 		LauncherOptions video_options = options;
 		video_options.video_mode = mode;

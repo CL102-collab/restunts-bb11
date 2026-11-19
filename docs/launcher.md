@@ -35,6 +35,13 @@ launch.
 **Controller vibration** starts enabled and controls rumble for connected
 controllers that support it.
 
+Choose **Controller bindings...** in **Input settings** to assign actions to
+gamepad buttons, triggers, and sticks. The **Racing**, **Replay**, and **Menus**
+tabs let the same control have different actions in each part of the game.
+**Save** remembers the bindings immediately for future launches. Use
+**Restore defaults** to show the original bindings, then **Save** to apply
+them. **Cancel** closes the window without saving your edits.
+
 The **Sound settings** group contains the sound mode, **OGG music replacement**
 (formerly **New MIDI**), and the MT-32 ROM-folder/model controls. The mode list
 is ordered **No sound**, **PC Speaker**, **Tandy**, **Ad Lib**, **MT-32**. Ad Lib remains the default;
@@ -111,7 +118,7 @@ Preferences are stored in `launcher.ini` at these locations:
 | Linux, FreeBSD, OpenBSD, NetBSD | `$XDG_CONFIG_HOME/restunts`, or `~/.config/restunts` |
 | Haiku | The user's native settings directory, normally `/boot/home/config/settings/Restunts` |
 
-All startup choices and the selected folder are saved on Start. Deleting this
+The other startup choices and the selected folder are saved on Start. Deleting this
 file restores the initial defaults. The desktop launcher does not store preferences
 in the game directory or change another user's choices. The game continues to
 read and write tracks, replays and other game files in the selected game folder.

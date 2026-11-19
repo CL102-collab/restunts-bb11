@@ -40,8 +40,10 @@
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
 	!defined(__DJGPP__)
 #include "../platform/sdl3/controller_game.h"
+#include "controller_bindings.h"
 #define STARTUP_FULLSCREEN_PREFIX "--fullscreen:"
 #define STARTUP_INPUT_METHOD_PREFIX "--input-method:"
+#define STARTUP_CONTROLLER_BINDINGS 1
 #endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 #define STARTUP_CONTROLLER_VIBRATION_PREFIX "--controller-vibration:"
@@ -89,6 +91,8 @@ struct STARTUP_OPTIONS {
 	legacy_u8 fullscreen_specified;
 	enum SDL3_DRIVING_INPUT input_method;
 	legacy_u8 input_method_specified;
+	struct CONTROLLER_BINDINGS controller_bindings;
+	legacy_u8 controller_bindings_specified;
 #endif
 #ifndef __ANDROID__
 	legacy_u8 controller_vibration_enabled;

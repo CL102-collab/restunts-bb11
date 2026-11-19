@@ -392,6 +392,7 @@ run_host_test test-startup math/math.c -DRESTUNTS_AMIGA "$test_source_dir/track/
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math/math.c -DRESTUNTS_SDL3 "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
+    "$test_source_dir/controller_bindings.c" \
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \

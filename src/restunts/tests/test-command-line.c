@@ -119,6 +119,7 @@ static void test_help_contents(void)
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 		"  --fullscreen:on|off",
 		"  --input-method:keyboard|joystick|mouse",
+		"  --controller-bindings:PROFILE",
 #endif
 #ifndef __ANDROID__
 		"  --controller-vibration:on|off",

@@ -13,6 +13,7 @@ static const legacy_char SETTINGS_FOLDER_KEY[] = "folder";
 static const legacy_char SETTINGS_HYPERVISION_KEY[] = "hypervision";
 static const legacy_char SETTINGS_VIDEO_MODE_KEY[] = "video_mode";
 static const legacy_char SETTINGS_INPUT_METHOD_KEY[] = "input_method";
+static const legacy_char SETTINGS_CONTROLLER_BINDINGS_KEY[] = "controller_bindings";
 static const legacy_char SETTINGS_SOUND_MODE_KEY[] = "sound_mode";
 static const legacy_char SETTINGS_MT32_FOLDER_KEY[] = "mt32_rom_folder";
 static const legacy_char SETTINGS_MT32_MODEL_KEY[] = "mt32_model";
@@ -76,6 +77,7 @@ LauncherOptions::LauncherOptions()
 	: input_method(LAUNCHER_INPUT_KEYBOARD), sound_mode(LAUNCHER_SOUND_ADLIB),
 	  hypervision(LAUNCHER_HV_AUTO), video_mode(LAUNCHER_VIDEO_VGA)
 {
+	controller_bindings_reset(&controller_bindings);
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		enabled[index] = launcher_option_definitions[index].initial;
 	}
@@ -387,6 +389,11 @@ void launcher_read_options(const wxString &path, LauncherOptions &options)
 	config.Read(SETTINGS_FOLDER_KEY, &options.folder);
 	config.Read(SETTINGS_MT32_FOLDER_KEY, &options.mt32_rom_folder);
 	config.Read(SETTINGS_MT32_MODEL_KEY, &options.mt32_model);
+	wxString bindings;
+	if (config.Read(SETTINGS_CONTROLLER_BINDINGS_KEY, &bindings)) {
+		const wxScopedCharBuffer encoded = bindings.utf8_str();
+		controller_bindings_decode(&options.controller_bindings, encoded.data());
+	}
 	wxString input_method;
 	config.Read(SETTINGS_INPUT_METHOD_KEY, &input_method);
 	for (legacy_int index = 0; index < LAUNCHER_INPUT_METHOD_COUNT; ++index) {
@@ -436,7 +443,7 @@ static const LauncherInputDefinition &launcher_input_definition(legacy_int index
 	return launcher_input_definitions[index];
 }
 
-wxString launcher_save_options(const wxString &path, const LauncherOptions &options)
+static wxString launcher_ensure_settings_directory(const wxString &path)
 {
 	if (path.empty()) {
 		return "Cannot locate your settings directory.";
@@ -445,6 +452,33 @@ wxString launcher_save_options(const wxString &path, const LauncherOptions &opti
 	if (!wxFileName::DirExists(config_path.GetPath()) &&
 		!wxFileName::Mkdir(config_path.GetPath(), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL)) {
 		return "Cannot create your settings directory: " + config_path.GetPath();
+	}
+	return wxEmptyString;
+}
+
+wxString launcher_save_controller_bindings(const wxString &path,
+										   const CONTROLLER_BINDINGS &bindings)
+{
+	const wxString directory_error = launcher_ensure_settings_directory(path);
+	if (!directory_error.empty()) {
+		return directory_error;
+	}
+	legacy_char encoded[CONTROLLER_BINDINGS_TEXT_CAPACITY];
+	controller_bindings_encode(&bindings, encoded);
+	wxFileConfig config(wxEmptyString, wxEmptyString, path, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+	config.DisableAutoSave();
+	if (!config.Write(SETTINGS_CONTROLLER_BINDINGS_KEY, wxString::FromAscii(encoded)) ||
+		!config.Flush()) {
+		return "Cannot save your controller bindings: " + path;
+	}
+	return wxEmptyString;
+}
+
+wxString launcher_save_options(const wxString &path, const LauncherOptions &options)
+{
+	const wxString directory_error = launcher_ensure_settings_directory(path);
+	if (!directory_error.empty()) {
+		return directory_error;
 	}
 	wxFileConfig config(wxEmptyString, wxEmptyString, path, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
 	config.DisableAutoSave();
@@ -513,6 +547,12 @@ std::vector<wxString> launcher_game_arguments(const wxString &game, const Launch
 			? options.video_mode
 			: LAUNCHER_VIDEO_VGA;
 	arguments.push_back(launcher_input_definition(options.input_method).argument);
+	if (!controller_bindings_are_default(&options.controller_bindings)) {
+		legacy_char encoded[CONTROLLER_BINDINGS_TEXT_CAPACITY];
+		controller_bindings_encode(&options.controller_bindings, encoded);
+		arguments.push_back(wxString(CONTROLLER_BINDINGS_OPTION_PREFIX) +
+							wxString::FromAscii(encoded));
+	}
 	arguments.push_back(launcher_video_definitions[video_mode].argument);
 	if (options.hypervision > LAUNCHER_HV_OFF && options.hypervision < LAUNCHER_HV_COUNT) {
 		arguments.push_back(launcher_hypervision_definitions[options.hypervision].argument);
