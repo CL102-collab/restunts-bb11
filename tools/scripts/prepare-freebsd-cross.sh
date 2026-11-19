@@ -63,7 +63,7 @@ fi
 
 # Only host executables run during configuration and compilation. In particular,
 # target package installation must never execute the foreign /bin/sh.
-env IGNORE_OSVERSION=yes ASSUME_ALWAYS_YES=yes pkg install -y \
+IGNORE_OSVERSION=yes ASSUME_ALWAYS_YES=yes sh "$script_dir/install-freebsd-packages.sh" \
     bash cmake-core ninja git python313 pkgconf
 if ! clang --print-targets | grep -q "^[[:space:]]*${clang_backend}[[:space:]]"; then
     echo "The host Clang does not support $clang_backend for $architecture." >&2

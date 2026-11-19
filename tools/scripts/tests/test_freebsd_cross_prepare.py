@@ -32,7 +32,13 @@ elif command == "clang":
 elif command == "ld.lld":
     raise SystemExit("The linker should only be located, never run during SDK preparation")
 elif command == "pkg":
-    pass
+    if arguments[:2] == ["-4", "-R"]:
+        repository = (pathlib.Path(arguments[2]) / "FreeBSD.conf").read_text()
+        with open(os.environ["SDK_EVENTS"], "a") as events:
+            events.write(json.dumps(["host-repo", [repository, os.environ.get("IGNORE_OSVERSION"),
+                                                    os.environ.get("ASSUME_ALWAYS_YES")]]) + "\n")
+        if arguments[3] == "update" and 'url: "https://' in repository:
+            raise SystemExit("No route to host")
 elif command == "fetch":
     shutil.copyfile(os.environ["SDK_ARCHIVE"], arguments[2])
 elif command == "sha256":
@@ -68,6 +74,8 @@ class FreebsdCrossPreparationTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.script = self.root / SCRIPT.name
         shutil.copyfile(SCRIPT, self.script)
+        installer = SCRIPT.with_name("install-freebsd-packages.sh")
+        shutil.copyfile(installer, self.root / installer.name)
         self.sdk = self.root / "target SDK"
         self.events_path = self.root / "events.jsonl"
         self.tools = self.root / "host tools"
@@ -105,7 +113,9 @@ class FreebsdCrossPreparationTests(unittest.TestCase):
         environment = dict(os.environ, PATH=str(self.tools) + os.pathsep + os.environ["PATH"],
                            SDK_EVENTS=str(self.events_path), SDK_ARCHIVE=str(archive),
                            SDK_IMAGE_ROOT=str(self.fixture), SDK_REAL_TAR=self.real_tar,
-                           SDK_HOST_RELEASE=release + "-RELEASE-p1", **settings)
+                           SDK_HOST_RELEASE=release + "-RELEASE-p1")
+        environment.pop("RESTUNTS_FREEBSD_PACKAGE_CHANNEL", None)
+        environment.update(settings)
         return subprocess.run(["sh", str(self.script), target, str(self.sdk)],
                               env=environment, text=True, capture_output=True, timeout=30)
 
@@ -155,6 +165,20 @@ class FreebsdCrossPreparationTests(unittest.TestCase):
                          "https://download.freebsd.org/releases/arm64/aarch64/14.4-RELEASE/base.txz")
         self.assertIn("ABI=FreeBSD:14:aarch64", self.events("pkg")[-1])
         self.assertFalse(self.events("mdconfig"))
+
+    def test_ci_cross_build_host_uses_signed_failover_without_changing_target_abi(self):
+        result = self.run_preparation("freebsd-x86", RESTUNTS_FREEBSD_PACKAGE_CHANNEL="latest")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        host_install, target_install = self.events("pkg")[-2:]
+        self.assertEqual(host_install[3:],
+                         ["install", "-y", "-U", "bash", "cmake-core", "ninja", "git", "python313", "pkgconf"])
+        host_repositories = self.events("host-repo")
+        expected_urls = ["https://pkg.freebsd.org", "https://pkg0.nyi.freebsd.org"] + ["http://pkg0.pao.freebsd.org"] * 3
+        for (config, ignore_osversion, assume_always_yes), url in zip(host_repositories, expected_urls, strict=True):
+            self.assertIn(f'url: "{url}/${{ABI}}/latest"', config)
+            self.assertIn('signature_type: "fingerprints"', config)
+            self.assertEqual((ignore_osversion, assume_always_yes), ("yes", "yes"))
+        self.assertIn("ABI=FreeBSD:14:i386", target_install)
 
     def test_wrong_host_release_is_rejected_before_installing_or_downloading(self):
         result = self.run_preparation("freebsd-armv7", release="15.1")

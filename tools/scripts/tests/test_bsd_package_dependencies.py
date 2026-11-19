@@ -52,7 +52,7 @@ elif command in ("pkg_add", "pkg", "pkgin"):
         output.write(json.dumps(event) + "\\n")
     if "repo_config" in event:
         failure = os.environ.get("BSD_HELPER_TEST_FREEBSD_FAILURE")
-        if failure == "catalogue" and "update" in arguments and "pkg0.pao" in event["repo_config"]:
+        if failure == "catalogue" and "update" in arguments and 'url: "https://' in event["repo_config"]:
             sys.exit("No route to host")
         if failure == "download" and "-F" in arguments:
             sys.exit("Package download interrupted")
@@ -98,7 +98,8 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.scripts = self.root / "tools/scripts"
         self.scripts.mkdir(parents=True)
-        for name in (HELPER, "install-netbsd-packages.sh", "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
+        for name in (HELPER, "install-freebsd-packages.sh", "install-netbsd-packages.sh",
+                     "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
                      "netbsd-arm64-sets.sha512", "netbsd-armv7-sets.sha512",
                      "netbsd-riscv64-sets.sha512"):
             shutil.copy2(ROOT / "tools/scripts" / name, self.scripts / name)
@@ -271,11 +272,12 @@ class BsdPackageDependencyTests(unittest.TestCase):
         })
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([event["arguments"][3:5] for event in events],
-                         [["update", "-f"], ["update", "-f"], ["install", "-y"], ["install", "-y"]])
+                         [["update", "-f"]] * 3 + [["install", "-y"]] * 2)
         self.assertIn("No route to host", result.stderr)
-        self.assertIn('url: "https://pkg0.pao.freebsd.org/${ABI}/latest"', events[0]["repo_config"])
-        for event in events[1:]:
-            self.assertIn('url: "https://pkg0.nyi.freebsd.org/${ABI}/latest"', event["repo_config"])
+        self.assertIn('url: "https://pkg.freebsd.org/${ABI}/latest"', events[0]["repo_config"])
+        self.assertIn('url: "https://pkg0.nyi.freebsd.org/${ABI}/latest"', events[1]["repo_config"])
+        for event in events[2:]:
+            self.assertIn('url: "http://pkg0.pao.freebsd.org/${ABI}/latest"', event["repo_config"])
         for event in events:
             self.assertEqual(event["arguments"][:2], ["-4", "-R"])
             self.assertEqual(event["fetch_timeout"], "20")
@@ -285,11 +287,20 @@ class BsdPackageDependencyTests(unittest.TestCase):
             self.assertIn('fingerprints: "/usr/share/keys/pkg"', event["repo_config"])
             self.assertNotIn("FreeBSD-kmods", event["repo_config"])
             self.assertFalse(Path(event["arguments"][2]).exists())
-        self.assertEqual([event["deadline"] for event in events], ["2m", "2m", "10m", None])
-        download, install = (event["arguments"][5:] for event in events[2:])
+        self.assertEqual([event["deadline"] for event in events], ["2m"] * 3 + ["10m", None])
+        download, install = (event["arguments"][5:] for event in events[-2:])
         self.assertEqual(download, ["-U", "-F", *install[1:]])
         self.assertEqual(install[0], "-U")
         self.assertIn("gtk3", install)
+
+    def test_freebsd_ci_uses_direct_https_when_available(self):
+        result, events = self.run_helper("freebsd-x64", {
+            "BSD_HELPER_TEST_SYSTEM": "FreeBSD", "RESTUNTS_FREEBSD_PACKAGE_CHANNEL": "quarterly",
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([event["arguments"][3] for event in events], ["update", "install", "install"])
+        for event in events:
+            self.assertIn('url: "https://pkg.freebsd.org/${ABI}/quarterly"', event["repo_config"])
 
     def test_freebsd_ci_does_not_install_when_downloads_fail(self):
         result, events = self.run_helper("freebsd-x64", {
@@ -298,7 +309,7 @@ class BsdPackageDependencyTests(unittest.TestCase):
         })
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Could not download FreeBSD packages", result.stderr)
-        self.assertEqual([event["arguments"][3] for event in events], ["update", "install"] * 2)
+        self.assertEqual([event["arguments"][3] for event in events], ["update", "install"] * 3)
         self.assertTrue(all("-F" in event["arguments"] for event in events[1::2]))
 
     def test_wrong_architecture_is_rejected_before_installing_packages(self):

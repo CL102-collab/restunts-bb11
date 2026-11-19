@@ -16,45 +16,6 @@ if [ "$target" = netbsd-riscv64 ]; then
     netbsd_release=11.0
 fi
 
-install_freebsd_packages() (
-    channel=${RESTUNTS_FREEBSD_PACKAGE_CHANNEL:-}
-    case "$channel" in
-        '') exec pkg install -y "$@" ;;
-        latest|quarterly) ;;
-        *) echo "Unsupported FreeBSD package channel: $channel" >&2; exit 1 ;;
-    esac
-
-    repository_dir=$(mktemp -d /tmp/restunts-freebsd-repo.XXXXXX)
-    trap 'rm -rf -- "$repository_dir"' 0
-    trap 'exit 1' 1 2 15
-    export FETCH_TIMEOUT=20 FETCH_RETRY=1
-    catalogue_timeout=2m
-    download_timeout=10m
-
-    # Use direct official mirrors in the VM, where GeoDNS can select an
-    # unreachable server. The build dependencies only use the ports catalogue.
-    for mirror in pkg0.pao.freebsd.org pkg0.nyi.freebsd.org; do
-        echo "Fetching FreeBSD packages from $mirror ($channel)" >&2
-        cat > "$repository_dir/FreeBSD.conf" <<EOF
-FreeBSD: {
-  url: "https://$mirror/\${ABI}/$channel",
-  mirror_type: "none",
-  signature_type: "fingerprints",
-  fingerprints: "/usr/share/keys/pkg",
-  enabled: yes
-}
-EOF
-        if timeout "$catalogue_timeout" pkg -4 -R "$repository_dir" update -f &&
-            timeout "$download_timeout" pkg -4 -R "$repository_dir" install -y -U -F "$@"; then
-            # Use the same catalogue and verified cache for installation.
-            pkg -4 -R "$repository_dir" install -y -U "$@"
-            exit
-        fi
-    done
-    echo "Could not download FreeBSD packages: $*" >&2
-    exit 1
-)
-
 install_netbsd_x11() {
     if [ -f /usr/X11R7/include/X11/Xlib.h ] && [ -f /usr/X11R7/lib/libX11.so ]; then
         return
@@ -116,7 +77,7 @@ case "$target:$host_system:$host_architecture" in
             bsd_cmake_package=cmake-core
             bsd_gtk_package=gtk2
         fi
-        install_freebsd_packages bash "$bsd_cmake_package" ninja git python313 pkgconf \
+        sh "$script_dir/install-freebsd-packages.sh" bash "$bsd_cmake_package" ninja git python313 pkgconf \
             "$bsd_gtk_package" libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
         ;;
     openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64|\

@@ -541,9 +541,12 @@ jobs:
           run: |
             set -eu
             export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
+            # FreeBSD 15's build VM has separate ports and base repositories.
+            case "${{ matrix.release }}" in
+              14.*) export RESTUNTS_FREEBSD_PACKAGE_CHANNEL=latest ;;
+            esac
             if [ "$PACKAGE_TARGET" = freebsd-x64 ]; then
-              RESTUNTS_FREEBSD_PACKAGE_CHANNEL=latest \
-                sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
+              sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
             else
               export RESTUNTS_BSD_SYSROOT=/tmp/restunts-bsd-sysroot
               sh tools/scripts/prepare-freebsd-cross.sh "$PACKAGE_TARGET" "$RESTUNTS_BSD_SYSROOT"
