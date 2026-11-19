@@ -112,9 +112,7 @@ jobs:
         run: dotnet publish tools/scripts/dumpsrv/dumpsrv/dumpsrv.csproj --configuration Release --output "$RUNNER_TEMP/dumpsrv"
 
       - name: Install DOSBox-X
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dosbox-x
+        run: bash tools/scripts/install-ci-ubuntu-packages.sh dosbox-x
 
       - name: Initialize DOSBox-X before concurrent runs
         run: |

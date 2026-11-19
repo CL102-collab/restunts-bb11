@@ -276,8 +276,7 @@ jobs:
       - &native-sanitizer-dependencies
         name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc g++ clang-18 libclang-rt-18-dev llvm-18 \
+          bash tools/scripts/install-ci-ubuntu-packages.sh gcc g++ clang-18 libclang-rt-18-dev llvm-18 \
             cmake ninja-build pkg-config \
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
@@ -566,9 +565,7 @@ jobs:
           make --jobs="$(nproc)" -C src/restunts restunts-original
 
       - name: Install DOSBox-X
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dosbox-x
+        run: bash tools/scripts/install-ci-ubuntu-packages.sh dosbox-x
 
       - name: Check the DOS platform ABI and dump timer masking
         if: env.BUILD_DOS_EXECUTABLES == 'true'
@@ -621,8 +618,7 @@ jobs:
 
       - name: Install native build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build pkg-config \
+          bash tools/scripts/install-ci-ubuntu-packages.sh cmake ninja-build pkg-config \
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
             libwayland-dev libxkbcommon-dev libdecor-0-dev libudev-dev libdrm-dev libgbm-dev \
@@ -684,8 +680,7 @@ jobs:
 
       - name: Install build tools and the pinned Amiga SDK
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build
+          bash tools/scripts/install-ci-ubuntu-packages.sh cmake ninja-build
           bash tools/scripts/install-amiga-toolchain.sh "$RUNNER_TEMP/amiga-toolchain"
           echo "AMIGA_TOOLCHAIN=$RUNNER_TEMP/amiga-toolchain" >> "$GITHUB_ENV"
 
@@ -735,8 +730,7 @@ jobs:
 
       - name: Install headless guest build tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          bash tools/scripts/install-ci-ubuntu-packages.sh \
             qemu-system-x86 dosfstools mtools p7zip-full python3-pil python3-venv
           python3 -m venv --system-site-packages "$RUNNER_TEMP/templeos-tools"
           "$RUNNER_TEMP/templeos-tools/bin/python" -m pip install \
