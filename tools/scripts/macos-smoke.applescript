@@ -17,30 +17,44 @@ on checkboxValue(controls, labelText, desiredValue)
 end checkboxValue
 
 on soundModeValue(controls, desiredValue)
-    set soundModes to {"No sound", "PC Speaker", "Tandy", "Ad Lib", "MT-32"}
-    set escapeKeyCode to 53
     tell application "System Events"
         repeat with uiElement in controls
             if role of uiElement is "AXPopUpButton" then
-                -- Cocoa names a choice by its selected value, rather than the adjacent label.
-                set selectedValue to value of uiElement as text
-                if soundModes contains selectedValue then
+                -- Tandy is also a video mode. Leave a uniquely identified sound menu closed.
+                if desiredValue is not "Tandy" and (value of uiElement as text) is desiredValue then
                     if not enabled of uiElement then error "Sound mode is disabled"
-                    click uiElement
-                    -- Tandy is also a video mode; identify the sound menu by its choices.
-                    if exists menu item "Ad Lib" of menu 1 of uiElement then
-                        if selectedValue is not desiredValue then
-                            click menu item desiredValue of menu 1 of uiElement
-                        else
-                            key code escapeKeyCode
-                        end if
-                        if (value of uiElement as text) is not desiredValue then
-                            error "Could not set startup sound mode: " & desiredValue
-                        end if
-                        return
-                    end if
-                    key code escapeKeyCode
+                    return
                 end if
+            end if
+        end repeat
+
+        -- Tandy can appear in both the sound and video choices. Use the Sound mode label
+        -- to find the intended popup before opening it.
+        repeat with labelElement in controls
+            if role of labelElement is "AXStaticText" and value of labelElement is "Sound mode" then
+                set {labelX, labelY} to position of labelElement
+                set {labelWidth, labelHeight} to size of labelElement
+                set labelRight to labelX + labelWidth
+                set labelCenterY to labelY + labelHeight / 2
+                repeat with uiElement in controls
+                    if role of uiElement is "AXPopUpButton" then
+                        set {popupX, popupY} to position of uiElement
+                        set popupHeight to item 2 of (size of uiElement)
+                        if popupX >= labelRight and popupY <= labelCenterY and ¬
+                            popupY + popupHeight >= labelCenterY then
+                            if not enabled of uiElement then error "Sound mode is disabled"
+                            if (value of uiElement as text) is not desiredValue then
+                                click uiElement
+                                click menu item desiredValue of menu 1 of uiElement
+                                if (value of uiElement as text) is not desiredValue then
+                                    error "Could not set startup sound mode: " & desiredValue
+                                end if
+                            end if
+                            return
+                        end if
+                    end if
+                end repeat
+                exit repeat
             end if
         end repeat
     end tell
