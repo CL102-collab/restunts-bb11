@@ -649,7 +649,7 @@ jobs:
         env:
           SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
-        run: ctest --test-dir build/sdl3 --output-on-failure -E '^sdl3-timer$'
+        run: ctest --test-dir build/sdl3 --parallel "$(nproc)" --output-on-failure -E '^sdl3-timer$'
 
       - name: Verify relocated runtime and replacement Nuked library
         run: python3 tools/scripts/test-nuked-package.py --build-directory build/sdl3
