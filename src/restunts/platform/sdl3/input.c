@@ -730,6 +730,8 @@ static legacy_u16 controller_button_key(SDL_GamepadButton button)
 		case SDL_GAMEPAD_BUTTON_SOUTH:
 		case SDL_GAMEPAD_BUTTON_LEFT_STICK:
 			return input_driving_active() ? 0 : KEY_ENTER;
+		case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+			return input_race_view_active() ? (legacy_u16)KEY_F3 : 0;
 		case SDL_GAMEPAD_BUTTON_EAST:
 			return input_driving_active() ? 0 : KEY_ESCAPE;
 		case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:

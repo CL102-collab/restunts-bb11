@@ -2296,6 +2296,15 @@ static void controller_button(SDL_Joystick *device, SDL_GamepadButton button, le
 	sdl3_platform_pump();
 }
 
+static void assert_controller_camera_shortcut(SDL_Joystick *device)
+{
+	controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, true);
+	assert(kb_read_char() == KEY_F3);
+	assert(kb_read_char() == 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, false);
+	assert(kb_read_char() == 0);
+}
+
 static void test_controller_shortcuts(SDL_Joystick *device)
 {
 	sdl3_input_set_gameplay_active(true);
@@ -2346,12 +2355,11 @@ static void test_controller_shortcuts(SDL_Joystick *device)
 	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_DOWN, false);
 	assert(sdl3_controller_driving_flags() == 0);
 	assert(!sdl3_input_take_race_start_request());
-	/* Stick clicks have no action while driving. */
 	controller_button(device, SDL_GAMEPAD_BUTTON_LEFT_STICK, true);
-	controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, true);
 	assert(kb_read_char() == 0);
 	controller_button(device, SDL_GAMEPAD_BUTTON_LEFT_STICK, false);
-	controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, false);
+	assert_controller_camera_shortcut(device);
+	assert_controller_camera_shortcut(device);
 	sdl3_input_set_gameplay_active(false);
 }
 
@@ -2402,9 +2410,12 @@ static void test_controller_menu_actions(SDL_Joystick *device)
 			controller_axis(device, triggers[index].axis, TEST_CONTROLLER_AXIS_MIN);
 			assert(kb_get_key_state(triggers[index].scan) == 0);
 		}
-		controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, true);
-		assert(kb_read_char() == 0);
-		controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, false);
+		if (!contexts[context].gameplay || contexts[context].modal) {
+			controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, true);
+			assert(kb_read_char() == 0);
+			controller_button(device, SDL_GAMEPAD_BUTTON_RIGHT_STICK, false);
+			assert(kb_read_char() == 0);
+		}
 		assert(sdl3_controller_driving_flags() == 0);
 		if (contexts[context].modal) {
 			sdl3_input_pop_modal();
@@ -2523,6 +2534,7 @@ static void test_controller_replay(SDL_Joystick *device)
 	sdl3_input_set_gameplay_active(true);
 	sdl3_input_set_replay_active(true);
 	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	assert_controller_camera_shortcut(device);
 	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, TEST_CONTROLLER_AXIS_MAX);
 	assert(kb_read_char() == KEY_RIGHT);
 	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);

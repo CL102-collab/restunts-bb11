@@ -586,6 +586,7 @@ including track and replay file selection.
 | Left stick | Steer left and right | Navigate |
 | Left stick click / L3 | | Enter |
 | Right stick | Adjust the F3 custom camera | |
+| Right stick click / R3 | F3, select or cycle the custom and chase views, also in replay | |
 | LT / L2 | Brake | Escape |
 | RT / R2 | Accelerate | Space |
 | A / Cross | Shift down | Enter |
