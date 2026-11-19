@@ -556,9 +556,15 @@ static void race_finish_opponent(void)
 	legacy_s16 opponent_progress_text_position[2];
 	if (game_replay_mode == REPLAY_MODE_LIVE && gameconfig.game_opponenttype != 0 &&
 		state.opponentstate.car_crashBmpFlag == CRASH_EVENT_NONE) {
+#ifdef RESTUNTS_SDL3
+		show_race_progress_dialog(
+			locate_text_res(gameresptr, "cop"), RACE_OPPONENT_PROGRESS_DIALOG_Y,
+			VIDEO_UI_COLOR(performGraphColor), opponent_progress_text_position);
+#else
 		show_dialog(DIALOG_TYPE_PLACEHOLDERS, DIALOG_NO_BACKGROUND_SAVE,
 					locate_text_res(gameresptr, "cop"), -1, RACE_OPPONENT_PROGRESS_DIALOG_Y,
 					VIDEO_UI_COLOR(performGraphColor), opponent_progress_text_position, 0);
+#endif
 		replay_overflow_acknowledged_word = LEGACY_S16_FROM_BITS(
 			LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 1U));
 		legacy_s16 frame_counter = framespersec;
@@ -577,8 +583,14 @@ static void race_finish_opponent(void)
 					format_frame_as_string(&resID_byte1, state.game_frame + elapsed_time1, 1);
 				}
 				mouse_draw_opaque_check();
+#ifdef RESTUNTS_SDL3
+				widescreen_overlay_begin(WIDESCREEN_OVERLAY_DIALOG);
+#endif
 				font_draw_text_opaque(&resID_byte1, font_centered_text_x(&resID_byte1),
 									  opponent_progress_text_position[1]);
+#ifdef RESTUNTS_SDL3
+				widescreen_overlay_end();
+#endif
 				mouse_draw_transparent_check();
 			}
 
@@ -596,6 +608,9 @@ static void race_finish_opponent(void)
 				break;
 			}
 		}
+#ifdef RESTUNTS_SDL3
+		widescreen_overlay_clear(WIDESCREEN_OVERLAY_DIALOG);
+#endif
 	}
 }
 
@@ -605,11 +620,10 @@ static void race_release_resources(void)
 	is_in_replay = 1;
 	audio_carstate();
 	audio_remove_driver_timer();
-#ifdef RESTUNTS_SDL3
-	race_hires_presentation_finish();
-#endif
 	race_finish_opponent();
 #ifdef RESTUNTS_SDL3
+	/* The opponent dialog draws over the last composed race frame. */
+	race_hires_presentation_finish();
 	unit_opponent_stop();
 #endif
 

@@ -453,8 +453,8 @@ legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
 						   border_color, disabled_choices, initial_choice);
 	}
 
-	/* A shortcut can open a confirmation while the replay menu is visible.
-	 * Draw above it so cancel reveals it intact. */
+	/* A shortcut can open a confirmation while the replay menu or a race
+	 * progress dialog is visible. Draw above it so cancel reveals it intact. */
 	enum WIDESCREEN_OVERLAY overlay = widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG)
 										  ? WIDESCREEN_OVERLAY_NESTED_DIALOG
 										  : WIDESCREEN_OVERLAY_DIALOG;
@@ -468,5 +468,18 @@ legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
 	sprite_restore_context(saved_context);
 	sdl3_input_pop_overlay_modal();
 	return result;
+}
+
+void show_race_progress_dialog(void far *text_resource, legacy_u16 y, legacy_s16 border_color,
+							   legacy_s16 *positions)
+{
+	if (widescreen_active()) {
+		show_dialog_impl(DIALOG_TYPE_PLACEHOLDERS, DIALOG_NO_BACKGROUND_SAVE, text_resource,
+						 DIALOG_AUTO_POSITION, y, border_color, positions, 0,
+						 WIDESCREEN_OVERLAY_DIALOG);
+	} else {
+		show_dialog(DIALOG_TYPE_PLACEHOLDERS, DIALOG_NO_BACKGROUND_SAVE, text_resource,
+					DIALOG_AUTO_POSITION, y, border_color, positions, 0);
+	}
 }
 #endif

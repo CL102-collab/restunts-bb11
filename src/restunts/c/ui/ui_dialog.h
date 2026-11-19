@@ -27,6 +27,9 @@ legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
 							void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
 							legacy_s16 border_color, legacy_s16 *disabled_choices,
 							legacy_s16 initial_choice);
+/* In widescreen, the progress dialog stays on the dialog layer for live updates. */
+void show_race_progress_dialog(void far *text_resource, legacy_u16 y, legacy_s16 border_color,
+							   legacy_s16 *positions);
 #else
 #define show_race_dialog show_dialog
 #endif

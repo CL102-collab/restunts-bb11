@@ -10,6 +10,9 @@
 #include "../c/race/race_presentation.c"
 #include "../c/hires/race_presentation.c"
 #include "extended-replay-test-stubs.h"
+#ifdef RESTUNTS_SDL3
+#include "../c/opponent/opponent.h"
+#endif
 #undef printf
 #undef memset
 
@@ -70,12 +73,21 @@ legacy_u8 mph_display_enabled;
 #ifdef RESTUNTS_SDL3
 static legacy_u8 widescreen_test_enabled, widescreen_test_racing;
 static struct {
+	legacy_u8 active, opened, drawing, cleared;
+	legacy_u16 ticks, time_draws;
+} opponent_progress;
+
+enum { TEST_OPPONENT_PROGRESS_TICKS = 3, TEST_OPPONENT_PROGRESS_RATE = 2 };
+static struct {
 	legacy_u8 active, toolbar;
 	legacy_u32 frames_before, controls, input_calls;
 } widescreen_transition;
 static legacy_s32 widescreen_test_width = 1280, widescreen_test_height = 720;
 void widescreen_set_racing(legacy_s32 racing)
 {
+	if (opponent_progress.active != 0 && racing == 0) {
+		assert(opponent_progress.cleared != 0);
+	}
 	widescreen_test_racing = racing != 0;
 }
 legacy_s32 widescreen_active(void)
@@ -107,10 +119,26 @@ void widescreen_begin_frame(void)
 }
 void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
 {
-	(void)overlay;
+	if (opponent_progress.active != 0) {
+		assert(overlay == WIDESCREEN_OVERLAY_DIALOG);
+		assert(opponent_progress.opened != 0 && opponent_progress.drawing == 0);
+		opponent_progress.drawing = 1;
+	}
 }
 void widescreen_overlay_end(void)
 {
+	if (opponent_progress.active != 0) {
+		assert(opponent_progress.drawing != 0);
+		opponent_progress.drawing = 0;
+	}
+}
+void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay)
+{
+	assert(overlay == WIDESCREEN_OVERLAY_DIALOG);
+	assert(opponent_progress.active != 0 && opponent_progress.drawing == 0);
+	assert(opponent_progress.ticks == TEST_OPPONENT_PROGRESS_TICKS);
+	assert(widescreen_test_racing != 0);
+	opponent_progress.cleared = 1;
 }
 void sdl3_video_update_widescreen(void)
 {
@@ -1761,6 +1789,101 @@ static void test_widescreen_escape_publishes_playback(void)
 		scheduled_mode = 0;
 	}
 }
+
+void show_race_progress_dialog(void far *text, legacy_u16 y, legacy_s16 border_color,
+							   legacy_s16 *positions)
+{
+	assert(text == text_resource && y == RACE_OPPONENT_PROGRESS_DIALOG_Y);
+	assert(border_color == VIDEO_UI_COLOR(performGraphColor));
+	assert(widescreen_test_racing != 0 && widescreen_active() == widescreen_test_enabled);
+	assert(hires_render_scale() == FRAME_HIRES_ADAPTIVE_HALF_SCALE);
+	opponent_progress.opened = 1;
+	positions[1] = (legacy_s16)y;
+}
+
+void replay_update_input_tick(legacy_s16 force_neutral_input)
+{
+	assert(force_neutral_input != 0 && opponent_progress.opened != 0);
+	opponent_progress.ticks++;
+}
+
+legacy_s16 input_do_checking(legacy_s16 frame_delta)
+{
+	assert(frame_delta == 1);
+	assert(widescreen_test_racing != 0 && widescreen_active() == widescreen_test_enabled);
+	assert(hires_render_scale() == FRAME_HIRES_ADAPTIVE_HALF_SCALE);
+	assert(opponent_progress.time_draws == (opponent_progress.ticks - 1) / framespersec + 1);
+	if (opponent_progress.ticks == TEST_OPPONENT_PROGRESS_TICKS) {
+		if (widescreen_test_enabled == 0) {
+			return KEY_ESCAPE;
+		}
+		state.opponentstate.car_crashBmpFlag = CRASH_EVENT_FINISH;
+	}
+	return 0;
+}
+
+void format_frame_as_string(legacy_s8 *text, legacy_s16 frame, legacy_s16 include_hundredths)
+{
+	assert(text == &resID_byte1 && include_hundredths != 0);
+	assert(frame == (legacy_s16)opponent_progress.ticks);
+}
+
+legacy_s16 font_centered_text_x(const legacy_s8 *text)
+{
+	assert(text == &resID_byte1);
+	return RACE_SCREEN_WIDTH / 2;
+}
+
+void font_draw_text_opaque(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
+{
+	assert(text == &resID_byte1 && x == RACE_SCREEN_WIDTH / 2);
+	assert(y == RACE_OPPONENT_PROGRESS_DIALOG_Y && opponent_progress.drawing != 0);
+	opponent_progress.time_draws++;
+}
+
+void sprite_select_screen_compat(void)
+{
+}
+
+void audio_remove_driver_timer(void)
+{
+}
+
+void unit_opponent_stop(void)
+{
+}
+
+void remove_frame_callback(void)
+{
+}
+
+void free_player_cars(void)
+{
+}
+
+static void test_opponent_progress_preserves_race_presentation(void)
+{
+	for (legacy_u8 wide = 0; wide <= 1; wide++) {
+		memset(&opponent_progress, 0, sizeof(opponent_progress));
+		memset(&state, 0, sizeof(state));
+		elapsed_time1 = 0;
+		framespersec = TEST_OPPONENT_PROGRESS_RATE;
+		game_replay_mode = REPLAY_MODE_LIVE;
+		gameconfig.game_opponenttype = OPPONENT_FIRST;
+		state.playerstate.car_crashBmpFlag = CRASH_EVENT_COLLISION;
+		renderer_active = 1;
+		widescreen_test_enabled = wide;
+		idle_expired = 0;
+		race_hires_presentation_initialize();
+		frame_hires_adaptive.preset = FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
+		test_render_scale = FRAME_HIRES_ADAPTIVE_HALF_SCALE;
+		opponent_progress.active = 1;
+		race_release_resources();
+		assert(opponent_progress.cleared != 0);
+		assert(widescreen_test_racing == 0 && hires_render_scale() == HIRES_SCALE);
+		opponent_progress.active = 0;
+	}
+}
 #endif
 
 int main(void)
@@ -1850,6 +1973,7 @@ int main(void)
 	test_ghost_interpolation_timestamps();
 	test_widescreen_racing_viewport();
 	test_widescreen_escape_publishes_playback();
+	test_opponent_progress_preserves_race_presentation();
 #endif
 	return 0;
 }
