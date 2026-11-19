@@ -13,7 +13,7 @@ static const legacy_int SCREEN_MARGIN = 40;
 static const legacy_int BORDER = 12;
 static const legacy_int SPACING = 8;
 static const legacy_int SCROLL_STEP = 20;
-static const legacy_int FIXED = 0;
+static const legacy_int FIXED_LAYOUT = 0;
 static const legacy_int GROW = 1;
 static const legacy_int BINDING_COLUMNS = 2;
 static const legacy_int ACTION_COLUMN = 1;
@@ -39,17 +39,17 @@ class ControllerBindingsDialog : public wxDialog
 		layout->Add(tabs, GROW, wxEXPAND | wxALL, border);
 
 		status_ = new wxStaticText(this, wxID_ANY, wxEmptyString);
-		layout->Add(status_, FIXED, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
+		layout->Add(status_, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 		status_->Hide();
 
 		wxBoxSizer *footer = new wxBoxSizer(wxHORIZONTAL);
 		wxButton *restore = new wxButton(this, wxID_ANY, "Restore defaults");
 		restore->SetToolTip("Restore the default bindings for all tabs.");
-		footer->Add(restore, FIXED, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		footer->Add(restore, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
 		footer->AddStretchSpacer();
-		footer->Add(CreateButtonSizer(wxOK | wxCANCEL), FIXED, wxALIGN_CENTER_VERTICAL);
+		footer->Add(CreateButtonSizer(wxOK | wxCANCEL), FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		static_cast<wxButton *>(FindWindow(wxID_OK))->SetLabel("&Save");
-		layout->Add(footer, FIXED, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
+		layout->Add(footer, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 
 		SetSizer(layout);
 		const wxRect screen = wxGetClientDisplayRect();
@@ -82,7 +82,7 @@ class ControllerBindingsDialog : public wxDialog
 		const legacy_int spacing = FromDIP(SPACING);
 		wxScrolledWindow *page =
 			new wxScrolledWindow(tabs, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
-		page->SetScrollRate(FIXED, FromDIP(SCROLL_STEP));
+		page->SetScrollRate(FIXED_LAYOUT, FromDIP(SCROLL_STEP));
 		wxFlexGridSizer *grid = new wxFlexGridSizer(BINDING_COLUMNS, spacing, spacing);
 		grid->AddGrowableCol(ACTION_COLUMN);
 		/* Keep triggers and stick movements above the optional button rows. */
@@ -90,7 +90,8 @@ class ControllerBindingsDialog : public wxDialog
 			const legacy_u8 control =
 				(row + CONTROLLER_CONTROL_LEFT_TRIGGER) % CONTROLLER_CONTROL_COUNT;
 			const wxString label = wxString::FromUTF8(controller_binding_control_labels[control]);
-			grid->Add(new wxStaticText(page, wxID_ANY, label), FIXED, wxALIGN_CENTER_VERTICAL);
+			grid->Add(new wxStaticText(page, wxID_ANY, label), FIXED_LAYOUT,
+					  wxALIGN_CENTER_VERTICAL);
 			BindingChoice &choice = choices_[context][control];
 			choice.widget = new wxChoice(page, wxID_ANY);
 			choice.widget->SetName(label);
@@ -105,10 +106,10 @@ class ControllerBindingsDialog : public wxDialog
 					choice.actions.push_back(action);
 				}
 			}
-			grid->Add(choice.widget, FIXED, wxEXPAND);
+			grid->Add(choice.widget, FIXED_LAYOUT, wxEXPAND);
 		}
 		wxBoxSizer *fields = new wxBoxSizer(wxVERTICAL);
-		fields->Add(grid, FIXED, wxEXPAND | wxALL, FromDIP(BORDER));
+		fields->Add(grid, FIXED_LAYOUT, wxEXPAND | wxALL, FromDIP(BORDER));
 		page->SetSizer(fields);
 		page->FitInside();
 		tabs->AddPage(page, name);
