@@ -24,18 +24,24 @@ if [[ "${ID:-}" != ubuntu || -z "${VERSION_CODENAME:-}" ]]; then
     exit 1
 fi
 
-# Use a separate HTTPS archive for both metadata and packages. Keep the
-# runner's source configuration and Ubuntu archive signature checks intact.
+# Let APT try another HTTPS mirror for each failed index or package download.
+# Keep the runner's source configuration and Ubuntu archive signatures intact.
 fallback_sources=$(mktemp --suffix=.sources)
-trap 'rm -f -- "$fallback_sources"' EXIT
+fallback_mirrors=$(mktemp)
+trap 'rm -f -- "$fallback_sources" "$fallback_mirrors"' EXIT
+printf '%s\tpriority:%s\n' \
+    'https://azure.archive.ubuntu.com/ubuntu/' 1 \
+    'https://archive.ubuntu.com/ubuntu/' 2 \
+    'https://mirrors.edge.kernel.org/ubuntu/' 3 > "$fallback_mirrors"
+chmod a+r "$fallback_mirrors"
 cat > "$fallback_sources" <<EOF
 Types: deb
-URIs: https://azure.archive.ubuntu.com/ubuntu/
+URIs: mirror+file:$fallback_mirrors
 Suites: $VERSION_CODENAME $VERSION_CODENAME-updates $VERSION_CODENAME-backports $VERSION_CODENAME-security
 Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 EOF
 
-echo 'Retrying Ubuntu package installation with the Azure archive mirror.' >&2
+echo 'Retrying Ubuntu package installation with HTTPS archive mirrors.' >&2
 install_packages -o "Dir::Etc::sourcelist=$fallback_sources" -o Dir::Etc::sourceparts=- \
     -o APT::Get::List-Cleanup=false
