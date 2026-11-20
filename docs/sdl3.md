@@ -370,6 +370,8 @@ Extended track and replay filenames support up to 12 characters before
 native file picker. Original `.trk` and `.rpl` names retain their eight-character
 limit. Extended high score files use the same full track name with `.cshig`.
 
+The bundled Glacier, Keukenhof, and Ninh Binh tracks in `bin/tracks/` use
+`.cstrk` filenames. Keep the `tracks/` folder beside the game executable.
 In DOSBox-X enable `lfn=true` and use DOS version 7.1 or newer for these long
 filenames. Use `core=dynamic`, `cycles=max`, and `aspect=true`. Aspect
 correction displays 320x200 VGA pixels at their intended 4:3 shape. Mount a
@@ -480,9 +482,9 @@ Custom tracks are discovered in `tracks/` inside the game-data folder and beside
 the executable. Place `.TRK` files there, or `.CSTRK` files for Chocolate Stunts
 tracks. Optional `.HIG` and `.CSHIG` high score tables can accompany them.
 Search priority is loose game-data files, loose executable files, game-data
-`tracks/`, then executable `tracks/`. Filenames are matched without case
-sensitivity; duplicate filenames appear once in the track menu. Saved tracks
-and updated high scores continue to go into the selected game-data folder.
+`tracks/`, executable `tracks/`, and then the bundled resource directory where
+available. The track selector lists each filename once, ignoring case. Saved
+tracks and updated high scores go into the selected game-data folder.
 
 `repldump --time` also writes a `.tim` file with the replay's basename, such as
 `DEFAULT.tim`. Its first line contains the player's driving time to the finish,

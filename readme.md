@@ -853,13 +853,15 @@ SDL3 builds also load cars directly from four-character ZIP archives such as
 archive root; adding or removing the ZIP installs or removes that car. See
 [ZIP car resources and conflict priority](docs/sdl3.md#zip-car-resources).
 
-Tracks can likewise be placed in `tracks/` inside the game-data folder or beside
-the executable. The game discovers `.TRK` tracks there automatically; SDL3 builds
-also support `.CSTRK` tracks. Loose game-data files take priority, followed by
-loose executable files, game-data `tracks/`, then executable `tracks/`. Duplicate
-filenames appear once in the track menu, matched without case sensitivity.
-Optional `.HIG`/`.CSHIG` tables can accompany the tracks. Saved tracks and updated
-scores continue to be written in the selected game-data folder.
+SDL3 releases include Glacier, Keukenhof and Ninh Binh in the track selector.
+The source files are in `assets/tracks/`, alongside `assets/cars/`.
+
+Add your own `.TRK` or SDL3 `.CSTRK` tracks to `tracks/` inside the game-data
+folder or beside the executable. The game searches loose game-data files, loose
+executable files, game-data `tracks/`, executable `tracks/`, then any bundled
+track directory. It matches filenames without case sensitivity and lists each
+filename once. Optional `.HIG` and `.CSHIG` tables can accompany the tracks.
+Saved tracks and updated scores go into the selected game-data folder.
 
 The generator checks both dashboard resources against DIA3 after extraction
 and game preparation. See [car details and references](tools/scripts/cars/READTERR.TXT).

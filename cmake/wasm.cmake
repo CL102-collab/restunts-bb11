@@ -1,4 +1,4 @@
-# Emscripten application packaging. Embed custom cars, artwork and optional music.
+# Emscripten application packaging. Embed custom cars, tracks, artwork and optional music.
 # Original game resources are selected by the player and loaded into MEMFS by the shell.
 set(restunts_web_assets "${CMAKE_CURRENT_BINARY_DIR}/web-assets")
 set(restunts_web_shell "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/shell.html")
@@ -7,6 +7,10 @@ file(REMOVE_RECURSE "${restunts_web_assets}")
 foreach(car_archive IN LISTS restunts_car_archives)
     configure_file("${restunts_car_archive_directory}/${car_archive}"
         "${restunts_web_assets}/assets/cars/${car_archive}" COPYONLY)
+endforeach()
+foreach(track_file IN LISTS restunts_track_files)
+    get_filename_component(track_name "${track_file}" NAME)
+    configure_file("${track_file}" "${restunts_web_assets}/assets/tracks/${track_name}" COPYONLY)
 endforeach()
 foreach(horizon_file IN LISTS restunts_horizon_files)
     configure_file("${CMAKE_SOURCE_DIR}/assets/horizons/${horizon_file}"

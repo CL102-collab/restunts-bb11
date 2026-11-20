@@ -97,12 +97,19 @@ and beside the executable before their `cars/` subfolders and the bundled
 resource folder. Any compatible car placed in these folders is discovered
 automatically; duplicate car IDs appear once, with loose files taking priority.
 
-Desktop, DOS and Amiga packages also include a `tracks/` folder beside the
-executables. Add your own `.TRK` files there; SDL3 builds also support `.CSTRK`
-tracks. The game checks loose game-data files, loose executable files, game-data
-`tracks/`, then executable `tracks/`, and lists duplicate filenames only once
-without case sensitivity. Optional `.HIG`/`.CSHIG` tables load from these folders
-too; new tracks and updated scores are saved in the selected game-data folder.
+SDL3 game packages include Glacier, Keukenhof, and Ninh Binh. Desktop and
+DOS32 packages place them in `bin/tracks/`. Linux AppImage packages also include
+these tracks inside the AppImage. DOS32 needs [long filename support](sdl3.md#dos-with-djgpp)
+to list the bundled tracks. Android ships them in the game APK under
+`assets/tracks/`. The browser embeds them under `/assets/tracks/` and preserves
+the files in its relinking kit.
+
+Add your own `.TRK` files to `tracks/` beside the executable or in the game-data
+folder. SDL3 builds also accept `.CSTRK` files. The game checks loose game-data
+files, loose executable files, game-data `tracks/`, executable `tracks/`, then
+the bundled resource directory where available. The track selector lists each
+filename once, ignoring case. Optional `.HIG` and `.CSHIG` tables can accompany
+tracks. New tracks and updated scores are saved in the selected game-data folder.
 
 SDL3 desktop packages contain the game, its startup window, the command-line ghost
 generator and its GUI, physics dumper, renderer dumper, statically linked SDL,

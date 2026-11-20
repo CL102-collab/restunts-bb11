@@ -2,7 +2,8 @@
 
 `.cstrk` is the extended track format for SDL3 builds, including the
 SDL3 WebAssembly build. The current file-format revision is **v15**, supported
-by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
+by the game and HTML editor. DOS32 supports `.cstrk` with long filenames enabled.
+DOS16, Amiga and TempleOS use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
 a built-in horizon choice, an optional custom horizon filename, and up to

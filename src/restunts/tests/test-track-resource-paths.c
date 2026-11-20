@@ -36,7 +36,9 @@ static const legacy_char *const fixture_files[] = {"Loose.TRK",
 												   "TrAcKs/Longer-track.cshig",
 												   "TrAcKs/IGNORE.RES",
 												   "TrAcKs/nested/HIDDEN.TRK",
-												   "Other/ISOLATED.TRK"};
+												   "Other/ISOLATED.TRK",
+												   "../Bundled/Bundled.cstrk",
+												   "../Bundled/LONGER-TRACK.CSTRK"};
 static const legacy_char *const expected_tracks[] = {"LOOSE",	 "CONFLICT", "BASE",   "ORDER",
 													 "DATAONLY", "FOLDER",	 "APPONLY"};
 
@@ -117,6 +119,7 @@ legacy_int main(void)
 	make_directory("App");
 	make_directory("Data/TrAcKs");
 	make_directory("App/tracks");
+	make_directory("Bundled");
 	make_directory("Data/TrAcKs/nested");
 	make_directory("Data/Other");
 	assert(chdir("Data") == 0);
@@ -143,7 +146,13 @@ legacy_int main(void)
 	assert_marker("folder.hig", 16);
 	assert_marker("longer-track.cstrk", 15);
 	assert_marker("longer-track.cshig", 17);
-	assert(file_find((const legacy_s8 *)"*.cstrk") != NULL);
+	assert_marker("bundled.cstrk", 21);
+	const legacy_s8 *extended = file_find((const legacy_s8 *)"*.cstrk");
+	assert(extended != NULL);
+	assert_marker((const legacy_char *)extended, 15);
+	extended = file_find_next();
+	assert(extended != NULL);
+	assert_marker((const legacy_char *)extended, 21);
 	assert(file_find_next() == NULL);
 	assert(file_find((const legacy_s8 *)"*.csrpl") == NULL);
 	assert(file_find((const legacy_s8 *)"hidden.trk") == NULL);
@@ -172,6 +181,7 @@ legacy_int main(void)
 	assert(rmdir("TrAcKs") == 0);
 	assert(rmdir("Other") == 0);
 	assert(rmdir("../App/tracks") == 0);
+	assert(rmdir("../Bundled") == 0);
 	write_marker("loose.trk", 1);
 	assert_marker("loose.trk", 1);
 	assert(file_find((const legacy_s8 *)"*.trk") != NULL);

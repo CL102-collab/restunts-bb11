@@ -25,11 +25,13 @@ without copying the image into the selected game folder. A matching PNG in that
 folder's `horizons/` subdirectory takes priority over the bundled artwork.
 The bundled image stays separate from synchronized game files and is retained
 when changing or refreshing the selected folder.
-Tracks may remain loose or go directly in `tracks/` in the selected game folder.
-Both `.TRK` and `.CSTRK` tracks are discovered automatically, with loose files
-taking priority over matching filenames in `tracks/`. Optional `.HIG`/`.CSHIG`
-high score tables can accompany them. Updated scores and saved tracks are written
-to the selected game folder.
+The game APK bundles Glacier, Keukenhof, and Ninh Binh as `.CSTRK` tracks. They
+appear automatically in the track selector from the app's private `tracks/`
+folder. Your own `.TRK` and `.CSTRK` tracks may remain loose or go directly in
+`tracks/` in the selected game folder. Loose files take priority over files in
+`tracks/`, and files in the selected folder take priority over matching bundled
+tracks. Optional `.HIG`/`.CSHIG` high score tables can accompany them. Updated
+scores and saved tracks are written to the selected game folder.
 The choice is remembered. Copy custom content into this folder with a file
 manager, then press **Start game** again to load it.
 

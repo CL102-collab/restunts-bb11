@@ -3,8 +3,9 @@
 The SDL3 platform also builds with Emscripten. The output is one self-contained
 `restunts.html`: JavaScript, WebAssembly, enhanced artwork, and any supplied
 optional Ogg Vorbis music replacements are embedded. The Tesla Roadster and
-McMurtry custom cars are bundled under `/assets/cars/`. The Antarctica custom
-horizon is bundled under `/assets/horizons/` and copied into the game
+McMurtry custom cars are bundled under `/assets/cars/` and three custom
+tracks are bundled under `/assets/tracks/`. The Antarctica custom horizon
+is bundled under `/assets/horizons/` and copied into the game
 filesystem automatically when loading a folder. **No original game data is
 included**, including stock cars, tracks, replays, sounds, fonts, or menus.
 The build does not require a `stunts/` directory. The redistributable package and relink kit also exclude that data.
@@ -187,9 +188,11 @@ override restores the bundled artwork. The track editor also includes
 Antarctica automatically. The package contains a loose `horizons/Antarctica.png`
 for sharing with tracks or copying into another installation. Other subfolders,
 executables, and the HTML are ignored. The `tracks/` folder accepts
-`.TRK`, `.CSTRK`, `.HIG`, and `.CSHIG` files directly. Loose tracks take priority
-over matching filenames in `tracks/`; duplicate filenames appear only once
-in the track menu. Saved tracks and updated scores remain in the game folder.
+`.TRK`, `.CSTRK`, `.HIG`, and `.CSHIG` files directly. Glacier, Keukenhof, and
+Ninh Binh are bundled and appear in the track menu. For matching filenames,
+loose tracks take priority over your `tracks/` folder, followed by bundled
+tracks. Each matching filename appears once in the track menu. Saved tracks
+and updated scores remain in the game folder.
 Filenames are resolved case-insensitively. Identical files differing
 only in case are accepted; conflicting contents report an error. The selected
 folder must contain the original game resources, including `MAIN.RES` (or

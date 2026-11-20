@@ -242,6 +242,9 @@ CUSTOM_HORIZON_FILES = ("Antarctica.png",)
 DOS_CUSTOM_HORIZON_FILES = {"antarct.png": "Antarctica.png"}
 CUSTOM_HORIZON_DIRECTORIES = {"horizons", "bin/horizons", "assets/horizons",
                               "share/restunts/wasm-relink/data/assets/horizons"}
+CUSTOM_TRACK_FILES = ("glacier.cstrk", "keukenhof.cstrk", "ninhbinh.cstrk")
+CUSTOM_TRACK_DIRECTORIES = {"bin/tracks", "assets/tracks",
+                            f"{WASM_RELINK_DIRECTORY}/data/assets/tracks"}
 CUSTOM_CAR_FILES = CLASSIC_CUSTOM_CAR_FILES + ("STMCMU.H3D",)
 CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
                           "share/restunts/wasm-relink/data/assets/cars"}
@@ -360,17 +363,28 @@ def custom_horizon_source(name):
     return None
 
 
-def validate_custom_horizon_resources(files):
+def custom_track_source(name):
+    path = PurePosixPath(name)
+    if str(path.parent) in CUSTOM_TRACK_DIRECTORIES and path.name in CUSTOM_TRACK_FILES:
+        return ROOT / "assets/tracks" / path.name
+    return None
+
+
+def validate_custom_resources(files, source_for_name, resource_type):
     for name, content in files.items():
-        source = custom_horizon_source(name)
+        source = source_for_name(name)
         if source is not None:
-            require(source.is_file(), f"Missing custom horizon source resource: {source}")
+            require(source.is_file(), f"Missing custom {resource_type} source resource: {source}")
             require(content == source.read_bytes(),
-                    f"Custom horizon resource differs from source: {name}")
+                    f"Custom {resource_type} resource differs from source: {name}")
 
 
 def custom_horizon_files(directory):
     return {f"{directory}/{name}" for name in CUSTOM_HORIZON_FILES}
+
+
+def custom_track_files(directory):
+    return {f"{directory}/{name}" for name in CUSTOM_TRACK_FILES}
 
 
 def custom_car_files(directory):
@@ -474,6 +488,7 @@ def android_required_assets():
     required.add(ANDROID_TRACKS_README)
     required |= custom_car_files("assets/cars")
     required |= custom_horizon_files("assets/horizons")
+    required |= custom_track_files("assets/tracks")
     required |= {f"assets/skyboxes/{theme}-{image}.png"
                  for theme in SKYBOX_THEMES for image in SKYBOX_IMAGES}
     required |= {f"assets/menus/{background}.png" for background in MENU_BACKGROUNDS}
@@ -562,7 +577,8 @@ def validate_android_apk(target, content):
     require(files[ANDROID_TRACKS_README] == (ROOT / ANDROID_TRACKS_README).read_bytes(),
             "Android tracks README differs from source")
     validate_custom_car_resources(files)
-    validate_custom_horizon_resources(files)
+    validate_custom_resources(files, custom_horizon_source, "horizon")
+    validate_custom_resources(files, custom_track_source, "track")
     elf_class, machine = ELF_ARCHITECTURES[target.split("-")[1]]
     for name in native:
         validate_elf(target, name, files[name], elf_class, machine)
@@ -651,8 +667,8 @@ def required_files(target):
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
         return (required | custom_car_files(f"{relink}/data/assets/cars") |
-                custom_horizon_files(f"{relink}/data/assets/horizons") |
-                custom_horizon_files("horizons"))
+                custom_horizon_files(f"{relink}/data/assets/horizons") | custom_horizon_files("horizons") |
+                custom_track_files(f"{relink}/data/assets/tracks"))
     if target == "dos16":
         names = DOS_EXECUTABLES
     elif target == "dos32":
@@ -665,6 +681,7 @@ def required_files(target):
     if target == "dos16":
         return required | custom_car_files("cars") | {"tracks/README.TXT"}
     required |= custom_car_files("bin/cars") | {"bin/tracks/README.TXT"}
+    required |= custom_track_files("bin/tracks")
     required |= ({f"bin/horizons/{name}" for name in DOS_CUSTOM_HORIZON_FILES}
                  if target == "dos32" else custom_horizon_files("bin/horizons"))
     required |= {"share/docs/restunts/sdl3.md", "share/licenses/restunts/SDL-LICENSE.txt"}
@@ -732,7 +749,8 @@ def validate_contents(target, files, modes):
         path = checked_path(name)
         require(content, f"Empty package file: {name}")
         reject_synthesizer_rom(name, content)
-        if target == "dos32" and name.startswith("bin/"):
+        # Bundled extended tracks use DOS long filename support.
+        if target == "dos32" and name.startswith("bin/") and custom_track_source(name) is None:
             require(all(DOS_RUNTIME_NAME_PATTERN.fullmatch(part) for part in path.parts),
                     f"DOS runtime path must use 8.3 names: {name}")
         require(name in required, f"Unexpected package file: {name}")
@@ -740,7 +758,8 @@ def validate_contents(target, files, modes):
             require("nuked" not in name.lower() and "mt32emu" not in name.lower(),
                     f"DOS package must omit emulation libraries: {name}")
     validate_custom_car_resources(files)
-    validate_custom_horizon_resources(files)
+    validate_custom_resources(files, custom_horizon_source, "horizon")
+    validate_custom_resources(files, custom_track_source, "track")
     validate_windows_gui_audits(target, files)
     if target == "templeos":
         validate_templeos_package({name: content for name, content in files.items() if name != README})
@@ -797,7 +816,8 @@ def readme(target, commit):
         lines += [f"Open {track_editor_path(target)} in a modern browser to edit tracks offline.",
                   "The track editor is self-contained; no server or extra editor files are needed.",
                   "Bundled cars use TERR.zip and MCMU.zip in the cars asset folder.",
-                  "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model."]
+                  "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model.",
+                  "Glacier, Keukenhof, and Ninh Binh are available in the track selector."]
         if target != "dos32":
             guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
             lines += ["Video mode offers VGA (the default), EGA, CGA, and Tandy for classic graphics.",
@@ -820,6 +840,7 @@ def readme(target, commit):
                   "The app manages its private working cache and copies completed game writes",
                   "back to your selected folder, including tracks, replays and screenshots.",
                   "Custom cars are inside both APKs; enhanced artwork/music are inside the game APK.",
+                  "The game APK includes the bundled tracks under assets/tracks.",
                   "Antarctica is included in the game APK and as horizons/Antarctica.png.",
                   "Both APKs include dependency notices.",
                   "Release workflow APKs use the project's persistent release signing key.",
@@ -839,6 +860,7 @@ def readme(target, commit):
     elif target == "browser":
         lines += ["Open restunts.html in your browser and choose your game-data folder.",
                   "Custom cars are embedded under /assets/cars and loaded automatically.",
+                  "Bundled tracks are embedded under /assets/tracks and loaded automatically.",
                   "Antarctica is embedded and supplied separately as horizons/Antarctica.png.",
                   "The HTML runs offline by itself. Keep the licenses, Nuked and Munt sources,",
                   "and relink kit with redistributed packages; see wasm.md for instructions."]
@@ -913,6 +935,8 @@ def readme(target, commit):
     if target == "dos32":
         lines += ["Antarctica uses the DOS-compatible file bin/horizons/antarct.png.",
                   "Tracks and the editor retain its canonical name Antarctica.png.",
+                  "The bundled .cstrk tracks require long filename support. For DOSBox-X,",
+                  "enable lfn=true and use DOS version 7.1 or newer.",
                   "You can instead copy the entire contents of bin (including artwork folders)",
                   "into your original game's directory, then run restunts.exe there.",
                   "", "CWSDPMI release 7 is included unmodified in bin/CWSDPMI.EXE.",

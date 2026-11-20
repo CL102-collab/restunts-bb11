@@ -504,7 +504,7 @@ run_host_test test-car-zip fileio.c \
 run_host_test test-track-resource-paths fileio.c \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/memmgr.c" \
     "$test_source_dir/../platform/sdl3/file.c" "$test_source_dir/../platform/sdl3/memory.c" \
-    -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS \
+    -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -DRESTUNTS_TRACK_DIRECTORY='"../Bundled"' \
     -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-file-decompression fileio.c "$test_source_dir/resource.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \

@@ -81,6 +81,8 @@ class ReleasePackageTests(unittest.TestCase):
         track_readme = source / "assets/tracks/README.TXT"
         track_readme.parent.mkdir(parents=True, exist_ok=True)
         track_readme.write_bytes((PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes())
+        for name in PACKAGES.CUSTOM_TRACK_FILES:
+            shutil.copyfile(PACKAGES.ROOT / "assets/tracks" / name, track_readme.parent / name)
         for name in PACKAGES.CUSTOM_HORIZON_FILES:
             path = source / "assets/horizons" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,9 +298,9 @@ class ReleasePackageTests(unittest.TestCase):
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
         if name in {"tracks/README.TXT", "bin/tracks/README.TXT", "assets/tracks/README.TXT"}:
             return (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
-        horizon_source = PACKAGES.custom_horizon_source(name)
-        if horizon_source is not None:
-            return horizon_source.read_bytes()
+        source = PACKAGES.custom_horizon_source(name) or PACKAGES.custom_track_source(name)
+        if source is not None:
+            return source.read_bytes()
         if PACKAGES.custom_car_archive_members(name) is not None:
             return self.bundled_car_archives()[Path(name).name]
         car_source = PACKAGES.custom_car_source(name)
@@ -477,6 +479,36 @@ class ReleasePackageTests(unittest.TestCase):
             with self.subTest(target=target, replaced=name), \
                     self.assertRaisesRegex(ValueError, "Custom horizon resource differs from source"):
                 PACKAGES.validate_android_apk(target, self.apk_data(target, {name: FILE_DATA}))
+
+    def test_bundled_tracks_are_required_and_keep_their_original_bytes(self):
+        track_names = ("glacier.cstrk", "keukenhof.cstrk", "ninhbinh.cstrk")
+        targets = {"linux-x64": "bin/tracks", "dos32": "bin/tracks",
+                   "browser": f"{PACKAGES.WASM_RELINK_DIRECTORY}/data/assets/tracks"}
+        for target, directory in targets.items():
+            files, modes = PACKAGES.archive_contents(self.create(target))
+            files.pop(PACKAGES.MANIFEST)
+            for track in track_names:
+                name = f"{directory}/{track}"
+                expected = (PACKAGES.ROOT / "assets/tracks" / track).read_bytes()
+                with self.subTest(target=target, track=name):
+                    self.assertEqual(files[name], expected)
+                    self.assertEqual(modes[name], PACKAGES.FILE_MODE)
+                    with self.assertRaisesRegex(ValueError, "missing packaged files"):
+                        PACKAGES.validate_contents(target, {key: data for key, data in files.items()
+                                                            if key != name}, modes)
+                    with self.assertRaisesRegex(ValueError, "Custom track resource differs from source"):
+                        PACKAGES.validate_contents(target, {**files, name: FILE_DATA}, modes)
+        for target in PACKAGES.ANDROID_TARGETS:
+            with zipfile.ZipFile(io.BytesIO(self.apk_data(target))) as apk:
+                for track in track_names:
+                    name = f"assets/tracks/{track}"
+                    expected = (PACKAGES.ROOT / "assets/tracks" / track).read_bytes()
+                    with self.subTest(target=target, track=name):
+                        self.assertEqual(apk.read(name), expected)
+                        with self.assertRaisesRegex(ValueError, "missing APK members"):
+                            PACKAGES.validate_android_apk(target, self.apk_data(target, missing=(name,)))
+                        with self.assertRaisesRegex(ValueError, "Custom track resource differs from source"):
+                            PACKAGES.validate_android_apk(target, self.apk_data(target, {name: FILE_DATA}))
 
     def test_custom_cars_survive_every_archive_and_both_android_apks(self):
         for target in PACKAGES.TARGETS:
@@ -1597,11 +1629,12 @@ class ReleasePackageTests(unittest.TestCase):
             with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):
                 PACKAGES.validate_contents("windows-arm64", incomplete, modes)
 
-    def test_dos_runtime_filenames_do_not_require_long_filename_support(self):
+    def test_dos_runtime_8_3_rule_exempts_only_bundled_tracks(self):
         files = {name: self.runtime_data("dos32", name) for name in PACKAGES.required_files("dos32")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
         PACKAGES.validate_contents("dos32", files, modes)
-        for extra in ("bin/opponents/game/opp1.png", "bin/skyboxes/image.long", "bin/with space/a.png"):
+        for extra in ("bin/opponents/game/opp1.png", "bin/skyboxes/image.long", "bin/with space/a.png",
+                      "bin/tracks/unlisted.cstrk", "bin/glacier.cstrk"):
             with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "8.3 names"):
                 PACKAGES.validate_contents("dos32", dict(files, **{extra: FILE_DATA}), modes)
 

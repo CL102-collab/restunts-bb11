@@ -374,7 +374,13 @@ const legacy_s8 *file_track_query(const legacy_s8 *filename)
 static legacy_u16 file_track_path(legacy_u16 root, const legacy_s8 *filename,
 								  legacy_s8 path[FILE_CAR_PATH_SIZE])
 {
-	return file_resource_path(root, filename, path, "tracks/", 0);
+	return file_resource_path(root, filename, path, "tracks/",
+#ifdef RESTUNTS_TRACK_DIRECTORY
+							  RESTUNTS_TRACK_DIRECTORY
+#else
+							  0
+#endif
+	);
 }
 
 legacy_u16 file_track_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE])

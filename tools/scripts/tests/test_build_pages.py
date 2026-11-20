@@ -51,7 +51,8 @@ class BuildPagesTests(unittest.TestCase):
             if PACKAGES.custom_car_archive_members(name) is not None:
                 content = self.car_archives[path.name]
             else:
-                source = PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
+                source = (PACKAGES.custom_car_source(name) or PACKAGES.custom_horizon_source(name)
+                          or PACKAGES.custom_track_source(name))
                 content = source.read_bytes() if source is not None else FIXTURE_DATA
             path.write_bytes(content)
         (runtime / "share/restunts/wasm-relink/CMakeLists.txt").write_bytes(

@@ -412,7 +412,8 @@ endif()
 add_library(restunts_options INTERFACE)
 target_compile_definitions(restunts_options INTERFACE RESTUNTS_SDL3
     RESTUNTS_GIT_HASH="${RESTUNTS_GIT_HASH}"
-    RESTUNTS_CAR_DIRECTORY="${restunts_asset_directory}/cars")
+    RESTUNTS_CAR_DIRECTORY="${restunts_asset_directory}/cars"
+    RESTUNTS_TRACK_DIRECTORY="${restunts_asset_directory}/tracks")
 target_include_directories(restunts_options INTERFACE "${CMAKE_SOURCE_DIR}/${core}")
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(restunts_options INTERFACE -fsigned-char -fno-strict-aliasing
@@ -511,6 +512,10 @@ target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_part
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
 set(restunts_horizon_files Antarctica.png)
+set(restunts_track_files
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/tracks/glacier.cstrk"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/tracks/keukenhof.cstrk"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/tracks/ninhbinh.cstrk")
 include(cmake/car-archives.cmake)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
     RESTUNTS_EDITOR_DIRECTORY="${CMAKE_CURRENT_BINARY_DIR}"
@@ -642,7 +647,8 @@ foreach(car_archive IN LISTS restunts_car_archives)
     install(FILES "${restunts_car_archive_directory}/${car_archive}"
         DESTINATION bin/cars COMPONENT Runtime)
 endforeach()
-install(FILES assets/tracks/README.TXT DESTINATION bin/tracks COMPONENT Runtime)
+install(FILES assets/tracks/README.TXT ${restunts_track_files}
+    DESTINATION bin/tracks COMPONENT Runtime)
 foreach(horizon_file IN LISTS restunts_horizon_files)
     set(horizon_install_name "${horizon_file}")
     if(CMAKE_SYSTEM_NAME STREQUAL "DOS" AND horizon_file STREQUAL "Antarctica.png")
