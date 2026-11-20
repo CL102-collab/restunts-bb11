@@ -821,7 +821,7 @@ class CFileFindDos
   legacy_s8 *dirdelim;
 };
 
-class CRsAnon822eebe59e50
+class CRsAnon1438a83557e4
 {
   legacy_u16 root;
   legacy_s8 pattern[13];
