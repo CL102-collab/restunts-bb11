@@ -46,6 +46,7 @@ static const legacy_int OUTER_BORDER = 16;
 static const legacy_int CONTROL_SPACING = 8;
 static const legacy_int SCROLL_STEP = 16;
 static const legacy_int CONTENT_WIDTH = 560;
+static const legacy_int INITIAL_DIALOG_EXTRA_SIZE = 10;
 static const legacy_int MINIMUM_DIALOG_HEIGHT = 320;
 static const legacy_int VISIBLE_SCREEN_NUMERATOR = 9;
 static const legacy_int VISIBLE_SCREEN_DENOMINATOR = 10;
@@ -223,7 +224,9 @@ class LauncherDialog : public wxDialog
 			wxMin(wxMax(wxMax(fields_minimum.x, footer_minimum.x), FromDIP(CONTENT_WIDTH)),
 				  maximum_width);
 		const legacy_int height = wxMin(fields_minimum.y + footer_minimum.y, maximum_height);
-		SetClientSize(width, height);
+		const legacy_int extra_size = FromDIP(INITIAL_DIALOG_EXTRA_SIZE);
+		SetClientSize(wxMin(width + extra_size, maximum_width),
+					  wxMin(height + extra_size, maximum_height));
 		SetMinSize(wxSize(width, wxMin(height, FromDIP(MINIMUM_DIALOG_HEIGHT))));
 		Centre();
 		folder_->SetFocus();
