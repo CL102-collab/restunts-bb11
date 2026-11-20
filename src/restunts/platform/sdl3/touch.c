@@ -4,6 +4,9 @@
 #include "../../c/keyboard.h"
 #include "../../c/platform.h"
 #include <string.h>
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 #ifdef RESTUNTS_FULL
 #include "../../c/externs.h"
 #include "../../c/gamestate.h"
@@ -14,6 +17,8 @@
 #define INPUT_SHIFT_QUEUE_CAPACITY 64U
 #define TOUCH_EDGE_MARGIN 10.0f
 #define TOUCH_RADIUS_HEIGHT 0.075f
+#define TOUCH_MIN_SCALE 1.0f
+#define TOUCH_MAX_SCALE 3.0f
 #define TOUCH_STEERING_HEIGHT 0.62f
 #define TOUCH_RIGHT_RADIUS_OFFSET 3.5f
 #define TOUCH_SHIFT_RADIUS_OFFSET 2.25f
@@ -62,6 +67,8 @@ static legacy_u8 enabled = 1;
 static legacy_u8 enabled;
 #endif
 static legacy_u8 layout_visible = true;
+static struct TOUCH_LAYOUT touch_layout;
+static legacy_u8 layout_customized;
 static legacy_u8 keyboard_selected = 1;
 static legacy_u8 intro_active;
 static legacy_u8 racing;
@@ -231,7 +238,28 @@ legacy_u8 sdl3_touch_visible(enum TOUCH_CONTROL control)
 	return control != TOUCH_REWIND || racing;
 }
 
-struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect *area)
+void sdl3_touch_set_layout(const struct TOUCH_LAYOUT *layout)
+{
+	touch_layout = layout == NULL ? (struct TOUCH_LAYOUT){0} : *layout;
+	layout_customized = touch_layout.scale > TOUCH_MIN_SCALE;
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		layout_customized |= touch_layout.moved[control];
+	}
+}
+
+static legacy_f32 scale_default_center(legacy_f32 center, legacy_int origin, legacy_int extent,
+									   legacy_f32 base_radius, legacy_f32 radius)
+{
+	legacy_f32 base_span = extent - 2.0f * base_radius;
+	legacy_f32 span = extent - 2.0f * radius;
+	if (base_span <= 0.0f) {
+		return origin + extent / 2.0f;
+	}
+	return origin + radius + (center - origin - base_radius) * span / base_span;
+}
+
+static struct TOUCH_CIRCLE touch_layout_circle(enum TOUCH_CONTROL control, const SDL_Rect *area,
+											   const struct TOUCH_LAYOUT *layout)
 {
 	struct TOUCH_CIRCLE circle;
 	circle.radius = area->h * TOUCH_RADIUS_HEIGHT;
@@ -270,14 +298,122 @@ struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect
 		default:
 			break;
 	}
+	if ((legacy_u32)control >= TOUCH_CONTROL_COUNT ||
+		(layout->scale <= TOUCH_MIN_SCALE && !layout->moved[control])) {
+		return circle;
+	}
+	legacy_f32 base_radius = circle.radius;
+	legacy_f32 scale = SDL_clamp(layout->scale, TOUCH_MIN_SCALE, TOUCH_MAX_SCALE);
+	circle.radius = SDL_min(base_radius * scale, SDL_min(area->w, area->h) / 2.0f);
+	if (layout->moved[control]) {
+		circle.x = area->x + area->w * layout->centers[control].x;
+		circle.y = area->y + area->h * layout->centers[control].y;
+	} else {
+		/* Keep default controls distinct as the available span shrinks. */
+		circle.x = scale_default_center(circle.x, area->x, area->w, base_radius, circle.radius);
+		circle.y = scale_default_center(circle.y, area->y, area->h, base_radius, circle.radius);
+	}
+	circle.x = SDL_clamp(circle.x, area->x + circle.radius, area->x + area->w - circle.radius);
+	circle.y = SDL_clamp(circle.y, area->y + circle.radius, area->y + area->h - circle.radius);
 	return circle;
 }
 
-static legacy_u8 circle_contains(struct TOUCH_CIRCLE circle, legacy_f32 x, legacy_f32 y)
+struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect *area)
+{
+	return touch_layout_circle(control, area, &touch_layout);
+}
+
+#ifdef __ANDROID__
+#define TOUCH_CENTER_COMPONENTS 2
+#define TOUCH_CIRCLE_COMPONENTS 3
+
+static struct TOUCH_LAYOUT android_touch_layout(JNIEnv *env, jfloatArray centers, jfloat scale)
+{
+	struct TOUCH_LAYOUT layout = {0};
+	if (scale >= TOUCH_MIN_SCALE && scale <= TOUCH_MAX_SCALE) {
+		layout.scale = scale;
+	}
+	jfloat positions[TOUCH_CONTROL_COUNT * TOUCH_CENTER_COMPONENTS];
+	if (centers == NULL || (*env)->GetArrayLength(env, centers) != SDL_arraysize(positions)) {
+		return layout;
+	}
+	(*env)->GetFloatArrayRegion(env, centers, 0, SDL_arraysize(positions), positions);
+	if ((*env)->ExceptionCheck(env)) {
+		return layout;
+	}
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		legacy_f32 x = positions[control * TOUCH_CENTER_COMPONENTS];
+		legacy_f32 y = positions[control * TOUCH_CENTER_COMPONENTS + 1];
+		if (x >= 0.0f && x <= 1.0f && y >= 0.0f && y <= 1.0f) {
+			layout.centers[control] = (SDL_FPoint){x, y};
+			layout.moved[control] = true;
+		}
+	}
+	return layout;
+}
+
+JNIEXPORT void JNICALL Java_org_restunts_android_ControlLayout_applyNative(JNIEnv *env,
+																		   jclass layout_class,
+																		   jfloatArray centers,
+																		   jfloat scale)
+{
+	(void)layout_class;
+	struct TOUCH_LAYOUT layout = android_touch_layout(env, centers, scale);
+	sdl3_touch_set_layout(&layout);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_restunts_android_ControlLayout_previewNative(
+	JNIEnv *env, jclass layout_class, jfloatArray centers, jfloat scale, jint width, jint height)
+{
+	(void)layout_class;
+	struct TOUCH_LAYOUT layout = android_touch_layout(env, centers, scale);
+	if ((*env)->ExceptionCheck(env)) {
+		return NULL;
+	}
+	SDL_Rect area = {0, 0, width, height};
+	jfloat circles[TOUCH_CONTROL_COUNT * TOUCH_CIRCLE_COMPONENTS];
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		struct TOUCH_CIRCLE circle = touch_layout_circle(control, &area, &layout);
+		legacy_u32 index = control * TOUCH_CIRCLE_COMPONENTS;
+		circles[index] = circle.x;
+		circles[index + 1] = circle.y;
+		circles[index + 2] = circle.radius;
+	}
+	jfloatArray result = (*env)->NewFloatArray(env, SDL_arraysize(circles));
+	if (result != NULL) {
+		(*env)->SetFloatArrayRegion(env, result, 0, SDL_arraysize(circles), circles);
+	}
+	return result;
+}
+#endif
+
+static legacy_f32 circle_distance_squared(struct TOUCH_CIRCLE circle, legacy_f32 x, legacy_f32 y)
 {
 	legacy_f32 dx = x - circle.x;
 	legacy_f32 dy = y - circle.y;
-	return dx * dx + dy * dy <= circle.radius * circle.radius;
+	return dx * dx + dy * dy;
+}
+
+static enum TOUCH_CONTROL control_at(const SDL_Rect *area, legacy_f32 x, legacy_f32 y)
+{
+	enum TOUCH_CONTROL selected = TOUCH_CONTROL_COUNT;
+	legacy_f32 nearest = 0.0f;
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		if (!sdl3_touch_visible(control)) {
+			continue;
+		}
+		struct TOUCH_CIRCLE circle = sdl3_touch_circle(control, area);
+		legacy_f32 distance = circle_distance_squared(circle, x, y);
+		if (distance <= circle.radius * circle.radius &&
+			(selected == TOUCH_CONTROL_COUNT || distance <= nearest)) {
+			selected = control;
+			nearest = distance;
+			if (!layout_customized) {
+				break;
+			}
+		}
+	}
+	return selected;
 }
 
 static legacy_u8 control_pressed(enum TOUCH_CONTROL control)
@@ -388,16 +524,12 @@ void sdl3_touch_event(const SDL_TouchFingerEvent *event, const SDL_Rect *area)
 		finger->device = event->touchID;
 		finger->start_x = finger->x = x;
 		finger->start_y = finger->y = y;
-		finger->control = TOUCH_CONTROL_COUNT;
-		for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
-			if (sdl3_touch_visible(control) &&
-				circle_contains(sdl3_touch_circle(control, area), x, y)) {
-				finger->mode = TOUCH_POINTER_CONTROL;
-				finger->control = control;
-				finger->pressed = true;
-				control_press(control);
-				return;
-			}
+		finger->control = control_at(area, x, y);
+		if (finger->control != TOUCH_CONTROL_COUNT) {
+			finger->mode = TOUCH_POINTER_CONTROL;
+			finger->pressed = true;
+			control_press(finger->control);
+			return;
 		}
 		/* The legacy UI has one mouse pointer. Extra fingers must not move or release it. */
 		for (legacy_u32 i = 0; i < TOUCH_FINGER_COUNT; i++) {
@@ -424,7 +556,9 @@ void sdl3_touch_event(const SDL_TouchFingerEvent *event, const SDL_Rect *area)
 	finger->y = y;
 	if (event->type == SDL_EVENT_FINGER_MOTION) {
 		if (finger->mode == TOUCH_POINTER_CONTROL) {
-			legacy_u8 pressed = circle_contains(sdl3_touch_circle(finger->control, area), x, y);
+			struct TOUCH_CIRCLE circle = sdl3_touch_circle(finger->control, area);
+			legacy_u8 pressed =
+				circle_distance_squared(circle, x, y) <= circle.radius * circle.radius;
 			if (pressed && !finger->pressed && finger->control != TOUCH_SHIFT_UP &&
 				finger->control != TOUCH_SHIFT_DOWN && finger->control != TOUCH_CAMERA &&
 				finger->control != TOUCH_FOLLOW) {

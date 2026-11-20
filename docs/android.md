@@ -135,15 +135,22 @@ original driving behavior.
 ## Touch controls
 
 With **Show Control Layout** checked in the launcher and **Keyboard** input
-selected in Options, transparent circles appear near the screen edges. Unchecking
-**Show Control Layout** hides the circles; direct touch on menus, car/opponent
-choices and replay controls, including the timeline and swipe seeking, remains
-available.
-The circles are hidden throughout the intro; tap the screen to skip it.
-Left/right steer; upper/lower right accelerate/brake. They support simultaneous
-held touches. Moving outside a circle releases that control. Circles keep at
-least 10 pixels from the usable screen edges; display cutouts and system bars
-are respected.
+selected in Options, transparent circles appear in their default or saved
+positions. Unchecking **Show Control Layout** hides the circles. Direct touch on
+menus, car/opponent choices and replay controls, including the timeline and swipe
+seeking, remains available. The circles are hidden throughout the intro. Tap the
+screen to skip it.
+
+Choose **Edit Control Layout** in the launcher's **Input settings** and drag any
+circle to a new position. The slider in the center resizes all circles from their
+original size up to three times that size. Tap the green checkmark in the upper
+right to save the layout for future sessions. Tap the red cross or press Android
+Back to discard the draft. Circles stay inside the usable screen area, clear of
+display cutouts and system bars. The default layout leaves at least 10 pixels
+between each circle and the usable screen edges.
+
+Left and right arrows steer. The up and down arrows accelerate and brake. You can
+hold several circles at once. Moving outside a circle releases that control.
 
 With **Vibration** enabled, the player's suspension bump, wall scrape, and crash
 sounds produce a short 40 ms phone vibration during racing and replay playback.
@@ -159,14 +166,13 @@ feedback until the controller is used again. Controllers without rumble support
 skip the effect. The **Vibration** option enables both phone and controller
 feedback; phone vibration remains available when using a controller.
 
-During a live race, bottom-left **Q** holds the existing rewind function. **Shift
-up/down** appear above/below steering only with manual gears selected. Each tap
-sends one gear-change request; holding does not repeatedly shift. Q and shifting
-are hidden in menus and replays. The four arrows navigate menus and replay
-controls; **ESC** is at the upper left. **C** is at the upper right and **T**
-is directly below it. They send one C/T key press per tap, cycling the camera
-and followed car exactly like the keyboard shortcuts. Tap the game buttons
-to activate choices.
+During a live race, **Q** holds rewind. **Shift up/down** appear only with
+manual gears selected. Each press sends one gear-change request, even if you
+keep holding the circle. Q and shifting are hidden in menus and replays. The four
+arrows navigate menus and replay controls. In the default layout, **ESC** is at
+the upper left, **C** is at the upper right, and **T** is directly below **C**.
+Each tap of C or T cycles the camera or followed car like the keyboard shortcuts.
+Tap the game buttons to activate choices.
 
 All existing car/opponent and replay toolbar buttons accept direct touch,
 including the camera icon, camera adjustment controls, and replay timeline.

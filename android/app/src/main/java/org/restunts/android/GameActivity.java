@@ -282,6 +282,13 @@ public final class GameActivity extends SDLActivity {
     }
 
     @Override
+    protected void main() {
+        // SDL calls this on the game thread before starting the native game.
+        ControlLayout.restore(this, null).applyToGame();
+        super.main();
+    }
+
+    @Override
     protected String[] getArguments() {
         Intent intent = getIntent();
         LaunchOptions options = new LaunchOptions(

@@ -24,7 +24,15 @@ struct TOUCH_CIRCLE {
 	legacy_f32 radius;
 };
 
+struct TOUCH_LAYOUT {
+	legacy_f32 scale;
+	SDL_FPoint centers[TOUCH_CONTROL_COUNT];
+	legacy_u8 moved[TOUCH_CONTROL_COUNT];
+};
+
 void sdl3_touch_enable(legacy_u8 enabled);
+/* Set the initial layout on the game thread. NULL restores the defaults. */
+void sdl3_touch_set_layout(const struct TOUCH_LAYOUT *layout);
 void sdl3_touch_configure(legacy_u8 keyboard, legacy_u8 racing, legacy_u8 manual, legacy_u8 replay);
 void sdl3_touch_sync_game(void);
 void sdl3_touch_reset(void);

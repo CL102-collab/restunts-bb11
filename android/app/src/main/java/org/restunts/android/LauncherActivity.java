@@ -276,6 +276,12 @@ public final class LauncherActivity extends Activity {
         }
         showControlLayout = option(input, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
             LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
+        Button editControlLayout = new Button(this);
+        editControlLayout.setText("Edit Control Layout");
+        editControlLayout.setTextSize(textSize);
+        editControlLayout.setOnClickListener(view ->
+            startActivity(new Intent(this, ControlLayoutEditorActivity.class)));
+        input.addView(editControlLayout);
 
         addSoundSettings(layout, textSize, spacing);
 

@@ -39,6 +39,10 @@
 #define TEST_PRESENTATION_HEIGHT 240
 #define TEST_SAFE_INSET_X 20
 #define TEST_SAFE_INSET_Y 10
+#define TEST_CUSTOM_LAYOUT_SCALE 3.0f
+#define TEST_CUSTOM_LEFT_X 0.46f
+#define TEST_CUSTOM_RIGHT_X 0.54f
+#define TEST_CUSTOM_STEERING_Y 0.5f
 
 /* Exercise the same game-state bridge compiled into the Android library. */
 struct GAMEINFO gameconfig;
@@ -215,6 +219,88 @@ static void test_visibility_and_geometry(void)
 	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT) && key_count == 0 && mouse_count == 1);
 	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TEST_EDGE_MARGIN / 2.0f, left.y);
 	assert(mouse_count == 2 && mouse_down[0] && !mouse_down[1]);
+}
+
+static void test_custom_layout_geometry(void)
+{
+	const SDL_Rect safe = {TEST_SAFE_INSET_X, TEST_SAFE_INSET_Y, TEST_HD_WIDTH, TEST_HD_HEIGHT};
+	struct TOUCH_CIRCLE default_left = sdl3_touch_circle(TOUCH_LEFT, &safe);
+	const struct TOUCH_LAYOUT layout = {
+		.scale = TEST_CUSTOM_LAYOUT_SCALE,
+		.centers = {[TOUCH_LEFT] = {TEST_CUSTOM_LEFT_X, TEST_CUSTOM_STEERING_Y},
+					[TOUCH_RIGHT] = {0.0f, 1.0f}},
+		.moved = {[TOUCH_LEFT] = 1, [TOUCH_RIGHT] = 1}};
+	sdl3_touch_set_layout(&layout);
+	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
+	assert(SDL_fabsf(left.x - area.w * TEST_CUSTOM_LEFT_X) < TEST_COORDINATE_EPSILON);
+	assert(SDL_fabsf(left.y - area.h * TEST_CUSTOM_STEERING_Y) < TEST_COORDINATE_EPSILON);
+	left = sdl3_touch_circle(TOUCH_LEFT, &safe);
+	assert(SDL_fabsf(left.x - (safe.x + safe.w * TEST_CUSTOM_LEFT_X)) < TEST_COORDINATE_EPSILON);
+	assert(SDL_fabsf(left.y - (safe.y + safe.h * TEST_CUSTOM_STEERING_Y)) <
+		   TEST_COORDINATE_EPSILON);
+	legacy_f32 radius = default_left.radius * TEST_CUSTOM_LAYOUT_SCALE;
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		struct TOUCH_CIRCLE circle = sdl3_touch_circle(control, &safe);
+		assert(SDL_fabsf(circle.radius - radius) < TEST_COORDINATE_EPSILON);
+		assert(circle.x - radius >= safe.x - TEST_COORDINATE_EPSILON);
+		assert(circle.x + radius <= safe.x + safe.w + TEST_COORDINATE_EPSILON);
+		assert(circle.y - radius >= safe.y - TEST_COORDINATE_EPSILON);
+		assert(circle.y + radius <= safe.y + safe.h + TEST_COORDINATE_EPSILON);
+	}
+	struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &safe);
+	assert(SDL_fabsf(right.x - radius - safe.x) < TEST_COORDINATE_EPSILON);
+	assert(SDL_fabsf(right.y + radius - (safe.y + safe.h)) < TEST_COORDINATE_EPSILON);
+	struct TOUCH_CIRCLE shift_down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, &safe);
+	struct TOUCH_CIRCLE rewind = sdl3_touch_circle(TOUCH_REWIND, &safe);
+	assert(shift_down.y < rewind.y);
+	sdl3_touch_set_layout(NULL);
+	left = sdl3_touch_circle(TOUCH_LEFT, &safe);
+	assert(left.x == default_left.x && left.y == default_left.y &&
+		   left.radius == default_left.radius);
+}
+
+static void test_custom_layout_hits(void)
+{
+	clear();
+	sdl3_touch_configure(1, 1, 0, 0);
+	struct TOUCH_CIRCLE default_left = sdl3_touch_circle(TOUCH_LEFT, &area);
+	struct TOUCH_LAYOUT layout = {
+		.centers = {[TOUCH_LEFT] = {TEST_CUSTOM_LEFT_X, TEST_CUSTOM_STEERING_Y},
+					[TOUCH_RIGHT] = {TEST_CUSTOM_RIGHT_X, TEST_CUSTOM_STEERING_Y}},
+		.moved = {[TOUCH_LEFT] = 1, [TOUCH_RIGHT] = 1}};
+	sdl3_touch_set_layout(&layout);
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, default_left.x, default_left.y);
+	assert(key_count == 0 && mouse_count == 1 && mouse_down[0]);
+	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, default_left.x, default_left.y);
+	assert(mouse_count == 2 && !mouse_down[1]);
+	clear();
+	layout.scale = TEST_CUSTOM_LAYOUT_SCALE;
+	sdl3_touch_set_layout(&layout);
+	legacy_f32 right_x = area.w * TEST_CUSTOM_RIGHT_X;
+	legacy_f32 steering_y = area.h * TEST_CUSTOM_STEERING_Y;
+	legacy_f32 radius = default_left.radius * TEST_CUSTOM_LAYOUT_SCALE;
+	legacy_f32 dx = right_x - area.w * TEST_CUSTOM_LEFT_X;
+	legacy_f32 dy = radius * TEST_OUTER_RADIUS_OFFSET;
+	/* This point is outside the original radius and within both enlarged circles. */
+	assert(dy > default_left.radius && dx * dx + dy * dy < radius * radius);
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, right_x, steering_y - dy);
+	assert(sdl3_touch_key_state(SDL_SCANCODE_RIGHT) && !sdl3_touch_key_state(SDL_SCANCODE_LEFT));
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_SECOND_FINGER, TOUCH_LEFT);
+	assert(sdl3_touch_key_state(SDL_SCANCODE_LEFT));
+	event(SDL_EVENT_FINGER_MOTION, TEST_FIRST_FINGER, right_x,
+		  steering_y - radius - TEST_OUTSIDE_OFFSET);
+	assert(!sdl3_touch_key_state(SDL_SCANCODE_RIGHT));
+	assert(sdl3_touch_key_state(SDL_SCANCODE_LEFT));
+	assert(key_count == 2 && queued_keys[0] == KEY_RIGHT && queued_keys[1] == KEY_LEFT);
+	assert(mouse_count == 0);
+	clear();
+	layout.centers[TOUCH_LEFT] = layout.centers[TOUCH_RIGHT];
+	sdl3_touch_set_layout(&layout);
+	/* With identical centers the circle drawn on top receives the touch. */
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_LEFT);
+	assert(key_count == 1 && queued_keys[0] == KEY_RIGHT);
+	clear();
+	sdl3_touch_set_layout(NULL);
 }
 
 static void test_landscape_pillarboxes(legacy_int width, legacy_int height, legacy_int inset,
@@ -783,6 +869,8 @@ legacy_int main(void)
 	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
 	assert(SDL_Init(0));
 	test_visibility_and_geometry();
+	test_custom_layout_geometry();
+	test_custom_layout_hits();
 	test_landscape_pillarboxes(TEST_WIDTH, TEST_HEIGHT, 0, 1);
 	test_landscape_pillarboxes(TEST_WIDTH, TEST_HEIGHT, TEST_SAFE_INSET_X, 1);
 	test_landscape_pillarboxes(TEST_WIDE_WIDTH, TEST_HEIGHT, 0, 0);
