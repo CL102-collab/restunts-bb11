@@ -120,9 +120,11 @@ wins. The original physics defaults are on. Dual-Way Switching (--dws:on)
 preserves the original branch-switching penalty behavior; --dws:off fixes it.
 --amigagrass and --owoot are opt-in.
 Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
---nointro skips the intro and /ns disables startup music/effects. --fps:on/off selects the FPS
-display (off by default); supply once. F11 toggles it during play. Replays do not store these
-physics choices, so use the same settings for playback.
+--nointro skips the intro and /ns disables startup music/effects. --fps:on/off
+selects the FPS display (off by default). F11 toggles it during play.
+--show-dashboard:on|off sets the dashboard visibility at the start of a drive
+(on by default). Press D to toggle it while driving. Supply each display option
+once. Replays do not store physics choices, so use the same settings for playback.
 
     Restunts("C:/DATA", FALSE, FALSE, "--help");
     Restunts("C:/DATA", FALSE, FALSE, "--version");

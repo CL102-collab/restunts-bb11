@@ -218,6 +218,7 @@
 #define DASHBOARD_OPERATION_REDRAW_STATIC 1
 #define DASHBOARD_OPERATION_UPDATE 2
 #define DASHBOARD_OPERATION_UNLOAD 3
+#define DASHBOARD_DISPLAY_ON ((-1+1)+1)
 #define GHOST_RACING_LINE_RED 0
 #define GHOST_RACING_LINE_YELLOW 1
 #define GHOST_RACING_LINE_GREEN 2
@@ -1088,6 +1089,8 @@ class CStartupOptions
   legacy_u8 fps_display_specified;
   legacy_u8 mph_display_enabled;
   legacy_u8 mph_display_specified;
+  legacy_u8 dashboard_enabled;
+  legacy_u8 dashboard_specified;
 };
 
 class CFatalOutputState

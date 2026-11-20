@@ -84,6 +84,10 @@ off and selects `--showmph:on` or `--showmph:off` for the game. The display show
 MPH at the bottom right while driving. Ctrl+F9 toggles it for the current game
 session without changing the saved checkbox.
 
+**Show Dashboard** starts on and controls the initial dashboard visibility.
+The launcher saves the choice with the other graphics settings and passes
+`--show-dashboard:on` or `--show-dashboard:off` to the game.
+
 The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
 and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it
 off passes `--cfg:off`, giving green chicane areas ordinary grass behavior.

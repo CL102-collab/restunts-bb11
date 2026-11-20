@@ -217,6 +217,14 @@ for the current game session; the shortcut is inactive during races. Plain
 selected original synthesizer.
 See [replacement music details](docs/sdl3.md#optional-ogg-vorbis-music).
 
+### Dashboard visibility
+
+The dashboard starts visible when you begin or restart a drive. Uncheck
+**Show Dashboard** in the desktop, Android, or browser launcher's
+**Graphics settings**, or pass `--show-dashboard:off` to start with it hidden.
+`--show-dashboard:on` selects the default. Press **D** during a drive or replay
+to toggle the dashboard.
+
 ### F3 camera views
 
 Press **F3** to select the original adjustable camera. Press F3 again to cycle

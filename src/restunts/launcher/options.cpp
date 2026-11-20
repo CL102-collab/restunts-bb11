@@ -38,6 +38,7 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"widescreen", "Widescreen", "--widescreen:on", "--widescreen:off", false},
 	{"show_fps", "Show FPS (F11)", "--fps:on", "--fps:off", false},
 	{"show_mph", "Show MPH (Ctrl+F9)", "--showmph:on", "--showmph:off", false},
+	{"show_dashboard", "Show Dashboard", "--show-dashboard:on", "--show-dashboard:off", true},
 	{"multi_core", "Multi-core rendering", "--multi-core:on", "--multi-core:off", true},
 	{"power_gear", "Power Gear", "--pg:on", "--pg:off", true},
 	{"legacy_collision", "Original Collision Bugs", "--lc:on", "--lc:off", true},

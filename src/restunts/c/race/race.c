@@ -103,7 +103,7 @@ static void race_initialize_state(void)
 	} else {
 		if (is_in_replay == 0) {
 			replay_filename[0] = 0;
-			dashb_toggle = 1;
+			dashb_toggle = (legacy_s8)dashboard_startup_enabled;
 			show_penalty_counter = 0;
 			init_game_state_with_frame_rate(configured_frame_rate);
 			replay_overflow_acknowledged_word = LEGACY_S16_FROM_BITS(

@@ -1,4 +1,5 @@
 #include "../externs.h"
+#include "../dashboard.h"
 #include "../fatal.h"
 #include "../game_input.h"
 #include "../platform.h"
@@ -369,6 +370,7 @@ legacy_s8 skybox_resources_loaded;
 legacy_u8 detail_level;
 legacy_s8 shape_view_direction_sector;
 legacy_s8 replay_controls_drawn[2];
+legacy_u8 dashboard_startup_enabled = DASHBOARD_DISPLAY_ON;
 legacy_s8 dashboard_visible;
 legacy_s8 full_redraw_frames_remaining;
 legacy_s8 highscore_player_name_input[17];

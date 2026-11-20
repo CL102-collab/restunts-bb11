@@ -316,6 +316,8 @@ public final class GameActivity extends SDLActivity {
             intent.getStringExtra(LaunchOptions.VIDEO_MODE_KEY)));
         options = options.withWidescreen(intent.getBooleanExtra(LaunchOptions.WIDESCREEN_KEY,
             LaunchOptions.DEFAULT_WIDESCREEN));
+        options = options.withShowDashboard(intent.getBooleanExtra(LaunchOptions.SHOW_DASHBOARD_KEY,
+            LaunchOptions.DEFAULT_SHOW_DASHBOARD));
         return options.arguments(new File(getFilesDir(), "game").getAbsolutePath());
     }
 }

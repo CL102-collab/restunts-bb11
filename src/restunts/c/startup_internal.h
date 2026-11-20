@@ -50,6 +50,7 @@
 #endif
 #define STARTUP_FPS_DISPLAY_PREFIX "--fps:"
 #define STARTUP_MPH_DISPLAY_PREFIX "--showmph:"
+#define STARTUP_DASHBOARD_PREFIX "--show-dashboard:"
 #define STARTUP_SKIP_INTRO_OPTION "--nointro"
 #define STARTUP_WAITING_MESSAGE_Y 180
 #if defined(RESTUNTS_SDL3) && (defined(__ANDROID__) || defined(__EMSCRIPTEN__))
@@ -70,6 +71,8 @@ struct STARTUP_OPTIONS {
 	legacy_u8 fps_display_specified;
 	legacy_u8 mph_display_enabled;
 	legacy_u8 mph_display_specified;
+	legacy_u8 dashboard_enabled;
+	legacy_u8 dashboard_specified;
 #ifdef RESTUNTS_SDL3
 	legacy_u8 widescreen_enabled;
 	legacy_u8 widescreen_specified;

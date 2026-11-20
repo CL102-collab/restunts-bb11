@@ -132,6 +132,7 @@
                 <label><input id="widescreen" type="checkbox" disabled> Widescreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
                 <label><input id="show-mph" type="checkbox" disabled> Show MPH (Ctrl+F9)</label>
+                <label><input id="show-dashboard" type="checkbox" checked disabled> Show Dashboard</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
             </div>
@@ -314,7 +315,8 @@
         const ROM_FOLDER_STORE = 'mt32-rom-folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
         const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen',
-            'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+            'show-fps', 'show-mph', 'show-dashboard', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision',
+            'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
         const CLASSIC_DISPLAY_ASPECT = { width: 4, height: 3 };
@@ -653,6 +655,7 @@
             args.push(widescreen.checked ? '--widescreen:on' : '--widescreen:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(document.getElementById('show-mph').checked ? '--showmph:on' : '--showmph:off');
+            args.push(document.getElementById('show-dashboard').checked ? '--show-dashboard:on' : '--show-dashboard:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
             args.push('--videomode:' + videoMode.value);
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);

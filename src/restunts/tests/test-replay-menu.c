@@ -828,6 +828,16 @@ static void test_pause_cleanup(void)
 	assert(elapsed_time2 == 0 && gameconfig.game_recordedframes == 0);
 	assert(replay_overflow_acknowledged_word == 0x5a00);
 	assert(cameramode == CAMERA_MODE_COCKPIT && dashb_toggle == 1 && camera_selection_count == 1);
+
+	reset_viewer();
+	menu_action = REPLAY_PAUSE_ACTION_RESTART;
+	scenario = 0;
+	dashboard_startup_enabled = DASHBOARD_DISPLAY_OFF;
+	dashb_toggle = DASHBOARD_DISPLAY_ON;
+	replay_pause_menu();
+	assert(game_replay_mode == REPLAY_MODE_LIVE && restart_initializations == 1);
+	assert(dashb_toggle == DASHBOARD_DISPLAY_OFF);
+	dashboard_startup_enabled = DASHBOARD_DISPLAY_ON;
 }
 
 #define TEST_CONTINUE_CHASE_RIGHT_STEPS 3

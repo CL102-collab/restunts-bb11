@@ -175,6 +175,7 @@ class LauncherDialog : public wxDialog
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_WIDESCREEN);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_FPS);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_MPH);
+		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_DASHBOARD);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_MULTI_CORE);
 		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
 		wxBoxSizer *hypervision_row = new wxBoxSizer(wxHORIZONTAL);

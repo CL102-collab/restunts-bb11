@@ -116,8 +116,9 @@ build supports `file://` without a local web server. The HTML's location does no
    **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
    `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
    **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
-   **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
-   (`--multi-core:on/off`, initially on when supported), and the **HyperVision**
+   **Show Dashboard** (`--show-dashboard:on/off`), **Show Control Layout**
+   (`--control-layout:on`), **Multi-core rendering** (`--multi-core:on/off`,
+   initially on when supported), and the **HyperVision**
    selector. Multi-core rendering requires the threaded build and an isolated
    page; a saved choice overrides its default. Offline builds keep it disabled.
    **Video mode** selects **VGA** (the default), **EGA**, **CGA**, or **Tandy**
@@ -129,10 +130,13 @@ build supports `file://` without a local web server. The HTML's location does no
    HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
-   Off starts without HyperVision. Show FPS and Show MPH start off. Show Control Layout
-   starts on for phones and tablets and off for desktops; a remembered choice
-   overrides this default. It enables the same touch controls as Android. On
-   phones, use fullscreen landscape mode to put them in the black side areas.
+   Off starts without HyperVision. Show FPS and Show MPH start off. Show Dashboard
+   controls visibility when starting or restarting a drive and defaults to on.
+   The browser remembers this choice. Press **D** to toggle it while driving.
+   Show Control Layout starts on for phones and tablets and off for desktops.
+   A remembered choice overrides this default. It enables the same touch
+   controls as Android. On phones, use fullscreen landscape mode to put them
+   in the black side areas.
    The separate **Driving rules** group below graphics contains **Power Gear**,
    **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
    **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**.

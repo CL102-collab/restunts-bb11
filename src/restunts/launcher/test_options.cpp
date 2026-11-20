@@ -59,6 +59,7 @@ legacy_int main()
 	LauncherOptions options;
 	check(!options.enabled[LAUNCHER_WIDESCREEN], "Widescreen must default to disabled.");
 	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
+	check(options.enabled[LAUNCHER_SHOW_DASHBOARD], "Show Dashboard must default to enabled.");
 	check(options.input_method == LAUNCHER_INPUT_KEYBOARD,
 		  "Input method must default to Keyboard.");
 	check(options.sound_mode == LAUNCHER_SOUND_ADLIB, "Sound must default to Ad Lib.");
@@ -80,6 +81,7 @@ legacy_int main()
 									 "--fullscreen:off",
 									 "--fps:off",
 									 "--showmph:off",
+									 "--show-dashboard:on",
 									 "--controller-vibration:on",
 									 "--multi-core:on",
 									 "--pg:on",
@@ -101,6 +103,9 @@ legacy_int main()
 	options.sound_mode = LAUNCHER_SOUND_NONE;
 	options.hypervision = LAUNCHER_HV_OFF;
 	arguments = launcher_game_arguments(game, options);
+	check(contains(arguments, "--show-dashboard:off") &&
+			  !contains(arguments, "--show-dashboard:on"),
+		  "Disabling Show Dashboard must pass the off argument.");
 	const legacy_char *changed[] = {
 		"--nosound",		"--ogg:on",		   "--nointro", "--controller-vibration:off",
 		"--widescreen:on",	"--fullscreen:on", "--fps:on",	"--showmph:on",
@@ -359,6 +364,7 @@ legacy_int main()
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOW_MPH].key);
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOW_DASHBOARD].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_WIDESCREEN].key);
 		config.Flush();
 	}
@@ -374,6 +380,8 @@ legacy_int main()
 		  "Configurations without a saved Widescreen setting must use the disabled default.");
 	check(!restored.enabled[LAUNCHER_SHOW_MPH],
 		  "Configurations without a saved Show MPH setting must use the disabled default.");
+	check(restored.enabled[LAUNCHER_SHOW_DASHBOARD],
+		  "Configurations without a saved Show Dashboard setting must use the enabled default.");
 	check(restored.input_method == LAUNCHER_INPUT_KEYBOARD,
 		  "An unknown stored input method must use the Keyboard default.");
 	check(restored.video_mode == LAUNCHER_VIDEO_VGA,

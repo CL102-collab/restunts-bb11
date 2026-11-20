@@ -1585,6 +1585,34 @@ static void test_startup_mph_display_options(void)
 	}
 }
 
+static void test_startup_dashboard_options(void)
+{
+	legacy_s8 *off[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:off"};
+	reset_startup_hypervision();
+	init_main(sizeof(off) / sizeof(off[0]), off);
+	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_OFF);
+	assert(startup_options.dashboard_specified);
+
+	legacy_s8 *on[] = {(legacy_s8 *)"game", (legacy_s8 *)"--SHOW-DASHBOARD:On"};
+	reset_startup_hypervision();
+	init_main(sizeof(on) / sizeof(on[0]), on);
+	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_ON);
+	assert(startup_options.dashboard_specified);
+
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	dashboard_startup_enabled = DASHBOARD_DISPLAY_OFF;
+	reset_startup_hypervision();
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_ON);
+	assert(!startup_options.dashboard_specified);
+
+	legacy_s8 *invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:auto"};
+	expect_startup_option_error(sizeof(invalid) / sizeof(invalid[0]), invalid);
+	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:on",
+							  (legacy_s8 *)"--show-dashboard:off"};
+	expect_startup_option_error(sizeof(duplicate) / sizeof(duplicate[0]), duplicate);
+}
+
 static void test_startup_fps_display_options(void)
 {
 	static const struct {
@@ -1874,6 +1902,7 @@ int main(void)
 #endif
 	test_startup_fps_display_options();
 	test_startup_mph_display_options();
+	test_startup_dashboard_options();
 	test_startup_multi_core_options();
 	test_startup_video_mode_options();
 	test_startup_fullscreen_options();

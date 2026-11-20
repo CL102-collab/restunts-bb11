@@ -5676,21 +5676,24 @@ MemCpy(rs_command_line_command_line_help,
     "for game data and saves.\r\n\r\n  --help, -h       Show this help and exit, without loading "
     "game data.\r\n  --version, -v    Show the build version and exit.\r\n  --nointro        Skip "
     "the startup intro.\r\n  --fps:on|off     Start with FPS display enabled/disabled; supply "
-    "once.\r\n  --pg:on|off      Enable/disable the original power gear bug.\r\n  --lc:on|off      "
-    "Enable/disable original collision behavior.\r\n  --lcb:on|off     Enable/disable the original "
-    "left corner bias.\r\n  --dws:on|off     Dual-Way Switching: off fixes branch-switching "
-    "penalties.\r\n  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n                   Off "
-    "makes chicane off-road areas use the terrain surface.\r\n  --amigagrass     Use original "
-    "Amiga grass grip for stock cars.\r\n  --owoot[:on|off] Enable/disable One Wheel On/Over Track "
-    "rules.\r\n                   --owoot is shorthand for --owoot:on.\r\n  /ns              Start "
-    "with music and sound effects disabled.\r\n\r\nDefaults: intro and sound on; --pg:on, --lc:on, "
-    "--lcb:on, --dws:on, --cfg:on.\r\nFPS, Amiga grass, and OWOOT start off.\r\nPhysics and FPS "
-    "switches are case-insensitive.\r\nFor physics on/off switches, the last value wins.\r\nSupply "
-    "--fps only once; other switch names are case-sensitive.\r\nVideo: 640 x 400 (8:5), 16 colors. "
-    "Audio: PC speaker.\r\nF11 toggles FPS; F12 toggles SuperSight.\r\n/sXX and /h are legacy "
-    "compatibility switches with no alternate\r\nTempleOS device; /nd is a recognized legacy "
-    "switch with no effect.\r\nThe first --help/-h or --version/-v request wins.\r\n",
-    1754);
+    "once.\r\n  --show-dashboard:on|off  Show/hide the dashboard at the start of a drive.\r\n      "
+    "                     Dashboard starts on.\r\n  --pg:on|off      Enable/disable the original "
+    "power gear bug.\r\n  --lc:on|off      Enable/disable original collision behavior.\r\n  "
+    "--lcb:on|off     Enable/disable the original left corner bias.\r\n  --dws:on|off     Dual-Way "
+    "Switching: off fixes branch-switching penalties.\r\n  --cfg:on|off     Enable/disable Chicane "
+    "fast-grass.\r\n                   Off makes chicane off-road areas use the terrain "
+    "surface.\r\n  --amigagrass     Use original Amiga grass grip for stock cars.\r\n  "
+    "--owoot[:on|off] Enable/disable One Wheel On/Over Track rules.\r\n                   --owoot "
+    "is shorthand for --owoot:on.\r\n  /ns              Start with music and sound effects "
+    "disabled.\r\n\r\nDefaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, "
+    "--cfg:on.\r\nFPS, Amiga grass, and OWOOT start off.\r\nPhysics, FPS, and dashboard switches "
+    "are case-insensitive.\r\nFor physics on/off switches, the last value wins.\r\nSupply --fps "
+    "and --show-dashboard only once.\r\nOther switch names are case-sensitive.\r\nVideo: 640 x 400 "
+    "(8:5), 16 colors. Audio: PC speaker.\r\nD toggles the dashboard. F11 toggles FPS. F12 toggles "
+    "SuperSight.\r\n/sXX and /h are legacy compatibility switches with no alternate\r\nTempleOS "
+    "device; /nd is a recognized legacy switch with no effect.\r\nThe first --help/-h or "
+    "--version/-v request wins.\r\n",
+    1939);
 MemSet(&hill_height_consts,0,sizeof(hill_height_consts));
 hill_height_consts[1]=450;
 MemSet(&car_resource_name,0,sizeof(car_resource_name));
@@ -10418,6 +10421,7 @@ next_wnd_def=((&(wnd_defs[0])))(legacy_s8 *);
 intro_colorvalue=1;
 intro_palette_color_count=16;
 dialog_fnt_colour=15;
+dashboard_startup_enabled=DASHBOARD_DISPLAY_ON;
 replay_selected_control=6;
 MemSet(&replay_control_left_neighbor,0,sizeof(replay_control_left_neighbor));
 replay_control_left_neighbor[0]=1;

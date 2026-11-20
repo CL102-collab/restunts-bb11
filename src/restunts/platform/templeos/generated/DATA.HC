@@ -331,7 +331,7 @@ MemSet(&rs_command_line_command_line_revision,0,sizeof(rs_command_line_command_l
 legacy_s8 rs_command_line_command_line_version_suffix[17];
 MemSet(&rs_command_line_command_line_version_suffix,0,
     sizeof(rs_command_line_command_line_version_suffix));
-legacy_s8 rs_command_line_command_line_help[1754];
+legacy_s8 rs_command_line_command_line_help[1939];
 MemSet(&rs_command_line_command_line_help,0,sizeof(rs_command_line_command_line_help));
 CGameInfo gameconfig;
 MemSet(&gameconfig,0,sizeof(gameconfig));
@@ -871,6 +871,7 @@ legacy_u8 detail_level=0;
 legacy_s8 shape_view_direction_sector=0;
 legacy_s8 replay_controls_drawn[2];
 MemSet(&replay_controls_drawn,0,sizeof(replay_controls_drawn));
+legacy_u8 dashboard_startup_enabled=0;
 legacy_s8 dashboard_visible=0;
 legacy_s8 full_redraw_frames_remaining=0;
 legacy_s8 highscore_player_name_input[17];

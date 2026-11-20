@@ -16,6 +16,7 @@ public final class LaunchOptions {
     public static final String WIDESCREEN_KEY = "widescreen";
     public static final String SHOW_FPS_KEY = "show_fps";
     public static final String SHOW_MPH_KEY = "show_mph";
+    public static final String SHOW_DASHBOARD_KEY = "show_dashboard";
     public static final String MULTI_CORE_KEY = "multi_core";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
@@ -35,6 +36,7 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_WIDESCREEN = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
     public static final boolean DEFAULT_SHOW_MPH = false;
+    public static final boolean DEFAULT_SHOW_DASHBOARD = true;
     public static final boolean DEFAULT_MULTI_CORE = true;
     public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
     public static final boolean DEFAULT_POWER_GEAR = true;
@@ -152,6 +154,7 @@ public final class LaunchOptions {
     public final boolean widescreen;
     public final boolean showFps;
     public final boolean showMph;
+    public final boolean showDashboard;
     public final boolean multiCore;
     public final boolean showControlLayout;
     public final HyperVision hyperVision;
@@ -208,7 +211,7 @@ public final class LaunchOptions {
         this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
             leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
             sound ? SoundMode.ADLIB : SoundMode.NONE, skipIntro, multiCore, showMph, "", "",
-            VideoMode.VGA, DEFAULT_WIDESCREEN);
+            VideoMode.VGA, DEFAULT_WIDESCREEN, DEFAULT_SHOW_DASHBOARD);
     }
 
     private LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
@@ -216,7 +219,7 @@ public final class LaunchOptions {
             boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
             boolean owoot, boolean amigaGrass, SoundMode soundMode, boolean skipIntro,
             boolean multiCore, boolean showMph, String mt32RomDirectory, String mt32Model,
-            VideoMode videoMode, boolean widescreen) {
+            VideoMode videoMode, boolean widescreen, boolean showDashboard) {
         this.newMidi = newMidi;
         this.soundMode = soundMode == null ? SoundMode.ADLIB : soundMode;
         this.sound = this.soundMode != SoundMode.NONE;
@@ -226,6 +229,7 @@ public final class LaunchOptions {
         this.widescreen = widescreen;
         this.showFps = showFps;
         this.showMph = showMph;
+        this.showDashboard = showDashboard;
         this.multiCore = multiCore;
         this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
@@ -242,21 +246,29 @@ public final class LaunchOptions {
     public LaunchOptions withSoundMode(SoundMode mode, String directory, String model) {
         return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
             legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
-            amigaGrass, mode, skipIntro, multiCore, showMph, directory, model, videoMode, widescreen);
+            amigaGrass, mode, skipIntro, multiCore, showMph, directory, model, videoMode, widescreen,
+            showDashboard);
     }
 
     public LaunchOptions withVideoMode(VideoMode mode) {
         return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
             legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
             amigaGrass, soundMode, skipIntro, multiCore, showMph, mt32RomDirectory, mt32Model,
-            mode, widescreen);
+            mode, widescreen, showDashboard);
     }
 
     public LaunchOptions withWidescreen(boolean enabled) {
         return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
             legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
             amigaGrass, soundMode, skipIntro, multiCore, showMph, mt32RomDirectory, mt32Model,
-            videoMode, enabled);
+            videoMode, enabled, showDashboard);
+    }
+
+    public LaunchOptions withShowDashboard(boolean visible) {
+        return new LaunchOptions(newMidi, showFps, showControlLayout, hyperVision, powerGear,
+            legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot,
+            amigaGrass, soundMode, skipIntro, multiCore, showMph, mt32RomDirectory, mt32Model,
+            videoMode, widescreen, visible);
     }
 
     public String[] arguments(String dataDirectory) {
@@ -267,6 +279,7 @@ public final class LaunchOptions {
         arguments.add(widescreen ? "--widescreen:on" : "--widescreen:off");
         arguments.add(showFps ? "--fps:on" : "--fps:off");
         arguments.add(showMph ? "--showmph:on" : "--showmph:off");
+        arguments.add(showDashboard ? "--show-dashboard:on" : "--show-dashboard:off");
         arguments.add(multiCore ? "--multi-core:on" : "--multi-core:off");
         arguments.add(videoMode.argument);
         if (hyperVision != HyperVision.OFF) {

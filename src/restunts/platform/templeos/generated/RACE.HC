@@ -123,7 +123,7 @@ legacy_void RsRaceRaceInitializeState()
   } else {
     if((is_in_replay==0)) {
       (replay_filename[0]=TempleCastS8(0));
-      (dashb_toggle=TempleCastS8(1));
+      (dashb_toggle=TempleCastS8(TempleCastS8(dashboard_startup_enabled)));
       (show_penalty_counter=TempleCastS8(0));
       RsInitGameStateWithFrameRate(TempleCastU16(configured_frame_rate));
       (replay_overflow_acknowledged_word=TempleCastS16(

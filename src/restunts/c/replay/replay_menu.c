@@ -1,4 +1,5 @@
 #include "replay_viewer_private.h"
+#include "../dashboard.h"
 #include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_file_dialog.h"
@@ -78,7 +79,7 @@ static void replay_restart_recording(void)
 		LEGACY_S16_FROM_BITS(LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
 	replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG;
 	camera_select_mode(CAMERA_MODE_COCKPIT);
-	dashb_toggle = 1;
+	dashb_toggle = (legacy_s8)dashboard_startup_enabled;
 }
 
 static legacy_s16 replay_continue_recording(void)

@@ -220,7 +220,7 @@ legacy_void RsReplayMenuReplayRestartRecording()
               TempleCastU16(TempleCastU8(0))))))))));
   (replay_recording_flags=TempleCastS8(1));
   RsCameraSelectMode(TempleCastS8(CAMERA_MODE_COCKPIT));
-  (dashb_toggle=TempleCastS8(1));
+  (dashb_toggle=TempleCastS8(TempleCastS8(dashboard_startup_enabled)));
 }
 
 legacy_s16 RsReplayMenuReplayContinueRecording()

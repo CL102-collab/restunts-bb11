@@ -328,6 +328,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->fps_display_specified = 0;
 	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	options->mph_display_specified = 0;
+	options->dashboard_enabled = DASHBOARD_DISPLAY_ON;
+	options->dashboard_specified = 0;
 #ifdef RESTUNTS_SDL3
 	options->widescreen_enabled = 0;
 	options->widescreen_specified = 0;
@@ -410,6 +412,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 							  &options->fps_display_enabled, &options->fps_display_specified);
 		startup_parse_boolean(argv[i], STARTUP_MPH_DISPLAY_PREFIX, "MPH display",
 							  &options->mph_display_enabled, &options->mph_display_specified);
+		startup_parse_boolean(argv[i], STARTUP_DASHBOARD_PREFIX, "Dashboard visibility",
+							  &options->dashboard_enabled, &options->dashboard_specified);
 		if (strcmp(argv[i], STARTUP_SKIP_INTRO_OPTION) == 0) {
 			options->skip_intro = 1;
 		}
@@ -531,6 +535,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	startup_parse_options(argc, argv, &startup_options);
 	fps_display_enabled = startup_options.fps_display_enabled;
 	mph_display_enabled = startup_options.mph_display_enabled;
+	dashboard_startup_enabled = startup_options.dashboard_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
 	widescreen_set_enabled(startup_options.widescreen_enabled);

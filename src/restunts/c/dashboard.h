@@ -10,6 +10,9 @@ enum DASHBOARD_OPERATION {
 	DASHBOARD_OPERATION_UNLOAD = 3
 };
 
+enum DASHBOARD_DISPLAY_MODE { DASHBOARD_DISPLAY_OFF, DASHBOARD_DISPLAY_ON };
+
+extern legacy_u8 dashboard_startup_enabled;
 extern legacy_s8 far *stdaresptr;
 extern legacy_s8 far *stdbresptr;
 extern struct SHAPE2D far *whlshapes[];

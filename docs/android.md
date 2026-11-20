@@ -98,9 +98,10 @@ selecting Skip intro passes `--nointro`.
 
 **Graphics settings** contains **Video mode**, **Widescreen** (off by default),
 **Show FPS** for the FPS/render-time display, **Show MPH (Ctrl+F9)** for speed at
-the bottom right while driving, **Multi-core rendering** (`--multi-core:on/off`,
-initially on unless a saved choice overrides it), and the **HyperVision**
-selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
+the bottom right while driving, **Show Dashboard** (on by default),
+**Multi-core rendering** (`--multi-core:on/off`, initially on unless a saved
+choice overrides it), and the **HyperVision** selector with **Off**, **Auto**,
+**Full**, **High**, **Medium**, and **Low** presets.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
 Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group
@@ -110,7 +111,10 @@ HyperVision label and selector share their own horizontal row; other settings wr
 when needed. Start game applies all selections and remembers them for later
 launches. Show MPH starts off and passes `--showmph:on` or `--showmph:off`.
 With a keyboard, Ctrl+F9 toggles it for the current session without changing
-the saved checkbox. Defaults use original AdLib music, hide FPS, keep **Show Control Layout**
+the saved checkbox. Show Dashboard passes `--show-dashboard:on` or
+`--show-dashboard:off` to set the initial dashboard visibility. Press D during
+a drive to toggle the dashboard. Defaults use original AdLib music, hide FPS,
+keep **Show Control Layout**
 checked, and leave HyperVision off. The first five
 driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
 **Dual-Way Switching** passes `--dws:on` when checked; uncheck it for

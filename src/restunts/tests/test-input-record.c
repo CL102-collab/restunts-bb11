@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "../c/dashboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../c/hires/frame_adaptive.h"
 #endif
@@ -1009,6 +1010,20 @@ static void assert_renderer_status(const legacy_char *expected, legacy_u32 count
 	assert(strcmp((const legacy_char *)renderer_status, expected) == 0);
 }
 
+static void test_dashboard_shortcut(void)
+{
+	reset_inputs();
+	game_replay_mode = REPLAY_MODE_LIVE;
+	dashboard_startup_enabled = DASHBOARD_DISPLAY_OFF;
+	dashb_toggle = DASHBOARD_DISPLAY_OFF;
+	assert(handle_ingame_kb_shortcuts('D') == 1);
+	assert(dashb_toggle == DASHBOARD_DISPLAY_ON);
+	assert(handle_ingame_kb_shortcuts('d') == 1);
+	assert(dashb_toggle == DASHBOARD_DISPLAY_OFF);
+	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_OFF);
+	dashboard_startup_enabled = DASHBOARD_DISPLAY_ON;
+}
+
 static void test_mph_shortcut(void)
 {
 	assert((legacy_u16)KEY_CTRL_F9 == 0x6600U);
@@ -1242,6 +1257,7 @@ int main(void)
 	test_ghost_view_shortcut();
 	test_display_shortcuts();
 	test_mph_shortcut();
+	test_dashboard_shortcut();
 	test_custom_camera_cycle();
 	test_custom_camera_switches();
 #ifdef RESTUNTS_AMIGA

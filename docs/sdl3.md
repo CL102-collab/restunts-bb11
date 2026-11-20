@@ -627,6 +627,9 @@ Existing keyboard driving and replay controls remain available:
 
 - **Up/Down** accelerate and brake; **Left/Right** steer.
 - **F1–F4** select cockpit, follow, custom, and trackside cameras.
+- **D** toggles the dashboard during a drive or replay. The **Show Dashboard**
+  startup setting chooses the initial visibility when beginning or restarting
+  a drive. Use `--show-dashboard:on` (the default) or `--show-dashboard:off`.
 - **Alt+Enter** toggles desktop fullscreen, preserving the 4:3 image and restoring
   the previous window size when leaving fullscreen. Keypad Enter also works.
 - **Shift+F10** switches between original synthesized and replacement Ogg music on

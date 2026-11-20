@@ -263,7 +263,7 @@ legacy_s16 RsCommandLinePrintInfo(legacy_s32 argc,legacy_s8 **argv)
       }
       if((temple_show_help_8076!=0)) {
         return TempleCastS16(RsCommandLineCommandLineWrite(
-            rs_command_line_command_line_help,TempleCastU16(((1754*sizeof(legacy_s8))-1))));
+            rs_command_line_command_line_help,TempleCastU16(((1939*sizeof(legacy_s8))-1))));
       }
       return TempleCastS16(COMMAND_LINE_SUCCESS);
     }

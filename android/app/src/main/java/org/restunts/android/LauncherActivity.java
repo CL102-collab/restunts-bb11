@@ -97,6 +97,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox widescreen;
     private CheckBox showFps;
     private CheckBox showMph;
+    private CheckBox showDashboard;
     private CheckBox multiCore;
     private CheckBox showControlLayout;
     private CheckBox powerGear;
@@ -309,6 +310,8 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
         showMph = option(graphics, "Show MPH (Ctrl+F9)", LaunchOptions.SHOW_MPH_KEY,
             LaunchOptions.DEFAULT_SHOW_MPH, textSize);
+        showDashboard = option(graphics, "Show Dashboard", LaunchOptions.SHOW_DASHBOARD_KEY,
+            LaunchOptions.DEFAULT_SHOW_DASHBOARD, textSize);
         multiCore = option(graphics, "Multi-core rendering", LaunchOptions.MULTI_CORE_KEY,
             LaunchOptions.DEFAULT_MULTI_CORE, textSize);
         LinearLayout hyperVisionOption = new LinearLayout(this);
@@ -349,7 +352,7 @@ public final class LauncherActivity extends Activity {
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         for (CheckBox option : new CheckBox[] {
                 vibration, newMidi, skipIntro, tiltSteering, widescreen, showFps, showMph,
-                multiCore, showControlLayout,
+                showDashboard, multiCore, showControlLayout,
                 powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
@@ -677,7 +680,8 @@ public final class LauncherActivity extends Activity {
             multiCore.isChecked(), showMph.isChecked()).withSoundMode(selectedSoundMode(),
                 Mt32RomStorage.directory(this).getAbsolutePath(), selectedRomModel())
             .withVideoMode((LaunchOptions.VideoMode) videoMode.getSelectedItem())
-            .withWidescreen(widescreen.isChecked());
+            .withWidescreen(widescreen.isChecked())
+            .withShowDashboard(showDashboard.isChecked());
     }
 
     private void saveOptions() {
@@ -695,6 +699,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.WIDESCREEN_KEY, options.widescreen)
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.SHOW_MPH_KEY, options.showMph)
+            .putBoolean(LaunchOptions.SHOW_DASHBOARD_KEY, options.showDashboard)
             .putBoolean(LaunchOptions.MULTI_CORE_KEY, options.multiCore)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
@@ -784,6 +789,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.WIDESCREEN_KEY, options.widescreen);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.SHOW_MPH_KEY, options.showMph);
+                        intent.putExtra(LaunchOptions.SHOW_DASHBOARD_KEY, options.showDashboard);
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
