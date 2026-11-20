@@ -644,8 +644,10 @@ Existing keyboard driving and replay controls remain available:
 - **Ctrl+F12** saves the last completed frame as a PNG in the game data directory
   (`--data-dir`, or the current directory by default). Files are named
   `SHOT0001.PNG` through `SHOT9999.PNG`, skipping names that already exist.
-  Desktop and browser captures use the game's render resolution; the SDL3 DOS
-  build captures its display surface. Holding the shortcut saves only once.
+  Desktop, Android and browser captures preserve the game's display proportions.
+  Classic 4:3 frames are saved at 320×240 and 4:3 HyperVision frames at 1280×960.
+  Widescreen frames keep their render dimensions. SDL3 DOS captures its display
+  surface and saves 320×200 VGA frames at 320×240. Holding the shortcut saves only once.
   Browsers save to the selected game folder when possible, otherwise download
   the PNG.
 - Hold **Q** to rewind a live race; release it to resume from that point.

@@ -782,11 +782,19 @@ void sdl3_video_screenshot(void)
 	if (window == NULL) {
 		return;
 	}
-	/* Use the completed frame, not renderer readback after RenderPresent or
-	 * the live game buffers, which may already contain part of the next frame. */
+	legacy_u64 capture_started = SDL_GetTicksNS();
+	/* Capture the completed frame, which stays valid while the next frame is drawn. */
+	SDL_Surface *window_surface = NULL;
 	SDL_Surface *surface;
+	legacy_s32 capture_height = PRESENTATION_HEIGHT;
 	if (surface_output) {
-		surface = SDL_GetWindowSurface(window);
+		window_surface = SDL_GetWindowSurface(window);
+		surface = window_surface;
+		/* VESA surfaces already use square pixels. */
+		if (surface != NULL &&
+			(surface->w != SDL3_SCREEN_WIDTH || surface->h != SDL3_SCREEN_HEIGHT)) {
+			capture_height = surface->h;
+		}
 	} else {
 		const struct PRESENTATION_PAGE *page = &presentation_pages[front_page];
 		if (page->pixels == NULL) {
@@ -794,12 +802,21 @@ void sdl3_video_screenshot(void)
 		}
 		surface = SDL_CreateSurfaceFrom(page->width, page->height, SDL_PIXELFORMAT_ARGB8888,
 										page->pixels, page->width * sizeof(*page->pixels));
+		capture_height = (legacy_s32)((legacy_s64)page->width * page->presentation_height /
+									  page->presentation_width);
+	}
+	if (surface != NULL && surface->h != capture_height) {
+		SDL_Surface *scaled =
+			SDL_ScaleSurface(surface, surface->w, capture_height, SDL_SCALEMODE_NEAREST);
+		if (surface != window_surface) {
+			SDL_DestroySurface(surface);
+		}
+		surface = scaled;
 	}
 	if (surface == NULL) {
 		SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "Cannot capture screenshot: %s", SDL_GetError());
 		return;
 	}
-	legacy_u64 capture_started = SDL_GetTicksNS();
 	legacy_char filename[SCREENSHOT_NAME_CAPACITY];
 	legacy_u32 number;
 	/* main selects the game data directory as the working directory. Keep
@@ -828,11 +845,11 @@ void sdl3_video_screenshot(void)
 		SDL_Log("Screenshot saved to %s", filename);
 #endif
 	}
-	if (!surface_output) {
+	if (surface != window_surface) {
 		SDL_DestroySurface(surface);
 	}
 	if (measured_frame != 0) {
-		/* PNG compression and disk/browser writes are not rendering workload. */
+		/* Exclude screenshot scaling, encoding and saving from render timing. */
 		render_frame_started += SDL_GetTicksNS() - capture_started;
 	}
 }

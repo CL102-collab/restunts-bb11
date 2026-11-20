@@ -1355,7 +1355,10 @@ enum {
 	SCREENSHOT_TEST_DIRECTORY_BYTES = 64,
 	SCREENSHOT_TEST_EXISTING_FILE = 1,
 	SCREENSHOT_TEST_EXISTING_DIRECTORY,
-	SCREENSHOT_TEST_FIRST_IMAGE
+	SCREENSHOT_TEST_FIRST_IMAGE,
+	SCREENSHOT_TEST_CLASSIC_HEIGHT =
+		SDL3_SCREEN_WIDTH * WIDESCREEN_ASPECT_HEIGHT / WIDESCREEN_ASPECT_WIDTH,
+	SCREENSHOT_TEST_HIRES_HEIGHT = HIRES_WIDTH * WIDESCREEN_ASPECT_HEIGHT / WIDESCREEN_ASPECT_WIDTH
 };
 
 static void screenshot_test_path(legacy_u32 number,
@@ -1454,8 +1457,8 @@ static void test_screenshots(void)
 	sdl3_video_present();
 	legacy_u32 image_number = SCREENSHOT_TEST_FIRST_IMAGE;
 	press_screenshot_key(SDL_KMOD_LCTRL);
-	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT, PAGE_VIDEO_RED,
-					  PAGE_VIDEO_RED);
+	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
+					  PAGE_VIDEO_RED, PAGE_VIDEO_RED);
 	/* Repeats, duplicate down events and releasing Ctrl while F12 remains held
 	 * must neither capture again nor reach the HyperVision action. */
 	send_key(SDL_SCANCODE_F12, SDL_KMOD_LCTRL, true, true);
@@ -1470,14 +1473,14 @@ static void test_screenshots(void)
 	legacy_u8 next_colors[] = {PAGE_VIDEO_DAC_MAX, PAGE_VIDEO_DAC_MAX, 0, 0, PAGE_VIDEO_DAC_MAX, 0};
 	dos_video_set_palette(PAGE_VIDEO_FIRST_INDEX, PAGE_VIDEO_COLOR_COUNT, next_colors);
 	press_screenshot_key(SDL_KMOD_RCTRL | SDL_KMOD_CAPS | SDL_KMOD_NUM);
-	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT, PAGE_VIDEO_RED,
-					  PAGE_VIDEO_RED);
+	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
+					  PAGE_VIDEO_RED, PAGE_VIDEO_RED);
 	release_screenshot_key();
 	memset(framebuffer + PAGE_VIDEO_PIXELS / 2, PAGE_VIDEO_SECOND_INDEX, PAGE_VIDEO_PIXELS / 2);
 	sdl3_video_end_frame();
 	press_screenshot_key(SDL_KMOD_CTRL);
-	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT, PAGE_VIDEO_GREEN,
-					  PAGE_VIDEO_GREEN);
+	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
+					  PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
 	release_screenshot_key();
 
 	high_resolution_active = true;
@@ -1491,7 +1494,7 @@ static void test_screenshots(void)
 	sdl3_video_present();
 	sdl3_video_begin_frame();
 	/* A pending resolution change destroys the source ARGB pixels. Capture
-	 * must still retain the completed page's pixels and native dimensions. */
+	 * must still retain the completed page's pixels and display proportions. */
 	memset(argb_framebuffer, 0, sizeof(argb_framebuffer));
 	hires_set_render_scale(FRAME_HIRES_ADAPTIVE_HALF_SCALE);
 	memset(high_resolution_framebuffer, PAGE_VIDEO_SECOND_INDEX,
@@ -1499,11 +1502,13 @@ static void test_screenshots(void)
 	legacy_u8 blue[] = {0, 0, PAGE_VIDEO_DAC_MAX};
 	dos_video_set_palette(PAGE_VIDEO_SECOND_INDEX, 1, blue);
 	press_screenshot_key(SDL_KMOD_RCTRL);
-	assert_screenshot(image_number++, HIRES_WIDTH, HIRES_HEIGHT, PAGE_VIDEO_RED, PAGE_VIDEO_GREEN);
+	assert_screenshot(image_number++, HIRES_WIDTH, SCREENSHOT_TEST_HIRES_HEIGHT, PAGE_VIDEO_RED,
+					  PAGE_VIDEO_GREEN);
 	release_screenshot_key();
 	sdl3_video_end_frame();
 	press_screenshot_key(SDL_KMOD_LCTRL);
-	assert_screenshot(image_number++, HIRES_WIDTH, HIRES_HEIGHT, PAGE_VIDEO_BLUE, PAGE_VIDEO_BLUE);
+	assert_screenshot(image_number++, HIRES_WIDTH, SCREENSHOT_TEST_HIRES_HEIGHT, PAGE_VIDEO_BLUE,
+					  PAGE_VIDEO_BLUE);
 	release_screenshot_key();
 
 	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL | SDL_KMOD_SHIFT, SDL_KMOD_CTRL | SDL_KMOD_ALT,
@@ -1535,8 +1540,8 @@ static void test_screenshots(void)
 			attach_test_gamepad(&controller, controllers[index].vendor, controllers[index].product);
 		assert(SDL_GetGamepadType(SDL_GetGamepadFromID(id)) == controllers[index].type);
 		controller_button(controller, controllers[index].share, true);
-		assert_screenshot(image_number++, HIRES_WIDTH, HIRES_HEIGHT, PAGE_VIDEO_BLUE,
-						  PAGE_VIDEO_BLUE);
+		assert_screenshot(image_number++, HIRES_WIDTH, SCREENSHOT_TEST_HIRES_HEIGHT,
+						  PAGE_VIDEO_BLUE, PAGE_VIDEO_BLUE);
 		assert(kb_read_char() == 0);
 		controller_button(controller, controllers[index].share, false);
 		assert_no_screenshot(image_number);
@@ -1968,8 +1973,11 @@ static void test_wide_quality_presentation(void)
 			assert_wide_video_capture(cases[index].width, cases[index].height, marker_x, marker_y);
 		}
 	}
-	/* Wide monitor geometry remains in place while menus and classic scenes use 4:3. */
+	/* The completed frame keeps its wide aspect until the menu frame is presented. */
 	widescreen_set_racing(0);
+	const size_t last_case = SDL_arraysize(cases) - 1;
+	assert_wide_video_capture(cases[last_case].width, cases[last_case].height, marker_x, marker_y);
+	/* Wide monitor geometry remains in place while menus and classic scenes use 4:3. */
 	sdl3_video_begin_frame();
 	sdl3_video_end_frame();
 	assert(presented_raster_width == HIRES_WIDTH && presented_raster_height == HIRES_HEIGHT);
