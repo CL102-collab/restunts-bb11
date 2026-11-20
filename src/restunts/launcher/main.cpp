@@ -128,10 +128,11 @@ class LauncherDialog : public wxDialog
 		const legacy_int border = FromDIP(OUTER_BORDER);
 		const legacy_int spacing = FromDIP(CONTROL_SPACING);
 		wxBoxSizer *layout = new wxBoxSizer(wxVERTICAL);
-		wxScrolledWindow *content =
-			new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
+		wxScrolledWindow *content = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition,
+														 wxDefaultSize, wxHSCROLL | wxVSCROLL);
 		content_ = content;
-		content->SetScrollRate(FIXED_LAYOUT, FromDIP(SCROLL_STEP));
+		const legacy_int scroll_step = FromDIP(SCROLL_STEP);
+		content->SetScrollRate(scroll_step, scroll_step);
 		wxBoxSizer *fields = new wxBoxSizer(wxVERTICAL);
 		fields->Add(
 			new wxStaticText(content, wxID_ANY, "Choose your Broderbund Stunts 1.1 game folder."),
@@ -144,9 +145,21 @@ class LauncherDialog : public wxDialog
 		folder_row->Add(browse, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		fields->Add(folder_row, FIXED_LAYOUT, wxEXPAND | wxALL, border);
 
-		add_group(content, fields, "Startup options", LAUNCHER_SKIP_INTRO, LAUNCHER_SKIP_INTRO + 1);
-		add_input_group(content, fields);
-		add_sound_group(content, fields);
+		wxBoxSizer *columns = new wxBoxSizer(wxHORIZONTAL);
+		wxBoxSizer *left_column = new wxBoxSizer(wxVERTICAL);
+		wxBoxSizer *right_column = new wxBoxSizer(wxVERTICAL);
+		columns->Add(left_column, GROW_LAYOUT, wxEXPAND);
+		columns->AddSpacer(border);
+		columns->Add(right_column, GROW_LAYOUT, wxEXPAND);
+		fields->Add(columns, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT, border);
+
+		add_group(content, left_column, "Startup options", LAUNCHER_SKIP_INTRO,
+				  LAUNCHER_SKIP_INTRO + 1);
+		add_input_group(content, left_column);
+		add_group(content, left_column, "Driving rules", LAUNCHER_POWER_GEAR,
+				  LAUNCHER_OPTION_COUNT);
+
+		add_sound_group(content, right_column);
 		wxStaticBoxSizer *graphics = new wxStaticBoxSizer(wxVERTICAL, content, "Graphics settings");
 		wxFlexGridSizer *graphics_grid = new wxFlexGridSizer(OPTION_COLUMNS, spacing, border);
 		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Video mode"),
@@ -175,8 +188,7 @@ class LauncherDialog : public wxDialog
 		hypervision_row->Add(hypervision_, GROW_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		graphics->Add(hypervision_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
 					  spacing);
-		fields->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
-		add_group(content, fields, "Driving rules", LAUNCHER_POWER_GEAR, LAUNCHER_OPTION_COUNT);
+		right_column->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, border);
 		content->SetSizer(fields);
 		content->FitInside();
 		layout->Add(content, GROW_LAYOUT, wxEXPAND);
@@ -259,8 +271,7 @@ class LauncherDialog : public wxDialog
 			add_option(group->GetStaticBox(), grid, index);
 		}
 		group->Add(grid, FIXED_LAYOUT, wxEXPAND | wxALL, FromDIP(CONTROL_SPACING));
-		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
-					FromDIP(OUTER_BORDER));
+		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, FromDIP(OUTER_BORDER));
 	}
 
 	void add_input_group(wxWindow *parent, wxSizer *layout)
@@ -292,8 +303,7 @@ class LauncherDialog : public wxDialog
 			}
 		});
 		group->Add(vibration_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
-		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
-					FromDIP(OUTER_BORDER));
+		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, FromDIP(OUTER_BORDER));
 	}
 
 	void add_sound_group(wxWindow *parent, wxSizer *layout)
@@ -333,7 +343,6 @@ class LauncherDialog : public wxDialog
 		set_row->Add(rom_set_, GROW_LAYOUT, wxEXPAND);
 		rom_fields->Add(set_row, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, spacing);
 		rom_status_ = new wxStaticText(mt32_fields_, wxID_ANY, wxEmptyString);
-		rom_status_->Wrap(FromDIP(CONTENT_WIDTH - OUTER_BORDER - OUTER_BORDER));
 		rom_fields->Add(rom_status_, FIXED_LAYOUT, wxEXPAND);
 		mt32_fields_->SetSizer(rom_fields);
 		group->Add(mt32_fields_, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
@@ -342,8 +351,7 @@ class LauncherDialog : public wxDialog
 		group->Add(music_row, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, spacing);
 		checks_[LAUNCHER_NEW_MIDI]->SetToolTip(
 			"Use OGG recordings for music; the selected sound mode still supplies sound effects.");
-		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM,
-					FromDIP(OUTER_BORDER));
+		layout->Add(group, FIXED_LAYOUT, wxEXPAND | wxBOTTOM, FromDIP(OUTER_BORDER));
 
 		sound_mode_->Bind(wxEVT_CHOICE, [this](wxCommandEvent &) { update_sound_controls(); });
 		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_rom_folder, this);
@@ -360,29 +368,33 @@ class LauncherDialog : public wxDialog
 			const legacy_int selected = rom_set_->GetSelection();
 			if (selected >= 0 && static_cast<size_t>(selected) < rom_sets_.size()) {
 				options_.mt32_model = rom_sets_[selected].id;
-				rom_status_->SetLabel("The selected ROM set will be used when you start the game.");
-				layout_rom_controls();
+				set_rom_status("The selected ROM set will be used when you start the game.");
 			}
 		});
 	}
 
 	void layout_rom_controls()
 	{
-		rom_status_->Wrap(FromDIP(CONTENT_WIDTH - OUTER_BORDER - OUTER_BORDER));
-		mt32_fields_->Layout();
 		content_->Layout();
 		content_->FitInside();
 		Layout();
+	}
+
+	void set_rom_status(const wxString &message)
+	{
+		rom_status_->SetLabel(message);
+		rom_status_->Wrap(mt32_fields_->GetClientSize().x);
+		mt32_fields_->Layout();
+		layout_rom_controls();
 	}
 
 	void update_sound_controls()
 	{
 		const legacy_bool mt32 = sound_mode_->GetSelection() == LAUNCHER_SOUND_MT32;
 		mt32_fields_->Show(mt32);
+		layout_rom_controls();
 		if (mt32) {
 			refresh_rom_inventory();
-		} else {
-			layout_rom_controls();
 		}
 	}
 
@@ -471,8 +483,7 @@ class LauncherDialog : public wxDialog
 				}
 			}
 		}
-		rom_status_->SetLabel(error);
-		layout_rom_controls();
+		set_rom_status(error);
 		return !rom_sets_.empty();
 	}
 

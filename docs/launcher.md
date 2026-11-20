@@ -28,10 +28,13 @@ the same browser-opening path. The copy remains usable after the game or
 launcher exits or the AppImage is unmounted. Flatpak browser entries are granted
 explicit read access through the document portal.
 
-**Input settings** follows **Startup options**. **Input method** selects the
-initial driving device in the game. Choose **Keyboard** (the default),
-**Joystick**, or **Mouse**. The launcher remembers your selection for the next
-launch.
+The left column contains **Startup options**, **Input settings**, and
+**Driving rules**. The right column contains **Sound settings** and
+**Graphics settings**.
+
+In **Input settings**, **Input method** selects the initial driving device in
+the game. Choose **Keyboard** (the default), **Joystick**, or **Mouse**. The
+launcher remembers your selection for the next launch.
 **Controller vibration** starts enabled and controls rumble for connected
 controllers that support it.
 
