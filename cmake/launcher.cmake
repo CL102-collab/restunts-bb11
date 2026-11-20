@@ -142,6 +142,22 @@ function(restunts_add_desktop_launcher)
                     COMPILE_OPTIONS -Wno-array-bounds -Wno-stringop-overread)
             endif()
         endif()
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RESTUNTS_WX_TOOLKIT STREQUAL "gtk2" AND
+                CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            # Legacy glibc flags wxWidgets' best-effort diagnostic and PostScript writes.
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/msgout.cpp"
+                TARGET_DIRECTORY wx::base APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-result)
+            set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/generic/dcpsg.cpp"
+                TARGET_DIRECTORY wx::core APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-result)
+            if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+                    AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14
+                    AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+                # GCC 14 loses the dimensions validated by GdkPixbuf when sizing its bitmap mask.
+                set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/gtk/bitmap.cpp"
+                    TARGET_DIRECTORY wx::core APPEND PROPERTY
+                    COMPILE_OPTIONS -Wno-alloc-size-larger-than)
+            endif()
+        endif()
         if(NOT wxUSE_LIBPNG AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             # Pinned wx leaves PNG factory arguments unused when PNG is disabled.
             set_property(SOURCE "${wxwidgets_SOURCE_DIR}/src/common/bmpbase.cpp"

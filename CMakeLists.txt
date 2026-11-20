@@ -194,8 +194,12 @@ else()
     set(SDL_INSTALL OFF CACHE BOOL "Only install the game")
     set(restunts_sdl_patch)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(restunts_sdl_patch_script "${CMAKE_CURRENT_LIST_DIR}/cmake/sdl3-linux-compat.cmake")
+        # Refresh the FetchContent patch step when the script changes.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${restunts_sdl_patch_script}")
+        file(SHA256 "${restunts_sdl_patch_script}" restunts_sdl_patch_hash)
         set(restunts_sdl_patch PATCH_COMMAND "${CMAKE_COMMAND}" "-DSDL3_SOURCE_DIR=<SOURCE_DIR>"
-            -P "${CMAKE_CURRENT_LIST_DIR}/cmake/sdl3-wayland-compat.cmake")
+            "-DRESTUNTS_SDL_PATCH_HASH=${restunts_sdl_patch_hash}" -P "${restunts_sdl_patch_script}")
     endif()
     # Upstream DOS support and the gameport/Sound Blaster IRQ fix used by
     # stuntsengine's DOS port. Pin all platforms to the same SDL implementation.
@@ -228,8 +232,9 @@ else()
             endforeach()
         endif()
     endif()
-    if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
-        # MinGW GCC loses track of the guards that confirm both stick calibration reads.
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
+        (WIN32 OR (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 4)))
+        # GCC loses track of the guards that confirm both stick calibration reads.
         foreach(restunts_sdl_target SDL3-static SDL3-shared)
             if(TARGET ${restunts_sdl_target})
                 set_property(SOURCE "${SDL3_SOURCE_DIR}/src/joystick/hidapi/SDL_hidapi_switch.c"

@@ -82,7 +82,7 @@ download type2-runtime-dd6cebed.tar.gz \
 # removes optional SSE2 paths present in the upstream i686 binary.
 export CFLAGS="$cpu_flags -Os -ffunction-sections -fdata-sections"
 export LDFLAGS="$abi_link_flags -static -Wl,--gc-sections"
-export AR="$archiver" RANLIB="$ranlib"
+export AR="$archiver" RANLIB="$ranlib" STRIP="$stripper"
 export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
 export PKG_CONFIG_PATH=
 rm -rf "$build_dir/src" "$prefix"
@@ -95,7 +95,11 @@ done
 (
     cd "$build_dir/src/musl-1.2.5"
     CC="$compiler" ./configure --prefix="$prefix" --target="$musl_target" --disable-shared
-    make -j"$jobs"
+    # GCC warns about getcwd's stack buffer even though musl duplicates
+    # it before returning. Keep all other musl diagnostics enabled.
+    printf '%s\n' 'obj/src/unistd/getcwd.o obj/src/unistd/getcwd.lo: CFLAGS_ALL += -Wno-return-local-addr' \
+        >> config.mak
+    make -j"$jobs" all
     make install
 )
 cat > "$prefix/bin/$runtime_arch-musl-gcc" <<EOF
@@ -152,9 +156,12 @@ EOF
     ./autogen.sh
     # Excluding unused codecs and mimalloc avoids importing prebuilt libraries
     # with a different CPU requirement. The pinned packager uses zstd.
-    ./configure --prefix="$prefix" --host="$configure_host" --build="$(gcc -dumpmachine)" \
-        --disable-shared --enable-static --disable-demo \
-        --without-xz --without-lzo --without-lz4
+    # Select target binutils and host inspection tools explicitly.
+    NM="$("$compiler" -print-prog-name=nm)" OBJDUMP="$disassembler" \
+        FILECMD="${FILECMD:-file}" PKG_CONFIG="${PKG_CONFIG:-pkg-config}" MANIFEST_TOOL=: \
+        ./configure --prefix="$prefix" --host="$configure_host" --build="$(gcc -dumpmachine)" \
+            --disable-shared --enable-static --disable-demo \
+            --without-xz --without-lzo --without-lz4
     make -j"$jobs"
     make install
     mkdir -p "$prefix/include/squashfuse"
@@ -162,6 +169,26 @@ EOF
 )
 (
     cd "$runtime_source/src/runtime"
+    # Keep both the resolved image path and the portable directory path within their buffers.
+    patch -p1 <<'PORTABLE_OPTION_PATCH'
+--- a/runtime.c
++++ b/runtime.c
+@@ -727,4 +727,4 @@
+         ssize_t length = readlink(appimage_path, fullpath, sizeof(fullpath));
+-        if (length < 0) {
++        if (length < 0 || (size_t)length >= sizeof(fullpath)) {
+             fprintf(stderr, "Error getting realpath for %s\n", appimage_path);
+             exit(EXIT_FAILURE);
+@@ -734,3 +734,7 @@
+-        sprintf(portable_dir, "%s.%s", fullpath, name);
++        int portable_length = snprintf(portable_dir, sizeof(portable_dir), "%s.%s", fullpath, name);
++        if (portable_length < 0 || (size_t)portable_length >= sizeof(portable_dir)) {
++            fprintf(stderr, "Portable %s directory path is too long: %s\n", name, fullpath);
++            exit(EXIT_FAILURE);
++        }
+         if (!mkdir(portable_dir, S_IRWXU))
+             fprintf(stderr, "Portable %s directory created at %s\n", name, portable_dir);
+PORTABLE_OPTION_PATCH
     mkdir -p "$build_dir/relink"
     "$CC" -std=gnu99 -Os -D_FILE_OFFSET_BITS=64 \
         "-DGIT_COMMIT=\"dd6cebed-$runtime_arch\"" -ffunction-sections -fdata-sections \
@@ -209,9 +236,10 @@ cp "$prefix/lib/"{libc,libzstd,libz,libfuse3,libsquashfuse,libsquashfuse_ll}.a "
 cat > "$build_dir/relink/README.txt" <<EOF
 These relocatable objects and static libraries permit relinking this AppImage
 runtime with a modified libfuse under the LGPL. The enclosing directory contains
-all corresponding pinned sources and build-appimage-runtime.sh, including the
-unmodified upstream runtime's libfuse patch. Run the build script to create the
-$runtime_arch musl compiler, replace libfuse3.a here, and use that compiler to link:
+all corresponding pinned sources and build-appimage-runtime.sh. The build script
+applies the upstream libfuse patch and checks portable directory path lengths in
+the runtime. Run the build script to create the $runtime_arch musl compiler,
+replace libfuse3.a here, and use that compiler to link:
 
   $runtime_arch-musl-gcc -T data_sections.ld -Wl,--gc-sections -static -no-pie \\
     runtime.o libsquashfuse.a libsquashfuse_ll.a libzstd.a libz.a libfuse3.a -o runtime-$runtime_arch

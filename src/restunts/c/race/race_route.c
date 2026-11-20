@@ -540,20 +540,20 @@ static legacy_s8 select_car_route_point(struct CARSTATE *car, legacy_s16 route_i
 										struct MATRIX *world_to_car_rotation)
 {
 	legacy_s8 candidate_route_point = ROUTE_POINT_FIRST;
-	legacy_s8 selected_route_point;
+	legacy_s8 selected_route_point = ROUTE_POINT_FIRST;
 	legacy_s8 route_end_reached = 0;
 	struct VECTOR world_route_delta;
 	struct VECTOR local_route_delta;
-	struct VECTOR route_delta_or_best_depth;
+	legacy_s16 best_depth = 0;
 	do {
 		route_end_reached = LEGACY_S8_FROM_BITS((legacy_u8)get_track_route_point(
 			route_index, &car->car_route_target, (legacy_s16)(legacy_u8)candidate_route_point, 0));
 		route_point_delta(&world_route_delta, car, ROUTE_HEIGHT_REFERENCE_TRACK_LEVEL);
 		mat_mul_vector(&world_route_delta, world_to_car_rotation, &local_route_delta);
 		if (candidate_route_point == ROUTE_POINT_FIRST ||
-			(local_route_delta.z < route_delta_or_best_depth.z && local_route_delta.z > 0)) {
+			(local_route_delta.z < best_depth && local_route_delta.z > 0)) {
 			selected_route_point = candidate_route_point;
-			route_delta_or_best_depth.z = local_route_delta.z;
+			best_depth = local_route_delta.z;
 		}
 		candidate_route_point = LEGACY_S8_WRAP_ADD(candidate_route_point, ROUTE_POINT_STEP);
 	} while (route_end_reached == 0);

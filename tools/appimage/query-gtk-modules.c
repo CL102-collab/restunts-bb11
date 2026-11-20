@@ -114,7 +114,10 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		fputs("Usage: restunts-gtk-modules pango|pixbuf MODULE...\n", stderr);
 		return MODULE_QUERY_FAILURE;
 	}
+#if !GLIB_CHECK_VERSION(2, 36, 0)
+	/* Older GLib versions require explicit type system initialization. */
 	g_type_init();
+#endif
 	for (legacy_int index = MODULE_FIRST_PATH_INDEX; index < argc; index++) {
 		GModule *module = g_module_open(argv[index], G_MODULE_BIND_LAZY | G_MODULE_BIND_LOCAL);
 		if (module == NULL) {
