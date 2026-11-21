@@ -67,11 +67,17 @@ function createRestuntsBrowserAudio(module, sources) {
         // Start inside the user's click before awaiting module compilation.
         const resumed = context.resume();
         resumed.catch(() => {});
-        const workletUrl = objectUrl(sources.worklet);
-        try {
-            await context.audioWorklet.addModule(workletUrl);
-        } finally {
-            URL.revokeObjectURL(workletUrl);
+        if (location.protocol === 'file:') {
+            // Chromium can reject a local page's blob:null worklet URL.
+            await context.audioWorklet.addModule('data:text/javascript;charset=utf-8,' +
+                encodeURIComponent(sources.worklet));
+        } else {
+            const workletUrl = objectUrl(sources.worklet);
+            try {
+                await context.audioWorklet.addModule(workletUrl);
+            } finally {
+                URL.revokeObjectURL(workletUrl);
+            }
         }
         checkCurrent(current);
         const node = new AudioWorkletNode(context, 'restunts-audio', {
