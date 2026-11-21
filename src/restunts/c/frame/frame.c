@@ -3,6 +3,10 @@
 #ifdef RESTUNTS_SDL3
 #include "../hires/widescreen.h"
 #endif
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../hires/hires.h"
+#include "../shape2d/shape2d_internal.h"
+#endif
 
 const struct GAMESTATE *frame_state = &state;
 
@@ -244,6 +248,9 @@ void frame_draw_explosions(struct FRAME_CAR_RENDER *cars, struct RECTANGLE *clip
 	// Draw the three explosion images in successive four-frame phases.
 	struct VECTOR offset_vector;
 	struct RECTANGLE *redraw_rect;
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	legacy_s32 wide_scene = widescreen_logical_width() > FRAME_SCREEN_WIDTH;
+#endif
 	for (legacy_s16 car_index = 0; car_index < FRAME_EXPLOSION_CAR_COUNT; car_index++) {
 		if (cars[car_index].explosion_visible == 0) {
 			continue;
@@ -283,8 +290,18 @@ void frame_draw_explosions(struct FRAME_CAR_RENDER *cars, struct RECTANGLE *clip
 			height_or_scale = LEGACY_S16_FROM_BITS((legacy_u16)LEGACY_S32_DIV_OR_ZERO(
 				LEGACY_S32_WRAP_MUL((legacy_s32)extent, FRAME_EXPLOSION_FIXED_SCALE),
 				(legacy_s32)sdgame2_widths[explosion_index]));
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+			if (wide_scene && !hires_begin_scene(&drawing_sprite)) {
+				continue;
+			}
+#endif
 			shape2d_draw_scaled_transparent_clipped(height_or_scale, sdgame2shapes[explosion_index],
 													offset_vector.x, offset_vector.y);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+			if (wide_scene) {
+				hires_end();
+			}
+#endif
 		}
 	}
 }
@@ -428,7 +445,14 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	legacy_s16 skybox_requires_full_redraw =
 		skybox_render(buffer_index, cliprect, camera.skybox_parameter, &camera.pitch_roll_rotation,
 					  camera.roll, camera.yaw, frame_background_camera_height(&camera));
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	legacy_s32 wide_scene = widescreen_logical_width() > FRAME_SCREEN_WIDTH;
+	sprite_set_target_clip_bounds(wide_scene ? cliprect->left : 0,
+								  wide_scene ? cliprect->right : FRAME_SCREEN_WIDTH, cliprect->top,
+								  cliprect->bottom);
+#else
 	sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
+#endif
 	shape3d_render_queued_primitives();
 	frame_draw_explosions(cars, cliprect);
 	struct RECTANGLE cockpit_clip = *cliprect;

@@ -1077,9 +1077,10 @@ async function exerciseWidescreen(browser, url, fixture) {
         { width: 1920, height: 1080, aspect: [16, 9] },
         { width: 1920, height: 1200, aspect: [16, 10] },
         { width: 1080, height: 720, aspect: [3, 2] },
-        { width: 2400, height: 1080, aspect: [16, 9] },
+        { width: 2400, height: 1080, aspect: [20, 9] },
+        { width: 2560, height: 1080, aspect: [20, 9] },
         { width: 1024, height: 768, aspect: [4, 3] },
-        { width: 1080, height: 2400, aspect: [16, 9] }
+        { width: 1080, height: 2400, aspect: [20, 9] }
     ];
     for (const display of displays) {
         const context = await browser.newContext({ viewport: { width: 1000, height: 800 },

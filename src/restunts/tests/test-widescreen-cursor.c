@@ -131,7 +131,14 @@ static void test_cursor(legacy_s32 width, legacy_s32 height, legacy_s32 scale)
 
 legacy_int main(void)
 {
-	static const legacy_s32 sizes[][2] = {{1280, 720}, {1280, 800}, {1080, 720}};
+	static const legacy_s32 sizes[][2] = {
+		{1280, 720},
+		{1280, 800},
+		{1080, 720},
+#if HIRES_MAX_WIDTH > HIRES_WIDTH
+		{HIRES_MAX_WIDTH, 720},
+#endif
+	};
 	static const legacy_s32 scales[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE};
 	for (legacy_s32 y = 0; y < VIDEO_FRAMEBUFFER_HEIGHT; y++) {
 		LEGACY_WRITE_U16_LE(rows + y * LEGACY_WORD_BYTES, y * VIDEO_FRAMEBUFFER_WIDTH);

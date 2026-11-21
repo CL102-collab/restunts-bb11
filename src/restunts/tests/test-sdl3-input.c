@@ -25,11 +25,11 @@
 
 legacy_s32 sdl3_batch_mode;
 static legacy_u8 framebuffer[65536];
-static legacy_u8 high_resolution_framebuffer[HIRES_WIDTH * HIRES_HEIGHT];
+static legacy_u8 high_resolution_framebuffer[HIRES_MAX_WIDTH * HIRES_HEIGHT];
 static legacy_u8 high_resolution_active;
 static legacy_s32 active_render_scale = HIRES_SCALE;
 
-static legacy_u32 argb_framebuffer[HIRES_WIDTH * HIRES_HEIGHT];
+static legacy_u32 argb_framebuffer[HIRES_MAX_WIDTH * HIRES_HEIGHT];
 static legacy_u8 argb_active;
 static legacy_u32 frame_generation;
 static legacy_s32 presented_raster_width, presented_raster_height;
@@ -1181,9 +1181,9 @@ static void test_video_page_lifetime(void)
 	dos_video_set_palette(PAGE_VIDEO_FIRST_INDEX, PAGE_VIDEO_COLOR_COUNT, colors);
 	high_resolution_active = true;
 	hires_set_render_scale(HIRES_SCALE);
-	for (size_t pixel = 0; pixel < SDL_arraysize(argb_framebuffer); pixel++) {
-		argb_framebuffer[pixel] =
-			pixel < SDL_arraysize(argb_framebuffer) / 2 ? PAGE_VIDEO_RED : PAGE_VIDEO_GREEN;
+	size_t frame_pixels = (size_t)hires_presentation_width() * hires_presentation_height();
+	for (size_t pixel = 0; pixel < frame_pixels; pixel++) {
+		argb_framebuffer[pixel] = pixel < frame_pixels / 2 ? PAGE_VIDEO_RED : PAGE_VIDEO_GREEN;
 	}
 	argb_active = true;
 	frame_generation++;
@@ -1485,9 +1485,9 @@ static void test_screenshots(void)
 
 	high_resolution_active = true;
 	hires_set_render_scale(HIRES_SCALE);
-	for (size_t pixel = 0; pixel < SDL_arraysize(argb_framebuffer); pixel++) {
-		argb_framebuffer[pixel] =
-			pixel < SDL_arraysize(argb_framebuffer) / 2 ? PAGE_VIDEO_RED : PAGE_VIDEO_GREEN;
+	size_t frame_pixels = (size_t)hires_presentation_width() * hires_presentation_height();
+	for (size_t pixel = 0; pixel < frame_pixels; pixel++) {
+		argb_framebuffer[pixel] = pixel < frame_pixels / 2 ? PAGE_VIDEO_RED : PAGE_VIDEO_GREEN;
 	}
 	argb_active = true;
 	frame_generation++;
@@ -1906,7 +1906,7 @@ static void test_wide_quality_presentation(void)
 	} cases[] = {{1280, 720, 1280, 720},
 				 {1280, 800, 1280, 800},
 				 {1080, 720, 1080, 720},
-				 {1680, 720, 1280, 720}};
+				 {1680, 720, HIRES_MAX_WIDTH, 720}};
 	static const legacy_s32 scales[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE};
 	legacy_char *original_directory = SDL_GetCurrentDirectory();
 	assert(original_directory != NULL);

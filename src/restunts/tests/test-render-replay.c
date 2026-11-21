@@ -26,6 +26,7 @@
 #include "../c/crash_state.h"
 #include "../c/hires/frame_adaptive.h"
 #include "../c/hires/widescreen.h"
+#include "../c/math/projection.h"
 #include "../c/startup_internal.h"
 #include "../c/ui/ui_dialog.h"
 #include "../platform/sdl3/touch.h"
@@ -316,7 +317,7 @@ static legacy_u8 *capture_snapshot_pixels(const struct GAMESTATE *snapshot, size
 }
 
 enum {
-	RENDER_REPLAY_DIALOG_WIDTH = 1280,
+	RENDER_REPLAY_DIALOG_WIDTH = HIRES_MAX_WIDTH,
 	RENDER_REPLAY_DIALOG_HEIGHT = 720,
 	RENDER_REPLAY_DIALOG_OPEN_POLLS = 2,
 	RENDER_REPLAY_DIALOG_CLOSE_POLLS = 1
@@ -393,6 +394,9 @@ static void check_race_quit_dialogs(void)
 	widescreen_set_enabled(1);
 	widescreen_set_racing(1);
 	widescreen_set_output_size(RENDER_REPLAY_DIALOG_WIDTH, RENDER_REPLAY_DIALOG_HEIGHT);
+	rect_windshield.right = widescreen_logical_width();
+	rect_windshield.bottom = widescreen_logical_height();
+	projection_center_x = rect_windshield.right / 2;
 	hires_set_render_scale(HIRES_MEDIUM_SCALE);
 	widescreen_begin_frame();
 

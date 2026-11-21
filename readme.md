@@ -348,16 +348,18 @@ desktop window and web canvas follow the display's supported widescreen ratio.
 
 | Display aspect | Full / High | Medium | Low |
 | --- | --- | --- | --- |
+| 20:9 (desktop, Android, web) | 1600x720 | 800x360 | 400x180 |
 | 16:9 | 1280x720 | 640x360 | 320x180 |
 | 16:10 | 1280x800 | 640x400 | 320x200 |
 | 3:2 | 1080x720 | 540x360 | 270x180 |
 
-Auto uses the same resolution steps. Wider displays fit 16:9 with black side
-borders; displays narrower than 3:2 retain 4:3. Racing reveals more scenery at the
-sides, without stretching the scene. Dashboard artwork remains centered with its
-original proportions, leaving scenery visible beside it. Corner HUD text follows
-the race image's edges; replay controls remain centered. DOS32 selects a suitable
-VESA mode and fits the chosen race aspect inside it.
+Auto uses the same resolution steps. On desktop, Android, and web, displays
+wider than 20:9, including 21:9, center the 20:9 image with black side borders.
+Displays narrower than 3:2 retain 4:3. Racing reveals more scenery at the sides
+without stretching the scene. Dashboard artwork remains centered with its original
+proportions, leaving scenery visible beside it. Corner HUD text follows the race
+image's edges, and replay controls remain centered. DOS32 selects a suitable VESA
+mode and fits the widest available aspect up to 16:9 inside it.
 
 Quality-level resolution changes affect only the 3D scene. The completed frame
 stays at the maximum resolution for its aspect ratio, preserving dashboard,

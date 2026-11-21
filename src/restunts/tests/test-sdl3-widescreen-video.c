@@ -7,6 +7,7 @@
 #define TEST_FLOAT_TOLERANCE 0.001f
 #define TEST_RENDER_WIDTH 1280
 #define TEST_RENDER_HEIGHT 720
+#define TEST_ULTRAWIDE_OUTPUT_WIDTH 1680
 #define TEST_CENTER_X 640
 #define TEST_CENTER_Y 360
 #define TEST_ARTWORK_LEFT 160
@@ -62,7 +63,9 @@ static void test_modes(void)
 {
 	SDL_DisplayMode vga = test_mode(320, 200, SDL_PIXELFORMAT_INDEX8);
 	SDL_DisplayMode classic = test_mode(1280, 1024, SDL_PIXELFORMAT_INDEX8);
-	SDL_DisplayMode wide = test_mode(1280, 720, SDL_PIXELFORMAT_INDEX8);
+	SDL_DisplayMode wide = test_mode(TEST_RENDER_WIDTH, TEST_RENDER_HEIGHT, SDL_PIXELFORMAT_INDEX8);
+	SDL_DisplayMode ultrawide =
+		test_mode(TEST_ULTRAWIDE_OUTPUT_WIDTH, TEST_RENDER_HEIGHT, SDL_PIXELFORMAT_INDEX8);
 	SDL_DisplayMode medium = test_mode(1280, 800, SDL_PIXELFORMAT_INDEX8);
 	SDL_DisplayMode three_two = test_mode(1080, 720, SDL_PIXELFORMAT_INDEX8);
 	SDL_DisplayMode fallback = test_mode(1024, 600, SDL_PIXELFORMAT_INDEX8);
@@ -79,6 +82,11 @@ static void test_modes(void)
 
 	widescreen_set_enabled(1);
 	assert(mode_is_better(&wide, &classic));
+	/* DOS32 keeps 16:9 as its widest scene, even on a wider VESA mode. */
+	mode_presentation_size(&ultrawide, &width, &height);
+	assert(width == TEST_RENDER_WIDTH && height == TEST_RENDER_HEIGHT);
+	assert(mode_viewport_width(&ultrawide) == TEST_RENDER_WIDTH);
+	assert(mode_is_better(&wide, &ultrawide));
 	assert(mode_is_better(&medium, &classic));
 	assert(mode_is_better(&wide, &truecolor));
 	assert(!mode_is_better(&truecolor, &wide));

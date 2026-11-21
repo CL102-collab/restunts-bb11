@@ -24,7 +24,7 @@
 #define SKYBOX_WORK_ROWS 16
 #define SKYBOX_WORK_CAPACITY ((SKYBOX_SCREEN_BOTTOM + SKYBOX_WORK_ROWS - 1) / SKYBOX_WORK_ROWS)
 #define SKYBOX_WORK_MIN_SAMPLES (HIRES_WIDTH * HIRES_HEIGHT / 4)
-#define SKYBOX_ROW_SAMPLES (SKYBOX_SCREEN_WIDTH * HIRES_SCALE * HIRES_SCALE)
+#define SKYBOX_ROW_SAMPLES (HIRES_MAX_WIDTH * HIRES_SCALE)
 #define SKYBOX_MISSING_STRIP SKYBOX_IMAGE_COUNT
 #define SKYBOX_ROW_STRIP_COUNT (SKYBOX_IMAGE_COUNT + 1)
 
@@ -407,9 +407,9 @@ struct SKYBOX_HIRES_RENDER {
 	legacy_s32 scale, maximum_height, level;
 	legacy_f64 normal_y, along_y, above_x, horizon, phase, center_x, center_y;
 	legacy_f64 cell_radius, length, zero_above;
-	legacy_u8 column_strips[HIRES_WIDTH];
-	legacy_u16 columns[HIRES_WIDTH];
-	legacy_f64 column_above[HIRES_WIDTH], column_along[HIRES_WIDTH];
+	legacy_u8 column_strips[HIRES_MAX_WIDTH];
+	legacy_u16 columns[HIRES_MAX_WIDTH];
+	legacy_f64 column_above[HIRES_MAX_WIDTH], column_along[HIRES_MAX_WIDTH];
 };
 
 struct SKYBOX_HIRES_JOB {
@@ -705,11 +705,13 @@ legacy_s32 skybox_hires_render(const struct SPRITE *target, const struct SKYBOX 
 	}
 	legacy_s32 scale = hires_render_scale();
 	legacy_s32 source_step = HIRES_SCALE / scale;
+	legacy_s32 width = hires_render_width() / scale;
+	legacy_s32 height = hires_render_height() / scale;
 	struct SPRITE clip = *target;
-	clip.sprite_raster_left = SDL_clamp(clip.sprite_raster_left, 0, SKYBOX_SCREEN_WIDTH);
-	clip.sprite_raster_right = SDL_clamp(clip.sprite_raster_right, 0, SKYBOX_SCREEN_WIDTH);
-	clip.sprite_top = SDL_clamp(clip.sprite_top, 0, SKYBOX_SCREEN_BOTTOM);
-	clip.sprite_bottom = SDL_clamp(clip.sprite_bottom, 0, SKYBOX_SCREEN_BOTTOM);
+	clip.sprite_raster_left = SDL_clamp(clip.sprite_raster_left, 0, width);
+	clip.sprite_raster_right = SDL_clamp(clip.sprite_raster_right, 0, width);
+	clip.sprite_top = SDL_clamp(clip.sprite_top, 0, height);
+	clip.sprite_bottom = SDL_clamp(clip.sprite_bottom, 0, height);
 	if (clip.sprite_raster_left >= clip.sprite_raster_right ||
 		clip.sprite_top >= clip.sprite_bottom) {
 		return 0;
@@ -719,7 +721,7 @@ legacy_s32 skybox_hires_render(const struct SPRITE *target, const struct SKYBOX 
 	if (detail != SKYBOX_LOWEST_DETAIL_LEVEL) {
 		maximum_height = skybox_hires_prepare_strips(strips, shapes, theme, scale);
 	}
-	if (!hires_begin(&clip)) {
+	if (!hires_begin_scene(&clip)) {
 		return 0;
 	}
 

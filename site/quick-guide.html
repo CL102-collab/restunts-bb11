@@ -61,7 +61,7 @@
                 </div>
                 <div>
                     <dt><kbd>F12</kbd> — Toggle HyperVision Auto.</dt>
-                    <dd>Modern ports start at full-track, 1280 × 800 rendering and adapt quality to target 60 FPS. Press again to return to classic graphics. From a fixed preset, F12 turns HyperVision off; the next press selects Auto. DOS16, Amiga500+, and TempleOS toggle their native SuperSight mode instead.</dd>
+                    <dd>Modern ports start with full-track detail at the full resolution for the selected aspect and adapt quality to target 60 FPS. Press again to return to classic graphics. From a fixed preset, F12 turns HyperVision off; the next press selects Auto. DOS16, Amiga500+, and TempleOS toggle their native SuperSight mode instead.</dd>
                 </div>
                 <div>
                     <dt><kbd>Shift</kbd> + <kbd>F12</kbd> — Choose fixed graphics quality.</dt>
@@ -164,6 +164,10 @@
                 <div>
                     <dt><code>--hv:auto|full|high|medium|low</code> — Start with HyperVision.</dt>
                     <dd>Choose one value, such as <code>--hv:medium</code>, in modern ports. Auto adapts quality; the other values lock a preset. The choice applies from the intro onward and can be changed with F12 or Shift+F12. Omit the switch for classic graphics; repeated or unknown presets are errors.</dd>
+                </div>
+                <div>
+                    <dt><code>--widescreen:on/off</code> — Widen HyperVision races and replays.</dt>
+                    <dd>Turn on Widescreen in Graphics settings or use <code>--widescreen:on</code>. Desktop, Android, and web support up to 20:9. Wider displays, including 21:9, center the 20:9 image with black side borders. DOS32 supports up to 16:9. Menus and the intro keep their 4:3 aspect.</dd>
                 </div>
                 <div>
                     <dt><code>--videomode:vga|ega|cga|tandy</code> — Choose classic graphics.</dt>

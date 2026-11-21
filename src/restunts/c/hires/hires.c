@@ -48,30 +48,47 @@ struct HIRES_SURFACE *hires_surface_find(const legacy_u8 *base)
 	return NULL;
 }
 
+static struct HIRES_SURFACE *hires_create_surface(const legacy_u8 *base, legacy_u32 cell_count,
+												  legacy_u32 offset_mask)
+{
+	struct HIRES_SURFACE *surface = hires_allocate(sizeof(*surface) + cell_count);
+	surface->base = base;
+	surface->cell_count = cell_count;
+	surface->offset_mask = offset_mask;
+	surface->pixels = hires_allocate((size_t)cell_count * hires_state.render_cell_pixels);
+	return surface;
+}
+
+static void hires_free_surface(struct HIRES_SURFACE *surface)
+{
+	free(surface->pixels);
+	free(surface->argb);
+	free(surface);
+}
+
 static struct HIRES_SURFACE *hires_create(const legacy_u8 *base)
 {
 	struct HIRES_SURFACE *surface = hires_surface_find(base);
 	if (surface == NULL) {
-		surface = hires_allocate(sizeof(*surface));
-		surface->base = base;
-		surface->pixels = hires_allocate(HIRES_ADDRESS_COUNT * hires_state.render_cell_pixels);
+		surface = hires_create_surface(base, HIRES_ADDRESS_COUNT, LEGACY_U16_MAX);
 		surface->next = hires_state.surfaces;
 		hires_state.surfaces = surface;
 	}
 	return surface;
 }
 
-legacy_u8 *hires_cell(struct HIRES_SURFACE *surface, legacy_u16 offset)
+legacy_u8 *hires_cell(struct HIRES_SURFACE *surface, legacy_u32 offset)
 {
 	legacy_u8 *cell = surface->pixels + ((size_t)offset << hires_state.render_cell_shift);
 	if (!surface->valid[offset]) {
-		memset(cell, surface->base[offset], hires_state.render_cell_pixels);
+		memset(cell, surface->base != NULL ? surface->base[offset] : 0,
+			   hires_state.render_cell_pixels);
 		surface->valid[offset] = HIRES_CELL_INDEXED;
 	}
 	return cell;
 }
 
-static void hires_clear_argb(struct HIRES_SURFACE *surface, legacy_u16 offset)
+static void hires_clear_argb(struct HIRES_SURFACE *surface, legacy_u32 offset)
 {
 	if (surface->valid[offset] == HIRES_CELL_ARGB) {
 		surface->argb_cells--;
@@ -92,7 +109,7 @@ static legacy_s32 hires_allocate_argb(struct HIRES_SURFACE *surface)
 	if (surface->argb == NULL) {
 		/* ARGB writers initialize each cell before marking it valid. A small
 		 * overlay must not clear the entire four-megabyte buffer every frame. */
-		surface->argb = malloc((size_t)HIRES_ADDRESS_COUNT * hires_state.render_cell_pixels *
+		surface->argb = malloc((size_t)surface->cell_count * hires_state.render_cell_pixels *
 							   sizeof(*surface->argb));
 	}
 	return surface->argb != NULL;
@@ -108,10 +125,12 @@ static void hires_release_buffers(void)
 {
 	while (hires_state.surfaces != NULL) {
 		struct HIRES_SURFACE *next = hires_state.surfaces->next;
-		free(hires_state.surfaces->pixels);
-		free(hires_state.surfaces->argb);
-		free(hires_state.surfaces);
+		hires_free_surface(hires_state.surfaces);
 		hires_state.surfaces = next;
+	}
+	if (hires_state.wide_scene != NULL) {
+		hires_free_surface(hires_state.wide_scene);
+		hires_state.wide_scene = NULL;
 	}
 	free(hires_state.framebuffer);
 	free(hires_state.argb_framebuffer);
@@ -231,28 +250,53 @@ legacy_u32 hires_generation(void)
 	return hires_state.generation + widescreen_overlay_generation();
 }
 
-legacy_s32 hires_begin(const struct SPRITE *target)
+static legacy_s32 hires_begin_target(const struct SPRITE *target, legacy_s32 scene)
 {
 	hires_refresh_render_dimensions();
 	if (!hires_state.enabled || hires_state.active != NULL) {
 		return 0;
 	}
-	const legacy_u8 *base =
-		dos_memory_make_pointer(dos_memory_pointer_segment(target->sprite_bitmapptr), 0);
-	hires_state.active = hires_create(base);
+	legacy_s32 width = HIRES_LOGICAL_WIDTH;
+	legacy_s32 height = HIRES_LOGICAL_HEIGHT;
+	if (scene && hires_state.presentation_width > HIRES_WIDTH) {
+		width = hires_state.presentation_width / HIRES_SCALE;
+		height = hires_state.presentation_height / HIRES_SCALE;
+		if (hires_state.wide_scene == NULL) {
+			hires_state.wide_scene = hires_create_surface(NULL, width * height, LEGACY_U32_MAX);
+		}
+		hires_state.active = hires_state.wide_scene;
+	} else {
+		const legacy_u8 *base =
+			dos_memory_make_pointer(dos_memory_pointer_segment(target->sprite_bitmapptr), 0);
+		hires_state.active = hires_create(base);
+	}
 	hires_state.active_sprite = *target;
 	hires_state.active_artwork = 0;
 	hires_depth_reset();
 	/* Seed the background before the legacy 3D pass overwrites its pixels. */
-	for (legacy_u32 y = target->sprite_top; y < target->sprite_bottom && y < HIRES_LOGICAL_HEIGHT;
-		 y++) {
-		legacy_u16 row = LEGACY_READ_U16_LE(target->sprite_lineofs + y * LEGACY_WORD_BYTES);
-		for (legacy_u32 x = target->sprite_raster_left;
-			 x < target->sprite_raster_right && x < HIRES_LOGICAL_WIDTH; x++) {
-			hires_cell(hires_state.active, (legacy_u16)(row + x));
+	for (legacy_s32 y = target->sprite_top; y < target->sprite_bottom && y < height; y++) {
+		legacy_u32 row = hires_active_row(y);
+		for (legacy_s32 x = target->sprite_raster_left;
+			 x < target->sprite_raster_right && x < width; x++) {
+			hires_cell(hires_state.active, (row + x) & hires_state.active->offset_mask);
 		}
 	}
 	return 1;
+}
+
+legacy_s32 hires_begin(const struct SPRITE *target)
+{
+	return hires_begin_target(target, 0);
+}
+
+legacy_s32 hires_begin_scene(const struct SPRITE *target)
+{
+	return hires_begin_target(target, 1);
+}
+
+legacy_s32 hires_wide_scene_active(void)
+{
+	return hires_state.active != NULL && hires_state.active == hires_state.wide_scene;
 }
 
 legacy_s32 hires_begin_argb(const struct SPRITE *target)
@@ -278,32 +322,36 @@ void hires_end(void)
 	}
 }
 
+static legacy_s32 hires_contains_logical_pixel(legacy_s32 x, legacy_s32 y)
+{
+	legacy_s32 width = HIRES_LOGICAL_WIDTH;
+	legacy_s32 height = HIRES_LOGICAL_HEIGHT;
+	if (hires_wide_scene_active()) {
+		width = hires_state.presentation_width / HIRES_SCALE;
+		height = hires_state.presentation_height / HIRES_SCALE;
+	}
+	return hires_state.active != NULL && x >= 0 && x < width && y >= 0 && y < height &&
+		   x >= hires_state.active_sprite.sprite_raster_left &&
+		   x < hires_state.active_sprite.sprite_raster_right &&
+		   y >= hires_state.active_sprite.sprite_top && y < hires_state.active_sprite.sprite_bottom;
+}
+
 void hires_fill_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color)
 {
-	if (hires_state.active == NULL || x < 0 || y < 0 || x >= HIRES_LOGICAL_WIDTH ||
-		y >= HIRES_LOGICAL_HEIGHT || x < hires_state.active_sprite.sprite_raster_left ||
-		x >= hires_state.active_sprite.sprite_raster_right ||
-		y < hires_state.active_sprite.sprite_top || y >= hires_state.active_sprite.sprite_bottom) {
+	if (!hires_contains_logical_pixel(x, y)) {
 		return;
 	}
-	legacy_u16 row =
-		LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
-	legacy_u16 offset = (legacy_u16)(row + x);
+	legacy_u32 offset = hires_active_offset(x, y);
 	memset(hires_cell(hires_state.active, offset), color, hires_state.render_cell_pixels);
 	hires_clear_argb(hires_state.active, offset);
 }
 
 void hires_write_pixel(legacy_s32 x, legacy_s32 y, const legacy_u8 *samples)
 {
-	if (hires_state.active == NULL || x < 0 || y < 0 || x >= HIRES_LOGICAL_WIDTH ||
-		y >= HIRES_LOGICAL_HEIGHT || x < hires_state.active_sprite.sprite_raster_left ||
-		x >= hires_state.active_sprite.sprite_raster_right ||
-		y < hires_state.active_sprite.sprite_top || y >= hires_state.active_sprite.sprite_bottom) {
+	if (!hires_contains_logical_pixel(x, y)) {
 		return;
 	}
-	legacy_u16 row =
-		LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
-	legacy_u16 offset = (legacy_u16)(row + x);
+	legacy_u32 offset = hires_active_offset(x, y);
 	hires_expand_cell(hires_cell(hires_state.active, offset), samples, hires_state.render_scale);
 	hires_clear_argb(hires_state.active, offset);
 }
@@ -320,9 +368,7 @@ static legacy_u32 *hires_argb_sample(legacy_s32 x, legacy_s32 y, legacy_s32 scal
 		y >= hires_state.active_sprite.sprite_bottom * scale) {
 		return NULL;
 	}
-	legacy_u16 row = LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs +
-										(y / scale) * LEGACY_WORD_BYTES);
-	legacy_u16 offset = (legacy_u16)(row + x / scale);
+	legacy_u32 offset = hires_active_offset(x / scale, y / scale);
 	legacy_u32 *cell = hires_state.active->argb + ((size_t)offset << hires_state.render_cell_shift);
 	if (hires_state.active->valid[offset] != HIRES_CELL_ARGB) {
 		memset(cell, 0, HIRES_CELL_PIXELS * sizeof(*cell));
@@ -557,9 +603,7 @@ void hires_forget(const void *base)
 				hires_state.active = NULL;
 			}
 			*link = surface->next;
-			free(surface->pixels);
-			free(surface->argb);
-			free(surface);
+			hires_free_surface(surface);
 			hires_state.generation++;
 			return;
 		}
@@ -586,9 +630,7 @@ void hires_forget_range(const void *base, legacy_u32 size)
 				hires_state.active = NULL;
 			}
 			*link = surface->next;
-			free(surface->pixels);
-			free(surface->argb);
-			free(surface);
+			hires_free_surface(surface);
 			hires_state.generation++;
 			continue;
 		}
