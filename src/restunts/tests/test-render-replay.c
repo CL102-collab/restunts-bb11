@@ -8,13 +8,14 @@
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/platform.h"
-#include "../c/frame/frame_internal.h"
+#include "../c/frame/frame_render_private.h"
 #include "../c/hires/frame_interpolation.h"
 #include "../c/hires/presentation.h"
 #include "../c/physics/physics_internal.h"
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
 #include "../c/race/race_resources.h"
+#include "../c/race/race_internal.h"
 #include "../c/residue.h"
 #include "../c/track/track_collision.h"
 #include "../c/wheel_transform.h"
@@ -436,6 +437,73 @@ static void check_race_quit_dialogs(void)
 	widescreen_set_enabled(0);
 }
 
+static legacy_u32 queue_cloud_at_bearing(legacy_s16 bearing)
+{
+	struct FRAME_CAMERA camera = {0};
+	camera.yaw = (legacy_s16)((legacy_u16)(bearing - cloud_heading_offsets[0] - run_game_random) &
+							  ANGLE_MASK);
+	/* Keep the other clouds behind the camera so the queued primitives and bounds
+	 * belong to the same authored cloud for every heading. */
+	for (legacy_u16 cloud = 1; cloud < FRAME_DISTANT_SHAPE_COUNT; cloud++) {
+		cloud_heading_offsets[cloud] = cloud_heading_offsets[0] + ANGLE_HALF_TURN - bearing;
+	}
+	frame_setup_projection(&camera, &rect_windshield);
+	frame_cloud_rect = empty_rect;
+	frame_draw_clouds(&camera, FRAME_SLOW_VIDEO_TRANSFORM_FLAG);
+	return shape3d_queued_primitive_count();
+}
+
+static void check_widescreen_clouds(void)
+{
+	enum {
+		CLOUD_OUTPUT_HEIGHT = 720,
+		CLOUD_3_2_WIDTH = 1080,
+		CLOUD_16_9_WIDTH = 1280,
+		CLOUD_3_2_EDGE_ANGLE = 108,
+		CLOUD_16_9_EDGE_ANGLE = 122,
+		CLOUD_3_2_OFFSCREEN_ANGLE = 128,
+		CLOUD_20_9_EDGE_ANGLE = 138,
+		CLOUD_20_9_OFFSCREEN_ANGLE = 160
+	};
+	static const struct {
+		legacy_s32 width;
+		legacy_s16 edge_angle, offscreen_angle;
+	} views[] = {{CLOUD_3_2_WIDTH, CLOUD_3_2_EDGE_ANGLE, CLOUD_3_2_OFFSCREEN_ANGLE},
+				 {CLOUD_16_9_WIDTH, CLOUD_16_9_EDGE_ANGLE, CLOUD_20_9_EDGE_ANGLE},
+				 {HIRES_MAX_WIDTH, CLOUD_20_9_EDGE_ANGLE, CLOUD_20_9_OFFSCREEN_ANGLE}};
+	static const legacy_s16 directions[] = {-1, 1};
+	legacy_s16 saved_offsets[FRAME_DISTANT_SHAPE_COUNT];
+	memcpy(saved_offsets, cloud_heading_offsets, sizeof(saved_offsets));
+	struct RACE_VIEWPORT_CACHE viewport = {0};
+	widescreen_set_enabled(1);
+	widescreen_set_racing(1);
+	for (size_t view = 0; view < sizeof(views) / sizeof(views[0]); view++) {
+		widescreen_set_output_size(views[view].width, CLOUD_OUTPUT_HEIGHT);
+		race_update_viewport(&viewport, 0);
+		assert(widescreen_active());
+		for (size_t side = 0; side < sizeof(directions) / sizeof(directions[0]); side++) {
+			legacy_s16 direction = directions[side];
+			/* The cloud touches the actual viewport edge, beyond the 4:3 view.
+			 * At 20:9 the center also lies beyond the legacy angular cutoff. */
+			assert(queue_cloud_at_bearing(direction * views[view].edge_angle) > 0);
+			if (direction < 0) {
+				assert(frame_cloud_rect.left == rect_windshield.left);
+			} else {
+				assert(frame_cloud_rect.right == rect_windshield.right);
+			}
+			assert(queue_cloud_at_bearing(direction * views[view].offscreen_angle) == 0);
+		}
+		assert(queue_cloud_at_bearing(ANGLE_HALF_TURN) == 0);
+	}
+	widescreen_set_racing(0);
+	widescreen_set_enabled(0);
+	race_update_viewport(&viewport, 0);
+	assert(queue_cloud_at_bearing(0) > 0);
+	assert(queue_cloud_at_bearing(CLOUD_20_9_EDGE_ANGLE) == 0);
+	memcpy(cloud_heading_offsets, saved_offsets, sizeof(saved_offsets));
+	polyinfo_reset();
+}
+
 static void check_authoritative_event_visuals(void)
 {
 	assert(visual_clock_frozen == 0);
@@ -686,6 +754,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	free(recording);
 	if (mode == RENDER_REPLAY_ADAPTIVE_MODE && expected_video_mode == SDL3_VIDEO_MODE_VGA) {
 		check_race_quit_dialogs();
+		check_widescreen_clouds();
 	}
 	/* Match pixldump shutdown: this fixture never loaded dashboard resources. */
 	call_exitlist();

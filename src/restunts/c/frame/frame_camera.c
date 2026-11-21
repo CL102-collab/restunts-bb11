@@ -1,4 +1,7 @@
 #include "frame_render_private.h"
+#if defined(RESTUNTS_SDL3)
+#include "../hires/widescreen.h"
+#endif
 
 /* The camera looks out of the car, so it uses the car's rotation inverted. */
 struct MATRIX *frame_car_rotation(legacy_s16 rot_x, legacy_s16 rot_y, legacy_s16 rot_z)
@@ -224,6 +227,11 @@ void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_f
 	struct MATRIX cloud_heading_rotation;
 	struct VECTOR offset_vector;
 	if (detail_level == FRAME_DETAIL_FULL) {
+#if defined(RESTUNTS_SDL3)
+		const legacy_s32 wide_scene = widescreen_active();
+#else
+		const legacy_s32 wide_scene = 0;
+#endif
 		currenttransshape->rectptr = &frame_cloud_rect;
 		currenttransshape->ts_flags = redraw_transform_flags | FRAME_DISTANT_SHAPE_FLAGS;
 		currenttransshape->rotvec.x = 0;
@@ -237,7 +245,7 @@ void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_f
 					LEGACY_S16_WRAP_ADD(cloud_heading_offsets[cloud_index], camera->yaw),
 					run_game_random) &
 				ANGLE_MASK);
-			if (cloud_angle < FRAME_DISTANT_SHAPE_MIN_ANGLE ||
+			if (wide_scene || cloud_angle < FRAME_DISTANT_SHAPE_MIN_ANGLE ||
 				cloud_angle > FRAME_DISTANT_SHAPE_MAX_ANGLE) {
 				mat_rot_y(&cloud_heading_rotation, cloud_angle);
 				offset_vector.x = 0;
@@ -245,7 +253,11 @@ void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_f
 													  frame_background_camera_height(camera));
 				offset_vector.z = FRAME_DISTANT_SHAPE_DISTANCE;
 				mat_mul_vector(&offset_vector, &cloud_heading_rotation, &rotated_position);
-				rotated_position.z = FRAME_DISTANT_SHAPE_DISTANCE;
+				/* The legacy fixed depth keeps clouds from reaching the wide viewport edges.
+				 * Keep their rotated depth in widescreen so the frustum clips them. */
+				if (!wide_scene) {
+					rotated_position.z = FRAME_DISTANT_SHAPE_DISTANCE;
+				}
 				mat_mul_vector(&rotated_position, &camera->pitch_roll_rotation,
 							   &currenttransshape->pos);
 				if (currenttransshape->pos.z > FRAME_DISTANT_SHAPE_MIN_DEPTH) {
