@@ -12,6 +12,7 @@
 #include "../c/math/projection.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/shape3d/shape3d.h"
+#include "../c/shape3d/shape3d_internal.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
 #include "../c/skybox.h"
@@ -49,9 +50,21 @@
 #define PREVIEW_TEST_OVERLAP_SAMPLE_X 160
 #define PREVIEW_TEST_FAR_SAMPLE_X 200
 
+#define PREVIEW_TEST_OVERPASS_NORTH_SOUTH 101U
+#define PREVIEW_TEST_OVERPASS_EAST_WEST 102U
+#define PREVIEW_TEST_OVERPASS_HALF_LENGTH 144
+#define PREVIEW_TEST_OVERPASS_HALF_WIDTH 20
+#define PREVIEW_TEST_OVERPASS_LAYER_HEIGHT 64
+#define PREVIEW_TEST_OVERPASS_DISTANCE 600
+#define PREVIEW_TEST_OVERPASS_SIDE_OFFSET 30
+#define PREVIEW_TEST_OVERPASS_LOWER_COLOR 9
+#define PREVIEW_TEST_OVERPASS_UPPER_COLOR 10
+#define PREVIEW_TEST_DOUBLE_SIDED 1U
+
 static struct SPRITE preview, screen_target;
 static legacy_u8 preview_rows[200 * 2], screen_rows[200 * 2];
 static legacy_u8 empty_track[900];
+static legacy_u8 preview_polyinfo[POLYINFO_STORAGE_DATA_SIZE];
 static legacy_u8 *screen;
 
 static legacy_u8 fixture_color(legacy_s32 x, legacy_s32 y)
@@ -252,6 +265,87 @@ static void test_populated_preview(legacy_s32 scale)
 	track_element_map = empty_track;
 }
 
+static void test_overpass_preview(legacy_s32 enhanced)
+{
+	legacy_u8 elements[TRACK_GRID_SIZE * TRACK_GRID_SIZE] = {0};
+	legacy_u8 lower_vertices[PREVIEW_TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	legacy_u8 upper_vertices[PREVIEW_TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	legacy_u8 lower_primitive[] = {
+		PREVIEW_TEST_VERTEX_COUNT, PREVIEW_TEST_DOUBLE_SIDED, 0, 0, 1, 2, 3, 0, 0};
+	legacy_u8 upper_primitive[] = {
+		PREVIEW_TEST_VERTEX_COUNT, PREVIEW_TEST_DOUBLE_SIDED, 1, 0, 1, 2, 3, 0, 0};
+	legacy_u8 visibility[SHAPE3D_VISIBILITY_MASK_SIZE];
+	legacy_u8 front_facing[SHAPE3D_VISIBILITY_MASK_SIZE] = {0};
+	static legacy_s16 colors[] = {PREVIEW_TEST_OVERPASS_LOWER_COLOR,
+								  PREVIEW_TEST_OVERPASS_UPPER_COLOR};
+	static legacy_s16 patterns[PREVIEW_TEST_PAINT_COUNT] = {0};
+	const struct VECTOR road[] = {
+		{-PREVIEW_TEST_OVERPASS_HALF_WIDTH, 0, -PREVIEW_TEST_OVERPASS_HALF_LENGTH},
+		{-PREVIEW_TEST_OVERPASS_HALF_WIDTH, 0, PREVIEW_TEST_OVERPASS_HALF_LENGTH},
+		{PREVIEW_TEST_OVERPASS_HALF_WIDTH, 0, PREVIEW_TEST_OVERPASS_HALF_LENGTH},
+		{PREVIEW_TEST_OVERPASS_HALF_WIDTH, 0, -PREVIEW_TEST_OVERPASS_HALF_LENGTH}};
+	struct SHAPE3D lower = {PREVIEW_TEST_VERTEX_COUNT, lower_vertices, 1,			1,
+							lower_primitive,		   visibility,	   front_facing};
+	struct SHAPE3D upper = {PREVIEW_TEST_VERTEX_COUNT, upper_vertices, 1,			1,
+							upper_primitive,		   visibility,	   front_facing};
+	memset(visibility, LEGACY_U8_MAX, sizeof(visibility));
+	for (legacy_u16 index = 0; index < PREVIEW_TEST_VERTEX_COUNT; index++) {
+		struct VECTOR vertex = road[index];
+		vertex.y = -PREVIEW_TEST_OVERPASS_LAYER_HEIGHT;
+		shape3d_vertex_write(&lower, index, &vertex);
+		vertex.y = PREVIEW_TEST_OVERPASS_LAYER_HEIGHT;
+		shape3d_vertex_write(&upper, index, &vertex);
+	}
+
+	/* Keep the native catalog's overlay IDs and rotations, replacing only the artwork. */
+	track_element_map = elements;
+	track_column_centers[0] = 0;
+	track_row_centers[0] = PREVIEW_TEST_OVERPASS_DISTANCE;
+	material_clrlist_ptr_cpy = material_clrlist2_ptr_cpy = colors;
+	material_patlist_ptr_cpy = material_patlist2_ptr_cpy = patterns;
+	hires_set_enabled(enhanced);
+	if (enhanced) {
+		hires_set_render_scale(HIRES_SCALE);
+	}
+	for (legacy_u8 tile = PREVIEW_TEST_OVERPASS_NORTH_SOUTH;
+		 tile <= PREVIEW_TEST_OVERPASS_EAST_WEST; tile++) {
+		struct TRACKOBJECT *span = &trkObjectList[tile];
+		struct TRACKOBJECT *road_below = frame_track_object_from_legacy_index(span->ss_ssOvelay);
+		struct SHAPE3D *original_span = span->ss_loShapePtr;
+		struct SHAPE3D *original_road = road_below->ss_loShapePtr;
+		span->ss_loShapePtr = &upper;
+		road_below->ss_loShapePtr = &lower;
+		elements[0] = tile;
+		sprite_select_target(&preview);
+		sprite_clear_target((legacy_u8)skybox.ground_color);
+		draw_preview_with_bounded_passes();
+		span->ss_loShapePtr = original_span;
+		road_below->ss_loShapePtr = original_road;
+
+		sprite_select_target(&screen_target);
+		sprite_clear_target(0);
+		sprite_putimage(preview.sprite_bitmapptr);
+		legacy_s32 width, height;
+		const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
+		legacy_s32 scale = enhanced ? HIRES_SCALE : HIRES_MINIMUM_SCALE;
+		legacy_s32 center = width / 2;
+		legacy_s32 side = center + PREVIEW_TEST_OVERPASS_SIDE_OFFSET * scale;
+		legacy_u8 lower_visible = 0, upper_visible = 0;
+		legacy_u8 lower_reaches_side = 0, upper_reaches_side = 0;
+		for (legacy_s32 row = 0; row < height; row++) {
+			lower_visible |= pixels[row * width + center] == PREVIEW_TEST_OVERPASS_LOWER_COLOR;
+			upper_visible |= pixels[row * width + center] == PREVIEW_TEST_OVERPASS_UPPER_COLOR;
+			lower_reaches_side |= pixels[row * width + side] == PREVIEW_TEST_OVERPASS_LOWER_COLOR;
+			upper_reaches_side |= pixels[row * width + side] == PREVIEW_TEST_OVERPASS_UPPER_COLOR;
+		}
+		/* Both roads cross the center. Only the east-west road extends to the side. */
+		assert(lower_visible && upper_visible);
+		assert(lower_reaches_side == (tile == PREVIEW_TEST_OVERPASS_NORTH_SOUTH));
+		assert(upper_reaches_side == (tile == PREVIEW_TEST_OVERPASS_EAST_WEST));
+	}
+	track_element_map = empty_track;
+}
+
 static void test_custom_preview(legacy_s32 enhanced, legacy_s32 scale)
 {
 	hires_set_enabled(enhanced);
@@ -334,6 +428,7 @@ legacy_int main(void)
 	skybox.sky_color = 3;
 	skybox.ground_color = 6;
 	track_element_map = track_terrain_map = empty_track;
+	polyinfoptr = preview_polyinfo;
 	track_preview_camera_x = track_preview_camera_y = track_preview_camera_z = 0;
 	track_preview_target_x = track_preview_target_y = 0;
 	track_preview_target_z = 1000;
@@ -351,6 +446,8 @@ legacy_int main(void)
 	test_populated_preview(HIRES_SCALE);
 	test_populated_preview(HIRES_MEDIUM_SCALE);
 	test_populated_preview(HIRES_MINIMUM_SCALE);
+	test_overpass_preview(0);
+	test_overpass_preview(1);
 	test_custom_preview(0, HIRES_MINIMUM_SCALE);
 	test_custom_preview(1, HIRES_SCALE);
 	test_custom_preview(1, HIRES_MEDIUM_SCALE);

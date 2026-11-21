@@ -251,7 +251,7 @@ legacy_void RsTrackPreviewTrackPreviewDrawObject(legacy_u8 track,legacy_u8 colum
     if((temple_overlay_object_5958->ss_lo_shape_ptr!=0)) {
       (transformed->shapeptr=temple_overlay_object_5958->ss_lo_shape_ptr);
       MemCpy(&(transformed->pos),&(temple_track_position_5957),sizeof(CVector));
-      (transformed->rotvec.z=TempleCastS16(temple_track_object_5956->ss_rot_y));
+      (transformed->rotvec.z=TempleCastS16(temple_overlay_object_5958->ss_rot_y));
       (transformed->ts_flags=TempleCastU8(5));
       if((TempleCastS8(temple_overlay_object_5958->ss_surface_type)<0)) {
         temple_tmp_5959=TempleCastS32(0);

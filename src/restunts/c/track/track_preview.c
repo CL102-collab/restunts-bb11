@@ -172,7 +172,7 @@ static void track_preview_draw_object(legacy_u8 track, legacy_u8 column, legacy_
 		if (overlay_object->ss_loShapePtr != 0) {
 			transformed->shapeptr = overlay_object->ss_loShapePtr;
 			transformed->pos = track_position;
-			transformed->rotvec.z = track_object->ss_rotY;
+			transformed->rotvec.z = overlay_object->ss_rotY;
 			transformed->ts_flags = TRACK_PREVIEW_TRANSFORM_FLAGS;
 			transformed->material =
 				(legacy_s8)overlay_object->ss_surfaceType < 0 ? 0 : overlay_object->ss_surfaceType;
