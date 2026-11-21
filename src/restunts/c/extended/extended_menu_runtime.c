@@ -162,7 +162,7 @@ legacy_s16 extended_menu_open_editor(void)
 	}
 	if (!extended_editor_open()) {
 		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-					"Open tracked.html to edit Chocolate Stunts tracks.]", DIALOG_AUTO_POSITION,
+					"Open tracked.html to edit]Chocolate Stunts tracks.]", DIALOG_AUTO_POSITION,
 					DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	}
 	return 0;
