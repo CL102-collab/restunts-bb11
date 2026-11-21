@@ -9,9 +9,11 @@ import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.view.InputDevice;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
 import java.io.File;
@@ -20,6 +22,7 @@ import org.libsdl.app.SDLActivity;
 /** SDL owns lifecycle, graphics, audio, multitouch and the software keyboard. */
 public final class GameActivity extends SDLActivity {
     private static final long CAR_IMPACT_VIBRATION_MS = 40;
+    private static final String REMOTE_LOG_TAG = "RestuntsRemote";
     private static Context applicationContext;
     private final SparseArray<SparseIntArray> remotePressed = new SparseArray<>();
     private final SparseIntArray remoteHeld = new SparseIntArray();
@@ -82,38 +85,50 @@ public final class GameActivity extends SDLActivity {
 
     private boolean remoteNumberInput(KeyEvent event) {
         View focused = getCurrentFocus();
+        if (!television || (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0
+                || (focused != null && focused.onCheckIsTextEditor())) {
+            return false;
+        }
+        // Some TV firmware reissues remote digits through Android's virtual keyboard.
+        if (event.getDeviceId() == KeyCharacterMap.VIRTUAL_KEYBOARD) {
+            return event.isFromSource(InputDevice.SOURCE_KEYBOARD)
+                && (event.getFlags() & KeyEvent.FLAG_FROM_SYSTEM) != 0;
+        }
         InputDevice device = event.getDevice();
-        return television && (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0
-            && device != null && !device.isVirtual()
-            && device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC
-            && (focused == null || !focused.onCheckIsTextEditor());
+        return device != null && !device.isVirtual()
+            && device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC;
     }
 
     private int remoteKeyCode(KeyEvent event) {
-        if (event.getKeyCode() >= KeyEvent.KEYCODE_1 && event.getKeyCode() <= KeyEvent.KEYCODE_5
-                && !remoteNumberInput(event)) {
+        int keyCode = event.getKeyCode();
+        boolean numberShortcut = (keyCode >= KeyEvent.KEYCODE_1 && keyCode <= KeyEvent.KEYCODE_6)
+            || keyCode == KeyEvent.KEYCODE_9;
+        if (numberShortcut && !remoteNumberInput(event)) {
             return KeyEvent.KEYCODE_UNKNOWN;
         }
-        switch (event.getKeyCode()) {
+        switch (keyCode) {
             case KeyEvent.KEYCODE_PROG_GREEN:
                 return KeyEvent.KEYCODE_ENTER;
             case KeyEvent.KEYCODE_PROG_RED:
                 return KeyEvent.KEYCODE_ESCAPE;
             case KeyEvent.KEYCODE_PROG_BLUE:
-            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_5:
                 return KeyEvent.KEYCODE_D;
             case KeyEvent.KEYCODE_PROG_YELLOW:
             case KeyEvent.KEYCODE_1:
                 return KeyEvent.KEYCODE_T;
             case KeyEvent.KEYCODE_2:
                 return KeyEvent.KEYCODE_C;
+            case KeyEvent.KEYCODE_3:
+                return KeyEvent.KEYCODE_Q;
             case KeyEvent.KEYCODE_4:
                 return KeyEvent.KEYCODE_R;
-            case KeyEvent.KEYCODE_5:
-                return KeyEvent.KEYCODE_Q;
+            case KeyEvent.KEYCODE_6:
             case KeyEvent.KEYCODE_CHANNEL_UP:
+                return KeyEvent.KEYCODE_CHANNEL_UP;
+            case KeyEvent.KEYCODE_9:
             case KeyEvent.KEYCODE_CHANNEL_DOWN:
-                return event.getKeyCode();
+                return KeyEvent.KEYCODE_CHANNEL_DOWN;
             default:
                 return KeyEvent.KEYCODE_UNKNOWN;
         }
@@ -230,6 +245,9 @@ public final class GameActivity extends SDLActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (television && Log.isLoggable(REMOTE_LOG_TAG, Log.DEBUG)) {
+            Log.d(REMOTE_LOG_TAG, event.toString());
+        }
         SparseIntArray pressed = remotePressed.get(event.getDeviceId());
         int keyCode = pressed == null ? KeyEvent.KEYCODE_UNKNOWN
             : pressed.get(event.getKeyCode(), KeyEvent.KEYCODE_UNKNOWN);
