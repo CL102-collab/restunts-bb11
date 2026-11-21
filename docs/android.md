@@ -274,19 +274,19 @@ TV remote number and channel buttons use these shortcuts in the game:
 | --- | --- | --- |
 | 1 | T | Switch player/opponent view |
 | 2 | C | Cycle camera |
-| 3 | D | Show or hide the dashboard |
-| 4 | R | Show or hide the replay bar |
-| 5 | Q | Hold rewind until the button is released |
-| Channel Up | A | Shift up |
-| Channel Down | Z | Shift down |
+| 3 | Q | Hold to rewind a live race |
+| 4 | R | Show or hide the replay bar during playback |
+| 5 | D | Show or hide the dashboard |
+| 6 or Channel Up | A | Shift up |
+| 9 or Channel Down | Z | Shift down |
 
-Buttons 1-4 send one command per tap. Channel Up/Down each queue one gear-change
-request per tap, equivalent to A/Z; holding these buttons does not repeat them.
-Button 5 keeps Q held until release. Number shortcuts apply only to
-physical devices classified as TV remotes; full keyboards retain normal
-digits. Number buttons also retain their digits while entering names or
-filenames. Channel mappings require the TV firmware to deliver its standard
-channel-button events to the app.
+Buttons 1, 2, 4 and 5 send one command per tap. Release 3 to resume driving.
+With manual transmission, each tap of a gear button requests one shift.
+
+The app accepts remote digits sent directly or forwarded through Android's
+system keyboard. Full keyboards and text fields keep their normal digit
+behavior. Channel mappings depend on the TV firmware forwarding channel-button
+events.
 
 An external keyboard works with **Keyboard** selected: arrows drive, A/Z shift,
 Q rewinds, Enter selects and Escape leaves racing/replay. Recognized gamepads
