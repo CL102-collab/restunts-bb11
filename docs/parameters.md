@@ -104,10 +104,13 @@ The default is on. `--multi-core:off` disables workers, including when
 variable can select a background worker count for measurements. Launchers
 preserve saved choices. Physics and replay data are independent of this setting.
 
-Widescreen names and values are case-insensitive. Supply the option once; invalid
-values or repeated options report an error before starting the game. The widest
-supported aspect fitting the current window/display is selected: 16:9, 16:10 or
-3:2, otherwise 4:3. Menus, intro and classic rendering remain 4:3. See the
+Widescreen names and values are case-insensitive. Supply the option once.
+Invalid values or repeated options report an error before starting the game.
+HyperVision races and replays select the widest supported aspect that fits the
+current window or display. Desktop, Android, and web support 20:9, 16:9, 16:10,
+and 3:2. DOS32 supports 16:9, 16:10, and 3:2. Displays wider than the largest
+supported aspect center the image with black side borders. Displays narrower
+than 3:2, menus, the intro, and classic rendering use 4:3. See the
 [widescreen resolution table](../readme.md#hypervision-and-fps-display).
 
 Desktop fullscreen names and values are case-insensitive. Supply this option

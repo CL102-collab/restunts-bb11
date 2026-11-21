@@ -103,7 +103,9 @@ selecting Skip intro passes `--nointro`.
 the bottom right while driving, **Show Dashboard** (on by default),
 **Multi-core rendering** (`--multi-core:on/off`, initially on unless a saved
 choice overrides it), and the **HyperVision** selector with **Off**, **Auto**,
-**Full**, **High**, **Medium**, and **Low** presets.
+**Full**, **High**, **Medium**, and **Low** presets. **Widescreen** expands
+HyperVision races and replays up to 20:9 and centers the image with black side
+borders on wider displays.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
 Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group

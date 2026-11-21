@@ -72,7 +72,7 @@ static void shape3d_build_hires_commands(void *context, legacy_s32 group,
 
 legacy_u8 shape3d_hires_render_scene(void)
 {
-	if (hires_begin(&drawing_sprite) != 0) {
+	if (hires_begin_scene(&drawing_sprite) != 0) {
 		/* Enhanced presentation has its own depth rasterizer. Drawing the
 		 * original 320x200 polygons as well only repeats the complete scene. */
 		shape3d_hires_batch_begin();

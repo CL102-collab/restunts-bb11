@@ -4,6 +4,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+static struct HIRES_SURFACE *hires_presentation_surface(const legacy_u8 *legacy)
+{
+	/* The wide world already lives in presentation order. It follows the
+	 * current race frame across legacy page copies, like the HUD overlays. */
+	if (hires_state.wide_scene != NULL) {
+		return hires_state.wide_scene;
+	}
+	return hires_surface_find(legacy);
+}
+
+static legacy_s32 hires_presentation_cell_stride(const struct HIRES_SURFACE *surface)
+{
+	return surface != NULL && surface == hires_state.wide_scene
+			   ? hires_state.presentation_width / HIRES_SCALE
+			   : HIRES_LOGICAL_WIDTH;
+}
+
+static legacy_u32 hires_presentation_offset(legacy_s32 x, legacy_s32 y, legacy_s32 stride)
+{
+	/* Before the first wide scene draw, extend the last stored column. */
+	legacy_s32 column = x < stride ? x : stride - 1;
+	return y * stride + column;
+}
+
 const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
 {
 	hires_refresh_render_dimensions();
@@ -16,12 +40,13 @@ const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, l
 		hires_state.framebuffer =
 			hires_allocate(hires_state.presentation_width * hires_state.presentation_height);
 	}
-	struct HIRES_SURFACE *surface = hires_surface_find(legacy);
+	struct HIRES_SURFACE *surface = hires_presentation_surface(legacy);
 	const legacy_s32 scale = HIRES_SCALE, stride = hires_state.presentation_width;
 	const legacy_s32 cell_shift = hires_state.render_cell_shift;
+	legacy_s32 cell_stride = hires_presentation_cell_stride(surface);
 	for (legacy_s32 y = 0; y < hires_state.presentation_height / scale; y++) {
 		for (legacy_s32 x = 0; x < hires_state.presentation_width / scale; x++) {
-			legacy_u32 offset = y * HIRES_LOGICAL_WIDTH + x;
+			legacy_u32 offset = hires_presentation_offset(x, y, cell_stride);
 			const legacy_u8 *cell = surface != NULL && surface->valid[offset]
 										? surface->pixels + ((size_t)offset << cell_shift)
 										: NULL;
@@ -30,7 +55,8 @@ const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, l
 				if (cell != NULL) {
 					memcpy(out, cell + row * scale, scale);
 				} else {
-					memset(out, legacy[offset], scale);
+					memset(out, legacy[hires_presentation_offset(x, y, HIRES_LOGICAL_WIDTH)],
+						   scale);
 				}
 			}
 		}
@@ -143,9 +169,10 @@ static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_
 	 * the same black-to-white transition as the original indexed pixels. */
 	legacy_u32 fade = palette[HIRES_MENU_WHITE_INDEX];
 	const legacy_s32 scale = HIRES_SCALE, cell_shift = hires_state.render_cell_shift;
+	legacy_s32 cell_stride = hires_presentation_cell_stride(surface);
 	for (legacy_s32 y = top; y < bottom; y++) {
 		for (legacy_s32 x = 0; x < hires_state.presentation_width / scale; x++) {
-			legacy_u32 offset = y * HIRES_LOGICAL_WIDTH + x;
+			legacy_u32 offset = hires_presentation_offset(x, y, cell_stride);
 			legacy_u8 valid = surface != NULL ? surface->valid[offset] : HIRES_CELL_EMPTY;
 			const legacy_u8 *indices =
 				valid != HIRES_CELL_EMPTY ? surface->pixels + ((size_t)offset << cell_shift) : NULL;
@@ -153,7 +180,9 @@ static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_
 				(legacy_u32 *)((legacy_u8 *)destination + y * scale * pitch) + x * scale;
 			if (valid != HIRES_CELL_ARGB) {
 				/* Full-color overlays retain their general alpha/fade path. */
-				hires_compose_palette_cell(indices, legacy + offset, palette, output, pitch, scale);
+				hires_compose_palette_cell(
+					indices, legacy + hires_presentation_offset(x, y, HIRES_LOGICAL_WIDTH), palette,
+					output, pitch, scale);
 				continue;
 			}
 			const legacy_u32 *colors = surface->argb + ((size_t)offset << cell_shift);
@@ -231,13 +260,13 @@ void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *pale
 	if (!hires_state.enabled) {
 		return;
 	}
-	hires_compose_argb(legacy, palette, hires_surface_find(legacy), destination, pitch);
+	hires_compose_argb(legacy, palette, hires_presentation_surface(legacy), destination, pitch);
 }
 
 const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette)
 {
 	hires_refresh_render_dimensions();
-	struct HIRES_SURFACE *surface = hires_state.enabled ? hires_surface_find(legacy) : NULL;
+	struct HIRES_SURFACE *surface = hires_state.enabled ? hires_presentation_surface(legacy) : NULL;
 	if (surface == NULL || surface->argb_cells == 0) {
 		free(hires_state.argb_framebuffer);
 		hires_state.argb_framebuffer = NULL;

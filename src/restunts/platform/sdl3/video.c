@@ -270,7 +270,7 @@ static void mode_presentation_size(const SDL_DisplayMode *mode, legacy_s32 *widt
 	*height = 0;
 	if (dos_widescreen_requested() &&
 		(mode->w != SDL3_SCREEN_WIDTH || mode->h != SDL3_SCREEN_HEIGHT)) {
-		widescreen_dimensions_for_output(mode->w, mode->h, width, height);
+		widescreen_dimensions_for_output_limited(mode->w, mode->h, HIRES_WIDTH, width, height);
 	}
 	if (*width == 0 || *height == 0) {
 		*width = SDL3_SCREEN_WIDTH;

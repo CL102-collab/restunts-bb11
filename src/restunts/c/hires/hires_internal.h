@@ -21,18 +21,22 @@ enum HIRES_CELL_STATE { HIRES_CELL_EMPTY, HIRES_CELL_INDEXED, HIRES_CELL_ARGB };
 /* Each legacy pixel always carries 4x4 presentation samples. Reduced scene
  * samples cover larger blocks without changing artwork or saved-sprite detail.
  * Keeping these attached to byte offsets lets ordinary clipped sprite copies,
- * saved backgrounds, and dashboard masks carry their detail with them. */
+ * saved backgrounds, and dashboard masks carry their detail with them.
+ * The 20:9 world uses the same sample layout with independent, linear cells. */
 struct HIRES_SURFACE {
 	const legacy_u8 *base;
 	legacy_u8 *pixels;
 	legacy_u32 *argb;
 	legacy_u32 argb_cells;
-	legacy_u8 valid[HIRES_ADDRESS_COUNT];
+	legacy_u32 cell_count;
+	legacy_u32 offset_mask;
 	struct HIRES_SURFACE *next;
+	legacy_u8 valid[];
 };
 
 struct HIRES_STATE {
 	struct HIRES_SURFACE *surfaces;
+	struct HIRES_SURFACE *wide_scene;
 	struct HIRES_SURFACE *active;
 	struct SPRITE active_sprite;
 	legacy_s32 enabled;
@@ -58,8 +62,21 @@ extern struct HIRES_STATE hires_state;
 void *hires_allocate(size_t size);
 struct HIRES_SURFACE *hires_surface_find(const legacy_u8 *base);
 void hires_refresh_render_dimensions(void);
-legacy_u8 *hires_cell(struct HIRES_SURFACE *surface, legacy_u16 offset);
+legacy_u8 *hires_cell(struct HIRES_SURFACE *surface, legacy_u32 offset);
 void hires_depth_reset(void);
+
+static inline legacy_u32 hires_active_row(legacy_s32 y)
+{
+	if (hires_state.active == hires_state.wide_scene) {
+		return (legacy_u32)y * (hires_state.presentation_width / HIRES_SCALE);
+	}
+	return LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
+}
+
+static inline legacy_u32 hires_active_offset(legacy_s32 x, legacy_s32 y)
+{
+	return (hires_active_row(y) + x) & hires_state.active->offset_mask;
+}
 
 /* Input scene cells have scale*scale samples; stored presentation cells are4x4. */
 static inline void hires_expand_cell(legacy_u8 *destination, const legacy_u8 *samples,

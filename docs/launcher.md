@@ -75,9 +75,10 @@ assets remain available.
 
 **Widescreen**, between **Fullscreen** and **Show FPS**, starts off. It passes
 `--widescreen:on` or `--widescreen:off` to the game and is saved with the other
-settings. With HyperVision enabled, it expands racing and replay views to the
-available supported widescreen aspect ratio; menus and the intro keep their 4:3
-presentation. **HyperVision** has its own row, with its label beside the selector.
+settings. With HyperVision enabled, racing and replay views expand to the
+widest supported aspect up to 20:9. Wider displays center the 20:9 image with
+black side borders. Menus and the intro keep their 4:3 presentation.
+**HyperVision** has its own row, with its label beside the selector.
 
 In **Graphics settings**, **Show MPH (Ctrl+F9)** follows **Show FPS**. It starts
 off and selects `--showmph:on` or `--showmph:off` for the game. The display shows

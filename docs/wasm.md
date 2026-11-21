@@ -120,8 +120,10 @@ build supports `file://` without a local web server. The HTML's location does no
    **Show Dashboard** (`--show-dashboard:on/off`), **Show Control Layout**
    (`--control-layout:on`), **Multi-core rendering** (`--multi-core:on/off`,
    initially on when supported), and the **HyperVision**
-   selector. Multi-core rendering requires the threaded build and an isolated
-   page; a saved choice overrides its default. Offline builds keep it disabled.
+   selector. **Widescreen** expands HyperVision races and replays up to 20:9 and
+   centers the image with black side borders on wider displays. Multi-core
+   rendering requires the threaded build and an isolated page; a saved choice
+   overrides its default. Offline builds keep it disabled.
    **Video mode** selects **VGA** (the default), **EGA**, **CGA**, or **Tandy**
    for the classic renderer and passes the corresponding `--videomode:` option,
    including `--videomode:tandy`. EGA, CGA and Tandy use original DOS graphics

@@ -28,6 +28,9 @@ legacy_s32 widescreen_modal_active(void);
 void widescreen_set_output_size(legacy_s32 width, legacy_s32 height);
 void widescreen_dimensions_for_output(legacy_s32 width, legacy_s32 height, legacy_s32 *render_width,
 									  legacy_s32 *render_height);
+void widescreen_dimensions_for_output_limited(legacy_s32 width, legacy_s32 height,
+											  legacy_s32 max_width, legacy_s32 *render_width,
+											  legacy_s32 *render_height);
 legacy_s32 widescreen_active(void);
 /* Fixed presentation maxima, independent of the scene's full/half/quarter
  * quality. Authored UI keeps these dimensions while only 3D sampling changes. */

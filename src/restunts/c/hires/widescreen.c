@@ -5,7 +5,6 @@
 #include <string.h>
 
 #define WIDESCREEN_UI_PIXELS (VIDEO_FRAMEBUFFER_WIDTH * VIDEO_FRAMEBUFFER_HEIGHT)
-#define WIDESCREEN_RATIO_COUNT 3
 #define WIDESCREEN_OUTPUT_ROUNDING_ROWS 1
 #define WIDESCREEN_OVERLAY_SCOPE_LIMIT 4U
 #define WIDESCREEN_VGA_SEGMENT 0xA000U
@@ -15,8 +14,13 @@ struct WIDESCREEN_RATIO {
 	legacy_s32 width, height;
 };
 
-static const struct WIDESCREEN_RATIO widescreen_ratios[WIDESCREEN_RATIO_COUNT] = {
-	{16, 9, 1280, 720}, {16, 10, 1280, 800}, {3, 2, 1080, 720}};
+static const struct WIDESCREEN_RATIO widescreen_ratios[] = {
+#if !defined(__DJGPP__)
+	{20, 9, HIRES_MAX_WIDTH, 720},
+#endif
+	{16, 9, 1280, 720},
+	{16, 10, 1280, 800},
+	{3, 2, 1080, 720}};
 static legacy_s32 widescreen_option;
 static legacy_s32 widescreen_race;
 static legacy_s32 widescreen_width;
@@ -40,29 +44,38 @@ static legacy_u32 overlay_revision;
 static legacy_u8 overlay_used[WIDESCREEN_OVERLAY_COUNT];
 static legacy_u8 overlay_hide_edges;
 static legacy_s32 overlay_output_width, overlay_output_height;
-static legacy_s16 overlay_source_x[WIDESCREEN_OVERLAY_COUNT][HIRES_WIDTH];
+static legacy_s16 overlay_source_x[WIDESCREEN_OVERLAY_COUNT][HIRES_MAX_WIDTH];
 static legacy_s16 overlay_source_y[HIRES_HEIGHT];
 
-void widescreen_dimensions_for_output(legacy_s32 width, legacy_s32 height, legacy_s32 *render_width,
-									  legacy_s32 *render_height)
+void widescreen_dimensions_for_output_limited(legacy_s32 width, legacy_s32 height,
+											  legacy_s32 max_width, legacy_s32 *render_width,
+											  legacy_s32 *render_height)
 {
 	*render_width = 0;
 	*render_height = 0;
 	if (width <= 0 || height <= 0) {
 		return;
 	}
-	for (legacy_s32 index = 0; index < WIDESCREEN_RATIO_COUNT; index++) {
+	for (size_t index = 0; index < sizeof(widescreen_ratios) / sizeof(*widescreen_ratios);
+		 index++) {
 		const struct WIDESCREEN_RATIO *ratio = &widescreen_ratios[index];
 		/* SDL rounds fractional CSS canvas sizes to integer output pixels. One
 		 * extra output row must not demote an otherwise fitting display ratio. */
 		legacy_s64 rounding = (legacy_s64)WIDESCREEN_OUTPUT_ROUNDING_ROWS * ratio->numerator;
-		if ((legacy_s64)width * ratio->denominator + rounding >=
-			(legacy_s64)height * ratio->numerator) {
+		if (ratio->width <= max_width && (legacy_s64)width * ratio->denominator + rounding >=
+											 (legacy_s64)height * ratio->numerator) {
 			*render_width = ratio->width;
 			*render_height = ratio->height;
 			return;
 		}
 	}
+}
+
+void widescreen_dimensions_for_output(legacy_s32 width, legacy_s32 height, legacy_s32 *render_width,
+									  legacy_s32 *render_height)
+{
+	widescreen_dimensions_for_output_limited(width, height, HIRES_MAX_WIDTH, render_width,
+											 render_height);
 }
 
 void widescreen_set_enabled(legacy_s32 enabled)
@@ -336,7 +349,7 @@ legacy_s32 widescreen_overlay_raster(const legacy_u8 *destination, legacy_u16 de
 legacy_s32 widescreen_overlay_sample(legacy_s32 x, legacy_s32 y, legacy_s32 width,
 									 legacy_s32 height, legacy_u8 *color)
 {
-	if (width <= 0 || height <= 0 || width > HIRES_WIDTH || height > HIRES_HEIGHT || x < 0 ||
+	if (width <= 0 || height <= 0 || width > HIRES_MAX_WIDTH || height > HIRES_HEIGHT || x < 0 ||
 		y < 0 || x >= width || y >= height) {
 		return 0;
 	}

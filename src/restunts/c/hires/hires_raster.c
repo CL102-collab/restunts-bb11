@@ -132,9 +132,9 @@ legacy_s32 hires_depth_test(legacy_s32 x, legacy_s32 y, legacy_f64 inverse_z, le
 							(size_t)y * hires_state.render_width + x, inverse_z, family, mode);
 }
 
-/* The caller owns the whole legacy cell and accounts for cleared ARGB cells.
+/* The caller owns the whole cell and accounts for cleared ARGB cells.
  * Raster workers accumulate locally instead of changing the surface counter. */
-static legacy_u32 hires_paint_sample(struct HIRES_SURFACE *surface, legacy_u16 offset,
+static legacy_u32 hires_paint_sample(struct HIRES_SURFACE *surface, legacy_u32 offset,
 									 legacy_u32 sample, legacy_u8 color, legacy_s32 scale)
 {
 	legacy_u8 *cell = surface->pixels + ((size_t)offset << hires_state.render_cell_shift);
@@ -175,9 +175,8 @@ void hires_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color)
 		y >= hires_state.active_sprite.sprite_bottom * hires_state.render_scale) {
 		return;
 	}
-	legacy_u16 row = LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs +
-										(y >> hires_state.render_shift) * LEGACY_WORD_BYTES);
-	legacy_u16 offset = (legacy_u16)(row + (x >> hires_state.render_shift));
+	legacy_u32 offset =
+		hires_active_offset(x >> hires_state.render_shift, y >> hires_state.render_shift);
 	hires_cell(hires_state.active, offset);
 	legacy_u32 sample =
 		(y & hires_state.render_mask) * hires_state.render_scale + (x & hires_state.render_mask);
@@ -197,16 +196,16 @@ static legacy_s32 hires_raster_rows_disjoint(const struct HIRES_RASTER_TARGET *t
 		 y < (target->bottom >> target->scale_shift); y++) {
 		legacy_u32 start = target->rows[y] + (target->left >> target->scale_shift);
 		legacy_u32 end = target->rows[y] + (target->right >> target->scale_shift);
-		if (start < previous_end || end > HIRES_ADDRESS_COUNT) {
+		if (start < previous_end || end > target->surface->cell_count) {
 			ascending = 0;
 			break;
 		}
 		previous_end = end;
 	}
-	if (ascending) {
-		return 1;
+	if (ascending || target->surface == hires_state.wide_scene) {
+		return ascending;
 	}
-	/* Row offsets can wrap at 64 KiB or arrive in arbitrary order. Two
+	/* Legacy row offsets can wrap at 64 KiB or arrive in arbitrary order. Two
 	 * screen rows must never share any legacy cell, even partially. */
 	legacy_u8 occupied[HIRES_ADDRESS_COUNT / LEGACY_BYTE_BITS] = {0};
 	for (legacy_s32 y = (target->top >> target->scale_shift);
@@ -256,15 +255,14 @@ legacy_s32 hires_raster_prepare(struct HIRES_RASTER_TARGET *target)
 	if (target->left >= target->right || target->top >= target->bottom) {
 		return 0;
 	}
+	target->surface = hires_state.active;
 	for (legacy_s32 y = (target->top >> hires_state.render_shift);
 		 y < (target->bottom >> hires_state.render_shift); y++) {
-		target->rows[y] =
-			LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
+		target->rows[y] = hires_active_row(y);
 	}
 	if (!hires_raster_rows_disjoint(target)) {
 		return 0;
 	}
-	target->surface = hires_state.active;
 	target->inverse_depth = hires_state.inverse_depth;
 	target->depth_family = hires_state.depth_family;
 	target->depth_left = hires_state.depth_left;
@@ -340,8 +338,8 @@ void hires_raster_pixel(struct HIRES_RASTER_CONTEXT *context, legacy_s32 x, lega
 		y < context->top || y >= context->bottom) {
 		return;
 	}
-	legacy_u16 offset =
-		(legacy_u16)(target->rows[(y >> target->scale_shift)] + (x >> target->scale_shift));
+	legacy_u32 offset = (target->rows[y >> target->scale_shift] + (x >> target->scale_shift)) &
+						target->surface->offset_mask;
 	legacy_u32 sample = (y & target->scale_mask) * target->scale + (x & target->scale_mask);
 	if (hires_paint_sample(target->surface, offset, sample, color, target->scale) != 0) {
 		context->cleared_argb_cells++;
@@ -349,7 +347,7 @@ void hires_raster_pixel(struct HIRES_RASTER_CONTEXT *context, legacy_s32 x, lega
 }
 
 static void hires_raster_retire_argb(struct HIRES_RASTER_CONTEXT *context,
-									 struct HIRES_SURFACE *surface, legacy_u16 offset,
+									 struct HIRES_SURFACE *surface, legacy_u32 offset,
 									 const legacy_u32 *argb)
 {
 	legacy_u32 remaining = 0;
@@ -375,10 +373,10 @@ static void hires_raster_solid_span(struct HIRES_RASTER_CONTEXT *context, legacy
 	const legacy_s32 mask = target->scale_mask;
 	const legacy_s32 cell_shift = target->cell_shift;
 	const size_t depth_row = (size_t)y * target->width;
-	legacy_u16 row = target->rows[y >> shift];
+	legacy_u32 row = target->rows[y >> shift];
 	legacy_u32 sample_row = (y & mask) << shift;
 	for (legacy_s32 x = left; x < right;) {
-		legacy_u16 offset = (legacy_u16)(row + (x >> shift));
+		legacy_u32 offset = (row + (x >> shift)) & surface->offset_mask;
 		legacy_u32 sample = sample_row + (x & mask);
 		legacy_s32 end = (x | mask) + 1;
 		if (end > right) {
@@ -484,12 +482,12 @@ void hires_raster_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32 left, le
 	const legacy_s32 mask = target->scale_mask;
 	const legacy_s32 cell_shift = target->cell_shift;
 	const size_t depth_row = (size_t)y * target->width;
-	legacy_u16 row = target->rows[y >> shift];
+	legacy_u32 row = target->rows[y >> shift];
 	legacy_u32 sample_row = (y & mask) << shift;
 	legacy_u32 pattern_row = (y & HIRES_PATTERN_ROW_MASK) == 0 ? HIRES_PATTERN_WIDTH : 0U;
 	struct HIRES_SURFACE *surface = target->surface;
 	for (legacy_s32 x = left; x < right;) {
-		legacy_u16 offset = (legacy_u16)(row + (x >> shift));
+		legacy_u32 offset = (row + (x >> shift)) & surface->offset_mask;
 		legacy_u32 first_sample = sample_row + (x & mask);
 		legacy_s32 end = (x | mask) + 1;
 		if (end > right) {
@@ -539,14 +537,15 @@ static void hires_raster_indexed_span(const struct HIRES_RASTER_TARGET *target, 
 {
 	const legacy_s32 shift = target->scale_shift, mask = target->scale_mask;
 	const legacy_s32 cell_shift = target->cell_shift;
-	const legacy_u16 row = target->rows[y >> shift];
+	const legacy_u32 row = target->rows[y >> shift];
 	const legacy_u32 sample_row = (y & mask) << shift;
-	legacy_u8 *pixels = target->surface->pixels;
+	const struct HIRES_SURFACE *surface = target->surface;
+	legacy_u8 *pixels = surface->pixels;
 	legacy_s32 x = left;
 	if (shift == 0) {
 		while (x < right) {
-			legacy_u16 offset = (legacy_u16)(row + x);
-			legacy_u32 count = HIRES_ADDRESS_COUNT - offset;
+			legacy_u32 offset = (row + x) & surface->offset_mask;
+			legacy_u32 count = surface->cell_count - offset;
 			if (count > (legacy_u32)(right - x)) {
 				count = (legacy_u32)(right - x);
 			}
@@ -560,7 +559,8 @@ static void hires_raster_indexed_span(const struct HIRES_RASTER_TARGET *target, 
 		if (end > right) {
 			end = right;
 		}
-		legacy_u8 *cell = pixels + ((size_t)(legacy_u16)(row + (x >> shift)) << cell_shift);
+		legacy_u8 *cell =
+			pixels + ((size_t)((row + (x >> shift)) & surface->offset_mask) << cell_shift);
 		memset(cell + sample_row + (x & mask), color, (size_t)(end - x));
 		x = end;
 	}
@@ -568,18 +568,21 @@ static void hires_raster_indexed_span(const struct HIRES_RASTER_TARGET *target, 
 	if (target->scale == HIRES_SCALE) {
 		legacy_u32 word = color * (LEGACY_U32_MAX / LEGACY_U8_MAX);
 		for (; x < aligned_right; x += HIRES_SCALE) {
-			legacy_u8 *cell = pixels + ((size_t)(legacy_u16)(row + (x >> shift)) << cell_shift);
+			legacy_u8 *cell =
+				pixels + ((size_t)((row + (x >> shift)) & surface->offset_mask) << cell_shift);
 			memcpy(cell + sample_row, &word, sizeof(word));
 		}
 	} else {
 		legacy_u16 word = color * (LEGACY_U16_MAX / LEGACY_U8_MAX);
 		for (; x < aligned_right; x += HIRES_MEDIUM_SCALE) {
-			legacy_u8 *cell = pixels + ((size_t)(legacy_u16)(row + (x >> shift)) << cell_shift);
+			legacy_u8 *cell =
+				pixels + ((size_t)((row + (x >> shift)) & surface->offset_mask) << cell_shift);
 			memcpy(cell + sample_row, &word, sizeof(word));
 		}
 	}
 	if (x < right) {
-		legacy_u8 *cell = pixels + ((size_t)(legacy_u16)(row + (x >> shift)) << cell_shift);
+		legacy_u8 *cell =
+			pixels + ((size_t)((row + (x >> shift)) & surface->offset_mask) << cell_shift);
 		memset(cell + sample_row, color, (size_t)(right - x));
 	}
 }
@@ -594,7 +597,7 @@ void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32
 	const legacy_s32 shift = target->scale_shift;
 	const legacy_s32 mask = target->scale_mask;
 	const legacy_s32 cell_shift = target->cell_shift;
-	legacy_u16 row = target->rows[y >> shift];
+	legacy_u32 row = target->rows[y >> shift];
 	legacy_u32 sample_row = (y & mask) << shift;
 	legacy_u32 pattern_row = (y & HIRES_PATTERN_ROW_MASK) == 0 ? HIRES_PATTERN_WIDTH : 0U;
 	legacy_f32 *depths = target->inverse_depth + (size_t)y * target->width;
@@ -631,7 +634,7 @@ void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32
 	}
 	legacy_u32 packed_color = (legacy_u8)color * (LEGACY_U32_MAX / LEGACY_U8_MAX);
 	for (legacy_s32 x = left; x < right;) {
-		legacy_u16 offset = (legacy_u16)(row + (x >> shift));
+		legacy_u32 offset = (row + (x >> shift)) & surface->offset_mask;
 		legacy_u32 sample = sample_row + (x & mask);
 		legacy_s32 end = (x | mask) + 1;
 		if (end > right) {
@@ -679,9 +682,9 @@ static void hires_raster_replace_row(struct HIRES_RASTER_CONTEXT *context, legac
 	}
 	struct HIRES_SURFACE *surface = target->surface;
 	legacy_u32 remaining = (legacy_u32)(target->right - target->left) >> shift;
-	legacy_u16 offset = (legacy_u16)(target->rows[y] + (target->left >> shift));
+	legacy_u32 offset = (target->rows[y] + (target->left >> shift)) & surface->offset_mask;
 	while (remaining != 0) {
-		legacy_u32 count = HIRES_ADDRESS_COUNT - offset;
+		legacy_u32 count = surface->cell_count - offset;
 		if (count > remaining) {
 			count = remaining;
 		}

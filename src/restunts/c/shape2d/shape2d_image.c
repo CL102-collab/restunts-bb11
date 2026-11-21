@@ -12,6 +12,7 @@
 #include "../video/video_pages.h"
 #include "../video/video_color.h"
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+#include "../hires/hires.h"
 #include "../../platform/sdl3/video_mode.h"
 #define SHAPE2D_VIDEO_SOURCE_BEGIN(shape, x, y) sdl3_video_mode_source_begin_at(shape, x, y)
 #define SHAPE2D_VIDEO_SOURCE_END() sdl3_video_mode_source_end()
@@ -375,10 +376,22 @@ static legacy_s16 shape2d_clip_scaled_rows(struct SHAPE2D_SCALED_DRAW *draw)
 
 static void shape2d_render_scaled(struct SHAPE2D_SCALED_DRAW *draw)
 {
-	legacy_u8 far *bitmap = (legacy_u8 far *)dos_memory_make_pointer(
-		dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr), 0);
-	legacy_u16 destination = LEGACY_U16_WRAP_ADD(
-		shape2d_get_line_offset(dos_memory_pointer_segment(&drawing_sprite), draw->y), draw->x);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	legacy_s32 wide_scene = hires_wide_scene_active();
+#endif
+	legacy_u8 far *bitmap =
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+		wide_scene ? NULL :
+#endif
+				   (legacy_u8 far *)dos_memory_make_pointer(
+					   dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr), 0);
+	legacy_u16 destination =
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+		wide_scene ? 0 :
+#endif
+				   LEGACY_U16_WRAP_ADD(shape2d_get_line_offset(
+										   dos_memory_pointer_segment(&drawing_sprite), draw->y),
+									   draw->x);
 	legacy_u16 destination_advance =
 		LEGACY_U16_WRAP_SUB(drawing_sprite.sprite_pitch, draw->scaled_width);
 	legacy_u16 row_source = draw->source;
@@ -392,13 +405,22 @@ static void shape2d_render_scaled(struct SHAPE2D_SCALED_DRAW *draw)
 			legacy_u8 color = *source_ptr;
 			if (color != SHAPE2D_TRANSPARENT_COLOR) {
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
-				if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
-					legacy_u16 index = LEGACY_U16_WRAP_SUB(draw->source, draw->source_start);
-					sdl3_video_mode_source_sample(index % draw->source_width,
-												  index / draw->source_width);
+				if (wide_scene) {
+					legacy_s32 x =
+						LEGACY_S16_FROM_BITS(draw->x) + draw->scaled_width - column_count;
+					legacy_s32 y = LEGACY_S16_FROM_BITS(draw->y) + draw->scaled_height - row_count;
+					hires_fill_pixel(x, y, color);
+				} else {
+					if (sdl3_video_mode_selected != SDL3_VIDEO_MODE_VGA) {
+						legacy_u16 index = LEGACY_U16_WRAP_SUB(draw->source, draw->source_start);
+						sdl3_video_mode_source_sample(index % draw->source_width,
+													  index / draw->source_width);
+					}
+#endif
+					video_pages_write_pixel(bitmap, destination, color);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
 				}
 #endif
-				video_pages_write_pixel(bitmap, destination, color);
 			}
 			destination++;
 			horizontal_fraction = LEGACY_U16_WRAP_ADD(horizontal_fraction, draw->step);

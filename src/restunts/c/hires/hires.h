@@ -4,13 +4,18 @@
 #include "../legacy.h"
 #include "../video/video_framebuffer.h"
 
-/* Maximum raster size and authored artwork scale. Active dimensions may be smaller. */
+/* Authored artwork dimensions and maximum scene width. */
 #define HIRES_INITIAL_PRIMITIVE_CAPACITY 592U
 #define HIRES_SCALE 4
 #define HIRES_MEDIUM_SCALE 2
 #define HIRES_MINIMUM_SCALE 1
 #define HIRES_WIDTH 1280
 #define HIRES_HEIGHT 800
+#if defined(__DJGPP__)
+#define HIRES_MAX_WIDTH HIRES_WIDTH
+#else
+#define HIRES_MAX_WIDTH 1600
+#endif
 #define HIRES_SAMPLE_CENTER_OFFSET 0.5
 #define HIRES_DEPTH_FAMILY_NONE 0U
 /* Legacy paint patterns contain two byte-wide rows, most significant bit first. */
@@ -29,10 +34,10 @@ struct HIRES_DEPTH_PLANE {
 };
 
 /* Immutable for one joined raster pass. Screen rows must map to disjoint
- * legacy cells; preparation rejects targets that cannot be split safely. */
+ * cells; preparation rejects targets that cannot be split safely. */
 struct HIRES_RASTER_TARGET {
 	struct HIRES_SURFACE *surface;
-	legacy_u16 rows[HIRES_HEIGHT / HIRES_SCALE];
+	legacy_u32 rows[HIRES_HEIGHT / HIRES_SCALE];
 	legacy_s32 left, right, top, bottom;
 	legacy_s32 scale, scale_shift, scale_mask, cell_pixels, cell_shift;
 	legacy_s32 width, height;
@@ -63,6 +68,9 @@ legacy_s32 hires_presentation_width(void);
 legacy_s32 hires_presentation_height(void);
 legacy_s32 hires_artwork_scale(void);
 legacy_s32 hires_begin(const struct SPRITE *target);
+/* The 20:9 scene has its own raster; authored sprites retain legacy addressing. */
+legacy_s32 hires_begin_scene(const struct SPRITE *target);
+legacy_s32 hires_wide_scene_active(void);
 void hires_end(void);
 enum HIRES_DEPTH_MODE { HIRES_DEPTH_SURFACE, HIRES_DEPTH_ATTACHED, HIRES_DEPTH_ORDERED };
 
@@ -120,7 +128,7 @@ const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u
 void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 								 legacy_u32 *destination, legacy_s32 pitch);
 void hires_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color);
-/* Fill all companion samples at logical 320x200 coordinates without changing the legacy byte. */
+/* Fill a logical cell without changing the legacy byte. */
 void hires_fill_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color);
 /* Copy scale*scale row-major samples into one logical cell, retiring its ARGB overlay. */
 void hires_write_pixel(legacy_s32 x, legacy_s32 y, const legacy_u8 *samples);
