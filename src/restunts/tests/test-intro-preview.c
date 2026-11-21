@@ -1123,7 +1123,8 @@ int main(void)
 #else
 	/* Captured from unmodified production at 43fba20d. */
 	assert(intro_hash == 0xcdcdbe61UL);
-	assert(preview_hash == 0x8ae71f07UL);
+	/* The underpass overlay uses its own authored rotation. */
+	assert(preview_hash == 0x090c4907UL);
 	/* Captured from ad63d3ef with the production-zero backbuffer hook and
 	 * only reachable page-flipping and cancellation cases. */
 	assert(lifecycle_hash == 0xbb4f51bfUL);
