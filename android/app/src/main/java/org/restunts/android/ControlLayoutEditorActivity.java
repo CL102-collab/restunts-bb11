@@ -119,6 +119,7 @@ public final class ControlLayoutEditorActivity extends Activity {
     public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
         if (focused) {
+            // The decor view is attached by the time the window gains focus.
             hideSystemBars();
         }
     }
@@ -142,15 +143,16 @@ public final class ControlLayoutEditorActivity extends Activity {
             attributes.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
             window.setAttributes(attributes);
+        } else {
+            hideSystemBars();
         }
-        hideSystemBars();
     }
 
     @SuppressWarnings("deprecation") // Android before API 30 uses the legacy immersive flags.
     private void hideSystemBars() {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowInsetsController controller = window.getInsetsController();
+            WindowInsetsController controller = window.getDecorView().getWindowInsetsController();
             if (controller != null) {
                 controller.setSystemBarsBehavior(
                     WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
