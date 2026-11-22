@@ -63,11 +63,14 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
-for (const id of [model.BLUE_CHECKPOINT_ID, model.RED_CHECKPOINT_ID, model.COMBINED_CHECKPOINT_ID]) {
+const SLALOM_CHECKPOINT_IDS = [model.SLALOM_BLUE_CHECKPOINT_ID, model.SLALOM_RED_CHECKPOINT_ID, model.SLALOM_COMBINED_CHECKPOINT_ID];
+for (const id of [model.BLUE_CHECKPOINT_ID, model.RED_CHECKPOINT_ID, model.COMBINED_CHECKPOINT_ID, ...SLALOM_CHECKPOINT_IDS]) {
     for (const surface of model.SURFACES.keys()) for (let direction = 0; direction < 4; direction++) {
         const doc = rectangle(), horizontal = direction % 2;
-        replace(doc, horizontal ? 25 : 2, horizontal ? 4 : 8, id, direction, surface);
-        check('checkpoint ' + id + ' surface ' + surface + ' direction ' + direction + ' connects as a road', clearHistory(doc), 0);
+        const x = horizontal ? 25 : 2, y = horizontal ? 4 : 8;
+        replace(doc, x, y, id, direction, surface);
+        const result = check('checkpoint ' + id + ' surface ' + surface + ' direction ' + direction + ' connects', clearHistory(doc), 0);
+        if (model.isSlalomCheckpoint(id)) assert.equal(result.route.find(piece => piece.x === x && piece.y === y).id, horizontal ? 116 : 115);
         const absentStart = new model.Document(4, 4); put(absentStart, id, 1, 1, surface, direction);
         check('checkpoint ' + id + ' direction ' + direction + ' is not a start', absentStart, validation.STATUS.NO_START_FINISH);
     }
@@ -97,7 +100,7 @@ for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
     doc.setHorizon(horizon);
     check(model.HORIZONS[horizon] + ' horizon retains the route', clearHistory(doc), 0);
 }
-const futureTrackVersions = [15, 101];
+const futureTrackVersions = [model.VERSION + 1, 101];
 for (const version of futureTrackVersions) {
     const doc = rectangle();
     doc.version = version;
@@ -170,7 +173,8 @@ for (let base = 0; base <= HILL_ROUTE_MAX_LEVEL; base++) {
 // Sloped tunnels and slaloms keep their native stunt routes while their floor
 // follows the same incline as neighboring hill roads, including both grades.
 const SLOPED_STUNT_MODELS = new Set([28, 34]);
-const SLOPED_STUNT_VARIANTS = [[66, 1], [66, 3], [67, 0], [67, 2], [115, 1], [115, 3], [116, 0], [116, 2]];
+const SLOPED_STUNT_VARIANTS = [[66, 1], [66, 3], [67, 0], [67, 2], [115, 1], [115, 3], [116, 0], [116, 2],
+    ...SLALOM_CHECKPOINT_IDS.map(id => [id, 1])];
 for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (const surface of [0, 1, 2]) {
     for (const [id, rotation] of SLOPED_STUNT_VARIANTS) for (const tunnelSlalom of id === 115 || id === 116 ? [0, 1] : [0]) {
         const rise = Math.min(2, HILL_ROUTE_MAX_LEVEL - base);

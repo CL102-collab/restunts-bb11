@@ -9,6 +9,7 @@
 #undef memcpy
 
 #define TEST_OBJECT_CAPACITY 5U
+#define TEST_ROTATION_COUNT 4U
 #define TEST_TRACK_SIDE 90U
 #define TEST_HIGH_COLUMN 70U
 #define TEST_GATE_ROW 7U
@@ -297,6 +298,32 @@ static void test_combined_checkpoints(void)
 	assert(finish_attempt());
 }
 
+static void test_slalom_checkpoint_colors(void)
+{
+	for (legacy_u8 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
+		for (legacy_u16 chosen = 1U; chosen <= 2U; chosen++) {
+			reset_fixture(1U, 1U);
+			objects[1].legacy_id = CSTRK_SLALOM_BLUE_CHECKPOINT_ID;
+			objects[2].legacy_id = CSTRK_SLALOM_RED_CHECKPOINT_ID;
+			legacy_u16 shared = add_combined_gate(rotation, CSTRK_ROAD_ICE);
+			objects[shared].legacy_id = CSTRK_SLALOM_COMBINED_CHECKPOINT_ID;
+			objects[shared].base_height = CSTRK_MAX_HEIGHT - 1U;
+			if (rotation & 1U) {
+				objects[shared].slope_x = 1;
+			} else {
+				objects[shared].slope_y = 1;
+			}
+			sweep_gate(chosen, 0, TEST_CAR_HEIGHT, 0);
+			assert(!finish_attempt());
+			sweep_gate(shared, CHECKPOINT_GATE_INNER_HALF_WIDTH, TEST_CAR_HEIGHT, 0);
+			assert(!extended_checkpoint_passed(&objects[shared], PLAYER_CAR_INDEX));
+			sweep_gate(shared, 0, TEST_CAR_HEIGHT, 1);
+			assert(extended_checkpoint_passed(&objects[shared], PLAYER_CAR_INDEX));
+			assert(finish_attempt());
+		}
+	}
+}
+
 static void test_finish_rotation_and_opponent(void)
 {
 	for (legacy_u16 rotation = 0U; rotation < 4U; rotation++) {
@@ -391,6 +418,7 @@ legacy_int main(void)
 	test_aperture();
 	test_color_alternatives();
 	test_combined_checkpoints();
+	test_slalom_checkpoint_colors();
 	test_finish_rotation_and_opponent();
 	test_real_crossings_and_snapshot();
 	test_finish_order_in_fast_tick();

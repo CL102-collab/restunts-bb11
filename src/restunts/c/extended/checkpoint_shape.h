@@ -27,6 +27,6 @@
  * the white banner into two faces and may replace the single owned allocation
  * rooted at shape3d_vertex_bytes. Returns zero on failure, retaining that
  * allocation, or one on success; free the result with extended_geometry_free_shape. */
-legacy_s16 checkpoint_shape_modify(struct SHAPE3D *mesh, legacy_u16 checkpoint_id);
+legacy_s16 checkpoint_shape_modify(struct SHAPE3D *mesh, legacy_u8 colors);
 
 #endif

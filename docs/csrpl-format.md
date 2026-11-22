@@ -7,7 +7,7 @@ UNIT also record `.csrpl` on classic `.trk` tracks. Those recordings embed the
 original 1,802-byte classic track and retain classic track physics.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v21**. The revision identifies the track format,
+recordings currently use **v22**. The revision identifies the track format,
 physics behavior, and filename metadata layout of the game that recorded the
 inputs; it is separate from the revision stored in the embedded track.
 
@@ -18,7 +18,7 @@ Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 Filename metadata and opponent recording have independent revision offsets.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v15, physics revision is 4, filename revision is 1, and opponent
+revision is v16, physics revision is 4, filename revision is 1, and opponent
 revision is 1. Physics revision 1 corrected wheel contact at consecutive hill
 slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
@@ -56,6 +56,8 @@ track's built-in fallback without changing playback or discarding the filename.
 Replay v21 adds four-byte opponent identifiers, recorded opponent commands,
 and the option to embed a classic track. The original six opponents retain their
 existing input-only replay behavior.
+Replay v22 adds track v16's slalom checkpoint variants. Their checkpoint
+progress follows the same playback and seeking rules as the road checkpoints.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.

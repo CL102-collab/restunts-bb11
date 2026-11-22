@@ -3495,34 +3495,50 @@ static void combined_stunt_render_terrain(struct CSTRK_TRACK *track, legacy_s8 s
 static void prepare_combined_stunt_capture(const struct CSTRK_OBJECT *object, legacy_u8 detail)
 {
 	const struct TRACKOBJECT *slalom = &trkObjectList[extended_track_object_id(object)];
-	struct TRACKOBJECT tunnel = trkObjectList[CSTRK_TUNNEL_FIRST_ID];
-	struct TRACKOBJECT floor = *frame_track_object_from_legacy_index(tunnel.ss_ssOvelay);
-	tunnel.ss_rotY = floor.ss_rotY = slalom->ss_rotY;
-	if (!floor.ss_loShapePtr) {
-		floor.ss_loShapePtr = floor.ss_shapePtr;
+	legacy_u8 colors = cstrk_checkpoint_colors(object->legacy_id);
+	struct TRACKOBJECT structure, floor;
+	if (colors) {
+		structure = trkObjectList[CHECKPOINT_START_FINISH_ID];
+		structure.ss_rotY = object->rotation * ANGLE_QUARTER_TURN;
+		floor = *frame_track_object_from_legacy_index(slalom->ss_ssOvelay);
+	} else {
+		structure = trkObjectList[CSTRK_TUNNEL_FIRST_ID];
+		floor = *frame_track_object_from_legacy_index(structure.ss_ssOvelay);
+		structure.ss_rotY = floor.ss_rotY = slalom->ss_rotY;
+		if (!floor.ss_loShapePtr) {
+			floor.ss_loShapePtr = floor.ss_shapePtr;
+		}
 	}
-	const struct TRACKOBJECT *parts[COMBINED_STUNT_RENDER_PART_COUNT] = {&tunnel, slalom, &floor};
+	const struct TRACKOBJECT *parts[COMBINED_STUNT_RENDER_PART_COUNT] = {&structure, slalom,
+																		 &floor};
 	for (legacy_u8 part = 0; part < COMBINED_STUNT_RENDER_PART_COUNT; part++) {
-		const struct SHAPE3D *source =
-			detail ? parts[part]->ss_loShapePtr : parts[part]->ss_shapePtr;
+		const struct SHAPE3D *source = frame_track_shape(parts[part], detail);
 		assert(source != NULL);
 		assert(extended_geometry_transform_shape(source, &combined_stunt_capture_meshes[part],
-												 slalom->ss_rotY, object->surface,
+												 parts[part]->ss_rotY, object->surface,
 												 PHYSICAL_MODEL_SLALOM));
+		if (parts[part]->ss_physicalModel == PHYSICAL_MODEL_START_FINISH) {
+			assert(checkpoint_shape_modify(&combined_stunt_capture_meshes[part], colors));
+		}
 	}
 	combined_stunt_capture_object = *object;
 	combined_stunt_capture_parts = combined_stunt_capture_calls = combined_stunt_capture_precise =
 		0;
 }
 
-static void check_combined_stunt_meshes(void)
+static void check_combined_stunt_meshes(legacy_u16 id)
 {
 	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
 	struct CSTRK_TRACK track;
 	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
 	cstrk_init(&track);
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
-	const struct FRAME_CAMERA camera = {0};
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	const struct FRAME_CAMERA camera = object_detail_test_camera(
+		STUNT_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2, 0,
+		(CSTRK_MAX_DIMENSION - STUNT_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
+			CSTRK_TILE_WORLD_SIZE / 2);
 	legacy_u16 cases = 0;
 	for (legacy_u8 rotation = 0; rotation < SEAM_RENDER_DIRECTION_COUNT; rotation++) {
 		legacy_u8 base = rotation & 1U ? CSTRK_MAX_HEIGHT - 1U : 0;
@@ -3530,13 +3546,13 @@ static void check_combined_stunt_meshes(void)
 			combined_stunt_render_terrain(&track, slopes[slope][0], slopes[slope][1], base);
 			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 				struct CSTRK_OBJECT object = {0};
-				object.legacy_id = CSTRK_SLALOM_FIRST_ID;
+				object.legacy_id = id;
 				object.x = STUNT_RENDER_COLUMN;
 				object.y = STUNT_RENDER_ROW;
 				object.rotation = rotation;
 				object.surface = surface;
 				object.width = object.height = object.occupied_mask = 1;
-				object.tunnel_slalom = 1;
+				object.tunnel_slalom = id == CSTRK_SLALOM_FIRST_ID;
 				object.slope_x = slopes[slope][0];
 				object.slope_y = slopes[slope][1];
 				object.base_height = base + (object.slope_x < 0 || object.slope_y < 0);
@@ -3568,7 +3584,9 @@ static void check_combined_stunt_meshes(void)
 	}
 	extended_track_unload();
 	cstrk_free(&track);
-	printf("Tunnel with slalom: %u three-part submissions in %s mode.\n", cases,
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
+	printf("Combined slalom %u: %u three-part submissions in %s mode.\n", id, cases,
 		   renderer_active ? "HyperVision" : "classic");
 }
 #endif
@@ -4063,7 +4081,7 @@ static void check_combined_checkpoint_meshes(void)
 				assert(extended_geometry_transform_shape(source, &mesh,
 														 rotation * ANGLE_QUARTER_TURN, surface,
 														 PHYSICAL_MODEL_START_FINISH));
-				assert(checkpoint_shape_modify(&mesh, CSTRK_COMBINED_CHECKPOINT_ID));
+				assert(checkpoint_shape_modify(&mesh, CSTRK_CHECKPOINT_BOTH_MASK));
 				const legacy_u8 *primitive = mesh.shape3d_primitives;
 				legacy_u16 blue = 0, red = 0;
 				for (legacy_u16 index = 0; index < mesh.shape3d_numprimitives; index++) {
@@ -5374,7 +5392,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_checkpoint_pixels();
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
-		check_combined_stunt_meshes();
+		check_combined_stunt_meshes(CSTRK_SLALOM_FIRST_ID);
+		check_combined_stunt_meshes(CSTRK_SLALOM_BLUE_CHECKPOINT_ID);
+		check_combined_stunt_meshes(CSTRK_SLALOM_RED_CHECKPOINT_ID);
+		check_combined_stunt_meshes(CSTRK_SLALOM_COMBINED_CHECKPOINT_ID);
 		check_upright_sloped_plants();
 		check_roll_ramp_submissions();
 		check_crop_submissions();

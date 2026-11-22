@@ -483,7 +483,7 @@ void extended_player_gate_tile(legacy_s16 column, legacy_s16 row, legacy_s16 *ga
 	const struct CSTRK_OBJECT *object = extended_track_object_at(column, row);
 	if (object && cstrk_is_checkpoint(object->legacy_id)) {
 		*gate = 1;
-		/* Checkpoint road IDs retain only their axis, not the gate's full rotation. */
+		/* Native piece IDs retain the axis. Authored checkpoints store the full rotation. */
 		*angle = object->rotation * ANGLE_QUARTER_TURN;
 	}
 }

@@ -19,11 +19,18 @@
     const SURFACE_BIAS = .0005, MARKING_BIAS = .001, GEOMETRY_EPSILON = 1e-10;
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
     const PINE_COUNTS = new Set([6, 10]), PINE_SCALE = 256;
-    const START_FINISH_ID = 1, STRAIGHT_ROAD_MODEL = 1, CHECKPOINT_WHITE = 15;
+    const START_FINISH_ID = 1, STRAIGHT_ROAD_MODEL = 1, SLALOM_ID = 115, CHECKPOINT_WHITE = 15;
     const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, COMBINED_CHECKPOINT_ID = 220;
+    const SLALOM_BLUE_CHECKPOINT_ID = 221, SLALOM_RED_CHECKPOINT_ID = 222, SLALOM_COMBINED_CHECKPOINT_ID = 223;
     const CHECKPOINT_BLUE = 9, CHECKPOINT_RED = 12;
-    const CHECKPOINT_MATERIALS = new Map([[BLUE_CHECKPOINT_ID, [CHECKPOINT_BLUE]], [RED_CHECKPOINT_ID, [CHECKPOINT_RED]],
-        [COMBINED_CHECKPOINT_ID, [CHECKPOINT_BLUE, CHECKPOINT_RED]]]);
+    const CHECKPOINTS = new Map([
+        [BLUE_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE] }],
+        [RED_CHECKPOINT_ID, { colors: [CHECKPOINT_RED] }],
+        [COMBINED_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE, CHECKPOINT_RED] }],
+        [SLALOM_BLUE_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE], base: SLALOM_ID }],
+        [SLALOM_RED_CHECKPOINT_ID, { colors: [CHECKPOINT_RED], base: SLALOM_ID }],
+        [SLALOM_COMBINED_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE, CHECKPOINT_RED], base: SLALOM_ID }]
+    ]);
     const WHEAT_FIELD_ID = 215, WHEAT_PHYSICAL_MODEL = 75;
     const TULIP_FIELD_ID = 216, TULIP_PHYSICAL_MODEL = 76, VINE_FIELD_ID = 217, VINE_PHYSICAL_MODEL = 77;
     // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
@@ -403,18 +410,20 @@
                 for (const shape of field.shapes) mesh(object, { rotation: 0, ignoreZBias: 0 }, shape, field.physical, 0);
                 continue;
             }
-            const checkpointMaterial = CHECKPOINT_MATERIALS.get(object.id);
-            if (checkpointMaterial !== undefined) {
+            const checkpoint = CHECKPOINTS.get(object.id);
+            if (checkpoint) {
                 if (object.width !== 1 || object.height !== 1 || object.mask !== 1 ||
                     object.lowerSurface || object.tunnelSlalom || object.rollRamp || object.pineCount) fail('Invalid 3D checkpoint.');
                 const sign = data.objects[START_FINISH_ID], shape = nativeShape(sign.shape);
-                mesh(object, sign, checkpointShape(shape, checkpointMaterial), STRAIGHT_ROAD_MODEL, object.surface,
-                    { preserveFractions: checkpointMaterial.length > 1 });
-                const road = data.objects[sign.overlay];
-                mesh(object, road, nativeShape(road.shape), STRAIGHT_ROAD_MODEL, object.surface);
-                continue;
+                mesh(object, sign, checkpointShape(shape, checkpoint.colors), STRAIGHT_ROAD_MODEL, object.surface,
+                    { preserveFractions: checkpoint.colors.length > 1 });
+                if (!checkpoint.base) {
+                    const road = data.objects[sign.overlay];
+                    mesh(object, road, nativeShape(road.shape), STRAIGHT_ROAD_MODEL, object.surface);
+                    continue;
+                }
             }
-            const original = data.objects[object.id];
+            const original = data.objects[checkpoint?.base ?? object.id];
             if (!original || !original.shape) fail('Unsupported 3D track element ' + object.id + '.');
             if (object.pineCount) {
                 if (!PINE_COUNTS.has(object.pineCount) || original.physical !== 71) fail('Invalid 3D pine group.');

@@ -3669,6 +3669,103 @@ static void test_checkpoint_roads(void)
 	cstrk_free(&track);
 }
 
+static void assert_slalom_checkpoint_sweep(const struct CSTRK_TRACK *track,
+										   const struct CSTRK_OBJECT *object, struct VECTOR first,
+										   struct VECTOR second, legacy_s16 expected)
+{
+	legacy_s16 inverse = (-object->rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+	track_rotate_local(&first, inverse);
+	track_rotate_local(&second, inverse);
+	first.y += extended_geometry_support_grade(object, first.x, first.z);
+	second.y += extended_geometry_support_grade(object, second.x, second.z);
+	first = object_world(track, object, first);
+	second = object_world(track, object, second);
+	legacy_s16 fraction;
+	assert(track_solid_obstacle_contact(&first, &second, &fraction) == expected);
+	struct VECTORLONG fixed_first = {first.x * TEST_FIXED_POSITION_SCALE,
+									 first.y * TEST_FIXED_POSITION_SCALE,
+									 first.z * TEST_FIXED_POSITION_SCALE};
+	struct VECTORLONG fixed_second = {second.x * TEST_FIXED_POSITION_SCALE,
+									  second.y * TEST_FIXED_POSITION_SCALE,
+									  second.z * TEST_FIXED_POSITION_SCALE};
+	assert(track_solid_obstacle_contact_fixed(&fixed_first, &fixed_second, &fraction) == expected);
+	assert(track_solid_wall_contact_fixed(&fixed_first, &fixed_second, &fraction) == expected);
+}
+
+static void test_slalom_checkpoint_solids(void)
+{
+	static const legacy_u16 ids[] = {CSTRK_SLALOM_BLUE_CHECKPOINT_ID,
+									 CSTRK_SLALOM_RED_CHECKPOINT_ID,
+									 CSTRK_SLALOM_COMBINED_CHECKPOINT_ID};
+	static const legacy_s8 expected_surfaces[] = {CAR_SURFACE_PAVED, CAR_SURFACE_DIRT,
+												  CAR_SURFACE_ICE};
+	enum {
+		TEST_GATE_POLE_X =
+			(CHECKPOINT_GATE_INNER_HALF_WIDTH + CHECKPOINT_GATE_OUTER_HALF_WIDTH) / 2,
+		TEST_GATE_SIGN_Y = (CHECKPOINT_GATE_SIGN_BOTTOM + CHECKPOINT_GATE_SIGN_TOP) / 2,
+		TEST_GATE_APPROACH = CHECKPOINT_GATE_HALF_DEPTH * 2,
+		TEST_GRADE_COUNT = 2
+	};
+	static const struct {
+		struct VECTOR first, second;
+		legacy_s16 hit;
+	} probes[] = {
+		{{0, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT, SLOPED_STUNT_TEST_POLE_BEFORE_Z},
+		 {0, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT, -SLOPED_STUNT_TEST_POLE_BEFORE_Z},
+		 0},
+		{{TEST_GATE_POLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT, -TEST_GATE_APPROACH},
+		 {TEST_GATE_POLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT, TEST_GATE_APPROACH},
+		 1},
+		{{0, TEST_GATE_SIGN_Y, -TEST_GATE_APPROACH}, {0, TEST_GATE_SIGN_Y, TEST_GATE_APPROACH}, 1},
+		{{SLOPED_STUNT_TEST_POLE_SAMPLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT,
+		  SLOPED_STUNT_TEST_POLE_BEFORE_Z},
+		 {SLOPED_STUNT_TEST_POLE_SAMPLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT,
+		  SLOPED_STUNT_TEST_POLE_AFTER_Z},
+		 1},
+		{{-SLOPED_STUNT_TEST_POLE_SAMPLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT,
+		  -SLOPED_STUNT_TEST_POLE_BEFORE_Z},
+		 {-SLOPED_STUNT_TEST_POLE_SAMPLE_X, SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT,
+		  -SLOPED_STUNT_TEST_POLE_AFTER_Z},
+		 1}};
+	for (legacy_u8 rotation = 0; rotation < SLOPED_STUNT_TEST_DIRECTION_COUNT; rotation++) {
+		for (legacy_u8 grade = 0; grade < TEST_GRADE_COUNT; grade++) {
+			struct CSTRK_TRACK track;
+			make_hill_test_track(
+				&track, grade ? HILL_TERRAIN_FIRST + rotation : CSTRK_TERRAIN_PROFILE_FLAT, 0U);
+			legacy_u32 corner = HILL_TEST_ROW * (track.width + 1U) + HILL_TEST_COLUMN;
+			for (legacy_u8 color = 0; color < sizeof(ids) / sizeof(ids[0]); color++) {
+				struct CSTRK_OBJECT object = object_at(ids[color], HILL_TEST_COLUMN, HILL_TEST_ROW);
+				object.rotation = rotation;
+				object.base_height = track.corner_heights[corner];
+				object.slope_x = track.corner_heights[corner + 1U] - object.base_height;
+				object.slope_y =
+					track.corner_heights[corner + track.width + 1U] - object.base_height;
+				for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+					object.surface = surface;
+					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+					activate(&track);
+					const struct CSTRK_OBJECT *placed =
+						extended_track_object_at(object.x, object.y);
+					assert(placed && placed->legacy_id == object.legacy_id);
+					legacy_u16 id = extended_track_object_id(placed);
+					assert(trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_SLALOM);
+					struct VECTOR point = sloped_stunt_world(
+						&track, &object, (struct VECTOR){0, SLOPED_STUNT_TEST_SAMPLE_HEIGHT, 0});
+					(void)sample_world(point.x, point.y, point.z);
+					assert(current_surf_type == expected_surfaces[surface]);
+					for (legacy_u8 probe = 0; probe < sizeof(probes) / sizeof(probes[0]); probe++) {
+						assert_slalom_checkpoint_sweep(&track, &object, probes[probe].first,
+													   probes[probe].second, probes[probe].hit);
+					}
+					extended_track_unload();
+					assert(cstrk_remove_object(&track, 0U));
+				}
+			}
+			cstrk_free(&track);
+		}
+	}
+}
+
 static void test_custom_horizon_activation(void)
 {
 	struct CSTRK_TRACK track;
@@ -3732,6 +3829,7 @@ int main(void)
 	legacy_s16 *legacy_links = track_primary_route_links;
 	test_custom_horizon_activation();
 	test_checkpoint_roads();
+	test_slalom_checkpoint_solids();
 	test_native_mesh_rotations();
 	test_native_mesh_copy_boundaries();
 	test_world_coordinates_and_surfaces();

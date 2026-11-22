@@ -18,15 +18,27 @@ legacy_int cstrk_is_checkpoint(legacy_u16 id)
 	return cstrk_checkpoint_colors(id) != 0U;
 }
 
+legacy_int cstrk_is_slalom_checkpoint(legacy_u16 id)
+{
+	return id == CSTRK_SLALOM_BLUE_CHECKPOINT_ID || id == CSTRK_SLALOM_RED_CHECKPOINT_ID ||
+		   id == CSTRK_SLALOM_COMBINED_CHECKPOINT_ID;
+}
+
 legacy_u8 cstrk_checkpoint_colors(legacy_u16 id)
 {
-	if (id == CSTRK_BLUE_CHECKPOINT_ID) {
-		return CSTRK_CHECKPOINT_BLUE_MASK;
+	switch (id) {
+		case CSTRK_BLUE_CHECKPOINT_ID:
+		case CSTRK_SLALOM_BLUE_CHECKPOINT_ID:
+			return CSTRK_CHECKPOINT_BLUE_MASK;
+		case CSTRK_RED_CHECKPOINT_ID:
+		case CSTRK_SLALOM_RED_CHECKPOINT_ID:
+			return CSTRK_CHECKPOINT_RED_MASK;
+		case CSTRK_COMBINED_CHECKPOINT_ID:
+		case CSTRK_SLALOM_COMBINED_CHECKPOINT_ID:
+			return CSTRK_CHECKPOINT_BOTH_MASK;
+		default:
+			return 0U;
 	}
-	if (id == CSTRK_RED_CHECKPOINT_ID) {
-		return CSTRK_CHECKPOINT_RED_MASK;
-	}
-	return id == CSTRK_COMBINED_CHECKPOINT_ID ? CSTRK_CHECKPOINT_BOTH_MASK : 0U;
 }
 
 static int cstrk_fail(char *error, size_t size, const char *format, ...)
@@ -277,9 +289,10 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 						  (unsigned)index);
 	}
 	if (cstrk_is_checkpoint(object->legacy_id)) {
-		legacy_u16 required_version = object->legacy_id == CSTRK_COMBINED_CHECKPOINT_ID
-										  ? CSTRK_COMBINED_CHECKPOINT_VERSION
-										  : CSTRK_CHECKPOINT_VERSION;
+		legacy_u16 required_version =
+			cstrk_is_slalom_checkpoint(object->legacy_id)		? CSTRK_SLALOM_CHECKPOINT_VERSION
+			: object->legacy_id == CSTRK_COMBINED_CHECKPOINT_ID ? CSTRK_COMBINED_CHECKPOINT_VERSION
+																: CSTRK_CHECKPOINT_VERSION;
 		if (track->version < required_version) {
 			return cstrk_fail(error, error_size,
 							  "Object %u requires track version v%u for checkpoints",

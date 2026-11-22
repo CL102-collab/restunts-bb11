@@ -229,15 +229,15 @@ static legacy_s16 checkpoint_combined_shape(struct SHAPE3D *mesh)
 	return 1;
 }
 
-legacy_s16 checkpoint_shape_modify(struct SHAPE3D *mesh, legacy_u16 checkpoint_id)
+legacy_s16 checkpoint_shape_modify(struct SHAPE3D *mesh, legacy_u8 colors)
 {
-	if (checkpoint_id == CSTRK_COMBINED_CHECKPOINT_ID) {
+	if (colors == CSTRK_CHECKPOINT_BOTH_MASK) {
 		return checkpoint_combined_shape(mesh);
 	}
 	legacy_u8 material;
-	if (checkpoint_id == CSTRK_BLUE_CHECKPOINT_ID) {
+	if (colors == CSTRK_CHECKPOINT_BLUE_MASK) {
 		material = CHECKPOINT_SHAPE_BLUE_MATERIAL;
-	} else if (checkpoint_id == CSTRK_RED_CHECKPOINT_ID) {
+	} else if (colors == CSTRK_CHECKPOINT_RED_MASK) {
 		material = CHECKPOINT_SHAPE_RED_MATERIAL;
 	} else {
 		return 1;

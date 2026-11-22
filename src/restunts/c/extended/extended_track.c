@@ -480,14 +480,16 @@ static legacy_int object_footprint_valid(const struct CSTRK_OBJECT *object)
 
 static int resolve_object_id(const struct CSTRK_OBJECT *object)
 {
-	/* A checkpoint is a straight road for traversal and wheel contact. Its
-	 * authored gate remains independent, so it cannot be mistaken for finish. */
+	/* Resolve checkpoint traversal and wheel contact to the underlying piece.
+	 * The separate authored gate keeps its full rotation and color. */
 	if (cstrk_is_checkpoint(object->legacy_id)) {
 		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
 			return -1;
 		}
-		return EXTENDED_CHECKPOINT_ROAD_FIRST_ID +
-			   object->rotation % EXTENDED_CHECKPOINT_AXIS_COUNT;
+		legacy_u16 first = cstrk_is_slalom_checkpoint(object->legacy_id)
+							   ? CSTRK_SLALOM_FIRST_ID
+							   : EXTENDED_CHECKPOINT_ROAD_FIRST_ID;
+		return first + object->rotation % EXTENDED_CHECKPOINT_AXIS_COUNT;
 	}
 	/* Extended-only scenery retains its independent object while the legacy
 	 * route map sees an empty cell, without requiring new original assets. */

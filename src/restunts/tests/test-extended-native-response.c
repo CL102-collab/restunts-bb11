@@ -1093,8 +1093,10 @@ static void assert_gate_collision(const struct TEST_GATE_PROBE *probe, legacy_s1
 
 static void test_checkpoint_pole_collisions(void)
 {
-	static const legacy_u16 colors[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID,
-										CSTRK_COMBINED_CHECKPOINT_ID};
+	static const legacy_u16 colors[] = {
+		CSTRK_BLUE_CHECKPOINT_ID,		CSTRK_RED_CHECKPOINT_ID,
+		CSTRK_COMBINED_CHECKPOINT_ID,	CSTRK_SLALOM_BLUE_CHECKPOINT_ID,
+		CSTRK_SLALOM_RED_CHECKPOINT_ID, CSTRK_SLALOM_COMBINED_CHECKPOINT_ID};
 	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, -1}};
 	fixture_extended = 1;
 	/* A checkpoint must collide without occupying the race's start/finish tile. */

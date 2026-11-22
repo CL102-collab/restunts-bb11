@@ -20,6 +20,7 @@
 
 #ifdef RESTUNTS_SDL3
 #define CHECKPOINT_SOLID_BOX_COUNT 5U
+#define TRACK_SOLID_QUERY_RADIUS (3L * CSTRK_TILE_WORLD_SIZE)
 static const struct TRACK_SOLID_BOX checkpoint_boxes[CHECKPOINT_SOLID_BOX_COUNT] = {
 	{{-CHECKPOINT_GATE_OUTER_HALF_WIDTH, 0, -CHECKPOINT_GATE_HALF_DEPTH},
 	 {-CHECKPOINT_GATE_INNER_HALF_WIDTH, CHECKPOINT_GATE_LOWER_POLE_HEIGHT,
@@ -36,6 +37,41 @@ static const struct TRACK_SOLID_BOX checkpoint_boxes[CHECKPOINT_SOLID_BOX_COUNT]
 	 {CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_BOTTOM, CHECKPOINT_GATE_HALF_DEPTH}},
 	{{-CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_BOTTOM, -CHECKPOINT_GATE_HALF_DEPTH},
 	 {CHECKPOINT_GATE_OUTER_HALF_WIDTH, CHECKPOINT_GATE_SIGN_TOP, CHECKPOINT_GATE_HALF_DEPTH}}};
+
+/* A slalom checkpoint has two independent sets of solids. The slalom barriers
+ * retain their native axis, while the gate uses its authored orientation. */
+#define TRACK_SOLID_GROUP_MAX 2U
+
+struct TRACK_SOLID_GROUP {
+	const struct TRACK_SOLID_BOX *boxes;
+	legacy_u16 count;
+	legacy_s16 orientation;
+};
+
+static legacy_u16 solid_obstacle_groups(const struct CSTRK_OBJECT *object,
+										struct TRACK_SOLID_GROUP groups[TRACK_SOLID_GROUP_MAX])
+{
+	legacy_uint id = extended_track_object_id(object);
+	if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0])) {
+		return 0;
+	}
+	if (object->roll_ramp) {
+		groups[0] = (struct TRACK_SOLID_GROUP){
+			NULL, ROLL_RAMP_SEGMENT_COUNT / 2U + ROLL_RAMP_SUPPORT_BOX_COUNT,
+			roll_ramp_orientation(object)};
+		return 1;
+	}
+	legacy_u16 count = 0;
+	if (trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_SLALOM) {
+		groups[count++] = (struct TRACK_SOLID_GROUP){slalom_boxes, TRACK_SLALOM_BOX_COUNT,
+													 trkObjectList[id].ss_rotY};
+	}
+	if (cstrk_is_checkpoint(object->legacy_id)) {
+		groups[count++] = (struct TRACK_SOLID_GROUP){checkpoint_boxes, CHECKPOINT_SOLID_BOX_COUNT,
+													 object->rotation * ANGLE_QUARTER_TURN};
+	}
+	return count;
+}
 
 static legacy_s16 roll_ramp_clip_solid(legacy_s64 first, legacy_s64 second, legacy_s16 *entry,
 									   legacy_s16 *exit)
@@ -134,75 +170,74 @@ static legacy_s16 roll_ramp_solid_contact(const struct VECTOR *first, const stru
 	return hit;
 }
 
-static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct VECTOR *second,
-												  legacy_s16 *fraction,
-												  const struct TRACK_SOLID_BOX *boxes,
-												  legacy_u16 box_count)
+static legacy_s16 extended_solid_obstacle_contact(const struct VECTOR *first,
+												  const struct VECTOR *second, legacy_s16 *fraction)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
 	legacy_s16 hit = 0, earliest = TRIG_FIXED_ONE;
 	for (legacy_u32 i = 0; i < track->object_count; i++) {
 		const struct CSTRK_OBJECT *object = &track->objects[i];
-		legacy_u32 id = extended_track_object_id(object);
-		if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0]) ||
-			(!object->roll_ramp && !cstrk_is_checkpoint(object->legacy_id) &&
-			 trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
+		struct TRACK_SOLID_GROUP groups[TRACK_SOLID_GROUP_MAX];
+		legacy_u16 count = solid_obstacle_groups(object, groups);
+		if (!count) {
 			continue;
 		}
-		struct VECTOR origin, local_first, local_second;
-		extended_geometry_object_origin(track, object, &origin);
-		local_first = (struct VECTOR){LEGACY_S16_WRAP_SUB(first->x, origin.x),
-									  LEGACY_S16_WRAP_SUB(first->y, origin.y),
-									  LEGACY_S16_WRAP_SUB(first->z, origin.z)};
-		local_second = (struct VECTOR){LEGACY_S16_WRAP_SUB(second->x, origin.x),
-									   LEGACY_S16_WRAP_SUB(second->y, origin.y),
-									   LEGACY_S16_WRAP_SUB(second->z, origin.z)};
-		if (extended_geometry_uses_grade(object)) {
-			local_first.y = LEGACY_S16_WRAP_SUB(
-				local_first.y,
-				extended_geometry_object_grade(object, local_first.x, local_first.z));
-			local_second.y = LEGACY_S16_WRAP_SUB(
-				local_second.y,
-				extended_geometry_object_grade(object, local_second.x, local_second.z));
-		}
+
 		/* Exclude another 65536-unit page with identical wrapped coordinates. */
 		legacy_s32 absolute_x, absolute_z;
 		extended_geometry_world_position(first, &absolute_x, &absolute_z);
-		legacy_s32 center_x = object->x * 1024 + object->width * 512;
-		legacy_s32 center_z = track->height * 1024 - object->y * 1024 - object->height * 512;
-		if (absolute_x - center_x < -3072 || absolute_x - center_x > 3072 ||
-			absolute_z - center_z < -3072 || absolute_z - center_z > 3072) {
+		legacy_s32 center_x =
+			object->x * CSTRK_TILE_WORLD_SIZE + object->width * (CSTRK_TILE_WORLD_SIZE / 2);
+		legacy_s32 center_z = track->height * CSTRK_TILE_WORLD_SIZE -
+							  object->y * CSTRK_TILE_WORLD_SIZE -
+							  object->height * (CSTRK_TILE_WORLD_SIZE / 2);
+		if (absolute_x - center_x < -TRACK_SOLID_QUERY_RADIUS ||
+			absolute_x - center_x > TRACK_SOLID_QUERY_RADIUS ||
+			absolute_z - center_z < -TRACK_SOLID_QUERY_RADIUS ||
+			absolute_z - center_z > TRACK_SOLID_QUERY_RADIUS) {
 			continue;
 		}
-		legacy_s16 orientation = object->roll_ramp ? roll_ramp_orientation(object)
-								 : cstrk_is_checkpoint(object->legacy_id)
-									 ? object->rotation * ANGLE_QUARTER_TURN
-									 : trkObjectList[id].ss_rotY;
-		track_rotate_local(&local_first, orientation);
-		track_rotate_local(&local_second, orientation);
-		if (object->roll_ramp) {
-			legacy_s16 contact;
-			if (roll_ramp_solid_contact(&local_first, &local_second, &contact)) {
-				if (!hit || contact < earliest) {
-					earliest = contact;
+
+		struct VECTOR origin;
+		extended_geometry_object_origin(track, object, &origin);
+		struct VECTOR relative_first = {LEGACY_S16_WRAP_SUB(first->x, origin.x),
+										LEGACY_S16_WRAP_SUB(first->y, origin.y),
+										LEGACY_S16_WRAP_SUB(first->z, origin.z)};
+		struct VECTOR relative_second = {LEGACY_S16_WRAP_SUB(second->x, origin.x),
+										 LEGACY_S16_WRAP_SUB(second->y, origin.y),
+										 LEGACY_S16_WRAP_SUB(second->z, origin.z)};
+		if (extended_geometry_uses_grade(object)) {
+			relative_first.y = LEGACY_S16_WRAP_SUB(
+				relative_first.y,
+				extended_geometry_object_grade(object, relative_first.x, relative_first.z));
+			relative_second.y = LEGACY_S16_WRAP_SUB(
+				relative_second.y,
+				extended_geometry_object_grade(object, relative_second.x, relative_second.z));
+		}
+
+		for (legacy_u16 index = 0; index < count; index++) {
+			const struct TRACK_SOLID_GROUP *group = &groups[index];
+			struct VECTOR local_first = relative_first, local_second = relative_second;
+			track_rotate_local(&local_first, group->orientation);
+			track_rotate_local(&local_second, group->orientation);
+			if (object->roll_ramp) {
+				legacy_s16 contact;
+				if (roll_ramp_solid_contact(&local_first, &local_second, &contact)) {
+					if (!hit || contact < earliest) {
+						earliest = contact;
+					}
+					hit = 1;
 				}
-				hit = 1;
+				continue;
 			}
-			continue;
-		}
-		const struct TRACK_SOLID_BOX *solids = boxes;
-		legacy_u16 solid_count = box_count;
-		if (cstrk_is_checkpoint(object->legacy_id)) {
-			solids = checkpoint_boxes;
-			solid_count = CHECKPOINT_SOLID_BOX_COUNT;
-		}
-		for (legacy_u16 box = 0; box < solid_count; box++) {
-			legacy_s16 contact;
-			if (solid_box_contact(&local_first, &local_second, &solids[box], &contact)) {
-				if (!hit || contact < earliest) {
-					earliest = contact;
+			for (legacy_u16 box = 0; box < group->count; box++) {
+				legacy_s16 contact;
+				if (solid_box_contact(&local_first, &local_second, &group->boxes[box], &contact)) {
+					if (!hit || contact < earliest) {
+						earliest = contact;
+					}
+					hit = 1;
 				}
-				hit = 1;
 			}
 		}
 	}
@@ -214,7 +249,6 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 /* Solid sweeps must retain all six position fraction bits. Rounding a wheel
  * resting on an incline down to a word can invent entry into its concrete. */
 #define TRACK_SOLID_POSITION_SCALE 64L
-#define TRACK_SOLID_QUERY_RADIUS (3L * CSTRK_TILE_WORLD_SIZE)
 
 struct TRACK_FIXED_SOLID_POINT {
 	legacy_s64 x, y, z;
@@ -442,10 +476,9 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 	legacy_s16 hit = 0, earliest = TRIG_FIXED_ONE;
 	for (legacy_u32 index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
-		legacy_u16 id = extended_track_object_id(object);
-		if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0]) ||
-			(!object->roll_ramp && !cstrk_is_checkpoint(object->legacy_id) &&
-			 trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
+		struct TRACK_SOLID_GROUP groups[TRACK_SOLID_GROUP_MAX];
+		legacy_u16 count = solid_obstacle_groups(object, groups);
+		if (!count) {
 			continue;
 		}
 		legacy_s32 center_x =
@@ -465,57 +498,52 @@ static legacy_s16 extended_solid_obstacle_contact_fixed(const struct VECTORLONG 
 		}
 		struct VECTOR origin;
 		extended_geometry_object_origin(track, object, &origin);
-		legacy_s16 orientation = object->roll_ramp ? roll_ramp_orientation(object)
-								 : cstrk_is_checkpoint(object->legacy_id)
-									 ? object->rotation * ANGLE_QUARTER_TURN
-									 : trkObjectList[id].ss_rotY;
-		struct TRACK_FIXED_SOLID_POINT local_first =
-			fixed_solid_local(first, center_x, origin.y, center_z, orientation);
-		struct TRACK_FIXED_SOLID_POINT local_second =
-			fixed_solid_local(second, center_x, origin.y, center_z, orientation);
-		legacy_u8 road_seam = query == TRACK_FIXED_SOLID_WALLS && object->roll_ramp &&
-							  local_first.z <= 0 && local_second.z > 0 &&
-							  fixed_ramp_point_above_road(&local_first, object, orientation) &&
-							  fixed_ramp_point_above_road(&local_second, object, orientation);
-		legacy_u16 count = object->roll_ramp
-							   ? ROLL_RAMP_SEGMENT_COUNT / 2U + ROLL_RAMP_SUPPORT_BOX_COUNT
-						   : cstrk_is_checkpoint(object->legacy_id)
-							   ? CHECKPOINT_SOLID_BOX_COUNT
-							   : sizeof(slalom_boxes) / sizeof(slalom_boxes[0]);
-		for (legacy_u16 part = 0; part < count; part++) {
-			struct TRACK_SOLID_BOX box;
-			legacy_s16 end_height;
-			legacy_u8 shared_minimum = 0, shared_maximum = 0;
-			legacy_u8 road_top = object->roll_ramp && part < ROLL_RAMP_SEGMENT_COUNT / 2U;
-			if (road_top) {
-				legacy_s16 span = ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT;
-				legacy_s16 start = part * span, end = start + span;
-				box.minimum =
-					(struct VECTOR){-ROLL_RAMP_HALF_WIDTH, 0, ROLL_RAMP_HALF_LENGTH - end};
-				box.maximum = (struct VECTOR){ROLL_RAMP_HALF_WIDTH, roll_ramp_center_height(start),
-											  ROLL_RAMP_HALF_LENGTH - start};
-				end_height = roll_ramp_center_height(end);
-				shared_minimum = end < CSTRK_TILE_WORLD_SIZE;
-				shared_maximum = start > 0;
-			} else if (object->roll_ramp) {
-				struct ROLL_RAMP_BOX support;
-				roll_ramp_support_box(part - ROLL_RAMP_SEGMENT_COUNT / 2U, &support);
-				box.minimum = support.minimum;
-				box.maximum = support.maximum;
-				end_height = box.maximum.y;
-			} else {
-				box = cstrk_is_checkpoint(object->legacy_id) ? checkpoint_boxes[part]
-															 : slalom_boxes[part];
-				end_height = box.maximum.y;
-			}
-			legacy_s16 contact;
-			if (fixed_solid_prism(&local_first, &local_second, object, orientation, &box,
-								  end_height, shared_minimum, shared_maximum, road_top,
-								  road_top && !shared_minimum && road_seam, query, &contact)) {
-				if (!hit || contact < earliest) {
-					earliest = contact;
+		for (legacy_u16 group_index = 0; group_index < count; group_index++) {
+			const struct TRACK_SOLID_GROUP *group = &groups[group_index];
+			legacy_s16 orientation = group->orientation;
+			struct TRACK_FIXED_SOLID_POINT local_first =
+				fixed_solid_local(first, center_x, origin.y, center_z, orientation);
+			struct TRACK_FIXED_SOLID_POINT local_second =
+				fixed_solid_local(second, center_x, origin.y, center_z, orientation);
+			legacy_u8 road_seam = query == TRACK_FIXED_SOLID_WALLS && object->roll_ramp &&
+								  local_first.z <= 0 && local_second.z > 0 &&
+								  fixed_ramp_point_above_road(&local_first, object, orientation) &&
+								  fixed_ramp_point_above_road(&local_second, object, orientation);
+			for (legacy_u16 part = 0; part < group->count; part++) {
+				struct TRACK_SOLID_BOX box;
+				legacy_s16 end_height;
+				legacy_u8 shared_minimum = 0, shared_maximum = 0;
+				legacy_u8 road_top = object->roll_ramp && part < ROLL_RAMP_SEGMENT_COUNT / 2U;
+				if (road_top) {
+					legacy_s16 span = ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT;
+					legacy_s16 start = part * span, end = start + span;
+					box.minimum =
+						(struct VECTOR){-ROLL_RAMP_HALF_WIDTH, 0, ROLL_RAMP_HALF_LENGTH - end};
+					box.maximum =
+						(struct VECTOR){ROLL_RAMP_HALF_WIDTH, roll_ramp_center_height(start),
+										ROLL_RAMP_HALF_LENGTH - start};
+					end_height = roll_ramp_center_height(end);
+					shared_minimum = end < CSTRK_TILE_WORLD_SIZE;
+					shared_maximum = start > 0;
+				} else if (object->roll_ramp) {
+					struct ROLL_RAMP_BOX support;
+					roll_ramp_support_box(part - ROLL_RAMP_SEGMENT_COUNT / 2U, &support);
+					box.minimum = support.minimum;
+					box.maximum = support.maximum;
+					end_height = box.maximum.y;
+				} else {
+					box = group->boxes[part];
+					end_height = box.maximum.y;
 				}
-				hit = 1;
+				legacy_s16 contact;
+				if (fixed_solid_prism(&local_first, &local_second, object, orientation, &box,
+									  end_height, shared_minimum, shared_maximum, road_top,
+									  road_top && !shared_minimum && road_seam, query, &contact)) {
+					if (!hit || contact < earliest) {
+						earliest = contact;
+					}
+					hit = 1;
+				}
 			}
 		}
 	}
@@ -531,8 +559,7 @@ legacy_s16 extended_trackobj_solid_contact(struct VECTOR *first, struct VECTOR *
 	if (!extended_track_active()) {
 		return 0;
 	}
-	*hit = extended_solid_obstacle_contact(first, second, fraction, slalom_boxes,
-										   TRACK_SLALOM_BOX_COUNT);
+	*hit = extended_solid_obstacle_contact(first, second, fraction);
 	return 1;
 }
 

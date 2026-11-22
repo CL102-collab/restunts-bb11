@@ -132,7 +132,9 @@ static legacy_s8 frame_extended_object_distance_detail(
 		0,
 		-object->height * (legacy_f64)FRAME_EXTENDED_TERRAIN_HALF_TILE -
 			HIRES_FRAME_EXTENDED_ROAD_OVERSCAN};
-	struct SHAPE3D_HIRES_VECTOR maximum = {-minimum.x, 0, -minimum.z};
+	struct SHAPE3D_HIRES_VECTOR maximum = {
+		-minimum.x, cstrk_is_slalom_checkpoint(object->legacy_id) ? CHECKPOINT_GATE_SIGN_TOP : 0,
+		-minimum.z};
 	for (legacy_u8 part = 0; part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {
 		const struct TRACKOBJECT *render_definition = definition;
 		if (part) {
@@ -314,14 +316,16 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	object.flags = flags;
 	if (cstrk_is_checkpoint(model->legacy_id)) {
 		struct TRACKOBJECT gate = trkObjectList[CHECKPOINT_START_FINISH_ID];
-		struct TRACKOBJECT road = *frame_track_object_from_legacy_index(gate.ss_ssOvelay);
 		gate.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
-		road.ss_rotY = gate.ss_rotY;
-		if (frame_extended_draw_object_part(&object, &gate, 0) ||
-			frame_extended_draw_object_part(&object, &road, 1)) {
+		if (frame_extended_draw_object_part(&object, &gate, 0)) {
 			return 1;
 		}
-		return 0;
+		/* A slalom already supplies its barriers and road in the native parts. */
+		if (!cstrk_is_slalom_checkpoint(model->legacy_id)) {
+			struct TRACKOBJECT road = *frame_track_object_from_legacy_index(gate.ss_ssOvelay);
+			road.ss_rotY = gate.ss_rotY;
+			return frame_extended_draw_object_part(&object, &road, 1);
+		}
 	}
 	if (cstrk_is_crop_field(model->legacy_id)) {
 		struct TRACKOBJECT crop = *definition;
@@ -497,12 +501,10 @@ legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *o
 	if (!transformed) {
 		return 0;
 	}
-	if (cstrk_is_checkpoint(object->object->legacy_id) &&
-		definition->ss_physicalModel == PHYSICAL_MODEL_START_FINISH) {
-		if (!checkpoint_shape_modify(&mesh, object->object->legacy_id)) {
-			extended_geometry_free_shape(&mesh);
-			return 0;
-		}
+	if (definition->ss_physicalModel == PHYSICAL_MODEL_START_FINISH &&
+		!checkpoint_shape_modify(&mesh, cstrk_checkpoint_colors(object->object->legacy_id))) {
+		extended_geometry_free_shape(&mesh);
+		return 0;
 	}
 	struct VECTOR anchor;
 	const struct VECTOR *upright_anchor =

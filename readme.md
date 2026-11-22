@@ -2189,7 +2189,7 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v15. Revision v3 through v14 tracks open as v15 while preserving their
+revision is v16. Revisions v3 through v15 open as v16 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
 
@@ -2220,6 +2220,11 @@ Blue and Red checkpoints require `.cstrk` v13. **Blue / red checkpoint** uses a
 flag with a blue top half and red bottom half, counts in both color sets, and
 is required on either route. It supports the same road surfaces and rotations
 and requires `.cstrk` v14.
+
+The Stunts palette includes **Slalom with blue checkpoint**, **Slalom with red
+checkpoint**, and **Slalom with blue / red checkpoint**. Each combines the
+standard slalom barriers with the corresponding checkpoint gate. These
+variants require `.cstrk` v16.
 
 The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
 rows. Adjacent tiles form larger fields, rotation changes the row direction, and

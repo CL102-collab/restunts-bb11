@@ -22,13 +22,19 @@
     const VINE_FIELD_ID = 217, VINE_FIELD_PHYSICAL_MODEL = 77, VINE_FIELD_VERSION = 12;
     const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, CHECKPOINT_VERSION = 13;
     const COMBINED_CHECKPOINT_ID = 220, COMBINED_CHECKPOINT_VERSION = 14;
+    const SLALOM_BLUE_CHECKPOINT_ID = 221, SLALOM_RED_CHECKPOINT_ID = 222, SLALOM_COMBINED_CHECKPOINT_ID = 223;
+    const SLALOM_CHECKPOINT_VERSION = 16;
     const BLUE_CHECKPOINT_PHYSICAL_MODEL = 78, RED_CHECKPOINT_PHYSICAL_MODEL = 79, COMBINED_CHECKPOINT_PHYSICAL_MODEL = 80;
     const CHECKPOINTS = new Map([
         [BLUE_CHECKPOINT_ID, { name: 'Blue checkpoint', physical: BLUE_CHECKPOINT_PHYSICAL_MODEL, version: CHECKPOINT_VERSION }],
         [RED_CHECKPOINT_ID, { name: 'Red checkpoint', physical: RED_CHECKPOINT_PHYSICAL_MODEL, version: CHECKPOINT_VERSION }],
-        [COMBINED_CHECKPOINT_ID, { name: 'Blue / red checkpoint', physical: COMBINED_CHECKPOINT_PHYSICAL_MODEL, version: COMBINED_CHECKPOINT_VERSION }]
+        [COMBINED_CHECKPOINT_ID, { name: 'Blue / red checkpoint', physical: COMBINED_CHECKPOINT_PHYSICAL_MODEL, version: COMBINED_CHECKPOINT_VERSION }],
+        [SLALOM_BLUE_CHECKPOINT_ID, { name: 'Slalom with blue checkpoint', physical: SLALOM_PHYSICAL_MODEL, version: SLALOM_CHECKPOINT_VERSION }],
+        [SLALOM_RED_CHECKPOINT_ID, { name: 'Slalom with red checkpoint', physical: SLALOM_PHYSICAL_MODEL, version: SLALOM_CHECKPOINT_VERSION }],
+        [SLALOM_COMBINED_CHECKPOINT_ID, { name: 'Slalom with blue / red checkpoint', physical: SLALOM_PHYSICAL_MODEL, version: SLALOM_CHECKPOINT_VERSION }]
     ]);
     function isCheckpoint(id) { return CHECKPOINTS.has(id); }
+    function isSlalomCheckpoint(id) { return CHECKPOINTS.get(id)?.physical === SLALOM_PHYSICAL_MODEL; }
     const CROP_FIELDS = new Map([
         [WHEAT_FIELD_ID, { name: 'Wheat field', physical: WHEAT_FIELD_PHYSICAL_MODEL, version: WHEAT_FIELD_VERSION }],
         [TULIP_FIELD_ID, { name: 'Tulip field', physical: TULIP_FIELD_PHYSICAL_MODEL, version: TULIP_FIELD_VERSION }],
@@ -44,7 +50,7 @@
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
     const CUSTOM_HORIZON_VERSION = 15, CUSTOM_HORIZON_MAX_BYTES = 127, CUSTOM_HORIZON_LENGTH_BYTES = 2;
     const horizonEncoder = new TextEncoder(), horizonDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-    const VERSION = 15, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = SLALOM_CHECKPOINT_VERSION, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -91,20 +97,23 @@
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
     for (const [id, field] of CROP_FIELDS) catalog.push({ id, name: field.name, group: 10, width: 1, height: 1, mask: 1,
         rotation: 0, physical: field.physical, decoration: true, legacySurface: 0, surfaces: [0, 1, 2] });
-    for (const [id, checkpoint] of CHECKPOINTS) catalog.push({ id, name: checkpoint.name, group: 1, width: 1, height: 1, mask: 1,
-        rotation: 0, physical: checkpoint.physical, decoration: false, legacySurface: 0, surfaces: [0, 1, 2] });
+    for (const [id, checkpoint] of CHECKPOINTS) catalog.push({ id, name: checkpoint.name, group: isSlalomCheckpoint(id) ? 4 : 1,
+        width: 1, height: 1, mask: 1, rotation: 0, physical: checkpoint.physical, decoration: false, legacySurface: 0, surfaces: [0, 1, 2] });
     const byId = new Map(catalog.map(a => [a.id, a]));
     // A family keeps distinct shapes and editor groups, while combining native rotations.
+    function familyKey(entry) {
+        return isSlalomCheckpoint(entry.id) ? 'checkpoint:' + entry.id : entry.group + ':' + entry.physical;
+    }
     const libraryFamilies = new Map();
     for (const entry of catalog.filter(p => p.legacySurface <= 0)) {
-        const key = entry.group + ':' + entry.physical;
+        const key = familyKey(entry);
         if (!libraryFamilies.has(key)) libraryFamilies.set(key, []);
         libraryFamilies.get(key).push(entry);
     }
     const library = Array.from(libraryFamilies.values(), variants => variants.find(p => p.rotation === 0) || variants[0]).flatMap(piece =>
         piece.physical === OVERPASS_PHYSICAL_MODEL
             ? OVERPASS_NAMES.map((name, lowerSurface) => ({ ...piece, name, lowerSurface, key: 'overpass:' + lowerSurface }))
-            : piece.physical === SLALOM_PHYSICAL_MODEL
+            : piece.physical === SLALOM_PHYSICAL_MODEL && !isSlalomCheckpoint(piece.id)
                 ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: TUNNEL_SLALOM_NAME, tunnelSlalom: 1, key: 'tunnel-slalom' }]
                 : piece.physical === ROLL_RAMP_PHYSICAL_MODEL
                     ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: ROLL_RAMP_NAME, rollRamp: 1, key: 'roll-ramp' }]
@@ -147,7 +156,7 @@
     }
     function pieceVariant(entry, direction) {
         integer(direction, 0, 3, 'piece direction');
-        const variants = libraryFamilies.get(entry.group + ':' + entry.physical);
+        const variants = libraryFamilies.get(familyKey(entry));
         // Cardinal controls describe travel. The native roll ramp's yaw zero
         // travels south, opposite the editor's north-facing zero direction.
         const orientation = entry.rollRamp ? (direction + ROLL_RAMP_DIRECTION_OFFSET) % PIECE_DIRECTION_COUNT : direction;
@@ -159,7 +168,7 @@
     function pieceDisplayVariant(entry, rotation = 0) {
         integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'piece display rotation');
         const direction = (entry.rotation + rotation) % PIECE_DIRECTION_COUNT;
-        const variants = libraryFamilies.get(entry.group + ':' + entry.physical) || [entry];
+        const variants = libraryFamilies.get(familyKey(entry)) || [entry];
         const piece = withPaletteVariant(variants.find(candidate => candidate.rotation === 0) || variants[0], entry);
         // The launch lip is directional even though the backing corkscrew is symmetric.
         if (entry.rollRamp) return { piece, rotation: (direction - piece.rotation + PIECE_DIRECTION_COUNT) % PIECE_DIRECTION_COUNT };
@@ -182,6 +191,7 @@
     function checkTunnelSlalom(entry, tunnelSlalom, version) {
         integer(tunnelSlalom, 0, 1, 'tunnel with slalom flag');
         if (tunnelSlalom && entry.physical !== SLALOM_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only slalom elements can include a tunnel.');
+        if (tunnelSlalom && isSlalomCheckpoint(entry.id)) throw new Error('A slalom checkpoint cannot include a tunnel.');
         if (tunnelSlalom && version < TUNNEL_SLALOM_VERSION) throw new Error(TUNNEL_SLALOM_VERSION_ERROR);
     }
     function checkRollRamp(entry, rollRamp, version) {
@@ -771,7 +781,7 @@
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
                 try {
-                    integer(object.id, 1, COMBINED_CHECKPOINT_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
+                    integer(object.id, 1, SLALOM_COMBINED_CHECKPOINT_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
                     integer(object.width, 1, 2, 'element width'); integer(object.height, 1, 2, 'element height');
                     integer(object.mask, 1, (1 << (object.width * object.height)) - 1, 'element footprint');
                     integer(object.rotation, 0, 3, 'element rotation'); integer(object.surface, 0, 2, 'element surface');
@@ -889,5 +899,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, RAISE_LOWER_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, CUSTOM_HORIZON_VERSION, CUSTOM_HORIZON_MAX_BYTES, validateCustomHorizonFilename, asciiCaseFold, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, isCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, RAISE_LOWER_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, CUSTOM_HORIZON_VERSION, CUSTOM_HORIZON_MAX_BYTES, validateCustomHorizonFilename, asciiCaseFold, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, BLUE_CHECKPOINT_ID, RED_CHECKPOINT_ID, CHECKPOINT_VERSION, COMBINED_CHECKPOINT_ID, COMBINED_CHECKPOINT_VERSION, BLUE_CHECKPOINT_PHYSICAL_MODEL, RED_CHECKPOINT_PHYSICAL_MODEL, COMBINED_CHECKPOINT_PHYSICAL_MODEL, SLALOM_BLUE_CHECKPOINT_ID, SLALOM_RED_CHECKPOINT_ID, SLALOM_COMBINED_CHECKPOINT_ID, SLALOM_CHECKPOINT_VERSION, isCheckpoint, isSlalomCheckpoint, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

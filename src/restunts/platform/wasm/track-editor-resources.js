@@ -13,11 +13,18 @@
     const EDITOR_TILE_SIZE = 16, EDITOR_TILE_INTERIOR = EDITOR_TILE_SIZE - 1;
     const OVERPASS_VERTICAL_ICON = 101, OVERPASS_HORIZONTAL_ICON = 102;
     const ROAD_SURFACE_DIRT = 1, ROAD_SURFACE_ICE = 2;
-    const START_FINISH_ICON = 1, STRAIGHT_ROAD_ICON = 4, CHECKPOINT_WHITE = 15;
+    const START_FINISH_ICON = 1, STRAIGHT_ROAD_ICON = 4, SLALOM_ICON = 115, CHECKPOINT_WHITE = 15;
     const BLUE_CHECKPOINT_ID = 218, RED_CHECKPOINT_ID = 219, COMBINED_CHECKPOINT_ID = 220;
+    const SLALOM_BLUE_CHECKPOINT_ID = 221, SLALOM_RED_CHECKPOINT_ID = 222, SLALOM_COMBINED_CHECKPOINT_ID = 223;
     const CHECKPOINT_BLUE = 9, CHECKPOINT_RED = 12, COMBINED_ICON_SCALE = 2;
-    const CHECKPOINT_COLORS = new Map([[BLUE_CHECKPOINT_ID, [CHECKPOINT_BLUE]], [RED_CHECKPOINT_ID, [CHECKPOINT_RED]],
-        [COMBINED_CHECKPOINT_ID, [CHECKPOINT_BLUE, CHECKPOINT_RED]]]);
+    const CHECKPOINT_ICONS = new Map([
+        [BLUE_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE] }],
+        [RED_CHECKPOINT_ID, { colors: [CHECKPOINT_RED] }],
+        [COMBINED_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE, CHECKPOINT_RED] }],
+        [SLALOM_BLUE_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE], base: SLALOM_ICON }],
+        [SLALOM_RED_CHECKPOINT_ID, { colors: [CHECKPOINT_RED], base: SLALOM_ICON }],
+        [SLALOM_COMBINED_CHECKPOINT_ID, { colors: [CHECKPOINT_BLUE, CHECKPOINT_RED], base: SLALOM_ICON }]
+    ]);
     const TUNNEL_SLALOM_ICONS = new Map([[115, { tunnel: 66, road: 4 }], [116, { tunnel: 67, road: 5 }]]);
     const ROLL_RAMP_VERTICAL_ICON = 85, ROLL_RAMP_HORIZONTAL_ICON = 86, ROLL_RAMP_TILE_COUNT = 2;
     const ROLL_RAMP_HALF_WIDTH = 4, ROLL_RAMP_LIP_HALF_WIDTH = 2, ROLL_RAMP_GRID_STEP = 3;
@@ -331,10 +338,13 @@
         }
         return { width, height, pixels, alpha };
     }
-    function composeCheckpointBitmap(icons, colors) {
+    function composeCheckpointBitmap(icons, { colors, base }) {
         const sign = composeTileBitmap(icons.get(START_FINISH_ICON));
         const road = composeTileBitmap(icons.get(STRAIGHT_ROAD_ICON));
-        if (sign.width !== road.width || sign.height !== road.height) fail('Incompatible checkpoint artwork.');
+        const background = base ? composeTileBitmap(icons.get(base)) : null;
+        if (sign.width !== road.width || sign.height !== road.height ||
+            (background && (background.width !== sign.width || background.height !== sign.height)))
+            fail('Incompatible checkpoint artwork.');
         let firstSignRow = sign.height, lastSignRow = -1;
         // The banner extends beyond the road. Its white checkerboard rows
         // distinguish it from the direction arrow drawn within the road.
@@ -352,19 +362,22 @@
         const midpoint = (firstSignRow + lastSignRow + 1) * scale / 2;
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
             const source = Math.floor(y / scale) * sign.width + Math.floor(x / scale), index = y * width + x;
-            pixels[index] = sign.pixels[source]; alpha[index] = sign.alpha[source];
-            if (!alpha[index] || pixels[index] !== CHECKPOINT_WHITE) continue;
-            if (y >= firstSignRow * scale && y < (lastSignRow + 1) * scale)
+            const white = sign.alpha[source] && sign.pixels[source] === CHECKPOINT_WHITE;
+            if (white && y >= firstSignRow * scale && y < (lastSignRow + 1) * scale) {
                 pixels[index] = colors.length > 1 && y >= midpoint ? colors[1] : colors[0];
-            else { pixels[index] = road.pixels[source]; alpha[index] = road.alpha[source]; }
+                alpha[index] = sign.alpha[source];
+            } else {
+                const tile = background || (white ? road : sign);
+                pixels[index] = tile.pixels[source]; alpha[index] = tile.alpha[source];
+            }
         }
         return { width, height, pixels, alpha };
     }
     function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
-        const checkpointColor = CHECKPOINT_COLORS.get(id);
-        if (checkpointColor !== undefined) {
+        const checkpoint = CHECKPOINT_ICONS.get(id);
+        if (checkpoint) {
             if (tunnelSlalom || rollRamp || pineCount) fail('Invalid checkpoint artwork flags.');
-            return composeCheckpointBitmap(icons, checkpointColor);
+            return composeCheckpointBitmap(icons, checkpoint);
         }
         const field = CROP_FIELD_ICONS.get(id);
         if (field) {

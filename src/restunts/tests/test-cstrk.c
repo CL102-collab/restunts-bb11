@@ -70,7 +70,8 @@ static void test_horizons_and_versions(void)
 	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
 	assert(track.version == CSTRK_VERSION && track.horizon == CSTRK_HORIZON_DEFAULT);
 	static const legacy_char notes[] = "Keep these track notes.\n";
-	static const legacy_u16 versions[] = {CSTRK_VERSION, 15U, TEST_FUTURE_REVISION, LEGACY_U16_MAX};
+	static const legacy_u16 versions[] = {CSTRK_CUSTOM_HORIZON_VERSION, CSTRK_VERSION,
+										  TEST_FUTURE_REVISION, LEGACY_U16_MAX};
 	assert(cstrk_set_notes(&track, notes, sizeof(notes) - 1U, error, sizeof(error)));
 	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
 		track.version = versions[index];
@@ -82,11 +83,14 @@ static void test_horizons_and_versions(void)
 			assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == track.version);
 			assert(data[CSTRK_HORIZON_OFFSET] == horizon);
 			assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
-			assert(decoded.version == track.version && decoded.horizon == horizon);
+			legacy_u16 expected_version =
+				track.version < CSTRK_VERSION ? CSTRK_VERSION : track.version;
+			assert(decoded.version == expected_version && decoded.horizon == horizon);
 			assert(decoded.notes_length == sizeof(notes) - 1U && strcmp(decoded.notes, notes) == 0);
 			legacy_u8 *encoded = NULL;
 			size_t encoded_size = 0;
 			assert(cstrk_encode(&decoded, &encoded, &encoded_size, error, sizeof(error)));
+			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, expected_version);
 			assert(encoded_size == size && memcmp(encoded, data, size) == 0);
 			free(encoded);
 
@@ -675,7 +679,7 @@ static void test_invalid_records(void)
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	struct CSTRK_OBJECT invalid[] = {
 		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-		{CSTRK_COMBINED_CHECKPOINT_ID + 1U, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+		{CSTRK_SLALOM_COMBINED_CHECKPOINT_ID + 1U, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
 		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
 		{1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
 		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
@@ -1434,21 +1438,31 @@ static void test_checkpoint_records(void)
 	cstrk_init(&track);
 	cstrk_init(&decoded);
 	assert(cstrk_create(&track, 2U, 2U, error, sizeof(error)));
-	static const legacy_u16 ids[] = {CSTRK_BLUE_CHECKPOINT_ID, CSTRK_RED_CHECKPOINT_ID,
-									 CSTRK_COMBINED_CHECKPOINT_ID};
-	static const legacy_u8 colors[] = {CSTRK_CHECKPOINT_BLUE_MASK, CSTRK_CHECKPOINT_RED_MASK,
-									   CSTRK_CHECKPOINT_BOTH_MASK};
-	for (legacy_u8 color = 0; color < sizeof(ids) / sizeof(ids[0]); color++) {
-		assert(cstrk_is_checkpoint(ids[color]));
-		assert(cstrk_checkpoint_colors(ids[color]) == colors[color]);
-		legacy_u16 required_version = ids[color] == CSTRK_COMBINED_CHECKPOINT_ID
-										  ? CSTRK_COMBINED_CHECKPOINT_VERSION
-										  : CSTRK_CHECKPOINT_VERSION;
+	static const struct {
+		legacy_u16 id, version;
+		legacy_u8 colors, slalom;
+	} checkpoints[] = {
+		{CSTRK_BLUE_CHECKPOINT_ID, CSTRK_CHECKPOINT_VERSION, CSTRK_CHECKPOINT_BLUE_MASK, 0},
+		{CSTRK_RED_CHECKPOINT_ID, CSTRK_CHECKPOINT_VERSION, CSTRK_CHECKPOINT_RED_MASK, 0},
+		{CSTRK_COMBINED_CHECKPOINT_ID, CSTRK_COMBINED_CHECKPOINT_VERSION,
+		 CSTRK_CHECKPOINT_BOTH_MASK, 0},
+		{CSTRK_SLALOM_BLUE_CHECKPOINT_ID, CSTRK_SLALOM_CHECKPOINT_VERSION,
+		 CSTRK_CHECKPOINT_BLUE_MASK, 1},
+		{CSTRK_SLALOM_RED_CHECKPOINT_ID, CSTRK_SLALOM_CHECKPOINT_VERSION, CSTRK_CHECKPOINT_RED_MASK,
+		 1},
+		{CSTRK_SLALOM_COMBINED_CHECKPOINT_ID, CSTRK_SLALOM_CHECKPOINT_VERSION,
+		 CSTRK_CHECKPOINT_BOTH_MASK, 1}};
+	for (legacy_u8 index = 0; index < sizeof(checkpoints) / sizeof(checkpoints[0]); index++) {
+		legacy_u16 id = checkpoints[index].id;
+		legacy_u16 required_version = checkpoints[index].version;
+		assert(cstrk_is_checkpoint(id));
+		assert(cstrk_is_slalom_checkpoint(id) == checkpoints[index].slalom);
+		assert(cstrk_checkpoint_colors(id) == checkpoints[index].colors);
 		track.version = required_version;
 		for (legacy_u8 rotation = 0; rotation < 4U; rotation++) {
 			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 				struct CSTRK_OBJECT object = object_at(0U, 0U);
-				object.legacy_id = ids[color];
+				object.legacy_id = id;
 				object.rotation = rotation;
 				object.surface = surface;
 				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
@@ -1469,7 +1483,7 @@ static void test_checkpoint_records(void)
 			}
 		}
 		struct CSTRK_OBJECT object = object_at(0U, 0U);
-		object.legacy_id = ids[color];
+		object.legacy_id = id;
 		object.width = 2U;
 		object.occupied_mask = 3U;
 		assert(!cstrk_add_object(&track, &object, error, sizeof(error)));
@@ -1483,9 +1497,9 @@ static void test_checkpoint_records(void)
 		assert(!cstrk_add_object(&track, &object, error, sizeof(error)));
 	}
 	assert(!cstrk_is_checkpoint(CSTRK_VINE_FIELD_ID));
-	assert(!cstrk_is_checkpoint(CSTRK_COMBINED_CHECKPOINT_ID + 1U));
+	assert(!cstrk_is_checkpoint(CSTRK_SLALOM_COMBINED_CHECKPOINT_ID + 1U));
 	assert(cstrk_checkpoint_colors(CSTRK_VINE_FIELD_ID) == 0U);
-	assert(cstrk_checkpoint_colors(CSTRK_COMBINED_CHECKPOINT_ID + 1U) == 0U);
+	assert(cstrk_checkpoint_colors(CSTRK_SLALOM_COMBINED_CHECKPOINT_ID + 1U) == 0U);
 	cstrk_free(&decoded);
 	cstrk_free(&track);
 }

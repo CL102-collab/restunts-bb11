@@ -14,7 +14,7 @@
 #define TEST_CHECKPOINT_DIRT_MATERIAL 25U
 #define TEST_CHECKPOINT_ICE_MATERIAL 28U
 
-static void test_checkpoint_paint(legacy_u16 id, legacy_u8 expected)
+static void test_checkpoint_paint(legacy_u8 colors, legacy_u8 expected)
 {
 	legacy_u8 primitives[] = {TEST_CHECKPOINT_QUAD_VERTEX_COUNT,
 							  1,
@@ -55,7 +55,7 @@ static void test_checkpoint_paint(legacy_u16 id, legacy_u8 expected)
 						   primitives,
 						   masks,
 						   masks};
-	assert(checkpoint_shape_modify(&mesh, id));
+	assert(checkpoint_shape_modify(&mesh, colors));
 	for (legacy_u16 paint = 0; paint < TEST_CHECKPOINT_PAINT_COUNT; paint++) {
 		assert(primitives[SHAPE3D_PRIMITIVE_HEADER_SIZE + paint] == expected);
 		original[SHAPE3D_PRIMITIVE_HEADER_SIZE + paint] = expected;
@@ -145,7 +145,7 @@ static void test_combined_banner(legacy_u8 direction)
 	struct SHAPE3D mesh = test_combined_source(direction);
 	legacy_u8 original[TEST_COMBINED_ALLOCATION_BYTES];
 	memcpy(original, mesh.shape3d_vertex_bytes, sizeof(original));
-	assert(checkpoint_shape_modify(&mesh, CSTRK_COMBINED_CHECKPOINT_ID));
+	assert(checkpoint_shape_modify(&mesh, CSTRK_CHECKPOINT_BOTH_MASK));
 	assert(mesh.shape3d_numverts == TEST_COMBINED_VERTEX_COUNT + TEST_COMBINED_SEAM_VERTICES);
 	assert(mesh.shape3d_numprimitives == TEST_COMBINED_PRIMITIVE_COUNT + 1U);
 	assert(mesh.shape3d_numpaints == TEST_CHECKPOINT_PAINT_COUNT);
@@ -215,7 +215,7 @@ static void test_combined_failure(void)
 		legacy_u8 original[TEST_COMBINED_ALLOCATION_BYTES];
 		struct SHAPE3D retained = mesh;
 		memcpy(original, mesh.shape3d_vertex_bytes, sizeof(original));
-		assert(!checkpoint_shape_modify(&mesh, CSTRK_COMBINED_CHECKPOINT_ID));
+		assert(!checkpoint_shape_modify(&mesh, CSTRK_CHECKPOINT_BOTH_MASK));
 		assert(memcmp(&mesh, &retained, sizeof(mesh)) == 0);
 		assert(memcmp(mesh.shape3d_vertex_bytes, original, sizeof(original)) == 0);
 		free(mesh.shape3d_vertex_bytes);
@@ -224,8 +224,8 @@ static void test_combined_failure(void)
 
 legacy_int main(void)
 {
-	test_checkpoint_paint(CSTRK_BLUE_CHECKPOINT_ID, CHECKPOINT_SHAPE_BLUE_MATERIAL);
-	test_checkpoint_paint(CSTRK_RED_CHECKPOINT_ID, CHECKPOINT_SHAPE_RED_MATERIAL);
+	test_checkpoint_paint(CSTRK_CHECKPOINT_BLUE_MASK, CHECKPOINT_SHAPE_BLUE_MATERIAL);
+	test_checkpoint_paint(CSTRK_CHECKPOINT_RED_MASK, CHECKPOINT_SHAPE_RED_MATERIAL);
 	for (legacy_u8 direction = 0; direction < TEST_COMBINED_DIRECTION_COUNT; direction++) {
 		test_combined_banner(direction);
 	}

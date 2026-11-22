@@ -16,8 +16,8 @@ from regression_timeouts import scaled_timeout
 
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
-CSTRK_VERSION = 15
-CSRPL_VERSION = 21
+CSTRK_VERSION = 16
+CSRPL_VERSION = 22
 CSRPL_MIN_VERSION = 11
 CSRPL_PRE_CUSTOM_HORIZON_VERSION = 19
 CSRPL_FUTURE_VERSION = 101
@@ -59,6 +59,9 @@ BARREL_ROTATION_COUNT = 4
 BLUE_CHECKPOINT_ID = 218
 RED_CHECKPOINT_ID = 219
 COMBINED_CHECKPOINT_ID = 220
+SLALOM_BLUE_CHECKPOINT_ID = 221
+SLALOM_RED_CHECKPOINT_ID = 222
+SLALOM_COMBINED_CHECKPOINT_ID = 223
 CHECKPOINT_ROWS = (10, 14)
 BRANCH_TOP, BRANCH_SPLIT, BRANCH_BOTTOM, BRANCH_START = 8, 18, 26, 22
 BRANCH_LEFT, BRANCH_MERGE, BRANCH_RIGHT = 72, 78, 84
@@ -178,6 +181,16 @@ def track_bytes(kind="flat", rotation=0, surface=0, *, custom_horizon="", horizo
             if piece["x"] == (left + right) // 2 and piece["y"] == bottom:
                 piece["tile"] = COMBINED_CHECKPOINT_ID
                 piece["rotation"] = 1
+    if kind == "slalom-checkpoints":
+        gates = {
+            (right, CHECKPOINT_ROWS[0]): (SLALOM_BLUE_CHECKPOINT_ID, 0),
+            (right, CHECKPOINT_ROWS[1]): (SLALOM_RED_CHECKPOINT_ID, 0),
+            ((left + right) // 2, bottom): (SLALOM_COMBINED_CHECKPOINT_ID, 1),
+        }
+        for piece in pieces:
+            gate = gates.get((piece["x"], piece["y"]))
+            if gate:
+                piece["tile"], piece["rotation"] = gate
     if kind == "maximum":
         occupied = {(piece["x"], piece["y"]) for piece in pieces}
         for row in range(MAP_SIZE):
@@ -740,6 +753,16 @@ def main():
             _, combined_view, _, _ = generate(combined_path, "COUN", "combined.csrpl", evaluations=512)
             assert combined_view["track"] == combined_path.read_bytes()
             print("Fresh generation on graded tunnel-with-slalom CSTRK passed", flush=True)
+
+            slalom_path = output / "slalom-gates.cstrk"
+            slalom_path.write_bytes(track_bytes("slalom-checkpoints"))
+            _, slalom_view, slalom_report, slalom_playback = generate(
+                slalom_path, "P962", "slalom-gates.csrpl", evaluations=32)
+            assert slalom_view["version"] == CSRPL_VERSION
+            assert slalom_view["track"] == slalom_path.read_bytes()
+            assert slalom_report["route_combinations"] == slalom_report["routes_finished"] == 2
+            assert all(slalom_playback[color + "_passed"] == 1 for color in ("blue", "red", "shared"))
+            print("Slalom checkpoints preserve both complete color routes in verified replays", flush=True)
 
             tight_path = output / "barrel-budget.cstrk"
             tight_path.write_bytes(track_bytes("barrel-tight"))

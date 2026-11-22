@@ -8,11 +8,12 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [10, 10, 4, 2, 4, 9, 2, 15]);
-    const families = new Set(model.library.map(p => p.group + ':' + p.physical));
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [10, 13, 4, 2, 4, 9, 2, 15]);
+    const family = p => model.isSlalomCheckpoint(p.id) ? p.id : p.group + ':' + p.physical;
+    const families = new Set(model.library.map(family));
     assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
-    for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
+    for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(family(entry)));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
     assert.equal(model.library.filter(p => p.name === 'Highway transition').length, 1);
     for (const [id, physical, name] of [[151, 74, 'Palm tree'], [152, 72, 'Cactus'], [153, 71, 'Pine tree']]) {
@@ -21,13 +22,16 @@ test('library combines rotated alternatives while preserving distinct shapes and
         assert.equal(model.library.find(piece => piece.id === id).name, name);
     }
 });
-test('checkpoint roads preserve colors, all surfaces and directions across CSTRK and clipboard transforms', () => {
-    const colors = [[model.BLUE_CHECKPOINT_ID, 'Blue checkpoint', model.CHECKPOINT_VERSION],
-        [model.RED_CHECKPOINT_ID, 'Red checkpoint', model.CHECKPOINT_VERSION],
-        [model.COMBINED_CHECKPOINT_ID, 'Blue / red checkpoint', model.COMBINED_CHECKPOINT_VERSION]];
-    for (const [id, name, introduction] of colors) {
+test('checkpoints preserve colors, all surfaces and directions across CSTRK and clipboard transforms', () => {
+    const pieces = [[model.BLUE_CHECKPOINT_ID, 'Blue checkpoint', model.CHECKPOINT_VERSION, 1],
+        [model.RED_CHECKPOINT_ID, 'Red checkpoint', model.CHECKPOINT_VERSION, 1],
+        [model.COMBINED_CHECKPOINT_ID, 'Blue / red checkpoint', model.COMBINED_CHECKPOINT_VERSION, 1],
+        [model.SLALOM_BLUE_CHECKPOINT_ID, 'Slalom with blue checkpoint', model.SLALOM_CHECKPOINT_VERSION, 4],
+        [model.SLALOM_RED_CHECKPOINT_ID, 'Slalom with red checkpoint', model.SLALOM_CHECKPOINT_VERSION, 4],
+        [model.SLALOM_COMBINED_CHECKPOINT_ID, 'Slalom with blue / red checkpoint', model.SLALOM_CHECKPOINT_VERSION, 4]];
+    for (const [id, name, introduction, group] of pieces) {
         const entry = model.library.find(piece => piece.id === id);
-        assert.equal(entry.name, name); assert.equal(entry.group, 1); assert.equal(entry.decoration, false);
+        assert.equal(entry.name, name); assert.equal(entry.group, group); assert.equal(entry.decoration, false);
         assert.deepEqual(entry.surfaces, [0, 1, 2]); assert(model.isCheckpoint(id)); assert(!model.isCropField(id));
         for (const surface of entry.surfaces) for (let direction = 0; direction < 4; direction++) {
             const doc = new model.Document(4, 4), variant = model.pieceVariant(entry, direction);
@@ -55,6 +59,10 @@ test('checkpoint roads preserve colors, all surfaces and directions across CSTRK
             assert.equal(upgraded.version, model.VERSION); assert.deepEqual(upgraded.objects, doc.objects);
             doc.version = introduction - 1;
             assert.throws(() => model.encodeCstrk(doc), requiredVersion);
+        }
+        if (model.isSlalomCheckpoint(id)) {
+            const doc = new model.Document(4, 4);
+            assert.throws(() => doc.place(id, 1, 1, 0, 0, 0, 1), /cannot include a tunnel/);
         }
         const oldDoc = new model.Document(4, 4); oldDoc.version = introduction - 1;
         assert.throws(() => oldDoc.place(id, 1, 1), new RegExp('checkpoints require.*v' + introduction));
@@ -102,7 +110,8 @@ test('symmetric pieces share canonical artwork without changing saved placement'
     assert.equal(new Set(canonicalIds.map(id => model.catalog.find(piece => piece.id === id).physical)).size, symmetricModels.size);
     for (const id of canonicalIds) {
         const canonical = model.catalog.find(piece => piece.id === id);
-        const variants = model.catalog.filter(piece => piece.group === canonical.group && piece.physical === canonical.physical);
+        const variants = model.catalog.filter(piece => piece.group === canonical.group && piece.physical === canonical.physical &&
+            !model.isSlalomCheckpoint(piece.id));
         for (const entry of variants) for (let rotation = 0; rotation < 4; rotation++) {
             const display = model.pieceDisplayVariant(entry, rotation);
             assert.equal(display.piece.id, id, entry.name + ': every native variant uses the canonical image');
@@ -2222,9 +2231,10 @@ test('CSTRK custom horizon trailer follows notes and rejects malformed or incomp
     assert.deepEqual(encoded.subarray(32, original.length), original.subarray(32));
     assert.equal(view.getUint16(original.length, true), name.length);
     assert.deepEqual(encoded.subarray(original.length + 2), name);
-    for (const version of [model.CUSTOM_HORIZON_VERSION, model.CUSTOM_HORIZON_VERSION + 1, 101]) {
+    for (const version of [model.CUSTOM_HORIZON_VERSION, model.VERSION, 101]) {
         const bytes = encoded.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
-        const loaded = model.decodeCstrk(bytes); assert.equal(loaded.version, version); assert.equal(loaded.customHorizon, filename);
+        const loaded = model.decodeCstrk(bytes); assert.equal(loaded.version, Math.max(model.VERSION, version)); assert.equal(loaded.customHorizon, filename);
+        new DataView(bytes.buffer).setUint16(8, loaded.version, true);
         assert.deepEqual(model.encodeCstrk(loaded), bytes);
     }
     const old = encoded.slice(); new DataView(old.buffer).setUint16(8, model.CUSTOM_HORIZON_VERSION - 1, true);
@@ -2250,7 +2260,7 @@ test('CSTRK custom horizon trailer follows notes and rejects malformed or incomp
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, model.CUSTOM_HORIZON_VERSION); assert.equal(doc.version, model.VERSION);
+    assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -2305,11 +2315,12 @@ test('v3 tracks upgrade with their original overpass surfaces and reserve the ne
         const invalid = bytes.slice(); invalid[objectOffset + offset] = 1;
         assert.throws(() => model.decodeCstrk(invalid), /element flags/);
     }
-    for (const version of [model.VERSION, 15, 101]) {
+    for (const version of [model.CUSTOM_HORIZON_VERSION, model.VERSION, 101]) {
         const valid = bytes.slice(); new DataView(valid.buffer).setUint16(8, version, true);
         valid[objectOffset + 12] = 2;
         const doc = model.decodeCstrk(valid);
-        assert.equal(doc.version, version); assert.equal(doc.objects[0].lowerSurface, 2);
+        assert.equal(doc.version, Math.max(model.VERSION, version)); assert.equal(doc.objects[0].lowerSurface, 2);
+        new DataView(valid.buffer).setUint16(8, doc.version, true);
         assert.deepEqual(model.encodeCstrk(doc), valid);
         for (const offset of [13, 14, 15]) {
             const invalid = valid.slice(); invalid[objectOffset + offset] = 1;
@@ -2324,7 +2335,7 @@ test('v3 tracks upgrade with their original overpass surfaces and reserve the ne
 test('CSTRK version metadata preserves compatible newer revisions across loading and editing', () => {
     const doc = new model.Document(4, 4); doc.setHorizon(model.HORIZONS.indexOf('Country'));
     const original = model.encodeCstrk(doc);
-    for (const version of [model.VERSION, 15, 101, 0xffff]) {
+    for (const version of [model.VERSION, model.VERSION + 1, 101, 0xffff]) {
         const bytes = original.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
         const loaded = model.decodeCstrk(bytes);
         assert.equal(loaded.version, version); assert.equal(loaded.horizon, doc.horizon);
@@ -2434,6 +2445,34 @@ test('tunnel with slalom artwork preserves the tunnel shell and adds only barrie
     }
     assert.throws(() => resources.composePieceTileBitmap(icons, 4, 1), /Invalid tunnel/);
 });
+test('slalom checkpoint artwork adds only the recolored banner to the slalom icon', () => {
+    const nativeSize = 16, interiorSize = 15, roadColor = 8, white = 15;
+    function bitmap() {
+        return { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize ** 2),
+            mask: { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize ** 2).fill(255) } };
+    }
+    const road = bitmap(), start = bitmap(), slalom = bitmap();
+    const paint = (tile, x, y, color) => { tile.pixels[y * nativeSize + x + 1] = color; };
+    for (const tile of [road, start, slalom]) for (let y = 0; y < interiorSize; y++)
+        for (let x = 5; x <= 9; x++) paint(tile, x, y, roadColor);
+    for (let y = 6; y <= 8; y++) for (let x = 3; x <= 11; x++) paint(start, x, y, white);
+    paint(start, 7, 12, white);
+    for (let x = 5; x <= 7; x++) paint(slalom, x, 4, white);
+    for (let x = 7; x <= 9; x++) paint(slalom, x, 10, white);
+    const icons = new Map([[1, start], [4, road], [115, slalom]]);
+    const base = resources.composeTileBitmap(slalom);
+    for (const [id, top, bottom, scale] of [[model.SLALOM_BLUE_CHECKPOINT_ID, 9, 9, 1],
+        [model.SLALOM_RED_CHECKPOINT_ID, 12, 12, 1], [model.SLALOM_COMBINED_CHECKPOINT_ID, 9, 12, 2]]) {
+        const tile = resources.composePieceTileBitmap(icons, id);
+        assert.deepEqual([tile.width, tile.height], [base.width * scale, base.height * scale]);
+        for (let y = 0; y < tile.height; y++) for (let x = 0; x < tile.width; x++) {
+            const index = y * tile.width + x, source = Math.floor(y / scale) * base.width + Math.floor(x / scale);
+            const banner = x >= 3 * scale && x < 12 * scale && y >= 6 * scale && y < 9 * scale;
+            assert.equal(tile.pixels[index], banner ? (y < 7.5 * scale ? top : bottom) : base.pixels[source]);
+            assert.equal(tile.alpha[index], banner ? 255 : base.alpha[source]);
+        }
+    }
+});
 test('RLE byte runs and canonical VLE decode with bounds checks', () => {
     assert.deepEqual(resources.decompress(Uint8Array.from([1, 4, 0, 0, 0, 0, 0, 0, 129, 255, 255, 4, 65])), Uint8Array.from([65, 65, 65, 65]));
     assert.deepEqual(resources.decompress(Uint8Array.from([2, 4, 0, 0, 1, 2, 65, 66, 0b01100000])), Uint8Array.from([65, 66, 66, 65]));
@@ -2458,7 +2497,8 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
             const pixelsPerTile = tile.width / entry.width;
             assert(Number.isInteger(pixelsPerTile));
             assert.equal(tile.height, entry.height * pixelsPerTile);
-            if (model.isCropField(entry.id) || entry.id === model.COMBINED_CHECKPOINT_ID) assert(pixelsPerTile >= 15, 'generated artwork may use finer detail');
+            if (model.isCropField(entry.id) || entry.id === model.COMBINED_CHECKPOINT_ID || entry.id === model.SLALOM_COMBINED_CHECKPOINT_ID)
+                assert(pixelsPerTile >= 15, 'generated artwork may use finer detail');
             else assert.equal(pixelsPerTile, 15, 'native artwork keeps its original tile resolution');
             assert.equal(tile.pixels.length, tile.width * tile.height);
             assert.equal(tile.alpha.length, tile.pixels.length);
@@ -2492,7 +2532,7 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
         const tileSize = road.width, connectors = [];
         const roadWidth = Array.from(road.alpha.slice(0, tileSize)).filter(Boolean).length;
         for (const entry of model.catalog.filter(piece => !piece.decoration && piece.legacySurface <= 0)) {
-            const routeId = model.isCheckpoint(entry.id) ? 4 : entry.id;
+            const routeId = model.isSlalomCheckpoint(entry.id) ? 115 : model.isCheckpoint(entry.id) ? 4 : entry.id;
             const routeIndex = routeData.objects[routeId].routeIndex;
             if (routeIndex === null) continue;
             const display = model.pieceDisplayVariant(entry);

@@ -259,7 +259,7 @@ static void sample_roll(struct EXTENDED_TEST_ROLL *roll)
 	}
 }
 
-static legacy_u16 checkpoint_passed_count(legacy_u16 id)
+static legacy_u16 checkpoint_passed_count(legacy_u8 colors)
 {
 	if (!extended_track_active()) {
 		return 0;
@@ -268,7 +268,8 @@ static legacy_u16 checkpoint_passed_count(legacy_u16 id)
 	legacy_u16 count = 0;
 	for (legacy_u32 index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
-		if (object->legacy_id == id && extended_checkpoint_passed(object, PLAYER_CAR_INDEX)) {
+		if (cstrk_checkpoint_colors(object->legacy_id) == colors &&
+			extended_checkpoint_passed(object, PLAYER_CAR_INDEX)) {
 			count++;
 		}
 	}
@@ -308,9 +309,9 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 			}
 		}
 		assert(genghost_sim_step(replay.inputs[frame]) >= 0);
-		if (has_checkpoints && (checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID) ||
-								checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID) ||
-								checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID))) {
+		if (has_checkpoints && (checkpoint_passed_count(CSTRK_CHECKPOINT_BLUE_MASK) ||
+								checkpoint_passed_count(CSTRK_CHECKPOINT_RED_MASK) ||
+								checkpoint_passed_count(CSTRK_CHECKPOINT_BOTH_MASK))) {
 			captured_checkpoint = 1;
 		}
 		assert(genghost_sim_frame() == frame + 1U);
@@ -345,9 +346,9 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 		   genghost_sim_frame_rate(), (legacy_int)(maximum_x / EXTENDED_TEST_POSITION_SCALE),
 		   (legacy_int)(maximum_z / EXTENDED_TEST_POSITION_SCALE), roll.present ? "true" : "false",
 		   roll.complete ? "true" : "false", (legacy_int)roll.maximum,
-		   checkpoint_passed_count(CSTRK_BLUE_CHECKPOINT_ID),
-		   checkpoint_passed_count(CSTRK_RED_CHECKPOINT_ID),
-		   checkpoint_passed_count(CSTRK_COMBINED_CHECKPOINT_ID),
+		   checkpoint_passed_count(CSTRK_CHECKPOINT_BLUE_MASK),
+		   checkpoint_passed_count(CSTRK_CHECKPOINT_RED_MASK),
+		   checkpoint_passed_count(CSTRK_CHECKPOINT_BOTH_MASK),
 		   (legacy_int)state.opponentstate.car_position.lx,
 		   (legacy_int)state.opponentstate.car_position.lz,
 		   extended_track_active() ? "false" : "true");

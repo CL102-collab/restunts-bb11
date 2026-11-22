@@ -366,6 +366,32 @@ test('tulip and vine fields rotate and follow every straight hillside direction'
             }
         assert.equal(JSON.stringify(source), original, 'native finish artwork remains unchanged');
     });
+    test('slalom checkpoints combine the matching gate with the native barriers and road on grades', () => {
+        for (const [slalomId, checkpointId] of [[model.SLALOM_BLUE_CHECKPOINT_ID, model.BLUE_CHECKPOINT_ID],
+            [model.SLALOM_RED_CHECKPOINT_ID, model.RED_CHECKPOINT_ID],
+            [model.SLALOM_COMBINED_CHECKPOINT_ID, model.COMBINED_CHECKPOINT_ID]])
+            for (let rotation = 0; rotation < 4; rotation++) for (let surface = 0; surface < 3; surface++)
+                for (const [slopeX, slopeY] of [[0, 0], [1, 0], [0, -1]]) {
+                    const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
+                    function render(id) {
+                        doc.place(id, 0, 0, surface, rotation);
+                        const result = scene.buildScene(doc, assets);
+                        doc.undo();
+                        return result;
+                    }
+                    const terrain = scene.buildScene(doc, assets), slalom = render(115);
+                    const checkpoint = render(checkpointId), combined = render(slalomId);
+                    assert.equal(combined.instances, slalom.instances + 1);
+                    const terrainSize = terrain.positions.length;
+                    const slalomStart = terrainSize + combined.positions.length - slalom.positions.length;
+                    for (const channel of ['positions', 'colors']) {
+                        assert.deepEqual(combined[channel].slice(0, slalomStart), checkpoint[channel].slice(0, slalomStart));
+                        assert.deepEqual(combined[channel].slice(slalomStart), slalom[channel].slice(terrainSize));
+                    }
+                    assert.deepEqual(combined.linePositions, slalom.linePositions);
+                    assert.deepEqual(combined.lineColors, slalom.lineColors);
+                }
+    });
     test('six and ten pines keep independent upright crowns and slope-following roots', () => {
         const source = scene.decodeShape(assets.models.get('tree'));
         const nativeTrees = source.primitives.reduce((sum, primitive) => sum + primitive.indices.length - 2, 0);

@@ -99,8 +99,8 @@ only in A–Z letter case are ambiguous and left out of the list, as are invalid
 PNGs. Other valid images and the built-in horizons remain available.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v15. Revision v3 through v14 tracks also open
-and are upgraded to v15 while preserving their original overpass road materials.
+great track." The current version is v16. Revisions v3 through v15 also open
+and are upgraded to v16 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -208,6 +208,14 @@ the bottom half. Passing it counts for both colors, so it must be passed on
 either route. Blue and red checkpoints require `.cstrk` v13; the combined
 checkpoint requires v14. All three support paved, dirt and ice, rotation, and
 the 2D editor and 3D preview.
+
+The **Stunts** group includes **Slalom with blue checkpoint**, **Slalom with red
+checkpoint**, and **Slalom with blue / red checkpoint**. Each places a checkpoint
+gate between the slalom barriers and follows the same scoring rules as its
+matching road checkpoint. These variants require `.cstrk` v16 and support all
+three road surfaces, all four rotations, and the same terrain as a standard
+slalom.
+
 During a race, pass every checkpoint of either color before crossing the finish.
 If only one color is present, all checkpoints of that color are required. A track
 without checkpoints keeps the usual finish rule. Checkpoints count in either
