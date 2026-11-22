@@ -39,13 +39,13 @@ enum INTRO_INPUT_PHASE {
 
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
-	assert(key == KEY_F11 || key == KEY_F12 || key == KEY_SHIFT_F12);
+	assert(key == KEY_F11 || key == KEY_SHIFT_F11 || key == KEY_F12 || key == KEY_SHIFT_F12);
 	shortcut_count++;
 	if (key == KEY_F11) {
 		fps_visible ^= 1U;
 	} else if (key == KEY_F12) {
 		enhanced_visible ^= 1U;
-	} else {
+	} else if (key == KEY_SHIFT_F12) {
 		enhanced_visible = 1;
 	}
 	return 1;
@@ -303,12 +303,12 @@ static void assert_shortcut_effect(legacy_s16 key)
 {
 	assert(shortcut_count == 1);
 	assert(fps_visible == (key == KEY_F11));
-	assert(enhanced_visible == (key != KEY_F11));
+	assert(enhanced_visible == (key == KEY_F12 || key == KEY_SHIFT_F12));
 }
 
 static void test_title_shortcuts(void)
 {
-	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_F12,
+	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_SHIFT_F11, KEY_F12,
 #ifdef RESTUNTS_SDL3
 										   KEY_SHIFT_F12
 #endif
@@ -337,7 +337,7 @@ static void test_title_shortcuts(void)
 
 static void test_credits_shortcuts(void)
 {
-	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_F12,
+	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_SHIFT_F11, KEY_F12,
 #ifdef RESTUNTS_SDL3
 										   KEY_SHIFT_F12
 #endif

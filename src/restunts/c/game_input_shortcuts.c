@@ -36,7 +36,7 @@ static legacy_s8 custom_camera_original_dashboard;
 static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 {
 	switch (key) {
-		case KEY_CTRL_F9:
+		case KEY_SHIFT_F11:
 			mph_display_enabled = mph_display_enabled == FRAME_MPH_DISPLAY_OFF
 									  ? FRAME_MPH_DISPLAY_ON
 									  : FRAME_MPH_DISPLAY_OFF;

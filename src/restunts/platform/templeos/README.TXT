@@ -122,6 +122,7 @@ preserves the original branch-switching penalty behavior; --dws:off fixes it.
 Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
 --nointro skips the intro and /ns disables startup music/effects. --fps:on/off
 selects the FPS display (off by default). F11 toggles it during play.
+Shift+F11 toggles the MPH display while driving.
 --show-dashboard:on|off sets the dashboard visibility at the start of a drive
 (on by default). Press D to toggle it while driving. Supply each display option
 once. Replays do not store physics choices, so use the same settings for playback.

@@ -126,6 +126,9 @@ and updated high scores are written to the selected game-data folder.
 
 Use the keyboard or mouse for the menus. Arrow keys control the car, and the
 original game's gear, camera and replay controls remain in place.
+Shift+F11 toggles the MPH display on keyboards and emulators with an F11
+mapping. On an original Amiga 500+ keyboard, use `--showmph:on` to enable
+the display at startup.
 Digital joystick input uses Amiga game port 2 when joystick control is selected.
 Menu screens redraw immediately instead of using the DOS dissolve animation.
 

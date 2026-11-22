@@ -48,6 +48,9 @@ legacy_u16 TempleInputKey(legacy_s64 character,legacy_s64 scan)
     return code<<TEMPLE_BYTE_BITS;
   }
   if(code==SC_F11) {
+    if(scan&(SCF_CTRL|SCF_ALT)) {
+      return 0;
+    }
     if(scan&SCF_SHIFT) {
       return TEMPLE_DOS_SHIFT_F11_SCAN<<TEMPLE_BYTE_BITS;
     }

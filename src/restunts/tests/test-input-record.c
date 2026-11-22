@@ -1026,14 +1026,18 @@ static void test_dashboard_shortcut(void)
 
 static void test_mph_shortcut(void)
 {
-	assert((legacy_u16)KEY_CTRL_F9 == 0x6600U);
+	assert((legacy_u16)KEY_SHIFT_F11 == 0x8700U);
+	reset_inputs();
+	game_replay_mode = REPLAY_MODE_LIVE;
+	assert(handle_ingame_kb_shortcuts(KEY_CTRL_F9) == 0);
+	assert(mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
 	for (legacy_u8 mode = REPLAY_MODE_LIVE; mode <= REPLAY_MODE_PLAYBACK; ++mode) {
 		for (legacy_u16 camera = CAMERA_MODE_COCKPIT; camera < CAMERA_MODE_COUNT; ++camera) {
 			reset_inputs();
 			game_replay_mode = mode;
 			cameramode = camera;
 			assert(mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
-			assert(handle_ingame_kb_shortcuts(KEY_CTRL_F9) == 1);
+			assert(handle_ingame_kb_shortcuts(KEY_SHIFT_F11) == 1);
 			assert(mph_display_enabled == FRAME_MPH_DISPLAY_ON);
 			assert(full_redraw_frames_remaining == video_page_count);
 			assert(game_replay_mode == mode && cameramode == camera);
@@ -1042,7 +1046,7 @@ static void test_mph_shortcut(void)
 			assert(handle_ingame_kb_shortcuts(KEY_F2) == 1);
 			assert(mph_display_enabled == FRAME_MPH_DISPLAY_ON);
 			full_redraw_frames_remaining = 0;
-			assert(handle_ingame_kb_shortcuts(KEY_CTRL_F9) == 1);
+			assert(handle_ingame_kb_shortcuts(KEY_SHIFT_F11) == 1);
 			assert(mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
 			assert(full_redraw_frames_remaining == video_page_count);
 			assert(game_replay_mode == mode);
@@ -1292,12 +1296,12 @@ int main(void)
 	assert(record_hash == 0x41c4e48dUL);
 	assert(callback_hash == 0x9bd7fd3eUL);
 #endif
-	/* Display shortcuts, including Ctrl+F9, bypass the paused-race fallback.
+	/* Display shortcuts, including Shift+F11, bypass the paused-race fallback.
 	 * SDL additionally recognizes Shift+F12. */
 #ifdef RESTUNTS_SDL3
-	assert(shortcut_hash == 0x70a2f36aUL);
+	assert(shortcut_hash == 0xdd68456aUL);
 #else
-	assert(shortcut_hash == 0x5446d392UL);
+	assert(shortcut_hash == 0xabcf7b92UL);
 #endif
 #endif
 	return 0;

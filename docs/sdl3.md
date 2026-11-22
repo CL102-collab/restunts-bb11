@@ -596,7 +596,7 @@ including track and replay file selection.
 | LB / L1 | Escape | Escape |
 | RB / R1 | Escape | Enter |
 | D-pad up | F11, toggle FPS and render time | |
-| D-pad down | Ctrl+F9, toggle MPH | |
+| D-pad down | Shift+F11, toggle MPH | |
 | D-pad left | Hold Q to rewind | |
 | D-pad right | R, toggle the replay bar | |
 | X / Square | D, toggle the dashboard | |
@@ -637,11 +637,11 @@ Existing keyboard driving and replay controls remain available:
 - **Shift+F10** switches between original synthesized and replacement Ogg music on
   music screens, keeping the current song position. It is inactive during races;
   plain **F10** retains its track-editor function.
-- **Ctrl+F9** toggles MPH at the bottom right while driving. It starts off;
-  `--showmph:on` enables it from startup and `--showmph:off` selects the default.
-  The startup checkbox **Show MPH (Ctrl+F9)** follows **Show FPS**. The hotkey
-  changes only the current session, leaving the saved checkbox unchanged.
-- **F11** or **Shift+F11** toggles the FPS and render-time display on or off,
+- **Shift+F11** toggles the session's MPH display. Speed appears at the bottom
+  right during races and replay playback. Use `--showmph:on` to enable it from
+  startup or `--showmph:off` to select the default. The startup checkbox
+  **Show MPH (Shift+F11)** follows **Show FPS** and keeps its saved value.
+- **F11** toggles the FPS and render-time display on or off,
   including in both car-selection screens. Render time excludes physics and
   presentation waits.
 - **F12** toggles HyperVision Auto on or off; **Shift+F12** cycles the fixed

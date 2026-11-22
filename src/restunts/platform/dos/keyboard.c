@@ -103,14 +103,18 @@ void interrupt kb_int9_handler(void)
 
 		legacy_u16 kbval;
 		if (kbc == DOS_KB_F11_SCANCODE || kbc == DOS_KB_F12_SCANCODE) {
-			/* Toggle once per physical press; F11 also accepts either Shift key. */
+			/* Toggle once per physical press and distinguish shifted F11. */
+			legacy_u8 shift = dos_kb_input[DOS_KB_LEFT_SHIFT_SCANCODE] != 0 ||
+							  dos_kb_input[DOS_KB_RIGHT_SHIFT_SCANCODE] != 0;
 			if (was_pressed != 0 || dos_kb_input[DOS_KB_ALT_SCANCODE] != 0 ||
 				dos_kb_input[DOS_KB_CONTROL_SCANCODE] != 0 ||
-				(kbc == DOS_KB_F12_SCANCODE && (dos_kb_input[DOS_KB_LEFT_SHIFT_SCANCODE] != 0 ||
-												dos_kb_input[DOS_KB_RIGHT_SHIFT_SCANCODE] != 0))) {
+				(kbc == DOS_KB_F12_SCANCODE && shift != 0)) {
 				goto acknowledge_interrupt;
 			}
-			kbval = (legacy_u16)(kbc == DOS_KB_F11_SCANCODE ? KEY_F11 : KEY_F12);
+			kbval = (legacy_u16)KEY_F12;
+			if (kbc == DOS_KB_F11_SCANCODE) {
+				kbval = (legacy_u16)(shift != 0 ? KEY_SHIFT_F11 : KEY_F11);
+			}
 		} else if (dos_kb_input[DOS_KB_ALT_SCANCODE] == 1) {
 			kbval = dos_kb_keymap5[kbc];
 		} else if (dos_kb_input[DOS_KB_CONTROL_SCANCODE] == 1) {

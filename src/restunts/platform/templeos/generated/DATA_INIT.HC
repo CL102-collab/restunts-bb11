@@ -5690,10 +5690,10 @@ MemCpy(rs_command_line_command_line_help,
     "are case-insensitive.\r\nFor physics on/off switches, the last value wins.\r\nSupply --fps "
     "and --show-dashboard only once.\r\nOther switch names are case-sensitive.\r\nVideo: 640 x 400 "
     "(8:5), 16 colors. Audio: PC speaker.\r\nD toggles the dashboard. F11 toggles FPS. F12 toggles "
-    "SuperSight.\r\n/sXX and /h are legacy compatibility switches with no alternate\r\nTempleOS "
-    "device; /nd is a recognized legacy switch with no effect.\r\nThe first --help/-h or "
-    "--version/-v request wins.\r\n",
-    1939);
+    "SuperSight.\r\nShift+F11 toggles MPH while driving.\r\n/sXX and /h are legacy compatibility "
+    "switches with no alternate\r\nTempleOS device; /nd is a recognized legacy switch with no "
+    "effect.\r\nThe first --help/-h or --version/-v request wins.\r\n",
+    1977);
 MemSet(&hill_height_consts,0,sizeof(hill_height_consts));
 hill_height_consts[1]=450;
 MemSet(&car_resource_name,0,sizeof(car_resource_name));

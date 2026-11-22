@@ -17,6 +17,7 @@
 #define TEMPLE_TEST_KEY_F11 0x8500
 #define TEMPLE_TEST_KEY_F9 0x4300
 #define TEMPLE_TEST_KEY_CTRL_F9 0x6600
+#define TEMPLE_TEST_KEY_SHIFT_F11 0x8700
 #define TEMPLE_TEST_TICK_WAIT_MS 35
 #define TEMPLE_TEST_TIMER_SECONDS 1
 #define TEMPLE_TEST_TIMER_TOLERANCE_TICKS 2
@@ -258,10 +259,12 @@ legacy_void TempleTestNative()
   TempleTestAssert(TempleInputKey(0,SC_F11)==TEMPLE_TEST_KEY_F11,"BIOS function-key mapping");
   TempleTestAssert(TempleInputKey(0,SC_F9)==TEMPLE_TEST_KEY_F9,"unmodified F9 mapping");
   TempleTestAssert(TempleInputKey(0,SC_F9|SCF_CTRL)==TEMPLE_TEST_KEY_CTRL_F9,
-      "Ctrl+F9 MPH shortcut mapping");
-  TempleTestAssert(!TempleInputKey(0,SC_F9|SCF_CTRL|SCF_SHIFT)&&
-          !TempleInputKey(0,SC_F9|SCF_CTRL|SCF_ALT),
-      "MPH shortcut requires Ctrl without Shift or Alt");
+      "Ctrl+F9 BIOS function-key mapping");
+  TempleTestAssert(TempleInputKey(0,SC_F11|SCF_SHIFT)==TEMPLE_TEST_KEY_SHIFT_F11,
+      "Shift+F11 MPH shortcut mapping");
+  TempleTestAssert(!TempleInputKey(0,SC_F11|SCF_SHIFT|SCF_CTRL)&&
+          !TempleInputKey(0,SC_F11|SCF_SHIFT|SCF_ALT),
+      "MPH shortcut requires Shift without Ctrl or Alt");
   RsDosTimerSetupInterrupt();
   TempleTestAssert(RsDosTimerRegisterCallback(&TempleTestCallback),"register callback");
   Sleep(TEMPLE_TEST_TICK_WAIT_MS);

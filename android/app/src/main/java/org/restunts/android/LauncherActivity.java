@@ -308,7 +308,7 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_WIDESCREEN, textSize);
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
-        showMph = option(graphics, "Show MPH (Ctrl+F9)", LaunchOptions.SHOW_MPH_KEY,
+        showMph = option(graphics, "Show MPH (Shift+F11)", LaunchOptions.SHOW_MPH_KEY,
             LaunchOptions.DEFAULT_SHOW_MPH, textSize);
         showDashboard = option(graphics, "Show Dashboard", LaunchOptions.SHOW_DASHBOARD_KEY,
             LaunchOptions.DEFAULT_SHOW_DASHBOARD, textSize);

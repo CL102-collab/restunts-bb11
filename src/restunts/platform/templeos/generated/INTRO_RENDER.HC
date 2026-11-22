@@ -593,7 +593,7 @@ legacy_s8 RsSetupIntro()
     temple_key_5928=TempleCastS16(0);
     (temple_key_5928=TempleCastS16(RsInputDoChecking(TempleCastS16(temple_delta_5926))));
     temple_tmp_5929=0;
-    if((temple_key_5928==KEY_F11)) {
+    if(TempleCastS32(((temple_key_5928==KEY_F11)|(temple_key_5928==KEY_SHIFT_F11)))) {
       temple_tmp_5929=1;
     }
     if(!temple_tmp_5929) {

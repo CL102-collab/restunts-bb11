@@ -242,6 +242,7 @@ def prepare_sources(folder):
                          'Other switch names are case-sensitive.\r\n'
                          'Video: 640 x 400 (8:5), 16 colors. Audio: PC speaker.\r\n'
                          'D toggles the dashboard. F11 toggles FPS. F12 toggles SuperSight.\r\n'
+                         'Shift+F11 toggles MPH while driving.\r\n'
                          '/sXX and /h are legacy compatibility switches with no alternate\r\n'
                          'TempleOS device; /nd is a recognized legacy switch with no effect.\r\n'
                          'The first --help/-h or --version/-v request wins.\r\n')

@@ -182,14 +182,14 @@ static legacy_u8 rendered_modes[8], rendered_fps[8];
 
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
-	assert(key == KEY_F11 || key == KEY_F12 || key == KEY_SHIFT_F12);
+	assert(key == KEY_F11 || key == KEY_SHIFT_F11 || key == KEY_F12 || key == KEY_SHIFT_F12);
 	if (key == KEY_F11) {
 		fps_display_enabled = fps_display_enabled == FRAME_FPS_DISPLAY_OFF ? FRAME_FPS_DISPLAY_ON
 																		   : FRAME_FPS_DISPLAY_OFF;
 		frame_fps_reset();
 	} else if (key == KEY_SHIFT_F12) {
 		renderer_active = preset_status_active = 1;
-	} else {
+	} else if (key == KEY_F12) {
 		renderer_active ^= 1U;
 		preset_status_active = 1;
 	}
@@ -1087,9 +1087,9 @@ static void display_toggle_completion_case(legacy_s16 key)
 	assert(setup_intro() == 0);
 	assert(input_polls > 1);
 	assert(shortcut_count == 1);
-	assert(renderer_active == (key != KEY_F11));
+	assert(renderer_active == (key == KEY_F12 || key == KEY_SHIFT_F12));
 	assert(fps_display_enabled == (key == KEY_F11));
-	assert(fps_draw_count == flush_count - 1U);
+	assert(fps_draw_count == (key == KEY_SHIFT_F11 ? 0U : flush_count - 1U));
 	assert(fps_presented_count == flush_count);
 	assert(fps_reset_count == (key == KEY_F11 ? 3U : 2U));
 	scripted_input = 0;
@@ -1140,6 +1140,7 @@ int main(void)
 	}
 	display_toggle_completion_case(KEY_F12);
 	display_toggle_completion_case(KEY_F11);
+	display_toggle_completion_case(KEY_SHIFT_F11);
 #ifdef RESTUNTS_SDL3
 	display_toggle_completion_case(KEY_SHIFT_F12);
 	predictive_presentation_case();

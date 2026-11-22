@@ -251,9 +251,11 @@ static void test_keyboard(void)
 		send_key(SDL_SCANCODE_F11, f11_modifiers[modifier], true, false);
 		send_key(SDL_SCANCODE_F11, f11_modifiers[modifier], true, true);
 		send_key(SDL_SCANCODE_F11, f11_modifiers[modifier], true, false);
-		assert(kb_read_char() == KEY_F11);
+		legacy_u8 shifted = f11_modifiers[modifier] != SDL_KMOD_NONE;
+		assert(kb_read_char() == (shifted ? KEY_SHIFT_F11 : KEY_F11));
 		assert(kb_read_char() == 0);
-		/* Changing Shift while F11 remains held must not toggle the display again. */
+		assert(kb_get_key_state(DOS_KB_F11_SCANCODE) == !shifted);
+		/* Changing Shift while F11 remains held must not queue another shortcut. */
 		send_key(SDL_SCANCODE_F11, SDL_KMOD_NONE, true, false);
 		send_key(SDL_SCANCODE_F11, SDL_KMOD_SHIFT, true, true);
 		assert(kb_read_char() == 0);
@@ -301,31 +303,13 @@ static void test_keyboard(void)
 	assert(kb_get_key_state(500) == 0);
 }
 
-static void test_mph_shortcut(void)
+static void test_f9_key(void)
 {
-	const SDL_Keymod modifiers[] = {SDL_KMOD_LCTRL, SDL_KMOD_RCTRL, SDL_KMOD_CTRL};
 	const legacy_s16 f9_scancode = (legacy_u16)KEY_F9 >> LEGACY_BYTE_BITS;
 	kb_init_interrupt();
-	for (legacy_u32 modifier = 0; modifier < SDL_arraysize(modifiers); ++modifier) {
-		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, false);
-		assert(kb_read_char() == KEY_CTRL_F9);
-		assert(kb_get_key_state(f9_scancode) == 0);
-		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, true);
-		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, false);
-		/* Ctrl can be released before F9 without queuing another toggle or plain F9. */
-		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, true);
-		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
-		assert(kb_read_char() == 0);
-		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
-	}
-	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL | SDL_KMOD_SHIFT, SDL_KMOD_CTRL | SDL_KMOD_ALT,
-								   SDL_KMOD_CTRL | SDL_KMOD_GUI};
-	for (legacy_u32 modifier = 0; modifier < SDL_arraysize(rejected); ++modifier) {
-		send_key(SDL_SCANCODE_F9, rejected[modifier], true, false);
-		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
-		assert(kb_read_char() == 0);
-		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
-	}
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_CTRL, true, false);
+	assert(kb_read_char() == KEY_CTRL_F9);
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
 	/* Unmodified F9 remains available to the track editor. */
 	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
 	assert(kb_read_char() == KEY_F9);
@@ -2360,7 +2344,7 @@ static void test_controller_shortcuts(SDL_Joystick *device)
 	assert(kb_read_char() == KEY_F11);
 	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
 	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_DOWN, true);
-	assert(kb_read_char() == KEY_CTRL_F9);
+	assert(kb_read_char() == KEY_SHIFT_F11);
 	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_DOWN, false);
 	assert(sdl3_controller_driving_flags() == 0);
 	assert(!sdl3_input_take_race_start_request());
@@ -2584,7 +2568,7 @@ static void test_controller_dpad_context(SDL_Joystick *device)
 		legacy_s16 shortcut;
 		legacy_s16 arrow_scan;
 	} directions[] = {{SDL_GAMEPAD_BUTTON_DPAD_UP, KEY_F11, TEST_CONTROLLER_SCAN_UP},
-					  {SDL_GAMEPAD_BUTTON_DPAD_DOWN, KEY_CTRL_F9, TEST_CONTROLLER_SCAN_DOWN},
+					  {SDL_GAMEPAD_BUTTON_DPAD_DOWN, KEY_SHIFT_F11, TEST_CONTROLLER_SCAN_DOWN},
 					  {SDL_GAMEPAD_BUTTON_DPAD_LEFT, 'q', TEST_CONTROLLER_SCAN_LEFT},
 					  {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, 'r', TEST_CONTROLLER_SCAN_RIGHT}};
 	/* Main menu behavior is independent of the selected driving device. */
@@ -3361,7 +3345,7 @@ legacy_int main(void)
 	dos_joystick_set_enabled(0);
 	sdl3_batch_mode = 0;
 	test_keyboard();
-	test_mph_shortcut();
+	test_f9_key();
 	test_music_shortcut();
 	test_timer();
 	test_video_vsync();

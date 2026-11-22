@@ -409,7 +409,7 @@ dead ends and scenery do not affect its center or bounding box. It looks toward
 that center at 45 degrees down, at least twelve hill levels above it; larger
 courses raise the orbit enough to keep all lap pieces visible. Tracks without
 a valid complete lap use the map center. The scene extends behind the title and
-best recorded time. The live preview is capped at 25 FPS. F11 or Shift+F11 toggles
+best recorded time. The live preview is capped at 25 FPS. F11 toggles
 FPS and render time over the preview; the counter measures presented preview
 frames, and timing excludes pacing and display synchronization. Turning
 HyperVision off restores the 2D surface map.
@@ -575,7 +575,7 @@ for the current benchmark scope. The earlier
 [SuperSight CPU measurements](docs/supersight-performance.md) document the previous
 renderer and do not establish HyperVision performance.
 
-Press **F11** or **Shift+F11** to toggle the diagnostic display on or off. In
+Press **F11** to toggle the diagnostic display on or off. In
 SDL3 builds, it shows both FPS and render time. The FPS counter measures presented
 frames over approximately one second and rounds down, for example `20 FPS`. The
 render-time line shows a value such as `8.4ms`: the average
@@ -583,13 +583,14 @@ render duration of the latest 100 completed frames, or the available frames whil
 warming up, rounded to one decimal place. Rendering and framebuffer composition
 are measured before presentation waits; physics, frame pacing, and VSync waits
 are excluded. Changing renderer clears the duration history. The original 16-bit
-DOS build shows only FPS. Use Shift+F11 in browsers where F11 toggles fullscreen.
+DOS build shows only FPS. If your browser intercepts F11 for fullscreen, enable
+**Show FPS** in Graphics settings before starting.
 
 The target color threshold is 20 FPS in classic mode and 60 FPS in SDL3
 HyperVision. The temporary HyperVision preset message appears below the timing
 line after F12 or Shift+F12, independently of F11. Automatic adaptation works
 whether F11 is on or off.
-F11, Shift+F11, and F12 also work in both car-selection screens and during the
+F11 and F12 also work in both car-selection screens and during the
 nighttime driving intro without skipping the animation, including in 16-bit DOS. F12 also
 works in the track preview and opponent-selection menu, with the same two-second
 status display. SDL3 builds additionally support Shift+F12 in these locations.
@@ -608,12 +609,12 @@ The renderer and display shortcuts work in all driving and replay cameras,
 including opponent and ghost views and paused replays. Holding a shortcut key
 changes its selection only once.
 
-Press **Ctrl+F9** to toggle the MPH display at the bottom right while driving.
-It starts off; use `--showmph:on` to enable it from startup or `--showmph:off`
-to select the default explicitly. The desktop, Android, and web startup windows
-place **Show MPH (Ctrl+F9)** immediately after **Show FPS** and remember its
-selection. Ctrl+F9 changes only the current game session, leaving the saved
-launcher checkbox unchanged.
+Press **Shift+F11** to toggle the current session's MPH display. Speed appears at
+the bottom right during races and player-controlled replays. The shortcut also
+works during the intro and the main menu's idle replay without interrupting
+either. Use `--showmph:on` to enable it at startup or `--showmph:off` to select
+the default. The desktop, Android, and web startup windows remember
+**Show MPH (Shift+F11)**, which appears immediately after **Show FPS**.
 
 ### Race against a ghost
 
@@ -888,7 +889,7 @@ launch; game data is not bundled in the APK. Transparent touch circles support
 driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
 offers PC Speaker, Tandy, Ad Lib and MT-32 sound/ROM selection,
-**OGG music replacement**, **Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
+**OGG music replacement**, **Show FPS**, **Show MPH (Shift+F11)**, **Show Control Layout**, **Tilt steering**,
 and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
 **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
 **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**,

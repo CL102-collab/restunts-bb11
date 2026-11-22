@@ -75,7 +75,7 @@ static void far *ui_temp_resource;
  * dissolves and credits. Other keyboard, mouse and joystick input still does. */
 static legacy_s16 intro_filter_input(legacy_s16 key)
 {
-	if (key == KEY_F11 || key == KEY_F12
+	if (((key == KEY_F11) | (key == KEY_SHIFT_F11)) || key == KEY_F12
 #ifdef RESTUNTS_SDL3
 		|| key == KEY_SHIFT_F12
 #endif

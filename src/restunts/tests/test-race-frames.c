@@ -880,7 +880,8 @@ legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 	}
 #endif
 	if (hotkey_script.active != 0) {
-		if (key != KEY_F11 && key != KEY_F12 && key != KEY_ESCAPE && key != 'd'
+		if (key != KEY_F11 && key != KEY_SHIFT_F11 && key != KEY_F12 && key != KEY_ESCAPE &&
+			key != 'd'
 #ifdef RESTUNTS_SDL3
 			&& key != KEY_SHIFT_F12
 #endif
@@ -922,7 +923,8 @@ legacy_s16 get_kb_or_joy_flags(void)
 static void test_driving_hotkey_queue(void)
 {
 	static const legacy_s16 ignored[] = {KEY_HOME, KEY_END, KEY_SPACE, KEY_ENTER, 'a', 'z', 'q'};
-	static const legacy_s16 shortcuts[] = {KEY_F11, KEY_F12, KEY_ESCAPE, 'd', TEST_HOTKEY_CALLBACK};
+	static const legacy_s16 shortcuts[] = {KEY_F11,	   KEY_SHIFT_F11, KEY_F12,
+										   KEY_ESCAPE, 'd',			  TEST_HOTKEY_CALLBACK};
 	game_replay_mode = REPLAY_MODE_LIVE;
 	for (legacy_u16 shortcut = 0; shortcut < sizeof(shortcuts) / sizeof(shortcuts[0]); shortcut++) {
 		memset(&hotkey_script, 0, sizeof(hotkey_script));
@@ -958,6 +960,7 @@ static void test_idle_replay_display_hotkeys(void)
 	struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 	static const legacy_s16 shortcuts[] = {
 		KEY_F11,
+		KEY_SHIFT_F11,
 		KEY_F12,
 #ifdef RESTUNTS_SDL3
 		KEY_SHIFT_F12,

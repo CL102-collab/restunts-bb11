@@ -40,7 +40,7 @@ legacy_s16 RsIntroIntroFilterInput(legacy_s16 key)
 {
   legacy_s32 noreg temple_tmp_1683;
   temple_tmp_1683=0;
-  if((key==KEY_F11)) {
+  if(TempleCastS32(((key==KEY_F11)|(key==KEY_SHIFT_F11)))) {
     temple_tmp_1683=1;
   }
   if(!temple_tmp_1683) {

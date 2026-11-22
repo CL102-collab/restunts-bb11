@@ -10,6 +10,7 @@
 #define KEY_BUFFER_CAPACITY 64U
 #define KEY_RAW_CODE_COUNT 128U
 #define KEY_RELEASE_FLAG LEGACY_U8_SIGN_BIT
+#define AMIGA_RAW_F11 0x4bU
 static legacy_u8 keys[KEY_RAW_CODE_COUNT];
 static legacy_u16 key_buffer[KEY_BUFFER_CAPACITY];
 static legacy_u16 key_read, key_count;
@@ -87,7 +88,16 @@ static void raw_key(legacy_u16 raw, legacy_u16 qualifier)
 {
 	legacy_u8 code = raw & (KEY_RELEASE_FLAG - 1U);
 	legacy_u8 scan = scan_codes[code];
+	legacy_u8 was_pressed = keys[code];
 	keys[code] = (raw & KEY_RELEASE_FLAG) == 0;
+	if (code == AMIGA_RAW_F11) {
+		if (keys[code] && !was_pressed && (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) &&
+			!(qualifier & (IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | IEQUALIFIER_RALT |
+						   IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND | IEQUALIFIER_REPEAT))) {
+			queue_key((legacy_u16)KEY_SHIFT_F11);
+		}
+		return;
+	}
 	if ((raw & KEY_RELEASE_FLAG) || scan == 0 || scan >= DOS_KB_PRIMARY_KEYMAP_SIZE) {
 		return;
 	}

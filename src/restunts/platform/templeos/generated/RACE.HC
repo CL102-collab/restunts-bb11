@@ -575,7 +575,7 @@ legacy_s16 RsRaceRaceProcessFrameInput(CRaceViewportCache *cache)
   } else {
     temple_key_2152=TempleCastS16(RsDosKbGetChar());
     temple_tmp_2153=0;
-    if((temple_key_2152==KEY_F11)) {
+    if(TempleCastS32(((temple_key_2152==KEY_F11)|(temple_key_2152==KEY_SHIFT_F11)))) {
       temple_tmp_2153=1;
     }
     if(!temple_tmp_2153) {

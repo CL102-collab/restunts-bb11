@@ -80,10 +80,10 @@ widest supported aspect up to 20:9. Wider displays center the 20:9 image with
 black side borders. Menus and the intro keep their 4:3 presentation.
 **HyperVision** has its own row, with its label beside the selector.
 
-In **Graphics settings**, **Show MPH (Ctrl+F9)** follows **Show FPS**. It starts
+In **Graphics settings**, **Show MPH (Shift+F11)** follows **Show FPS**. It starts
 off and selects `--showmph:on` or `--showmph:off` for the game. The display shows
-MPH at the bottom right while driving. Ctrl+F9 toggles it for the current game
-session without changing the saved checkbox.
+MPH at the bottom right during races and replay playback. Shift+F11 toggles it
+for the current game session and preserves the saved checkbox.
 
 **Show Dashboard** starts on and controls the initial dashboard visibility.
 The launcher saves the choice with the other graphics settings and passes

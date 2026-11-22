@@ -471,7 +471,7 @@ legacy_s8 setup_intro(void)
 #else
 		key = input_do_checking(delta);
 #endif
-		if (key == KEY_F11 || key == KEY_F12
+		if (((key == KEY_F11) | (key == KEY_SHIFT_F11)) || key == KEY_F12
 #ifdef RESTUNTS_SDL3
 			|| key == KEY_SHIFT_F12
 #endif

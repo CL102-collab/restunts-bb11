@@ -181,6 +181,7 @@
 #define KEY_F10 17408
 #define KEY_F11 (-(31488))
 #define KEY_F12 (-(31232))
+#define KEY_SHIFT_F11 (-(30976))
 #define KEY_HOME 18176
 #define KEY_UP 18432
 #define KEY_LEFT 19200

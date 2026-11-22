@@ -80,7 +80,7 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
   legacy_s8 *temple_tmp_1359;
   legacy_s8 *temple_tmp_1360;
   switch(key) {
-    case 26112:
+    case-30976:
       if((mph_display_enabled==FRAME_MPH_DISPLAY_OFF)) {
         temple_tmp_1357=TempleCastS32(FRAME_MPH_DISPLAY_ON);
       } else {

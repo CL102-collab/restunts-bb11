@@ -46,7 +46,7 @@ legacy_int main()
 		  "Widescreen must appear between Fullscreen and Show FPS.");
 	check(LAUNCHER_SHOW_FPS + 1 == LAUNCHER_SHOW_MPH &&
 			  wxString(launcher_option_definitions[LAUNCHER_SHOW_MPH].label) ==
-				  "Show MPH (Ctrl+F9)",
+				  "Show MPH (Shift+F11)",
 		  "Show MPH must follow Show FPS and name its in-game shortcut.");
 	check(LAUNCHER_SOUND_NONE + 1 == LAUNCHER_SOUND_PC_SPEAKER &&
 			  LAUNCHER_SOUND_PC_SPEAKER + 1 == LAUNCHER_SOUND_TANDY &&

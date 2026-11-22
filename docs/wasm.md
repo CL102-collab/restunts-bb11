@@ -116,7 +116,7 @@ build supports `file://` without a local web server. The HTML's location does no
    or MT-32 synthesizer (`--ogg:off`). It starts off unless a remembered choice enables it.
    **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
    `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
-   **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
+   **Show MPH (Shift+F11)** (`--showmph:on/off`) for speed during races and replay playback,
    **Show Dashboard** (`--show-dashboard:on/off`), **Show Control Layout**
    (`--control-layout:on`), **Multi-core rendering** (`--multi-core:on/off`,
    initially on when supported), and the **HyperVision**
@@ -268,12 +268,13 @@ The orientation lock is released when fullscreen ends. This requires browser
 support for the Screen Orientation lock API; if it is unavailable or refused,
 fullscreen still works with the browser's normal orientation behavior.
 With the canvas focused, **F12** toggles HyperVision Auto and **Shift+F12** cycles
-fixed **Full → High → Medium → Low** presets. **F11** or **Shift+F11** toggles
-the FPS and render-time display on or off. Use Shift+F11 to avoid the browser
-fullscreen shortcut assigned to F11. **Ctrl+F9** toggles MPH at the bottom right
-while driving for the current game session, without changing the saved launcher
-checkbox. **Shift+F10** switches between Ogg replacement music
-and the selected original synthesizer during the intro, menus, and race-end/victory screens.
+fixed **Full → High → Medium → Low** presets. **F11** toggles FPS and render
+time. If your browser intercepts F11 for fullscreen, enable **Show FPS** in
+Graphics settings before starting. **Shift+F11** toggles the session's MPH
+display and preserves the saved launcher checkbox. Speed appears at the bottom
+right during races and replay playback. **Shift+F10** switches between Ogg
+replacement music and the selected original synthesizer during the intro, menus,
+and race-end/victory screens.
 
 The browser presents frames through SDL3's WebGL renderer and uses WebAudio
 output. Scene rendering runs on the CPU. **Multi-core rendering** uses

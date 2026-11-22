@@ -99,8 +99,8 @@ PCM and requires no ROM files. Selecting No sound passes `--nosound`, and
 selecting Skip intro passes `--nointro`.
 
 **Graphics settings** contains **Video mode**, **Widescreen** (off by default),
-**Show FPS** for the FPS/render-time display, **Show MPH (Ctrl+F9)** for speed at
-the bottom right while driving, **Show Dashboard** (on by default),
+**Show FPS** for the FPS/render-time display, **Show MPH (Shift+F11)** for speed
+during races and replay playback, **Show Dashboard** (on by default),
 **Multi-core rendering** (`--multi-core:on/off`, initially on unless a saved
 choice overrides it), and the **HyperVision** selector with **Off**, **Auto**,
 **Full**, **High**, **Medium**, and **Low** presets. **Widescreen** expands
@@ -114,7 +114,7 @@ screens, keeping every option visible without horizontal scrolling. The
 HyperVision label and selector share their own horizontal row; other settings wrap
 when needed. Start game applies all selections and remembers them for later
 launches. Show MPH starts off and passes `--showmph:on` or `--showmph:off`.
-With a keyboard, Ctrl+F9 toggles it for the current session without changing
+With a keyboard, Shift+F11 toggles it for the current session without changing
 the saved checkbox. Show Dashboard passes `--show-dashboard:on` or
 `--show-dashboard:off` to set the initial dashboard visibility. Press D during
 a drive to toggle the dashboard. Defaults use original AdLib music, hide FPS,

@@ -1557,7 +1557,7 @@ async function main() {
         assert.equal(await page.locator('#widescreen').isChecked(), false, 'Widescreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-mph').isChecked(), false, 'MPH must default off');
-        assert.equal((await page.locator('#show-mph').locator('..').innerText()).trim(), 'Show MPH (Ctrl+F9)');
+        assert.equal((await page.locator('#show-mph').locator('..').innerText()).trim(), 'Show MPH (Shift+F11)');
         assert.equal(await page.locator('#show-dashboard').isChecked(), true, 'Dashboard must default on');
         assert.equal((await page.locator('#show-dashboard').locator('..').innerText()).trim(), 'Show Dashboard');
         assert.equal(await page.locator('#multi-core').isChecked(), true, 'Available multi-core rendering must default on');
@@ -1628,7 +1628,7 @@ async function main() {
             assert.deepEqual(args.filter(arg => arg.startsWith('--show-dashboard:')),
                 [dashboard ? '--show-dashboard:on' : '--show-dashboard:off']);
             const savedBeforeHotkey = await storedOptions(page);
-            await page.keyboard.press('Control+F9');
+            await page.keyboard.press('Shift+F11');
             assert.equal(await page.locator('#show-mph').isChecked(), mph, 'The game hotkey must leave the startup checkbox unchanged');
             assert.deepEqual(await storedOptions(page), savedBeforeHotkey, 'The game hotkey must not save launcher options');
             assert.deepEqual(args.filter(arg => arg.startsWith('--multi-core:')),
