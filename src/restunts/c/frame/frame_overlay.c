@@ -1,6 +1,9 @@
 #include "frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/widescreen.h"
+#ifndef RESTUNTS_HEADLESS
+#include "../extended/extended_checkpoint.h"
+#endif
 #endif
 #include "frame_fps.h"
 #include "../game_input.h"
@@ -36,6 +39,8 @@
 #define SECURITY_TEXT_FIRST_Y 93
 #define SECURITY_TEXT_SECOND_Y 105
 #define WRONG_WAY_TEXT_Y 93
+#define CHECKPOINT_PASSED_TEXT_COLOR 10
+#define CHECKPOINT_FAILED_TEXT_COLOR 12
 #define DIRECTION_ICON_CENTER_X 148
 #define DIRECTION_ICON_CENTER_Y 93
 #define OPPONENT_LEFT_ICON_X 68
@@ -176,6 +181,12 @@ static void draw_route_direction(struct SHAPE2D far *shape, legacy_s16 x, legacy
 static void draw_ingame_route_information(void)
 {
 	struct SHAPE2D far *player_arrow = route_direction_shape(state.game_player_route_indicator);
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	enum EXTENDED_CHECKPOINT_FEEDBACK feedback = extended_checkpoint_feedback();
+	if (feedback != EXTENDED_CHECKPOINT_FEEDBACK_NONE) {
+		player_arrow = 0;
+	}
+#endif
 	struct SHAPE2D far *opponent_arrow = route_direction_shape(state.game_opponent_route_indicator);
 	legacy_s32 text_height = (legacy_s32)font_glyph_height + INGAME_TEXT_SHADOW_HEIGHT;
 	legacy_s32 top = OVERLAY_REFERENCE_HEIGHT;
@@ -183,7 +194,11 @@ static void draw_ingame_route_information(void)
 	if (player_arrow != 0) {
 		include_route_extent(DIRECTION_ICON_CENTER_Y, shape2d_get_height(player_arrow), &top,
 							 &bottom);
-	} else if (state.game_player_route_indicator == ROUTE_INDICATOR_WRONG_WAY) {
+	} else if (state.game_player_route_indicator == ROUTE_INDICATOR_WRONG_WAY
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+			   || feedback != EXTENDED_CHECKPOINT_FEEDBACK_NONE
+#endif
+	) {
 		include_route_extent(WRONG_WAY_TEXT_Y, text_height, &top, &bottom);
 	}
 	if (opponent_arrow != 0) {
@@ -213,6 +228,18 @@ static void draw_ingame_route_information(void)
 	if (player_arrow != 0) {
 		draw_route_direction(player_arrow, DIRECTION_ICON_CENTER_X,
 							 (legacy_s16)(DIRECTION_ICON_CENTER_Y + offset));
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	} else if (feedback != EXTENDED_CHECKPOINT_FEEDBACK_NONE) {
+		static legacy_s8 passed_text[] = "Checkpoint Passed";
+		static legacy_s8 failed_text[] = "Checkpoint Failed";
+		legacy_u8 passed = feedback == EXTENDED_CHECKPOINT_FEEDBACK_PASSED;
+		legacy_s8 *text = passed ? passed_text : failed_text;
+		legacy_s16 color = passed ? CHECKPOINT_PASSED_TEXT_COLOR : CHECKPOINT_FAILED_TEXT_COLOR;
+		rect_union(&rect_ingame_text,
+				   intro_draw_text(text, font_centered_text_x(text),
+								   (legacy_s16)(WRONG_WAY_TEXT_Y + offset), color, 0),
+				   &rect_ingame_text);
+#endif
 	} else if (state.game_player_route_indicator == ROUTE_INDICATOR_WRONG_WAY) {
 		draw_centered_ingame_resource("www", (legacy_s16)(WRONG_WAY_TEXT_Y + offset));
 	}

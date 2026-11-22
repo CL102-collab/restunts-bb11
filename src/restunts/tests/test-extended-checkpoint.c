@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 #include "../c/externs.h"
+#include "../c/gamestate.h"
 #include "../c/crash_state.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_replay_runtime.h"
@@ -15,6 +16,10 @@
 #define TEST_GATE_ROW 7U
 #define TEST_FINISH_ROW 4U
 #define TEST_GATE_APPROACH 200
+#define TEST_OUTSIDE_TILE (CSTRK_TILE_WORLD_SIZE / 2 + TEST_GATE_APPROACH)
+#define TEST_CORNER_OFFSET (TEST_GATE_APPROACH / 2)
+#define TEST_PASSED_FEEDBACK_SECONDS 2U
+#define TEST_FAILED_FEEDBACK_SECONDS 3U
 #define TEST_CAR_HEIGHT 20
 #define TEST_UPPER_OPENING_HEIGHT 60
 #define TEST_UPPER_OPENING_LATERAL 123
@@ -24,6 +29,7 @@ struct GAMEINFO gameconfig;
 struct EXTENDED_REPLAY_CLOCKS extended_replay_clocks;
 legacy_s8 start_finish_column = TEST_HIGH_COLUMN, start_finish_row = TEST_FINISH_ROW;
 legacy_s16 track_angle;
+legacy_u16 framespersec;
 static struct CSTRK_OBJECT objects[TEST_OBJECT_CAPACITY];
 static struct CSTRK_TRACK track;
 static legacy_s16 track_active = 1, replay_active = 1;
@@ -128,6 +134,7 @@ static void reset_fixture(legacy_u16 blue, legacy_u16 red)
 	state.playerstate.car_lap_count = 1;
 	state.opponentstate.car_lap_count = 1;
 	track_angle = 0;
+	framespersec = GAME_FRAME_RATE_NORMAL;
 	track_active = replay_active = 1;
 }
 
@@ -413,6 +420,114 @@ static void test_finish_order_in_fast_tick(void)
 	assert(finish_attempt());
 }
 
+static enum EXTENDED_CHECKPOINT_FEEDBACK feedback_tick(struct VECTORLONG position)
+{
+	extended_checkpoint_begin_step();
+	state.playerstate.car_position = position;
+	extended_replay_clocks.frame++;
+	extended_checkpoint_end_step();
+	return extended_checkpoint_feedback();
+}
+
+static void assert_feedback_duration(enum EXTENDED_CHECKPOINT_FEEDBACK feedback, legacy_u16 seconds)
+{
+	assert(extended_checkpoint_feedback() == feedback);
+	legacy_u16 duration = framespersec * seconds;
+	for (legacy_u16 elapsed = 1U; elapsed < duration; elapsed++) {
+		assert(feedback_tick(state.playerstate.car_position) == feedback);
+	}
+	assert(feedback_tick(state.playerstate.car_position) == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+}
+
+static void test_checkpoint_feedback_visit(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	for (legacy_u16 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+		reset_fixture(1U, 0U);
+		framespersec = rates[rate];
+		const struct CSTRK_OBJECT *gate = &objects[1];
+		struct VECTORLONG outside = test_position(gate, 0, TEST_CAR_HEIGHT, -TEST_OUTSIDE_TILE);
+		struct VECTORLONG inside = test_position(gate, 0, TEST_CAR_HEIGHT, -TEST_GATE_APPROACH);
+		state.playerstate.car_position = outside;
+		assert(feedback_tick(inside) == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+		struct EXTENDED_REPLAY_CLOCKS snapshot = extended_replay_clocks;
+		assert(feedback_tick(inside) == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+		assert(feedback_tick(outside) == EXTENDED_CHECKPOINT_FEEDBACK_FAILED);
+		assert_feedback_duration(EXTENDED_CHECKPOINT_FEEDBACK_FAILED, TEST_FAILED_FEEDBACK_SECONDS);
+
+		extended_replay_clocks = snapshot;
+		state.playerstate.car_position = inside;
+		assert(feedback_tick(outside) == EXTENDED_CHECKPOINT_FEEDBACK_FAILED);
+		assert(feedback_tick(inside) == EXTENDED_CHECKPOINT_FEEDBACK_FAILED);
+		assert(feedback_tick(test_position(gate, 0, TEST_CAR_HEIGHT, 0)) ==
+			   EXTENDED_CHECKPOINT_FEEDBACK_PASSED);
+		assert_feedback_duration(EXTENDED_CHECKPOINT_FEEDBACK_PASSED, TEST_PASSED_FEEDBACK_SECONDS);
+
+		struct VECTORLONG beyond = test_position(gate, 0, TEST_CAR_HEIGHT, TEST_OUTSIDE_TILE);
+		assert(feedback_tick(beyond) == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+		assert(feedback_tick(outside) == EXTENDED_CHECKPOINT_FEEDBACK_PASSED);
+		assert(extended_checkpoint_passed(gate, PLAYER_CAR_INDEX));
+		assert_feedback_duration(EXTENDED_CHECKPOINT_FEEDBACK_PASSED, TEST_PASSED_FEEDBACK_SECONDS);
+		assert(feedback_tick(inside) == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+		assert(feedback_tick(outside) == EXTENDED_CHECKPOINT_FEEDBACK_FAILED);
+	}
+}
+
+static void test_checkpoint_feedback_swept_tile(void)
+{
+	reset_fixture(1U, 0U);
+	const struct CSTRK_OBJECT *gate = &objects[1];
+	legacy_s16 corner = -(CSTRK_TILE_WORLD_SIZE / 2);
+	state.playerstate.car_position = test_position(gate, corner - TEST_CORNER_OFFSET,
+												   TEST_CAR_HEIGHT, corner + TEST_CORNER_OFFSET);
+	assert(feedback_tick(test_position(gate, corner + TEST_CORNER_OFFSET, TEST_CAR_HEIGHT,
+									   corner - TEST_CORNER_OFFSET)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+
+	/* A frame boundary at the exact corner must not turn the touch into a visit. */
+	state.playerstate.car_position = test_position(gate, corner - TEST_CORNER_OFFSET,
+												   TEST_CAR_HEIGHT, corner + TEST_CORNER_OFFSET);
+	assert(feedback_tick(test_position(gate, corner, TEST_CAR_HEIGHT, corner)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+	assert(feedback_tick(test_position(gate, corner + TEST_CORNER_OFFSET, TEST_CAR_HEIGHT,
+									   corner - TEST_CORNER_OFFSET)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+
+	state.playerstate.car_position =
+		test_position(gate, 0, CHECKPOINT_GATE_SIGN_BOTTOM, -TEST_OUTSIDE_TILE);
+	assert(feedback_tick(test_position(gate, 0, CHECKPOINT_GATE_SIGN_BOTTOM, TEST_OUTSIDE_TILE)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_FAILED);
+	assert(!extended_checkpoint_passed(gate, PLAYER_CAR_INDEX));
+	state.playerstate.car_position = test_position(gate, 0, TEST_CAR_HEIGHT, TEST_OUTSIDE_TILE);
+	assert(feedback_tick(test_position(gate, 0, TEST_CAR_HEIGHT, -TEST_OUTSIDE_TILE)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_PASSED);
+}
+
+static void test_checkpoint_feedback_priority(void)
+{
+	reset_fixture(1U, 1U);
+	/* One tick clears the red gate and then leaves the blue tile sideways. */
+	objects[1].rotation = 1U;
+	state.playerstate.car_position =
+		test_position(&objects[2], 0, TEST_CAR_HEIGHT, -TEST_OUTSIDE_TILE);
+	assert(feedback_tick(test_position(&objects[2], 0, TEST_CAR_HEIGHT,
+									   CSTRK_TILE_WORLD_SIZE + TEST_OUTSIDE_TILE)) ==
+		   EXTENDED_CHECKPOINT_FEEDBACK_PASSED);
+	assert(extended_checkpoint_passed(&objects[2], PLAYER_CAR_INDEX));
+	assert(!extended_checkpoint_passed(&objects[1], PLAYER_CAR_INDEX));
+
+	reset_fixture(1U, 0U);
+	gameconfig.game_opponenttype = 1;
+	const struct CSTRK_OBJECT *gate = &objects[1];
+	state.opponentstate.car_position = test_position(gate, 0, TEST_CAR_HEIGHT, -TEST_OUTSIDE_TILE);
+	extended_checkpoint_begin_step();
+	state.opponentstate.car_position = test_position(gate, 0, TEST_CAR_HEIGHT, TEST_OUTSIDE_TILE);
+	extended_replay_clocks.frame++;
+	extended_checkpoint_end_step();
+	assert(extended_checkpoint_passed(gate, OPPONENT_CAR_INDEX));
+	assert(extended_checkpoint_feedback() == EXTENDED_CHECKPOINT_FEEDBACK_NONE);
+}
+
 legacy_int main(void)
 {
 	test_aperture();
@@ -422,5 +537,8 @@ legacy_int main(void)
 	test_finish_rotation_and_opponent();
 	test_real_crossings_and_snapshot();
 	test_finish_order_in_fast_tick();
+	test_checkpoint_feedback_visit();
+	test_checkpoint_feedback_swept_tile();
+	test_checkpoint_feedback_priority();
 	return 0;
 }

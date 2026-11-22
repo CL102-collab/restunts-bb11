@@ -107,6 +107,54 @@ legacy_s16 extended_checkpoint_crossed(const struct CSTRK_TRACK *track,
 #include "../externs.h"
 #include "../crash_state.h"
 
+#define CHECKPOINT_TILE_POSITION_SPAN (CSTRK_TILE_WORLD_SIZE * EXTENDED_CHECKPOINT_POSITION_SCALE)
+#define CHECKPOINT_PASSED_SECONDS 2U
+#define CHECKPOINT_FAILED_SECONDS 3U
+
+struct CHECKPOINT_TILE_INTERVAL {
+	legacy_u64 entry, entry_span, exit, exit_span;
+};
+
+/* Clip a movement segment to the tile on one horizontal axis. Keep the
+ * fractions exact so a single point of contact never counts as a visit. */
+static legacy_s16 checkpoint_clip_tile_axis(legacy_s32 start, legacy_s32 end, legacy_s32 minimum,
+											legacy_s32 maximum,
+											struct CHECKPOINT_TILE_INTERVAL *interval)
+{
+	if ((start < minimum && end < minimum) || (start >= maximum && end >= maximum)) {
+		return 0;
+	}
+	legacy_s64 delta = (legacy_s64)end - start;
+	if (!delta) {
+		return 1;
+	}
+	legacy_s64 entry = (legacy_s64)minimum - start, exit = (legacy_s64)maximum - start;
+	if (delta < 0) {
+		delta = -delta;
+		entry = (legacy_s64)start - maximum;
+		exit = (legacy_s64)start - minimum;
+	}
+	if (exit <= 0 || entry >= delta) {
+		return 0;
+	}
+	legacy_u64 span = (legacy_u64)delta;
+	if (entry > 0 && interval->entry * span < (legacy_u64)entry * interval->entry_span) {
+		interval->entry = (legacy_u64)entry;
+		interval->entry_span = span;
+	}
+	if (exit < delta && interval->exit * span > (legacy_u64)exit * interval->exit_span) {
+		interval->exit = (legacy_u64)exit;
+		interval->exit_span = span;
+	}
+	return interval->entry * interval->exit_span < interval->exit * interval->entry_span;
+}
+
+static legacy_s16 checkpoint_in_tile(const struct VECTORLONG *position, legacy_s32 x, legacy_s32 z)
+{
+	return x <= position->lx && position->lx < x + CHECKPOINT_TILE_POSITION_SPAN &&
+		   z <= position->lz && position->lz < z + CHECKPOINT_TILE_POSITION_SPAN;
+}
+
 static const struct CSTRK_OBJECT *checkpoint_objects;
 static legacy_u32 checkpoint_object_count;
 static legacy_u16 checkpoint_indices[CSTRK_MAX_OBJECTS];
@@ -204,6 +252,72 @@ static void checkpoint_observe(legacy_s16 car_index, const struct CHECKPOINT_INT
 	}
 }
 
+static void checkpoint_update_feedback(void)
+{
+	struct EXTENDED_CHECKPOINT_PROGRESS *progress = &extended_replay_clocks.checkpoints;
+	if (progress->feedback_frames) {
+		progress->feedback_frames--;
+	}
+	const struct VECTORLONG *previous = &progress->previous[PLAYER_CAR_INDEX];
+	const struct VECTORLONG *current = &state.playerstate.car_position;
+	if (state.playerstate.car_crashBmpFlag != CRASH_EVENT_NONE ||
+		(previous->lx == current->lx && previous->lz == current->lz)) {
+		return;
+	}
+
+	const struct CSTRK_TRACK *track = extended_track_model();
+	legacy_u16 active_checkpoint = 0;
+	legacy_u8 active_checkpoint_passed = 0;
+	enum EXTENDED_CHECKPOINT_FEEDBACK feedback = EXTENDED_CHECKPOINT_FEEDBACK_NONE;
+	for (legacy_u16 gate = 0; gate < checkpoint_count; gate++) {
+		legacy_u16 index = checkpoint_indices[gate];
+		const struct CSTRK_OBJECT *object = &track->objects[index];
+		legacy_s32 x = object->x * CHECKPOINT_TILE_POSITION_SPAN;
+		legacy_s32 z = (track->height - 1L - object->y) * CHECKPOINT_TILE_POSITION_SPAN;
+		legacy_s16 ongoing =
+			progress->player_checkpoint == index + 1U && checkpoint_in_tile(previous, x, z);
+		if (!ongoing) {
+			struct CHECKPOINT_TILE_INTERVAL interval = {0, 1, 1, 1};
+			if (!checkpoint_clip_tile_axis(previous->lx, current->lx, x,
+										   x + CHECKPOINT_TILE_POSITION_SPAN, &interval) ||
+				!checkpoint_clip_tile_axis(previous->lz, current->lz, z,
+										   z + CHECKPOINT_TILE_POSITION_SPAN, &interval)) {
+				continue;
+			}
+		}
+		/* A valid crossing takes priority over misses on this step. Keep
+		 * attempts independent of the checkpoint's once-per-race score. */
+		legacy_s16 passed = extended_checkpoint_crossed(track, object, previous, current);
+		if (passed) {
+			feedback = EXTENDED_CHECKPOINT_FEEDBACK_PASSED;
+		}
+		passed = passed || (ongoing && progress->player_checkpoint_passed);
+		if (checkpoint_in_tile(current, x, z)) {
+			active_checkpoint = index + 1U;
+			active_checkpoint_passed = (legacy_u8)passed;
+		} else if (!passed && feedback == EXTENDED_CHECKPOINT_FEEDBACK_NONE) {
+			feedback = EXTENDED_CHECKPOINT_FEEDBACK_FAILED;
+		}
+	}
+	progress->player_checkpoint = active_checkpoint;
+	progress->player_checkpoint_passed = active_checkpoint_passed;
+	if (feedback != EXTENDED_CHECKPOINT_FEEDBACK_NONE) {
+		progress->feedback = feedback;
+		progress->feedback_frames = framespersec * (feedback == EXTENDED_CHECKPOINT_FEEDBACK_PASSED
+														? CHECKPOINT_PASSED_SECONDS
+														: CHECKPOINT_FAILED_SECONDS);
+	}
+}
+
+enum EXTENDED_CHECKPOINT_FEEDBACK extended_checkpoint_feedback(void)
+{
+	const struct EXTENDED_CHECKPOINT_PROGRESS *progress = &extended_replay_clocks.checkpoints;
+	if (!progress->feedback_frames || !extended_track_active() || !extended_replay_is_active()) {
+		return EXTENDED_CHECKPOINT_FEEDBACK_NONE;
+	}
+	return progress->feedback;
+}
+
 static legacy_s16 checkpoint_complete(legacy_s16 car_index)
 {
 	const struct EXTENDED_CHECKPOINT_PROGRESS *progress = &extended_replay_clocks.checkpoints;
@@ -254,6 +368,7 @@ void extended_checkpoint_end_step(void)
 	if (!checkpoint_prepare()) {
 		return;
 	}
+	checkpoint_update_feedback();
 	legacy_u16 cars = gameconfig.game_opponenttype ? EXTENDED_CHECKPOINT_CAR_COUNT : 1U;
 	for (legacy_u16 car = 0; car < cars; car++) {
 		if (checkpoint_car((legacy_s16)car)->car_crashBmpFlag == CRASH_EVENT_NONE) {

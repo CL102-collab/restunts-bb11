@@ -30,7 +30,9 @@ legacy_u8 fps_display_enabled;
 legacy_u8 mph_display_enabled;
 legacy_u8 renderer_active;
 #ifdef RESTUNTS_SDL3
+#include "../c/extended/extended_checkpoint.h"
 #include "../c/hires/widescreen.h"
+static enum EXTENDED_CHECKPOINT_FEEDBACK checkpoint_test_feedback;
 static legacy_u8 widescreen_test_active;
 static enum WIDESCREEN_OVERLAY widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
 legacy_s32 widescreen_active(void)
@@ -44,6 +46,11 @@ void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
 void widescreen_overlay_end(void)
 {
 	widescreen_test_overlay = WIDESCREEN_OVERLAY_COUNT;
+}
+
+enum EXTENDED_CHECKPOINT_FEEDBACK extended_checkpoint_feedback(void)
+{
+	return checkpoint_test_feedback;
 }
 #endif
 static legacy_u32 realtime_ticks;
@@ -750,6 +757,9 @@ static void reset_ingame_text(const char *filename)
 	passed_security = 1;
 	cameramode = CAMERA_MODE_TRACKSIDE;
 	text_draw_count = 0;
+#ifdef RESTUNTS_SDL3
+	checkpoint_test_feedback = EXTENDED_CHECKPOINT_FEEDBACK_NONE;
+#endif
 	memset(&opponent_icon_draw, 0, sizeof(opponent_icon_draw));
 	fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
@@ -776,13 +786,19 @@ static struct RECTANGLE *draw_complete_ingame_text(void)
 	return bounds;
 }
 
-static void assert_text(legacy_u32 index, const legacy_char *text, legacy_s16 x, legacy_s16 y)
+static void assert_text_color(legacy_u32 index, const legacy_char *text, legacy_s16 x, legacy_s16 y,
+							  legacy_s16 color)
 {
 	assert(index < text_draw_count);
 	assert(strcmp(text_draws[index].text, text) == 0);
 	assert(text_draws[index].x == x && text_draws[index].y == y);
-	assert(text_draws[index].color == dialog_fnt_colour);
+	assert(text_draws[index].color == color);
 	assert(text_draws[index].shadow_color == 0);
+}
+
+static void assert_text(legacy_u32 index, const legacy_char *text, legacy_s16 x, legacy_s16 y)
+{
+	assert_text_color(index, text, x, y, dialog_fnt_colour);
 }
 
 static void test_replay_filename_survives_blink(void)
@@ -1101,6 +1117,54 @@ static void test_player_route_fits_viewport(void)
 		}
 	}
 }
+
+#ifdef RESTUNTS_SDL3
+static void test_checkpoint_notice_shares_player_slot(void)
+{
+	enum {
+		CHECKPOINT_TEST_TEXT_X = 92,
+		CHECKPOINT_TEST_TEXT_RIGHT = 229,
+		CHECKPOINT_TEST_GREEN = 10,
+		CHECKPOINT_TEST_RED = 12
+	};
+	static const struct {
+		enum EXTENDED_CHECKPOINT_FEEDBACK feedback;
+		const legacy_char *text;
+		legacy_s16 color;
+		legacy_u8 route;
+	} cases[] = {{EXTENDED_CHECKPOINT_FEEDBACK_PASSED, "Checkpoint Passed", CHECKPOINT_TEST_GREEN,
+				  ROUTE_INDICATOR_WRONG_WAY},
+				 {EXTENDED_CHECKPOINT_FEEDBACK_FAILED, "Checkpoint Failed", CHECKPOINT_TEST_RED,
+				  ROUTE_INDICATOR_LEFT}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		reset_player_route(cases[index].route, ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM);
+		checkpoint_test_feedback = cases[index].feedback;
+		const struct RECTANGLE bounds = *draw_ingame_text();
+		assert(text_draw_count == 1 && opponent_icon_draw.count == 0);
+		assert_text_color(0, cases[index].text, CHECKPOINT_TEST_TEXT_X, ROUTE_TEST_TEXT_Y,
+						  cases[index].color);
+		assert(text_draws[0].overlay == WIDESCREEN_OVERLAY_CENTER);
+		assert(bounds.left == CHECKPOINT_TEST_TEXT_X && bounds.right == CHECKPOINT_TEST_TEXT_RIGHT);
+		assert(bounds.top == ROUTE_TEST_TEXT_Y && bounds.bottom == ROUTE_TEST_COMPACT_BOTTOM);
+		text_draw_count = 0;
+		checkpoint_test_feedback = EXTENDED_CHECKPOINT_FEEDBACK_NONE;
+		draw_ingame_text();
+		if (cases[index].route == ROUTE_INDICATOR_WRONG_WAY) {
+			assert(text_draw_count == 1 && opponent_icon_draw.count == 0);
+			assert_text(0, "Wrong Way", ROUTE_TEST_TEXT_X, ROUTE_TEST_TEXT_Y);
+		} else {
+			assert(text_draw_count == 0 && opponent_icon_draw.count == 1);
+			assert(opponent_icon_draw.y == ROUTE_TEST_ARROW_Y);
+		}
+	}
+	reset_player_route(ROUTE_INDICATOR_NONE, ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM);
+	checkpoint_test_feedback = EXTENDED_CHECKPOINT_FEEDBACK_FAILED;
+	cameramode = CAMERA_MODE_TRACKSIDE;
+	assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(empty_rect)) == 0);
+	assert(text_draw_count == 0);
+	reset_ingame_text("");
+}
+#endif
 
 static void test_route_information_moves_together(void)
 {
@@ -2178,6 +2242,9 @@ legacy_int main(void)
 	test_opponent_indicator_fits_viewport();
 	test_opponent_indicator_requires_room();
 	test_player_route_fits_viewport();
+#ifdef RESTUNTS_SDL3
+	test_checkpoint_notice_shares_player_slot();
+#endif
 	test_route_information_moves_together();
 	test_player_route_disappearance_preserves_dashboard();
 	test_fps_sampling();

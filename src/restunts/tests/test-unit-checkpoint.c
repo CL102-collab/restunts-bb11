@@ -2,6 +2,7 @@
 #include <math.h>
 #include <string.h>
 #include "../c/externs.h"
+#include "../c/gamestate.h"
 #include "../c/crash_state.h"
 #include "../c/opponent/unit_opponent_internal.h"
 #include "../c/extended/extended_checkpoint.h"
@@ -34,6 +35,7 @@ struct SIMD simd_opponent;
 struct EXTENDED_REPLAY_CLOCKS extended_replay_clocks;
 legacy_s16 track_pieces_counter = TEST_PIECE_COUNT;
 legacy_s16 track_angle;
+legacy_u16 framespersec = GAME_FRAME_RATE_NORMAL;
 legacy_s8 start_finish_column = TEST_GATE_COLUMN, start_finish_row = TEST_GATE_ROW + 3U;
 static legacy_s8 route_columns[TEST_PIECE_COUNT], route_rows[TEST_PIECE_COUNT];
 static legacy_s8 route_ids[TEST_PIECE_COUNT];

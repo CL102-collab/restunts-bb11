@@ -9,12 +9,22 @@
 #define EXTENDED_CHECKPOINT_VISITED_BYTES ((CSTRK_MAX_OBJECTS + 7U) / 8U)
 #define EXTENDED_CHECKPOINT_POSITION_SCALE 64L
 
+enum EXTENDED_CHECKPOINT_FEEDBACK {
+	EXTENDED_CHECKPOINT_FEEDBACK_NONE = 0,
+	EXTENDED_CHECKPOINT_FEEDBACK_PASSED,
+	EXTENDED_CHECKPOINT_FEEDBACK_FAILED
+};
+
 /* Runtime-only state. The replay clocks carry this through rewind, nested ghost
  * playback, and the generator's physics snapshots; it is never serialized. */
 struct EXTENDED_CHECKPOINT_PROGRESS {
 	legacy_u8 visited[EXTENDED_CHECKPOINT_CAR_COUNT][EXTENDED_CHECKPOINT_VISITED_BYTES];
 	legacy_u16 remaining[EXTENDED_CHECKPOINT_CAR_COUNT][EXTENDED_CHECKPOINT_COLOR_COUNT];
 	struct VECTORLONG previous[EXTENDED_CHECKPOINT_CAR_COUNT];
+	enum EXTENDED_CHECKPOINT_FEEDBACK feedback;
+	legacy_u16 feedback_frames;
+	legacy_u16 player_checkpoint; /* One-based object index for the current visit. */
+	legacy_u8 player_checkpoint_passed;
 	legacy_u8 initialized;
 };
 
@@ -27,6 +37,7 @@ legacy_s16 extended_checkpoint_crossed(const struct CSTRK_TRACK *track,
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 void extended_checkpoint_begin_step(void);
 void extended_checkpoint_end_step(void);
+enum EXTENDED_CHECKPOINT_FEEDBACK extended_checkpoint_feedback(void);
 legacy_s16 extended_checkpoint_passed(const struct CSTRK_OBJECT *object, legacy_s16 car_index);
 /* Legacy tracks and extended tracks without colored gates retain native rules.
  * Colored tracks additionally require a finite, forward finish-gate crossing
