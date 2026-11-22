@@ -124,7 +124,7 @@ build supports `file://` without a local web server. The HTML's location does no
    (`--ogg:on`); leave it unchecked to hear the chosen PC Speaker, Tandy, Ad Lib
    or MT-32 synthesizer (`--ogg:off`). It starts off unless a remembered choice enables it.
    **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
-   `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
+   `--widescreen:on/off`), **Show FPS (F11)** (`--fps:on`), followed by
    **Show MPH (Shift+F11)** (`--mph:on/off`) for speed during races and replay playback,
    **Show Dashboard** (`--dashboard:on/off`), **Multi-core rendering** (`--multi-core:on/off`,
    initially on when supported), and the **HyperVision**
@@ -273,7 +273,7 @@ support for the Screen Orientation lock API; if it is unavailable or refused,
 fullscreen still works with the browser's normal orientation behavior.
 With the canvas focused, **F12** toggles HyperVision Auto and **Shift+F12** cycles
 fixed **Full → High → Medium → Low** presets. **F11** toggles FPS and render
-time. If your browser intercepts F11 for fullscreen, enable **Show FPS** in
+time. If your browser intercepts F11 for fullscreen, enable **Show FPS (F11)** in
 Graphics settings before starting. **Shift+F11** toggles the session's MPH
 display and preserves the saved launcher checkbox. Speed appears at the bottom
 right during races and replay playback. **Shift+F10** switches between Ogg
