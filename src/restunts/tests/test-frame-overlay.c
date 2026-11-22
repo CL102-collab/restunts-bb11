@@ -1134,7 +1134,7 @@ static void test_checkpoint_notice_shares_player_slot(void)
 		legacy_u8 route;
 	} cases[] = {{EXTENDED_CHECKPOINT_FEEDBACK_PASSED, "Checkpoint Passed", CHECKPOINT_TEST_GREEN,
 				  ROUTE_INDICATOR_WRONG_WAY},
-				 {EXTENDED_CHECKPOINT_FEEDBACK_FAILED, "Checkpoint Failed", CHECKPOINT_TEST_RED,
+				 {EXTENDED_CHECKPOINT_FEEDBACK_FAILED, "Checkpoint Missed", CHECKPOINT_TEST_RED,
 				  ROUTE_INDICATOR_LEFT}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
 		reset_player_route(cases[index].route, ROUTE_TEST_ROOF_TOP, ROUTE_TEST_COMPACT_BOTTOM);

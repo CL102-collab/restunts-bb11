@@ -108,8 +108,8 @@ legacy_s16 extended_checkpoint_crossed(const struct CSTRK_TRACK *track,
 #include "../crash_state.h"
 
 #define CHECKPOINT_TILE_POSITION_SPAN (CSTRK_TILE_WORLD_SIZE * EXTENDED_CHECKPOINT_POSITION_SCALE)
-#define CHECKPOINT_PASSED_SECONDS 2U
-#define CHECKPOINT_FAILED_SECONDS 3U
+#define CHECKPOINT_PASSED_SECONDS 1U
+#define CHECKPOINT_FAILED_SECONDS 2U
 
 struct CHECKPOINT_TILE_INTERVAL {
 	legacy_u64 entry, entry_span, exit, exit_span;

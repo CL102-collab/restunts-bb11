@@ -231,7 +231,7 @@ static void draw_ingame_route_information(void)
 #if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
 	} else if (feedback != EXTENDED_CHECKPOINT_FEEDBACK_NONE) {
 		static legacy_s8 passed_text[] = "Checkpoint Passed";
-		static legacy_s8 failed_text[] = "Checkpoint Failed";
+		static legacy_s8 failed_text[] = "Checkpoint Missed";
 		legacy_u8 passed = feedback == EXTENDED_CHECKPOINT_FEEDBACK_PASSED;
 		legacy_s8 *text = passed ? passed_text : failed_text;
 		legacy_s16 color = passed ? CHECKPOINT_PASSED_TEXT_COLOR : CHECKPOINT_FAILED_TEXT_COLOR;
