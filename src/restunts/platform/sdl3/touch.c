@@ -6,6 +6,8 @@
 #include <string.h>
 #ifdef __ANDROID__
 #include <jni.h>
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
 #endif
 #ifdef RESTUNTS_FULL
 #include "../../c/externs.h"
@@ -323,22 +325,17 @@ struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect
 	return touch_layout_circle(control, area, &touch_layout);
 }
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 #define TOUCH_CENTER_COMPONENTS 2
 #define TOUCH_CIRCLE_COMPONENTS 3
 
-static struct TOUCH_LAYOUT android_touch_layout(JNIEnv *env, jfloatArray centers, jfloat scale)
+static struct TOUCH_LAYOUT touch_layout_from_centers(const legacy_f32 *positions, legacy_f32 scale)
 {
 	struct TOUCH_LAYOUT layout = {0};
 	if (scale >= TOUCH_MIN_SCALE && scale <= TOUCH_MAX_SCALE) {
 		layout.scale = scale;
 	}
-	jfloat positions[TOUCH_CONTROL_COUNT * TOUCH_CENTER_COMPONENTS];
-	if (centers == NULL || (*env)->GetArrayLength(env, centers) != SDL_arraysize(positions)) {
-		return layout;
-	}
-	(*env)->GetFloatArrayRegion(env, centers, 0, SDL_arraysize(positions), positions);
-	if ((*env)->ExceptionCheck(env)) {
+	if (positions == NULL) {
 		return layout;
 	}
 	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
@@ -350,6 +347,34 @@ static struct TOUCH_LAYOUT android_touch_layout(JNIEnv *env, jfloatArray centers
 		}
 	}
 	return layout;
+}
+
+static void touch_layout_preview(const struct TOUCH_LAYOUT *layout, legacy_int width,
+								 legacy_int height, legacy_f32 *circles)
+{
+	SDL_Rect area = {0, 0, width, height};
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		struct TOUCH_CIRCLE circle = touch_layout_circle(control, &area, layout);
+		legacy_u32 index = control * TOUCH_CIRCLE_COMPONENTS;
+		circles[index] = circle.x;
+		circles[index + 1] = circle.y;
+		circles[index + 2] = circle.radius;
+	}
+}
+#endif
+
+#ifdef __ANDROID__
+static struct TOUCH_LAYOUT android_touch_layout(JNIEnv *env, jfloatArray centers, jfloat scale)
+{
+	jfloat positions[TOUCH_CONTROL_COUNT * TOUCH_CENTER_COMPONENTS];
+	if (centers == NULL || (*env)->GetArrayLength(env, centers) != SDL_arraysize(positions)) {
+		return touch_layout_from_centers(NULL, scale);
+	}
+	(*env)->GetFloatArrayRegion(env, centers, 0, SDL_arraysize(positions), positions);
+	if ((*env)->ExceptionCheck(env)) {
+		return touch_layout_from_centers(NULL, scale);
+	}
+	return touch_layout_from_centers(positions, scale);
 }
 
 JNIEXPORT void JNICALL Java_org_restunts_android_ControlLayout_applyNative(JNIEnv *env,
@@ -370,20 +395,36 @@ JNIEXPORT jfloatArray JNICALL Java_org_restunts_android_ControlLayout_previewNat
 	if ((*env)->ExceptionCheck(env)) {
 		return NULL;
 	}
-	SDL_Rect area = {0, 0, width, height};
 	jfloat circles[TOUCH_CONTROL_COUNT * TOUCH_CIRCLE_COMPONENTS];
-	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
-		struct TOUCH_CIRCLE circle = touch_layout_circle(control, &area, &layout);
-		legacy_u32 index = control * TOUCH_CIRCLE_COMPONENTS;
-		circles[index] = circle.x;
-		circles[index + 1] = circle.y;
-		circles[index + 2] = circle.radius;
-	}
+	touch_layout_preview(&layout, width, height, circles);
 	jfloatArray result = (*env)->NewFloatArray(env, SDL_arraysize(circles));
 	if (result != NULL) {
 		(*env)->SetFloatArrayRegion(env, result, 0, SDL_arraysize(circles), circles);
 	}
 	return result;
+}
+#elif defined(__EMSCRIPTEN__)
+/* Scratch buffers are shared only by synchronous calls from the browser game thread. */
+static legacy_f32 browser_touch_centers[TOUCH_CONTROL_COUNT * TOUCH_CENTER_COMPONENTS];
+static legacy_f32 browser_touch_circles[TOUCH_CONTROL_COUNT * TOUCH_CIRCLE_COMPONENTS];
+
+EMSCRIPTEN_KEEPALIVE legacy_f32 *restunts_browser_touch_centers(void)
+{
+	return browser_touch_centers;
+}
+
+EMSCRIPTEN_KEEPALIVE void restunts_browser_touch_apply(legacy_f32 scale)
+{
+	struct TOUCH_LAYOUT layout = touch_layout_from_centers(browser_touch_centers, scale);
+	sdl3_touch_set_layout(&layout);
+}
+
+EMSCRIPTEN_KEEPALIVE const legacy_f32 *
+restunts_browser_touch_preview(legacy_f32 scale, legacy_int width, legacy_int height)
+{
+	struct TOUCH_LAYOUT layout = touch_layout_from_centers(browser_touch_centers, scale);
+	touch_layout_preview(&layout, width, height, browser_touch_circles);
+	return browser_touch_circles;
 }
 #endif
 

@@ -13,8 +13,14 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen',
-    'show-fps', 'show-mph', 'show-dashboard', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+const OPTIONS = ['skip-intro', 'input-method', 'controller-vibration', 'show-control-layout', 'sound-mode',
+    'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph',
+    'show-dashboard', 'multi-core', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching',
+    'chicane-fast-grass', 'amiga-grass', 'owoot'];
+const INPUT_EDITORS = ['controller-bindings', 'edit-control-layout'];
+const INPUT_METHODS = ['keyboard', 'joystick', 'mouse'];
+const CUSTOM_BINDINGS = '1:' + '0'.repeat(93); // Three contexts of 31 unbound controls.
+const CUSTOM_LAYOUT = { scale: 1.5, centers: [0.25, 0.75, ...Array(18).fill(-1)] };
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
 const VIDEO_MODES = ['vga', 'ega', 'cga', 'tandy'];
@@ -49,7 +55,24 @@ const RUNTIME = `<script>
         }
     };
     Module['restuntsMultiCoreSupported'] = true;
-    Module.callMain = args => { window.launchedArguments = args; };
+    Module.callMain = args => {
+        window.launchedArguments = args;
+        window.launchedControlLayout = window.appliedControlLayout;
+    };
+    Module['validateRestuntsControllerBindings'] = encoded =>
+        encoded === ${JSON.stringify(CUSTOM_BINDINGS)} ? encoded : null;
+    Module['openRestuntsControllerBindings'] = (encoded, onSave) => {
+        window.editedControllerBindings = encoded;
+        window.saveControllerBindings = onSave;
+    };
+    Module['openRestuntsControlLayoutEditor'] = (layout, onSave) => {
+        window.editedControlLayout = layout;
+        window.saveControlLayout = onSave;
+    };
+    const fixtureControlLayout = ${JSON.stringify(CUSTOM_LAYOUT)};
+    Module['validateRestuntsControlLayout'] = layout =>
+        JSON.stringify(layout) === JSON.stringify(fixtureControlLayout) ? structuredClone(layout) : null;
+    Module['applyRestuntsControlLayout'] = layout => { window.appliedControlLayout = layout; };
     window.fixtureRomScanCalls = [];
     window.fixtureRomInventoryFreeCalls = 0;
     Module.ccall = (name, result, types, args) => {
@@ -89,17 +112,22 @@ async function storedOptions(page) {
 
 async function assertSettingsLayout(page, narrow) {
     const layout = await page.evaluate(ids => {
-        const startup = document.getElementById('startup-options').getBoundingClientRect();
+        const input = document.getElementById('input-settings').getBoundingClientRect();
         const sound = document.getElementById('sound-settings').getBoundingClientRect();
         const graphics = document.getElementById('graphics-settings').getBoundingClientRect();
         const driving = document.getElementById('driving-rules').getBoundingClientRect();
+        const startup = document.getElementById('startup-options').getBoundingClientRect();
         return {
-            startupBottom: startup.bottom,
+            inputBottom: input.bottom,
             soundTop: sound.top,
             soundBottom: sound.bottom,
             graphicsTop: graphics.top,
             graphicsBottom: graphics.bottom,
             drivingTop: driving.top,
+            drivingBottom: driving.bottom,
+            startupTop: startup.top,
+            inputControls: Array.from(document.querySelectorAll('#input-settings input, #input-settings select, #input-settings button'))
+                .map(control => control.id),
             graphicsControls: Array.from(document.querySelectorAll('#graphics-settings input, #graphics-settings select'))
                 .map(option => option.id),
             drivingControls: Array.from(document.querySelectorAll('#driving-rules input'))
@@ -123,11 +151,14 @@ async function assertSettingsLayout(page, narrow) {
             viewportWidth: innerWidth
         };
     }, RULES);
-    assert.ok(layout.soundTop >= layout.startupBottom, 'Sound settings must follow startup options');
+    assert.ok(layout.soundTop >= layout.inputBottom, 'Input settings must precede sound settings');
     assert.ok(layout.graphicsTop >= layout.soundBottom, 'Sound settings must precede graphics settings');
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
+    assert.ok(layout.startupTop >= layout.drivingBottom, 'Startup options must sit below driving rules');
+    assert.deepEqual(layout.inputControls, ['input-method', 'controller-vibration', 'controller-bindings',
+        'show-control-layout', 'edit-control-layout'], 'Input settings must group the input and layout options');
     assert.deepEqual(layout.graphicsControls, ['video-mode', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph',
-        'show-dashboard', 'multi-core', 'show-control-layout', 'hypervision'],
+        'show-dashboard', 'multi-core', 'hypervision'],
         'Video mode must precede the shared graphics controls, with HyperVision last');
     assert.equal(layout.hypervisionOwnRow, true, 'HyperVision must have its own row with its label and dropdown together');
     assert.deepEqual(layout.drivingControls, RULES,
@@ -1021,11 +1052,11 @@ async function exerciseExtendedHighscoreSaving(browser, url, temporary) {
 
 async function exerciseMobileControlLayout(browser, url, fixture) {
     const profiles = [
-        { name: 'Android', enabled: true, saved: false, hasTouch: true, isMobile: true,
+        { name: 'Android', saved: true, hasTouch: true, isMobile: true,
             userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 ' +
                 '(KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36' },
-        { name: 'desktop', enabled: false, saved: true, hasTouch: false },
-        { name: 'touchscreen desktop', enabled: false, hasTouch: true }
+        { name: 'desktop', saved: true, hasTouch: false },
+        { name: 'touchscreen desktop', hasTouch: true }
     ];
     for (const profile of profiles) {
         const context = await browser.newContext({
@@ -1039,13 +1070,12 @@ async function exerciseMobileControlLayout(browser, url, fixture) {
             await page.goto(url);
             await ready(page);
             const controlLayout = page.locator('#show-control-layout');
-            assert.equal(await controlLayout.isChecked(), profile.enabled,
-                profile.name + ' must use the appropriate fresh control-layout default');
+            assert.equal(await controlLayout.isChecked(), false, profile.name + ' must default to a hidden control layout');
             await loadFixture(page, fixture);
             await page.locator('#start').click();
             assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
                 argument.startsWith('--control-layout:'))),
-            [profile.enabled ? '--control-layout:on' : '--control-layout:off']);
+            ['--control-layout:off']);
             if (typeof profile.saved === 'boolean') {
                 await page.reload();
                 await ready(page);
@@ -1064,6 +1094,71 @@ async function exerciseMobileControlLayout(browser, url, fixture) {
         } finally {
             await context.close();
         }
+    }
+}
+
+async function exerciseInputEditors(browser, url, fixture) {
+    const context = await browser.newContext();
+    await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+    const page = await context.newPage();
+    try {
+        await page.goto(url);
+        await ready(page);
+        const bindings = page.locator('#controller-bindings');
+        const layoutEditor = page.locator('#edit-control-layout');
+        await bindings.click();
+        await layoutEditor.click();
+        assert.deepEqual(await page.evaluate(() => [window.editedControllerBindings, window.editedControlLayout]),
+            [null, null], 'Fresh editors must start with the defaults');
+        await page.evaluate(async ({ bindings, layout }) => {
+            await window.saveControllerBindings(bindings);
+            await window.saveControlLayout(layout);
+        }, { bindings: CUSTOM_BINDINGS, layout: CUSTOM_LAYOUT });
+        const inputMethod = page.locator('#input-method');
+        const vibration = page.locator('#controller-vibration');
+        await inputMethod.selectOption('joystick');
+        await vibration.uncheck();
+        const stored = await storedOptions(page);
+        assert.equal(stored['controller-bindings'], CUSTOM_BINDINGS);
+        assert.deepEqual(stored['control-layout'], CUSTOM_LAYOUT);
+        assert.equal(stored['input-method'], 'joystick');
+        assert.equal(stored['controller-vibration'], false);
+
+        await page.reload();
+        await ready(page);
+        assert.equal(await inputMethod.inputValue(), 'joystick');
+        assert.equal(await vibration.isChecked(), false);
+        assert.equal(await page.locator('#show-control-layout').isChecked(), false,
+            'Editing the controls must preserve the visibility choice');
+        await bindings.click();
+        await layoutEditor.click();
+        assert.deepEqual(await page.evaluate(() => [window.editedControllerBindings, window.editedControlLayout]),
+            [CUSTOM_BINDINGS, CUSTOM_LAYOUT], 'Editors must reopen with the saved choices');
+        await loadFixture(page, fixture);
+        await page.locator('#start').click();
+        assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
+            /^--(input-method|controller-vibration|controller-bindings|control-layout):/.test(argument))),
+        ['--input-method:joystick', '--controller-vibration:off', '--controller-bindings:' + CUSTOM_BINDINGS,
+            '--control-layout:off']);
+        assert.deepEqual(await page.evaluate(() => window.launchedControlLayout), CUSTOM_LAYOUT,
+            'The layout must be applied before the game starts');
+
+        await page.evaluate(() => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', {
+            'input-method': 'invalid',
+            'controller-vibration': 'false',
+            'controller-bindings': 'not-a-profile',
+            'control-layout': { scale: 9, centers: [] }
+        }));
+        await page.reload();
+        await ready(page);
+        assert.equal(await inputMethod.inputValue(), 'keyboard', 'Malformed input methods must use Keyboard');
+        assert.equal(await vibration.isChecked(), true, 'Malformed vibration values must leave vibration enabled');
+        await bindings.click();
+        await layoutEditor.click();
+        assert.deepEqual(await page.evaluate(() => [window.editedControllerBindings, window.editedControlLayout]),
+            [null, null], 'Malformed saved profiles must use defaults');
+    } finally {
+        await context.close();
     }
 }
 
@@ -1539,6 +1634,11 @@ async function main() {
         }
         await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
         await page.setViewportSize({ width: 390, height: 844 });
+        assert.deepEqual(await page.locator('#input-method option').evaluateAll(options =>
+            options.map(option => ({ value: option.value, label: option.label }))),
+        INPUT_METHODS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
+        assert.equal(await page.locator('#input-method').inputValue(), 'keyboard', 'Input method must default to Keyboard');
+        assert.equal(await page.locator('#controller-vibration').isChecked(), true, 'Vibration must default on');
         assert.deepEqual(await page.locator('#hypervision option').evaluateAll(options =>
             options.map(option => ({ value: option.value, label: option.label }))),
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
@@ -1575,7 +1675,7 @@ async function main() {
         assert.equal(await page.locator('#owoot').isChecked(), false);
         assert.equal(await page.locator('#amiga-grass').isChecked(), false);
         await page.evaluate(() => setLoading(true));
-        for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true,
+        for (const id of [...OPTIONS, ...INPUT_EDITORS]) assert.equal(await page.locator('#' + id).isDisabled(), true,
             id + ' must lock while loading');
         await page.evaluate(() => setLoading(false));
         await loadFixture(page, fixture);
@@ -1584,10 +1684,13 @@ async function main() {
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--widescreen:off', '--fps:off',
-            '--mph:off', '--dashboard:on', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
+            '--mph:off', '--dashboard:on', '--multi-core:on', '--videomode:vga', '--hv:auto',
+            '--input-method:keyboard', '--controller-vibration:on', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
-        for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
+        assert.equal(await page.evaluate(() => window.launchedControlLayout), null,
+            'The game must use default control positions when no layout is saved');
+        for (const id of [...OPTIONS, ...INPUT_EDITORS]) assert.equal(await page.locator('#' + id).isDisabled(), true);
 
         for (const [index, preset] of PRESETS.entries()) {
             await page.reload();
@@ -1644,8 +1747,12 @@ async function main() {
         await page.locator('#sound-mode').selectOption('none');
         await page.locator('#hypervision').selectOption('high');
         await page.locator('#video-mode').selectOption('cga');
+        await page.locator('#input-method').selectOption('mouse');
+        await page.locator('#controller-vibration').uncheck();
         const stored = await storedOptions(page);
-        for (const id of OPTIONS.filter(id => !['hypervision', 'sound-mode', 'video-mode'].includes(id))) assert.equal(typeof stored[id], 'boolean');
+        for (const id of OPTIONS.filter(id => !['hypervision', 'sound-mode', 'video-mode', 'input-method'].includes(id))) {
+            assert.equal(typeof stored[id], 'boolean');
+        }
         await page.reload();
         await ready(page);
         for (const id of ['skip-intro', 'show-fps', 'show-mph', 'show-dashboard', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
@@ -1656,11 +1763,14 @@ async function main() {
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
         assert.equal(await page.locator('#video-mode').inputValue(), 'cga');
+        assert.equal(await page.locator('#input-method').inputValue(), 'mouse', 'Mouse driving must persist across reload');
+        assert.equal(await page.locator('#controller-vibration').isChecked(), false, 'Disabling vibration must persist across reload');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--widescreen:off', '--fps:on',
-            '--mph:on', '--dashboard:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
+            '--mph:on', '--dashboard:on', '--multi-core:on', '--videomode:cga', '--hv:high',
+            '--input-method:mouse', '--controller-vibration:off', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1758,12 +1868,13 @@ async function main() {
         await exerciseStartupFullscreen(browser, url, fixture);
         await exerciseWidescreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
+        await exerciseInputEditors(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, widescreen defaults/persistence/arguments and supported canvas ratios with portrait/ultrawide fitting, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, dashboard defaults/persistence/arguments, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
+        console.log('PASS: input settings, controller binding and touch layout persistence, mobile control-layout defaults and saved overrides, wrapping web settings, widescreen defaults/persistence/arguments and supported canvas ratios with portrait/ultrawide fitting, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, dashboard defaults/persistence/arguments, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

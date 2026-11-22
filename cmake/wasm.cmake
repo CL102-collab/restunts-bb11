@@ -1,7 +1,8 @@
 # Emscripten application packaging. Embed custom cars, tracks, artwork and optional music.
 # Original game resources are selected by the player and loaded into MEMFS by the shell.
 set(restunts_web_assets "${CMAKE_CURRENT_BINARY_DIR}/web-assets")
-set(restunts_web_shell "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/shell.html")
+set(restunts_web_source "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm")
+set(restunts_web_shell "${restunts_web_source}/shell.html")
 # Recreate only this generated directory so removed assets cannot linger.
 file(REMOVE_RECURSE "${restunts_web_assets}")
 foreach(car_archive IN LISTS restunts_car_archives)
@@ -76,6 +77,10 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/CMakeLists.txt"
     cmake/wasm-link.cmake cmake/wasm-relink.md "${restunts_web_shell}"
     "${CMAKE_CURRENT_BINARY_DIR}/nuked-build-info.txt"
     DESTINATION ${restunts_relink_directory} COMPONENT Runtime)
+foreach(input_script IN LISTS restunts_wasm_input_scripts)
+    install(FILES "${restunts_web_source}/${input_script}"
+        DESTINATION ${restunts_relink_directory} COMPONENT Runtime)
+endforeach()
 install(FILES "$<TARGET_FILE:restunts_game>"
     DESTINATION ${restunts_relink_directory}/lib RENAME librestunts_game.a COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:restunts_webm>"

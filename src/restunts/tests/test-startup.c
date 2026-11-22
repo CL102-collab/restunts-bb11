@@ -1737,15 +1737,21 @@ static void test_startup_control_layout_options(void)
 		assert(startup_options.control_layout_specified != 0);
 	}
 
-	/* A later session without an explicit option restores the enabled default. */
+	/* A later session without an explicit option restores the platform default. */
 	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
 	reset_startup_hypervision();
+#ifdef __EMSCRIPTEN__
+	const legacy_u8 default_layout = STARTUP_CONTROL_LAYOUT_OFF;
+	startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_ON;
+#else
+	const legacy_u8 default_layout = STARTUP_CONTROL_LAYOUT_ON;
 	startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_OFF;
+#endif
 	legacy_u32 before = startup_control_layout_set_calls;
 	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
 	assert(startup_control_layout_set_calls == before + 1U);
-	assert(startup_control_layout_visible == STARTUP_CONTROL_LAYOUT_ON);
-	assert(startup_options.control_layout_enabled == STARTUP_CONTROL_LAYOUT_ON);
+	assert(startup_control_layout_visible == default_layout);
+	assert(startup_options.control_layout_enabled == default_layout);
 	assert(startup_options.control_layout_specified == 0);
 
 	static const legacy_s8 *invalid[] = {"--control-layout:", "--control-layout:auto"};

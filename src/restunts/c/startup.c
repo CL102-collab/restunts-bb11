@@ -252,7 +252,7 @@ static legacy_u8 startup_parse_controller_bindings(const legacy_s8 *argument,
 	}
 	if (!controller_bindings_decode(&options->controller_bindings, (const legacy_char *)value)) {
 		startup_option_error_text("Invalid --controller-bindings profile. Save a profile in the "
-								  "desktop launcher's Controller bindings window.\n");
+								  "Controller bindings dialog.\n");
 		dos_process_exit(1);
 		return 1;
 	}
@@ -345,9 +345,11 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->multi_core_enabled = STARTUP_MULTI_CORE_ON;
 	options->multi_core_specified = 0;
 #endif
-#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+#ifdef STARTUP_FULLSCREEN_PREFIX
 	options->fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
 	options->fullscreen_specified = 0;
+#endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
 	options->input_method = SDL3_DRIVING_KEYBOARD;
 	options->input_method_specified = 0;
 #endif
@@ -359,7 +361,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->controller_vibration_specified = 0;
 #endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
-	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_ON;
+	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_DEFAULT;
 	options->control_layout_specified = 0;
 #endif
 #endif
@@ -394,7 +396,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #endif
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
-#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+#ifdef STARTUP_FULLSCREEN_PREFIX
 		startup_parse_boolean(argv[i], STARTUP_FULLSCREEN_PREFIX, "Fullscreen",
 							  &options->fullscreen_enabled, &options->fullscreen_specified);
 #endif
@@ -548,8 +550,10 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 										   ? &startup_options.controller_bindings
 										   : NULL);
 #endif
-#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+#ifdef STARTUP_FULLSCREEN_PREFIX
 	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);
+#endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
 	dos_joystick_set_enabled(startup_options.input_method == SDL3_DRIVING_JOYSTICK);
 	mouse_driving_enabled = startup_options.input_method == SDL3_DRIVING_MOUSE;
 	sdl3_input_set_driving_mode(startup_options.input_method);

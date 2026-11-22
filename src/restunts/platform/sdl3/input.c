@@ -22,6 +22,22 @@
 #include <emscripten.h>
 
 EM_JS(legacy_int, browser_mobile_device, (), { return Module['mobileDevice'] ? 1 : 0; });
+
+EM_JS(void, browser_vibrate_impact, (legacy_u32 duration_ms), {
+	if (!Module['mobileDevice'] || typeof navigator.vibrate !== 'function' ||
+		document.visibilityState !== 'visible' || navigator.userActivation?.hasBeenActive === false) {
+		return;
+	}
+	try {
+		/* Check browser devices that SDL has not mapped or discovered yet. */
+		const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+		if (!gamepads.some(function(gamepad) { return gamepad && gamepad.connected; })) {
+			navigator.vibrate(duration_ms);
+		}
+	} catch (error) {
+		/* Browser policy can deny gamepad or vibration access. */
+	}
+});
 #endif
 
 #define KEY_BUFFER_CAPACITY 64U
@@ -180,6 +196,11 @@ void sdl3_car_impact_feedback(void)
 			SDL_RumbleGamepad(controller, CONTROLLER_IMPACT_RUMBLE_STRENGTH,
 							  CONTROLLER_IMPACT_RUMBLE_STRENGTH, CONTROLLER_IMPACT_RUMBLE_MS);
 	}
+#ifdef __EMSCRIPTEN__
+	else if (!SDL_HasGamepad()) {
+		browser_vibrate_impact(CONTROLLER_IMPACT_RUMBLE_MS);
+	}
+#endif
 }
 
 static const legacy_u8 dos_kb_keymap1[DOS_KB_PRIMARY_KEYMAP_SIZE] = {

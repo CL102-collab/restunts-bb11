@@ -142,12 +142,18 @@
             <label for="game-files">Choose game folder</label>
             <input id="game-files" type="file" webkitdirectory multiple disabled>
         </div>
-        <fieldset class="settings" id="startup-options">
-            <legend>Startup options</legend>
-            <div class="controls">
-                <button id="start" disabled>Start game</button>
-                <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
-                <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
+        <fieldset class="settings" id="input-settings">
+            <legend>Input settings</legend>
+            <div class="settings-row">
+                <label for="input-method">Input method <select id="input-method" disabled>
+                    <option value="keyboard" selected>Keyboard</option>
+                    <option value="joystick">Joystick</option>
+                    <option value="mouse">Mouse</option>
+                </select></label>
+                <label><input id="controller-vibration" type="checkbox" checked disabled> Vibration</label>
+                <button id="controller-bindings" type="button" disabled>Controller bindings...</button>
+                <label><input id="show-control-layout" type="checkbox" disabled> Show control layout</label>
+                <button id="edit-control-layout" type="button" disabled>Edit control layout</button>
             </div>
         </fieldset>
         <fieldset class="settings" id="sound-settings">
@@ -191,7 +197,6 @@
                 <label><input id="show-mph" type="checkbox" disabled> Show MPH (Shift+F11)</label>
                 <label><input id="show-dashboard" type="checkbox" checked disabled> Show Dashboard</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
-                <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
             </div>
             <div class="settings-row hypervision-row">
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
@@ -217,6 +222,14 @@
                 <label><input id="owoot" type="checkbox" disabled> OWOOT</label>
             </div>
         </fieldset>
+        <fieldset class="settings" id="startup-options">
+            <legend>Startup options</legend>
+            <div class="controls">
+                <button id="start" disabled>Start game</button>
+                <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
+                <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
+            </div>
+        </fieldset>
         <p id="status" role="status" aria-live="polite">Preparing game…</p>
         <div id="load-progress" role="progressbar" aria-label="Loading game files" aria-describedby="status"
             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
@@ -224,7 +237,7 @@
         </div>
         <canvas id="canvas" width="960" height="720" tabindex="0" aria-label="Restunts game"></canvas>
         <p>Click the game to focus the keyboard. Use the arrow keys to drive and Esc to return to menus.
-            <strong>Show Control Layout</strong> enables the Android touch controls and starts enabled on mobile devices.
+            <strong>Show control layout</strong> enables the touch controls.
             Fullscreen requests landscape orientation and locks it where your browser supports it,
             placing phone controls in the black side areas.
             Select <strong>Fullscreen</strong> before starting to enter it with Start game.
@@ -371,9 +384,10 @@
         const FOLDER_STORE = 'folders';
         const ROM_FOLDER_STORE = 'mt32-rom-folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-mode', 'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen',
-            'show-fps', 'show-mph', 'show-dashboard', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision',
-            'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+        const LAUNCH_OPTION_IDS = ['input-method', 'controller-vibration', 'show-control-layout', 'sound-mode',
+            'new-midi', 'video-mode', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph', 'show-dashboard',
+            'multi-core', 'hypervision', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching',
+            'chicane-fast-grass', 'amiga-grass', 'owoot', 'skip-intro'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
         const CLASSIC_DISPLAY_ASPECT = { width: 4, height: 3 };
@@ -439,6 +453,12 @@
         const openFolder = document.getElementById('open-folder');
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
+        const controllerBindingsButton = document.getElementById('controller-bindings');
+        const editControlLayoutButton = document.getElementById('edit-control-layout');
+        const launchControls = [...launchOptions, controllerBindingsButton, editControlLayoutButton];
+        const inputMethod = document.getElementById('input-method');
+        const vibration = document.getElementById('controller-vibration');
+        const showControlLayout = document.getElementById('show-control-layout');
         const hyperVision = document.getElementById('hypervision');
         const widescreen = document.getElementById('widescreen');
         const videoMode = document.getElementById('video-mode');
@@ -462,6 +482,8 @@
         let romFolderRestoreAttempted = false;
         let romFallbackOnly = false;
         let rememberedRomModel = '';
+        let controllerBindings = null;
+        let controlLayout = null;
         let romSets = [];
         let launcherLoading = true;
         const exporter = document.getElementById('export');
@@ -693,7 +715,7 @@
             romFiles.disabled = true;
             mt32Model.disabled = true;
             romFolder.disabled = true;
-            for (const option of launchOptions) option.disabled = true;
+            for (const control of launchControls) control.disabled = true;
             fullscreen.disabled = false;
             exporter.disabled = false;
             status.textContent = directoryHandle ? 'Game running. Saves go directly to your game folder.' :
@@ -717,7 +739,10 @@
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
             args.push('--videomode:' + videoMode.value);
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
-            args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
+            args.push('--input-method:' + inputMethod.value);
+            args.push(vibration.checked ? '--controller-vibration:on' : '--controller-vibration:off');
+            if (controllerBindings !== null) args.push('--controller-bindings:' + controllerBindings);
+            args.push(showControlLayout.checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
             args.push(document.getElementById('legacy-collision').checked ? '--lc:on' : '--lc:off');
             args.push(document.getElementById('left-corner-bias').checked ? '--lcb:on' : '--lcb:off');
@@ -733,6 +758,7 @@
                     Module['restuntsBrowserAudio'].onError = fail;
                     await Module['restuntsBrowserAudio'].start();
                 }
+                Module['applyRestuntsControlLayout'](controlLayout);
                 Module.callMain(args);
             } catch (error) {
                 fail(error);
@@ -843,7 +869,7 @@
                 loadProgress.setAttribute('aria-valuenow', '0');
                 loadProgressFill.style.width = '0%';
             }
-            for (const option of launchOptions) option.disabled = loading || started;
+            for (const control of launchControls) control.disabled = loading || started;
             updateMultiCoreAvailability();
             openFolder.disabled = loading || started;
             restoreFolder.disabled = loading || started;
@@ -1247,19 +1273,24 @@
         }
 
         async function restoreLaunchOptions() {
-            document.getElementById('show-control-layout').checked = isMobileDevice();
             multiCore.checked = multiCoreAvailable();
             try {
                 const stored = await browserStorage(LAUNCH_OPTIONS_STORE, 'readonly');
                 if (!stored || typeof stored !== 'object') return;
                 rememberedRomModel = typeof stored['mt32-model'] === 'string' ? stored['mt32-model'] : '';
+                if (typeof stored['controller-bindings'] === 'string') {
+                    controllerBindings = Module['validateRestuntsControllerBindings'](stored['controller-bindings']);
+                }
+                if (stored['control-layout'] && typeof stored['control-layout'] === 'object') {
+                    controlLayout = Module['validateRestuntsControlLayout'](stored['control-layout']);
+                }
                 for (const option of launchOptions) {
                     const value = stored[option.id];
                     if (option === soundMode) {
                         const mode = typeof value === 'string' ? value :
                             (stored['sound-enabled'] === false ? 'none' : 'adlib');
                         if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
-                    } else if (option === videoMode) {
+                    } else if (option === videoMode || option === inputMethod) {
                         if (Array.from(option.options).some(mode => mode.value === value)) option.value = value;
                     } else if (option === hyperVision) {
                         // Older pages stored HyperVision as an on/off checkbox.
@@ -1278,8 +1309,10 @@
 
         async function rememberLaunchOptions() {
             const values = Object.fromEntries(launchOptions.map(option =>
-                [option.id, option === hyperVision || option === soundMode || option === videoMode ? option.value : option.checked]));
+                [option.id, option instanceof HTMLSelectElement ? option.value : option.checked]));
             values['mt32-model'] = rememberedRomModel;
+            values['controller-bindings'] = controllerBindings;
+            values['control-layout'] = controlLayout;
             try {
                 await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);
             } catch (error) {
@@ -1304,6 +1337,18 @@
                 await rememberLaunchOptions();
             });
         }
+        controllerBindingsButton.addEventListener('click', () => {
+            Module['openRestuntsControllerBindings'](controllerBindings, async bindings => {
+                controllerBindings = bindings;
+                await rememberLaunchOptions();
+            });
+        });
+        editControlLayoutButton.addEventListener('click', () => {
+            Module['openRestuntsControlLayoutEditor'](controlLayout, async layout => {
+                controlLayout = layout;
+                await rememberLaunchOptions();
+            });
+        });
         window.addEventListener('resize', updateCanvasAspect);
         window.screen?.orientation?.addEventListener?.('change', updateCanvasAspect);
 

@@ -67,8 +67,9 @@ function createRestuntsBrowserAudio(module, sources) {
         // Start inside the user's click before awaiting module compilation.
         const resumed = context.resume();
         resumed.catch(() => {});
-        if (location.protocol === 'file:') {
-            // Chromium can reject a local page's blob:null worklet URL.
+        // Android can open a downloaded page through content: instead of file:.
+        // Chromium can reject blob:null worklet URLs from local or opaque pages.
+        if (location.protocol === 'file:' || location.protocol === 'content:' || globalThis.origin === 'null') {
             await context.audioWorklet.addModule('data:text/javascript;charset=utf-8,' +
                 encodeURIComponent(sources.worklet));
         } else {

@@ -37,11 +37,12 @@
 #define STARTUP_MULTI_CORE_OFF 0U
 #define STARTUP_MULTI_CORE_ON 1U
 #endif
-#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
-	!defined(__DJGPP__)
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__DJGPP__)
 #include "../platform/sdl3/controller_game.h"
 #include "controller_bindings.h"
+#ifndef __EMSCRIPTEN__
 #define STARTUP_FULLSCREEN_PREFIX "--fullscreen:"
+#endif
 #define STARTUP_INPUT_METHOD_PREFIX "--input-method:"
 #define STARTUP_CONTROLLER_BINDINGS 1
 #endif
@@ -57,6 +58,11 @@
 #define STARTUP_CONTROL_LAYOUT_PREFIX "--control-layout:"
 #define STARTUP_CONTROL_LAYOUT_OFF 0U
 #define STARTUP_CONTROL_LAYOUT_ON 1U
+#ifdef __EMSCRIPTEN__
+#define STARTUP_CONTROL_LAYOUT_DEFAULT STARTUP_CONTROL_LAYOUT_OFF
+#else
+#define STARTUP_CONTROL_LAYOUT_DEFAULT STARTUP_CONTROL_LAYOUT_ON
+#endif
 #endif
 
 #define TRACK_PATH_STORAGE_SIZE 81
@@ -89,11 +95,15 @@ struct STARTUP_OPTIONS {
 	legacy_u8 multi_core_enabled;
 	legacy_u8 multi_core_specified;
 #endif
-#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+#ifdef STARTUP_FULLSCREEN_PREFIX
 	legacy_u8 fullscreen_enabled;
 	legacy_u8 fullscreen_specified;
+#endif
+#ifdef STARTUP_INPUT_METHOD_PREFIX
 	enum SDL3_DRIVING_INPUT input_method;
 	legacy_u8 input_method_specified;
+#endif
+#ifdef STARTUP_CONTROLLER_BINDINGS
 	struct CONTROLLER_BINDINGS controller_bindings;
 	legacy_u8 controller_bindings_specified;
 #endif

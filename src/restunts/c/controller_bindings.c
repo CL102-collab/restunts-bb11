@@ -1,5 +1,8 @@
 #include "controller_bindings.h"
 #include <string.h>
+#if defined(__EMSCRIPTEN__) && defined(__wasm__)
+#include <emscripten/emscripten.h>
+#endif
 
 #define CONTROLLER_BINDINGS_VERSION_LENGTH (sizeof(CONTROLLER_BINDINGS_VERSION_PREFIX) - 1U)
 #define CONTROLLER_BINDINGS_INVALID_ACTION_CODE '?'
@@ -135,6 +138,9 @@ void controller_bindings_reset(struct CONTROLLER_BINDINGS *bindings)
 	*bindings = default_bindings;
 }
 
+#if defined(__EMSCRIPTEN__) && defined(__wasm__)
+EMSCRIPTEN_KEEPALIVE
+#endif
 legacy_u8 controller_binding_allowed(enum CONTROLLER_CONTEXT context,
 									 enum CONTROLLER_CONTROL control, enum CONTROLLER_ACTION action)
 {
@@ -230,3 +236,35 @@ legacy_u8 controller_bindings_are_default(const struct CONTROLLER_BINDINGS *bind
 {
 	return memcmp(bindings->actions, default_bindings.actions, sizeof(bindings->actions)) == 0;
 }
+
+#if defined(__EMSCRIPTEN__) && defined(__wasm__)
+/* Share the native defaults, labels, and validation with the browser dialog. */
+EMSCRIPTEN_KEEPALIVE const legacy_char *restunts_controller_bindings_defaults(void)
+{
+	static legacy_char encoded[CONTROLLER_BINDINGS_TEXT_CAPACITY];
+	controller_bindings_encode(&default_bindings, encoded);
+	return encoded;
+}
+
+EMSCRIPTEN_KEEPALIVE const legacy_char *
+restunts_controller_binding_control_label(legacy_u32 control)
+{
+	return control < CONTROLLER_CONTROL_COUNT ? controller_binding_control_labels[control] : NULL;
+}
+
+EMSCRIPTEN_KEEPALIVE const legacy_char *restunts_controller_binding_action_label(legacy_u32 action)
+{
+	return action < CONTROLLER_ACTION_COUNT ? controller_binding_action_labels[action] : NULL;
+}
+
+EMSCRIPTEN_KEEPALIVE legacy_u32 restunts_controller_binding_first_control(void)
+{
+	return CONTROLLER_CONTROL_LEFT_TRIGGER;
+}
+
+EMSCRIPTEN_KEEPALIVE legacy_u8 restunts_controller_bindings_valid(const legacy_char *text)
+{
+	struct CONTROLLER_BINDINGS bindings;
+	return controller_bindings_decode(&bindings, text);
+}
+#endif

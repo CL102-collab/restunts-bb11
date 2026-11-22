@@ -656,6 +656,7 @@ def required_files(target):
         relink = WASM_RELINK_DIRECTORY
         required |= {f"{relink}/{name}" for name in (
             "CMakeLists.txt", "wasm-link.cmake", "wasm-relink.md", "shell.html",
+            "controller-bindings.js", "control-layout.js",
             "nuked-build-info.txt", "lib/librestunts_game.a", "lib/librestunts_webm.a",
             "lib/libSDL3.a", "objects/main.c.o")}
         required |= {f"{relink}/nuked-opl2-lite/{name}" for name in NUKED_FILES}

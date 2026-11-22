@@ -73,10 +73,12 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"  --fullscreen:on|off  Start fullscreen/windowed; supply once." COMMAND_LINE_NEWLINE
+#endif
+#if !defined(__ANDROID__) && !defined(__DJGPP__)
 	"  --input-method:keyboard|joystick|mouse  Select initial driving input; default "
 	"keyboard; supply once." COMMAND_LINE_NEWLINE
-	"  --controller-bindings:PROFILE  Apply a profile from the desktop "
-	"launcher." COMMAND_LINE_NEWLINE
+	"  --controller-bindings:PROFILE  Apply a profile from the Controller bindings "
+	"dialog." COMMAND_LINE_NEWLINE
 #endif
 #ifndef __ANDROID__
 	"  --controller-vibration:on|off  Enable/disable controller vibration; supply "
@@ -160,6 +162,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"Fullscreen options are case-insensitive." COMMAND_LINE_NEWLINE
+#endif
+#if !defined(__ANDROID__) && !defined(__DJGPP__)
 	"Input method options are case-insensitive." COMMAND_LINE_NEWLINE
 #endif
 #ifndef __ANDROID__

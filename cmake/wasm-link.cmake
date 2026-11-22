@@ -1,4 +1,6 @@
 # Shared by the game build and its relocatable LGPL relink package.
+set(restunts_wasm_input_scripts controller-bindings.js control-layout.js)
+
 function(restunts_configure_wasm target asset_root shell)
     # Legacy rendering uses large automatic arrays. Asyncify saves nested game
     # loops while the browser processes input, audio and display callbacks.
@@ -39,6 +41,12 @@ function(restunts_configure_wasm target asset_root shell)
         "SHELL:--pre-js \"${restunts_thread_mode}\""
         "SHELL:--shell-file \"${shell}\""
         "SHELL:--embed-file \"${asset_root}/assets@/assets\"")
+    get_filename_component(restunts_shell_directory "${shell}" DIRECTORY)
+    foreach(input_script IN LISTS restunts_wasm_input_scripts)
+        set(script_path "${restunts_shell_directory}/${input_script}")
+        target_link_options(${target} PRIVATE "SHELL:--pre-js \"${script_path}\"")
+        set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${script_path}")
+    endforeach()
     file(GLOB_RECURSE restunts_embedded_files CONFIGURE_DEPENDS
         "${asset_root}/assets/*")
     set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS

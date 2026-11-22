@@ -103,6 +103,15 @@ build supports `file://` without a local web server. The HTML's location does no
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
 3. Choose the startup options above the game. **Skip intro** is optional.
+   **Input settings** starts with **Keyboard** as the input method. **Joystick**
+   and **Mouse** select the other initial driving modes. Use **Controller bindings...**
+   to assign controller inputs for racing, replays, and menus. **Vibration** starts
+   on. A supported controller gives impact feedback when it was the last input
+   used. On supported phones, the phone vibrates for the same impacts when no
+   controller is connected, after you interact with the page.
+   **Show control layout** enables the touch controls and starts off. Use
+   **Edit control layout** to move or resize them before starting. On phones,
+   fullscreen landscape mode places the controls in the side areas.
    **Sound settings** contains **Sound mode** in this order: **No sound**,
    **PC Speaker**, **Tandy**, **Ad Lib** (default), **MT-32**. No sound disables
    music and effects (`--nosound`). MT-32 shows the ROM-folder picker and detected **ROM
@@ -117,8 +126,7 @@ build supports `file://` without a local web server. The HTML's location does no
    **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
    `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
    **Show MPH (Shift+F11)** (`--mph:on/off`) for speed during races and replay playback,
-   **Show Dashboard** (`--dashboard:on/off`), **Show Control Layout**
-   (`--control-layout:on`), **Multi-core rendering** (`--multi-core:on/off`,
+   **Show Dashboard** (`--dashboard:on/off`), **Multi-core rendering** (`--multi-core:on/off`,
    initially on when supported), and the **HyperVision**
    selector. **Widescreen** expands HyperVision races and replays up to 20:9 and
    centers the image with black side borders on wider displays. Multi-core
@@ -136,10 +144,6 @@ build supports `file://` without a local web server. The HTML's location does no
    Off starts without HyperVision. Show FPS and Show MPH start off. Show Dashboard
    controls visibility when starting or restarting a drive and defaults to on.
    The browser remembers this choice. Press **D** to toggle it while driving.
-   Show Control Layout starts on for phones and tablets and off for desktops.
-   A remembered choice overrides this default. It enables the same touch
-   controls as Android. On phones, use fullscreen landscape mode to put them
-   in the black side areas.
    The separate **Driving rules** group below graphics contains **Power Gear**,
    **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
    **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**.

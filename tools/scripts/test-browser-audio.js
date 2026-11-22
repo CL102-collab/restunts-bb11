@@ -118,6 +118,7 @@ async function fixture(directory) {
         ${embedded}
         const NativeAudioContext = AudioContext;
         window.audioContexts = [];
+        window.audioModuleProtocols = [];
         window.unhandled = [];
         addEventListener('unhandledrejection', event => unhandled.push(String(event.reason)));
         window.AudioContext = class extends NativeAudioContext {
@@ -126,6 +127,7 @@ async function fixture(directory) {
                 audioContexts.push(this);
                 const addModule = this.audioWorklet.addModule.bind(this.audioWorklet);
                 this.audioWorklet.addModule = async source => {
+                    audioModuleProtocols.push(new URL(source).protocol);
                     const result = await addModule(source);
                     if (window.delayAudioModule) await new Promise(resolve => setTimeout(resolve, 100));
                     return result;
@@ -169,7 +171,7 @@ async function fixture(directory) {
     </script>`;
 }
 
-async function exercisePlayback(browser, origin, rate) {
+async function exercisePlayback(browser, origin, rate, workletProtocol = 'blob:') {
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
@@ -180,6 +182,7 @@ async function exercisePlayback(browser, origin, rate) {
         await page.click('#start');
         await page.waitForFunction(() => window.started || window.startError);
         assert.equal(await page.evaluate(() => window.startError), undefined);
+        assert.deepEqual(await page.evaluate(() => audioModuleProtocols), [workletProtocol]);
         await page.evaluate(() => bridge.command('finish', [0xff123405]));
         await page.waitForFunction(() => Module.restuntsAudioFinished.includes(0xff123405));
         await page.evaluate(() => bridge.prepareFiles('/selected'));
@@ -282,6 +285,12 @@ async function exerciseLifecycle(browser, origin) {
         const offline = path.join(directory, 'audio.html');
         await fs.writeFile(offline, html);
         server = http.createServer((request, response) => {
+            if (request.url.startsWith('/opaque?')) {
+                // Reproduce rejection of a blob:null worklet in an opaque origin
+                // while allowing the separate Blob worker to supply real audio.
+                response.setHeader('Content-Security-Policy',
+                    "sandbox allow-scripts; script-src 'unsafe-inline' data:; worker-src blob:");
+            }
             response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             response.end(html);
         });
@@ -291,8 +300,9 @@ async function exerciseLifecycle(browser, origin) {
         const origin = 'http://127.0.0.1:' + server.address().port;
         for (const rate of [44100, 48000]) await exercisePlayback(browser, origin, rate);
         await exerciseLifecycle(browser, origin);
+        await exercisePlayback(browser, origin + '/opaque', 44100, 'data:');
         try {
-            await exercisePlayback(browser, pathToFileURL(offline).href, 44100);
+            await exercisePlayback(browser, pathToFileURL(offline).href, 44100, 'data:');
         } catch (error) {
             // Managed development browsers can disallow all local navigation.
             // Unrestricted browsers must pass the complete offline playback test.

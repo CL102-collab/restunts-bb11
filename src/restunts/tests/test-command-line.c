@@ -118,6 +118,8 @@ static void test_help_contents(void)
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 		"  --fullscreen:on|off",
+#endif
+#if !defined(__ANDROID__) && !defined(__DJGPP__)
 		"  --input-method:keyboard|joystick|mouse",
 		"  --controller-bindings:PROFILE",
 #endif
@@ -187,11 +189,14 @@ static void test_help_contents(void)
 	expect_text("Fullscreen starts off.");
 	expect_text("Alt+Enter toggles fullscreen during play.");
 	expect_text("Fullscreen options are case-insensitive.");
-	expect_text("Select initial driving input; default keyboard; supply once.");
-	expect_text("Input method options are case-insensitive.");
 #else
 	assert(strstr(output, "--fullscreen") == NULL);
 	assert(strstr(output, "Fullscreen starts") == NULL);
+#endif
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__DJGPP__)
+	expect_text("Select initial driving input; default keyboard; supply once.");
+	expect_text("Input method options are case-insensitive.");
+#else
 	assert(strstr(output, "--input-method") == NULL);
 #endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
