@@ -52,8 +52,8 @@ See [music asset instructions](../assets/music/README.md).
 
 The browser build also supplies `tracked.html`, a single offline HTML file
 with its styles and JavaScript embedded. Open it directly, or use
-**Open the extended 2D track editor** on the game page. The game itself remains
-a standalone `restunts.html`.
+**Track Editor** on the game page to open it in a new tab. The game
+itself remains a standalone `restunts.html`.
 Scores on extended tracks save as `.cshig`; folder saves and save-bundle
 import/export include these tables alongside `.csrpl` replays.
 

@@ -28,6 +28,19 @@
         }
         h1 { margin-bottom: 8px; }
         p { color: #b8c6d8; line-height: 1.5; }
+        .track-editor-callout { margin: 20px 0; padding: 28px 32px; border: 1px solid #45566a;
+            border-radius: 8px; background: #243140; text-align: center; }
+        @media (max-width: 680px) {
+            .track-editor-callout { padding: 22px; }
+        }
+        .track-editor-callout h2 { margin: 0 0 16px; }
+        .track-editor-link { display: inline-flex; flex-direction: column; align-items: center; gap: 8px;
+            padding: 12px 20px; border: 1px solid #896633; border-radius: 8px; background: #24241f;
+            color: #ffdb82; font-size: 1.25rem; font-weight: 700; text-decoration: none;
+            text-shadow: 0 0 10px #e8b55ba0; box-shadow: 0 0 16px #e8b55b26; }
+        .track-editor-link:hover, .track-editor-link:focus-visible { border-color: #e8b55b; box-shadow: 0 0 18px #e8b55b66; }
+        .track-editor-link:focus-visible { outline: 2px solid #ffdb82; outline-offset: 3px; }
+        .track-editor-callout p { margin: 10px 0 0; }
         .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
         .settings { min-width: 0; margin: 16px 0; padding: 10px 12px 12px; border: 1px solid #63748a; border-radius: 6px; }
         .settings legend { padding: 0 6px; }
@@ -62,10 +75,54 @@
 </head>
 <body>
     <main>
+        <section class="track-editor-callout" aria-labelledby="track-editor-heading">
+            <h2 id="track-editor-heading">New Extended Track Editor</h2>
+            <a class="track-editor-link" href="tracked.html" target="_blank" rel="noopener"
+                aria-describedby="track-editor-description">
+                <!-- Embed the icon so the game page stays self-contained for offline play. -->
+                <img width="60" height="60" alt="" src="data:image/png;base64,
+                    iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAMAAAANIilAAAAAwFBMVEUbTiB2dyp1dSqbaBJdaSdl
+                    bScAJREBNRYALBMAAgFobykHOhgDORgCFwkZcBkFCQUBOBckpSUBKQwNMwwhmSIchR45Ig20bALL
+                    bwJPLwP4mQL9pQKLUQRtSQ0rFQbqjQLNhQUbHSJTSSstLjAcISlfalRQTkgoKCk0NDM8T0PQy64U
+                    EhByb2mPjXKZlo7b1KiDfWpbNBKtrYqconvZsx6+xJdyi2Lz69PXpAHMYQH2tALj3s+sqaqyTAHD
+                    vK2mOQDXleDAAAAGw0lEQVRIx52XDXeiuhaGrVYgQoxiq4gCMggJn1a81tFq+///1XkT0LEzzrr3
+                    3L20CyxP9vdO6HSenrpPD6R79/f22/fbTqfbe+4//x/Sfwbd7Wu6AdGIZvwr0Z4BDwzTsiydDplu
+                    tWJSav03MY2+1GxYI92inbFNLX0Ewc3E1pprJfofFxBLwQPD0i3NHr9QZjU/a/QFZozuYb0VeXGD
+                    uwoewegxAKpoddP5Rt/bO7qHpdny8ZfxkChaJ5MxFvoFW7DlJtq95icEjNpDc/w6lIh0gb6Mxx1i
+                    3GCNTmdXceZtZG4+G5S9jl9MgnXxqP0ylGbI68aL+cxdXGXp+Zp1D5safZVmT4iOVdlkMhy/mh3c
+                    IVQI/TIIHGe1CtwgcJfhjx5VUW991qWdr4BBw3+LTcZSMVGBtYzpLFrHCRfO3Pf9pVj35iqNbbQ1
+                    NnwxO4j2y9hkhkXNsZIObXI+89Zplqx/BP50mq+8Ip4xmbErTG1iwuwhnXRsqtHh0JxMzOEQZaab
+                    mudEYVyGfLXMJewUlbek5hXuI9owVMWIwB+kg8znCB41wPrBj3WacA7FEnYWnghnc9BXnyU7lh8V
+                    MlnankdR8CNTg51rsSk4FBNfwSte/pB0U9sDsEhyxx4OpXL4Y9LpFOWC2sid3jp8Kzn3Ar+B3YUX
+                    l3zmMUMVyTMZDifKUjLBFQrctim1dd2gc7A8ETziwZIQZbbrBtsoEb3elEHzU59BDOYtmUEJYbZh
+                    pnEa13W92/W2a15uEr7urRhRmlcL13W3SZ1se163qTAIYGLoqaLqsiwTIVIRJYkoUkTLhVkk9/18
+                    Fsgy66VpVCYtDPeYPxdSW5kKEYYhT8o4iso65nm49lwPJlENQnPPWwbuykticdWs2/Euq4skykOe
+                    FmXCk7dCcPgq4qIo/+MRaqjuQvNihRzVXtbVfqBq207rfSlCHkbgyx1CFIZJXOzeyjJOIYak2mlg
+                    mugLQ7M75pMaBvb75o2HXPB4s0c9hJwL2BHHKdJm24ZttOjdDDJhrMqzVu4jHkUR5zGqIYrkIrsU
+                    mK4sbYbHPapEFcnTc3pAz4AtNiKM5CLpYUd1y7xNnG+it8s1/dzfl6GQTN0sAtWbvQW1lmk9Yilh
+                    BE3ZwpuSK4XJppS2Q5L95j1Foen6bwvoKF1/9XOGzlXwUz9rNIMLWY4c5znL43q/L99TE54rQ1sU
+                    7Nw9/jyBNpvafm/MFRETRfYBOcecQH2xrze79xijyTbaqEn2cjktFhgIupqeGpwNEWNSHA4f2fnz
+                    M/vIEhbJlCVFVe+RtSb2V/bkXEBrzejVdxvUU14fPs6QCnUZn+Mcy3GZ9DTZVft6F3ca9nhaOF9H
+                    d7Fkg2Zu2/GmYNkhk2yB/kElx2GItuCyRLm8LOt93bLHL2eBecraoQ+v8vPhU+klBOHjOcm5qA9Z
+                    GctY4ocwFPyO/ToqWHWVScWHYs9nDm8jIVTmk3JTC442gwEiv9kM9uLOpdktHJ2zBq5YFMPTSCUP
+                    FE83mypGe7Oec5Gso1g0WqPZ1A2WfDbhOp8TUu4xAcKrfpEU9WZTRGzpBo3ei2SNdnoaLEzOh0Ol
+                    2JgxGu82NWaJslbIiImEh/5PbDhgXcVqZjP0KasO2cehigvJEmdGqN1BiWXVWxq1C+TM/3kKLm7g
+                    Nmxbnt0+qVEcn5XsxypmK4wooqEozPQdC+zeZLzy+el0WrjOxXW/LgtPbojN/uytoRaBKjghgi2D
+                    hbuYwSprZNh2J31HjZYFcRwHc3NxvCwcpVcfXeGqypTBmkHI8hgsgoVsGzkIYAAsKDehN/W/XIRq
+                    6y3nim36GUO/kHSVsBEOVOTi3Oh25tm2RfPsDPooJzAx7jd3lhfVuUpzItej/gVbCnLCjOthyjLt
+                    PDt8immAXjKvDd5oHug0L84JxoP6jfozRa9utGmH2eGc+F/yPPLHOcykOYrZaE9hdHrEjoTtMG8O
+                    ciZVLMG5gOgPDnEWNmP9ZiWZHxFa0EzSJuMYD4ncr6lhPYBHlnVvzz2NlkHdCrVvfxtnv+BvYmnE
+                    c640TQ8flSDq3Kj/BncfwHAb6W5okmJECKJbv8/8u+Pj6A/dy+MR+7iXHLJG7+h/hlW6Z85im/6V
+                    ve4YD2Cc5Hxn6Su9fq492nf+ErBGqC/Oh3O1nsopa/072NLJ+VBV0RSniBl55Nlfoq3+Z3PorXDw
+                    Oi2C/DEsNevmr7cOU37UFauyogiR8JO7JXeP/PaC8vCVSGeRQPvNL5eljxPJgwfUq1HvedBvZDDA
+                    5yp9b4s7D7KVDwyuD8irgfw+97p4pfuLyLe/7vX7UDr/AD0ZLEnxO7ESAAAAAElFTkSuQmCC">
+                <span>Track Editor</span>
+            </a>
+            <p id="track-editor-description">Open the extended 2D track editor to build .cstrk tracks up to 90 × 90 tiles.</p>
+        </section>
         <h1>Chocolate Stunts</h1>
         <p>The classic driving game, <strong>Brøderbund Stunts 1.1</strong>, playable in your browser.</p>
         <p><strong>Your game files, ROMs and saves stay on your device and are never uploaded.</strong></p>
-        <p><a href="tracked.html" target="_blank" rel="noopener">Open the extended 2D track editor</a> to build .cstrk tracks up to 90 × 90 tiles.</p>
         <details>
             <summary>Setup instructions</summary>
             <p>You need your own <strong>Stunts (Brøderbund 1.1)</strong> game files to play.
