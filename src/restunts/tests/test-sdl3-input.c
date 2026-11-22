@@ -1383,16 +1383,16 @@ static void assert_screenshot(legacy_u32 number, legacy_s32 width, legacy_s32 he
 
 static void press_screenshot_key(SDL_Keymod modifiers)
 {
-	send_key(SDL_SCANCODE_F12, modifiers, true, false);
+	send_key(SDL_SCANCODE_F9, modifiers, true, false);
 	assert(kb_read_char() == 0);
-	assert(kb_get_key_state(DOS_KB_F12_SCANCODE) == 0);
+	assert(kb_get_key_state((legacy_u16)KEY_F9 >> LEGACY_BYTE_BITS) == 0);
 }
 
 static void release_screenshot_key(void)
 {
-	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, false, false);
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
 	assert(kb_read_char() == 0);
-	assert(kb_get_key_state(DOS_KB_F12_SCANCODE) == 0);
+	assert(kb_get_key_state((legacy_u16)KEY_F9 >> LEGACY_BYTE_BITS) == 0);
 }
 
 enum { TEST_SONY_VENDOR_ID = 0x054C, TEST_DUALSENSE_PRODUCT_ID = 0x0CE6 };
@@ -1417,7 +1417,7 @@ static void test_screenshots(void)
 	assert(chdir(directory) == 0);
 	kb_init_interrupt();
 	sdl3_video_shutdown();
-	press_screenshot_key(SDL_KMOD_LCTRL);
+	press_screenshot_key(SDL_KMOD_LSHIFT);
 	release_screenshot_key();
 	assert(sdl3_video_window() == NULL);
 	assert_no_screenshot(SCREENSHOT_TEST_EXISTING_FILE);
@@ -1440,15 +1440,14 @@ static void test_screenshots(void)
 	memset(framebuffer, PAGE_VIDEO_FIRST_INDEX, PAGE_VIDEO_PIXELS);
 	sdl3_video_present();
 	legacy_u32 image_number = SCREENSHOT_TEST_FIRST_IMAGE;
-	press_screenshot_key(SDL_KMOD_LCTRL);
+	press_screenshot_key(SDL_KMOD_LSHIFT);
 	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
 					  PAGE_VIDEO_RED, PAGE_VIDEO_RED);
-	/* Repeats, duplicate down events and releasing Ctrl while F12 remains held
-	 * must neither capture again nor reach the HyperVision action. */
-	send_key(SDL_SCANCODE_F12, SDL_KMOD_LCTRL, true, true);
-	press_screenshot_key(SDL_KMOD_LCTRL);
+	/* F9 stays consumed until release, including repeats after Shift is released. */
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_LSHIFT, true, true);
+	press_screenshot_key(SDL_KMOD_LSHIFT);
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, true);
 	press_screenshot_key(SDL_KMOD_NONE);
-	press_screenshot_key(SDL_KMOD_SHIFT);
 	assert_no_screenshot(image_number);
 	release_screenshot_key();
 
@@ -1456,13 +1455,13 @@ static void test_screenshots(void)
 	memset(framebuffer, PAGE_VIDEO_SECOND_INDEX, PAGE_VIDEO_PIXELS / 2);
 	legacy_u8 next_colors[] = {PAGE_VIDEO_DAC_MAX, PAGE_VIDEO_DAC_MAX, 0, 0, PAGE_VIDEO_DAC_MAX, 0};
 	dos_video_set_palette(PAGE_VIDEO_FIRST_INDEX, PAGE_VIDEO_COLOR_COUNT, next_colors);
-	press_screenshot_key(SDL_KMOD_RCTRL | SDL_KMOD_CAPS | SDL_KMOD_NUM);
+	press_screenshot_key(SDL_KMOD_RSHIFT | SDL_KMOD_CAPS | SDL_KMOD_NUM | SDL_KMOD_SCROLL);
 	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
 					  PAGE_VIDEO_RED, PAGE_VIDEO_RED);
 	release_screenshot_key();
 	memset(framebuffer + PAGE_VIDEO_PIXELS / 2, PAGE_VIDEO_SECOND_INDEX, PAGE_VIDEO_PIXELS / 2);
 	sdl3_video_end_frame();
-	press_screenshot_key(SDL_KMOD_CTRL);
+	press_screenshot_key(SDL_KMOD_SHIFT);
 	assert_screenshot(image_number++, SDL3_SCREEN_WIDTH, SCREENSHOT_TEST_CLASSIC_HEIGHT,
 					  PAGE_VIDEO_GREEN, PAGE_VIDEO_GREEN);
 	release_screenshot_key();
@@ -1485,29 +1484,52 @@ static void test_screenshots(void)
 		   sizeof(high_resolution_framebuffer));
 	legacy_u8 blue[] = {0, 0, PAGE_VIDEO_DAC_MAX};
 	dos_video_set_palette(PAGE_VIDEO_SECOND_INDEX, 1, blue);
-	press_screenshot_key(SDL_KMOD_RCTRL);
+	press_screenshot_key(SDL_KMOD_LSHIFT);
 	assert_screenshot(image_number++, HIRES_WIDTH, SCREENSHOT_TEST_HIRES_HEIGHT, PAGE_VIDEO_RED,
 					  PAGE_VIDEO_GREEN);
 	release_screenshot_key();
 	sdl3_video_end_frame();
-	press_screenshot_key(SDL_KMOD_LCTRL);
+	press_screenshot_key(SDL_KMOD_LSHIFT);
 	assert_screenshot(image_number++, HIRES_WIDTH, SCREENSHOT_TEST_HIRES_HEIGHT, PAGE_VIDEO_BLUE,
 					  PAGE_VIDEO_BLUE);
 	release_screenshot_key();
 
-	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL | SDL_KMOD_SHIFT, SDL_KMOD_CTRL | SDL_KMOD_ALT,
-								   SDL_KMOD_CTRL | SDL_KMOD_GUI};
+	/* Extra modifiers and adding Shift while F9 is held leave ordinary input active. */
+	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL, SDL_KMOD_ALT, SDL_KMOD_GUI, SDL_KMOD_MODE,
+								   SDL_KMOD_LEVEL5};
 	for (legacy_u32 modifier = 0; modifier < SDL_arraysize(rejected); modifier++) {
-		send_key(SDL_SCANCODE_F12, rejected[modifier], true, false);
-		assert(kb_read_char() == 0);
-		press_screenshot_key(SDL_KMOD_CTRL);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_SHIFT | rejected[modifier], true, false);
+		assert(kb_read_char() != 0);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_SHIFT, true, true);
+		assert(kb_read_char() != 0);
 		release_screenshot_key();
 	}
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
+	assert(kb_read_char() == KEY_F9);
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_SHIFT, true, false);
+	assert(kb_read_char() != 0);
+	release_screenshot_key();
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_CTRL, true, false);
+	assert(kb_read_char() == KEY_CTRL_F9);
+	release_screenshot_key();
+
+	const SDL_Scancode print_keys[] = {SDL_SCANCODE_PRINTSCREEN, SDL_SCANCODE_SYSREQ};
+	for (legacy_u32 key = 0; key < SDL_arraysize(print_keys); key++) {
+		send_key(print_keys[key], SDL_KMOD_NONE, true, false);
+		send_key(print_keys[key], SDL_KMOD_NONE, false, false);
+		assert(kb_read_char() == 0);
+	}
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_CTRL, true, false);
+	assert(kb_read_char() == 0);
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, true, true);
+	assert(kb_read_char() == 0);
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, false, false);
 	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, true, false);
 	assert(kb_read_char() == KEY_F12);
-	send_key(SDL_SCANCODE_F12, SDL_KMOD_LCTRL, true, false);
-	assert(kb_read_char() == 0);
-	release_screenshot_key();
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, false, false);
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_SHIFT, true, false);
+	assert(kb_read_char() == KEY_SHIFT_F12);
+	send_key(SDL_SCANCODE_F12, SDL_KMOD_NONE, false, false);
 	assert_no_screenshot(image_number);
 
 	static const struct {

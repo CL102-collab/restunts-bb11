@@ -607,7 +607,7 @@ including track and replay file selection.
 During replay playback the D-pad keeps its driving shortcuts. Menu / Options
 opens the replay menu. On supported gamepads, Xbox Share, Nintendo Capture,
 PlayStation 4 Share, and PlayStation 5 Create save a screenshot anywhere
-Ctrl+F12 works.
+Shift+F9 works.
 
 When no mapped gamepad is connected, select **Joystick** in the driving options
 to drive with a raw joystick. Its horizontal axis steers, its vertical axis
@@ -646,7 +646,7 @@ Existing keyboard driving and replay controls remain available:
   presentation waits.
 - **F12** toggles HyperVision Auto on or off; **Shift+F12** cycles the fixed
   **Full → High → Medium → Low** presets.
-- **Ctrl+F12** saves the last completed frame as a PNG in the game data directory
+- **Shift+F9** saves the last completed frame as a PNG in the game data directory
   (`--data-dir`, or the current directory by default). Files are named
   `SHOT0001.PNG` through `SHOT9999.PNG`, skipping names that already exist.
   Desktop, Android and browser captures preserve the game's display proportions.

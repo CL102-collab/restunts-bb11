@@ -503,13 +503,12 @@ static void input_key(const SDL_KeyboardEvent *event)
 		consumed_keys[event->scancode] = true;
 		return;
 	}
-	if (event->scancode == SDL_SCANCODE_F12 && (event->mod & SDL_KMOD_CTRL) != 0 &&
-		(event->mod & (SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI)) == 0) {
-		/* Keep F12 consumed if Ctrl is released before the shortcut key. */
+	if (event->scancode == SDL_SCANCODE_F9 && !was_pressed && !event->repeat &&
+		(event->mod & SDL_KMOD_SHIFT) != 0 &&
+		(event->mod & ~(SDL_KMOD_SHIFT | SDL_KMOD_CAPS | SDL_KMOD_NUM | SDL_KMOD_SCROLL)) == 0) {
+		/* Keep F9 consumed until release, even if Shift is released first. */
 		consumed_keys[event->scancode] = true;
-		if (!was_pressed && !event->repeat) {
-			sdl3_video_screenshot();
-		}
+		sdl3_video_screenshot();
 		return;
 	}
 	legacy_u32 scan = legacy_scancode(event->scancode);
