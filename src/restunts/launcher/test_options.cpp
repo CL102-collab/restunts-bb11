@@ -80,8 +80,8 @@ legacy_int main()
 									 "--widescreen:off",
 									 "--fullscreen:off",
 									 "--fps:off",
-									 "--showmph:off",
-									 "--show-dashboard:on",
+									 "--mph:off",
+									 "--dashboard:on",
 									 "--controller-vibration:on",
 									 "--multi-core:on",
 									 "--pg:on",
@@ -103,12 +103,11 @@ legacy_int main()
 	options.sound_mode = LAUNCHER_SOUND_NONE;
 	options.hypervision = LAUNCHER_HV_OFF;
 	arguments = launcher_game_arguments(game, options);
-	check(contains(arguments, "--show-dashboard:off") &&
-			  !contains(arguments, "--show-dashboard:on"),
+	check(contains(arguments, "--dashboard:off") && !contains(arguments, "--dashboard:on"),
 		  "Disabling Show Dashboard must pass the off argument.");
 	const legacy_char *changed[] = {
 		"--nosound",		"--ogg:on",		   "--nointro", "--controller-vibration:off",
-		"--widescreen:on",	"--fullscreen:on", "--fps:on",	"--showmph:on",
+		"--widescreen:on",	"--fullscreen:on", "--fps:on",	"--mph:on",
 		"--multi-core:off", "--pg:off",		   "--lc:off",	"--lcb:off",
 		"--dws:off",		"--cfg:off",	   "--owoot",	"--amigagrass"};
 	for (const legacy_char *argument : changed) {

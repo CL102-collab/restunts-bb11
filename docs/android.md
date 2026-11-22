@@ -113,10 +113,10 @@ places its controls side by side and wraps onto additional rows on smaller
 screens, keeping every option visible without horizontal scrolling. The
 HyperVision label and selector share their own horizontal row; other settings wrap
 when needed. Start game applies all selections and remembers them for later
-launches. Show MPH starts off and passes `--showmph:on` or `--showmph:off`.
+launches. Show MPH starts off and passes `--mph:on` or `--mph:off`.
 With a keyboard, Shift+F11 toggles it for the current session without changing
-the saved checkbox. Show Dashboard passes `--show-dashboard:on` or
-`--show-dashboard:off` to set the initial dashboard visibility. Press D during
+the saved checkbox. Show Dashboard passes `--dashboard:on` or
+`--dashboard:off` to set the initial dashboard visibility. Press D during
 a drive to toggle the dashboard. Defaults use original AdLib music, hide FPS,
 keep **Show Control Layout**
 checked, and leave HyperVision off. The first five

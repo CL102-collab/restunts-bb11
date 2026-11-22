@@ -631,15 +631,15 @@ Existing keyboard driving and replay controls remain available:
 - **F1–F4** select cockpit, follow, custom, and trackside cameras.
 - **D** toggles the dashboard during a drive or replay. The **Show Dashboard**
   startup setting chooses the initial visibility when beginning or restarting
-  a drive. Use `--show-dashboard:on` (the default) or `--show-dashboard:off`.
+  a drive. Use `--dashboard:on` (the default) or `--dashboard:off`.
 - **Alt+Enter** toggles desktop fullscreen, preserving the 4:3 image and restoring
   the previous window size when leaving fullscreen. Keypad Enter also works.
 - **Shift+F10** switches between original synthesized and replacement Ogg music on
   music screens, keeping the current song position. It is inactive during races;
   plain **F10** retains its track-editor function.
 - **Shift+F11** toggles the session's MPH display. Speed appears at the bottom
-  right during races and replay playback. Use `--showmph:on` to enable it from
-  startup or `--showmph:off` to select the default. The startup checkbox
+  right during races and replay playback. Use `--mph:on` to enable it from
+  startup or `--mph:off` to select the default. The startup checkbox
   **Show MPH (Shift+F11)** follows **Show FPS** and keeps its saved value.
 - **F11** toggles the FPS and render-time display on or off,
   including in both car-selection screens. Render time excludes physics and

@@ -81,13 +81,13 @@ black side borders. Menus and the intro keep their 4:3 presentation.
 **HyperVision** has its own row, with its label beside the selector.
 
 In **Graphics settings**, **Show MPH (Shift+F11)** follows **Show FPS**. It starts
-off and selects `--showmph:on` or `--showmph:off` for the game. The display shows
+off and selects `--mph:on` or `--mph:off` for the game. The display shows
 MPH at the bottom right during races and replay playback. Shift+F11 toggles it
 for the current game session and preserves the saved checkbox.
 
 **Show Dashboard** starts on and controls the initial dashboard visibility.
 The launcher saves the choice with the other graphics settings and passes
-`--show-dashboard:on` or `--show-dashboard:off` to the game.
+`--dashboard:on` or `--dashboard:off` to the game.
 
 The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
 and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it

@@ -63,46 +63,46 @@ public final class LaunchOptionsTest {
         requireArguments(new LaunchOptions(LaunchOptions.DEFAULT_NEW_MIDI,
             LaunchOptions.DEFAULT_SHOW_FPS, LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT,
             LaunchOptions.HyperVision.fromStored(null)),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, false, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.AUTO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.FULL),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.MEDIUM),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.LOW),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.FULL,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false,
             true, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga",
             "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false,
             true, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:off", "--videomode:vga",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:off", "--videomode:vga",
             "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         for (boolean fps : new boolean[] {false, true}) {
             for (boolean mph : new boolean[] {false, true}) {
@@ -112,9 +112,9 @@ public final class LaunchOptionsTest {
                     true, false, true, mph);
                 String[] startup = options.arguments(DATA_DIRECTORY);
                 require(options.showMph == mph, "MPH must retain the launcher's saved choice.");
-                require(Arrays.asList(startup).contains("--showmph:on") == mph,
+                require(Arrays.asList(startup).contains("--mph:on") == mph,
                     "Enabling MPH must emit its native startup option independently of FPS.");
-                require(Arrays.asList(startup).contains("--showmph:off") == !mph,
+                require(Arrays.asList(startup).contains("--mph:off") == !mph,
                     "Disabling MPH must emit its native startup option independently of FPS.");
                 require(Arrays.asList(startup).contains("--fps:on") == fps,
                     "MPH must preserve the selected FPS option.");
@@ -169,68 +169,68 @@ public final class LaunchOptionsTest {
                 "Invalid stored preset must fall back to Off.");
         }
         requireArguments(new LaunchOptions(false, false, true, null),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             false, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:off", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, false, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:off", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:off", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--amigagrass");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, LaunchOptions.DEFAULT_SOUND,
             LaunchOptions.DEFAULT_SKIP_INTRO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "/ns");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot", "/ns", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--widescreen:off", "--fps:on", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, false, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--showmph:off",
-            "--show-dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--widescreen:off", "--fps:off", "--mph:off",
+            "--dashboard:on", "--multi-core:on", "--videomode:vga", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:off", "--cfg:on");
         for (boolean midi : new boolean[] {false, true}) {
             for (boolean fps : new boolean[] {false, true}) {
@@ -301,8 +301,8 @@ public final class LaunchOptionsTest {
             LaunchOptions selected = dashboard.withShowDashboard(visible);
             java.util.List<String> expected = new java.util.ArrayList<>(
                 Arrays.asList(dashboard.arguments(DATA_DIRECTORY)));
-            expected.set(expected.indexOf("--show-dashboard:on"),
-                visible ? "--show-dashboard:on" : "--show-dashboard:off");
+            expected.set(expected.indexOf("--dashboard:on"),
+                visible ? "--dashboard:on" : "--dashboard:off");
             require(selected.showDashboard == visible
                     && Arrays.asList(selected.arguments(DATA_DIRECTORY)).equals(expected),
                 "Changing dashboard visibility must change only its native startup argument.");

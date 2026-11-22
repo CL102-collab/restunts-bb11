@@ -1584,7 +1584,7 @@ async function main() {
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--soundmode:adlib', '--ogg:off', '--widescreen:off', '--fps:off',
-            '--showmph:off', '--show-dashboard:on', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
+            '--mph:off', '--dashboard:on', '--multi-core:on', '--videomode:vga', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1624,9 +1624,9 @@ async function main() {
                 preset === 'off' ? [] : ['--hv:' + preset], 'Only the chosen preset may be passed');
             assert.deepEqual(args.filter(arg => arg.startsWith('--videomode:')), ['--videomode:' + videoMode]);
             assert.deepEqual(args.filter(arg => arg.startsWith('--fps:')), [fps ? '--fps:on' : '--fps:off']);
-            assert.deepEqual(args.filter(arg => arg.startsWith('--showmph:')), [mph ? '--showmph:on' : '--showmph:off']);
-            assert.deepEqual(args.filter(arg => arg.startsWith('--show-dashboard:')),
-                [dashboard ? '--show-dashboard:on' : '--show-dashboard:off']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--mph:')), [mph ? '--mph:on' : '--mph:off']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--dashboard:')),
+                [dashboard ? '--dashboard:on' : '--dashboard:off']);
             const savedBeforeHotkey = await storedOptions(page);
             await page.keyboard.press('Shift+F11');
             assert.equal(await page.locator('#show-mph').isChecked(), mph, 'The game hotkey must leave the startup checkbox unchanged');
@@ -1660,7 +1660,7 @@ async function main() {
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--nointro', '--nosound', '--ogg:off', '--widescreen:off', '--fps:on',
-            '--showmph:on', '--show-dashboard:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
+            '--mph:on', '--dashboard:on', '--multi-core:on', '--videomode:cga', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 

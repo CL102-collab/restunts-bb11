@@ -116,8 +116,8 @@ build supports `file://` without a local web server. The HTML's location does no
    or MT-32 synthesizer (`--ogg:off`). It starts off unless a remembered choice enables it.
    **Graphics settings** contains **Fullscreen**, **Widescreen** (off by default;
    `--widescreen:on/off`), **Show FPS** (`--fps:on`), followed by
-   **Show MPH (Shift+F11)** (`--showmph:on/off`) for speed during races and replay playback,
-   **Show Dashboard** (`--show-dashboard:on/off`), **Show Control Layout**
+   **Show MPH (Shift+F11)** (`--mph:on/off`) for speed during races and replay playback,
+   **Show Dashboard** (`--dashboard:on/off`), **Show Control Layout**
    (`--control-layout:on`), **Multi-core rendering** (`--multi-core:on/off`,
    initially on when supported), and the **HyperVision**
    selector. **Widescreen** expands HyperVision races and replays up to 20:9 and

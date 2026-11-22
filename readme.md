@@ -221,8 +221,8 @@ See [replacement music details](docs/sdl3.md#optional-ogg-vorbis-music).
 
 The dashboard starts visible when you begin or restart a drive. Uncheck
 **Show Dashboard** in the desktop, Android, or browser launcher's
-**Graphics settings**, or pass `--show-dashboard:off` to start with it hidden.
-`--show-dashboard:on` selects the default. Press **D** during a drive or replay
+**Graphics settings**, or pass `--dashboard:off` to start with it hidden.
+`--dashboard:on` selects the default. Press **D** during a drive or replay
 to toggle the dashboard.
 
 ### F3 camera views
@@ -612,7 +612,7 @@ changes its selection only once.
 Press **Shift+F11** to toggle the current session's MPH display. Speed appears at
 the bottom right during races and player-controlled replays. The shortcut also
 works during the intro and the main menu's idle replay without interrupting
-either. Use `--showmph:on` to enable it at startup or `--showmph:off` to select
+either. Use `--mph:on` to enable it at startup or `--mph:off` to select
 the default. The desktop, Android, and web startup windows remember
 **Show MPH (Shift+F11)**, which appears immediately after **Show FPS**.
 

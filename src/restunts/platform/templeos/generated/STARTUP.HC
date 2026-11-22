@@ -241,9 +241,9 @@ legacy_void RsStartupStartupParseOptions(
     }
     RsStartupStartupParseBoolean(argv[temple_i_1162],"--fps:","FPS display",
         (&(options->fps_display_enabled)),(&(options->fps_display_specified)));
-    RsStartupStartupParseBoolean(argv[temple_i_1162],"--showmph:","MPH display",
+    RsStartupStartupParseBoolean(argv[temple_i_1162],"--mph:","MPH display",
         (&(options->mph_display_enabled)),(&(options->mph_display_specified)));
-    RsStartupStartupParseBoolean(argv[temple_i_1162],"--show-dashboard:","Dashboard visibility",
+    RsStartupStartupParseBoolean(argv[temple_i_1162],"--dashboard:","Dashboard visibility",
         (&(options->dashboard_enabled)),(&(options->dashboard_specified)));
     if((RsInternal1Strcmp(argv[temple_i_1162],"--nointro")==0)) {
       (options->skip_intro=TempleCastU8(1));

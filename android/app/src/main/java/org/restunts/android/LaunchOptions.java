@@ -278,8 +278,8 @@ public final class LaunchOptions {
         arguments.add(newMidi ? "--ogg:on" : "--ogg:off");
         arguments.add(widescreen ? "--widescreen:on" : "--widescreen:off");
         arguments.add(showFps ? "--fps:on" : "--fps:off");
-        arguments.add(showMph ? "--showmph:on" : "--showmph:off");
-        arguments.add(showDashboard ? "--show-dashboard:on" : "--show-dashboard:off");
+        arguments.add(showMph ? "--mph:on" : "--mph:off");
+        arguments.add(showDashboard ? "--dashboard:on" : "--dashboard:off");
         arguments.add(multiCore ? "--multi-core:on" : "--multi-core:off");
         arguments.add(videoMode.argument);
         if (hyperVision != HyperVision.OFF) {

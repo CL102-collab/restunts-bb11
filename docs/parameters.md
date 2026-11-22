@@ -16,11 +16,14 @@ the preserved assembly executable retain their original interfaces.
 | Skip intro | `--nointro` | Off |
 | Disable music and sound effects | `/ns` | Off (sound on) |
 | FPS display | `--fps:on` / `--fps:off` | Off |
+| MPH display | `--mph:on` / `--mph:off` | Off |
+| Dashboard at the start of a drive | `--dashboard:on` / `--dashboard:off` | On |
 
-Physics switches and FPS values are case-insensitive. For power gear,
-collision, corner bias, dual-way switching, chicane fast-grass, and OWOOT, the
-last recognized value wins. Supply the FPS option once; invalid or repeated FPS
-options report an error. F11 toggles FPS during play.
+Physics switches and display option names and values are case-insensitive. For
+power gear, collision, corner bias, dual-way switching, chicane fast-grass, and
+OWOOT, the last recognized value wins. Supply each display option once. Invalid
+or repeated display options report an error. F11 toggles FPS, Shift+F11 toggles
+MPH, and D toggles the dashboard during play.
 Replays do not record driving options: use the same settings when recording
 and playing them.
 

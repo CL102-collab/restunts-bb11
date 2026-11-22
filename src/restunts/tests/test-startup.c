@@ -1541,10 +1541,10 @@ static void test_startup_mph_display_options(void)
 	static const struct {
 		const legacy_s8 *argument;
 		legacy_u8 enabled;
-	} cases[] = {{"--showmph:on", FRAME_MPH_DISPLAY_ON},
-				 {"--showmph:off", FRAME_MPH_DISPLAY_OFF},
-				 {"--SHOWMPH:On", FRAME_MPH_DISPLAY_ON},
-				 {"--sHoWmPh:OfF", FRAME_MPH_DISPLAY_OFF}};
+	} cases[] = {{"--mph:on", FRAME_MPH_DISPLAY_ON},
+				 {"--mph:off", FRAME_MPH_DISPLAY_OFF},
+				 {"--MPH:On", FRAME_MPH_DISPLAY_ON},
+				 {"--mPh:OfF", FRAME_MPH_DISPLAY_OFF}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
 		reset_startup_hypervision();
@@ -1565,8 +1565,8 @@ static void test_startup_mph_display_options(void)
 	assert(startup_options.mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
 	assert(!startup_options.mph_display_specified);
 
-	static const legacy_s8 *invalid[] = {"--showmph:",	  "--showmph:auto",	  "--showmph:1",
-										 "--showmph:onx", "--showmph:off:on", "--SHOWMPH:unknown"};
+	static const legacy_s8 *invalid[] = {"--mph:",	  "--mph:auto",	  "--mph:1",
+										 "--mph:onx", "--mph:off:on", "--MPH:unknown"};
 	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
 		mph_display_enabled = FRAME_MPH_DISPLAY_ON;
@@ -1587,13 +1587,13 @@ static void test_startup_mph_display_options(void)
 
 static void test_startup_dashboard_options(void)
 {
-	legacy_s8 *off[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:off"};
+	legacy_s8 *off[] = {(legacy_s8 *)"game", (legacy_s8 *)"--dashboard:off"};
 	reset_startup_hypervision();
 	init_main(sizeof(off) / sizeof(off[0]), off);
 	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_OFF);
 	assert(startup_options.dashboard_specified);
 
-	legacy_s8 *on[] = {(legacy_s8 *)"game", (legacy_s8 *)"--SHOW-DASHBOARD:On"};
+	legacy_s8 *on[] = {(legacy_s8 *)"game", (legacy_s8 *)"--DASHBOARD:On"};
 	reset_startup_hypervision();
 	init_main(sizeof(on) / sizeof(on[0]), on);
 	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_ON);
@@ -1606,10 +1606,10 @@ static void test_startup_dashboard_options(void)
 	assert(dashboard_startup_enabled == DASHBOARD_DISPLAY_ON);
 	assert(!startup_options.dashboard_specified);
 
-	legacy_s8 *invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:auto"};
+	legacy_s8 *invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--dashboard:auto"};
 	expect_startup_option_error(sizeof(invalid) / sizeof(invalid[0]), invalid);
-	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)"--show-dashboard:on",
-							  (legacy_s8 *)"--show-dashboard:off"};
+	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)"--dashboard:on",
+							  (legacy_s8 *)"--dashboard:off"};
 	expect_startup_option_error(sizeof(duplicate) / sizeof(duplicate[0]), duplicate);
 }
 

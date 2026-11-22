@@ -129,8 +129,8 @@ static void test_help_contents(void)
 #endif
 #endif
 		"  --fps:on|off",
-		"  --showmph:on|off",
-		"  --show-dashboard:on|off",
+		"  --mph:on|off",
+		"  --dashboard:on|off",
 	};
 	static const legacy_char *physics_options[] = {
 		"  --pg:on|off",  "  --lc:on|off",	"  --lcb:on|off",	 "  --dws:on|off",
@@ -294,8 +294,10 @@ static void test_normal_and_similar_arguments(void)
 													"--hv:auto",
 													"--fps:on",
 													"--fps:off",
-													"--showmph:on",
-													"--showmph:off",
+													"--mph:on",
+													"--mph:off",
+													"--dashboard:on",
+													"--dashboard:off",
 													"--amigagrass",
 													"--dws:on",
 													"--dws:off",
