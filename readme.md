@@ -38,7 +38,7 @@ All packages were created by GitHub CI and released as an immutable release dire
   - Custom cars
   - Tracks
   - Replays
-- Enhanced renderer
+- Enhanced renderer (optional)
   - Unlimited line of sight
   - Higher resolution (4x)
   - Widescreen support (3:2, 16:10, 16:9, 20:9)
@@ -60,6 +60,7 @@ All packages were created by GitHub CI and released as an immutable release dire
   - Load custom cars from ZIP files
   - Ask confirmation for re-start driving
   - Startup window (for settings)
+  - Replaceable custom music (.ogg)
 - Controller support
   - Customize controller bindings
 - Touch layout for mobile
