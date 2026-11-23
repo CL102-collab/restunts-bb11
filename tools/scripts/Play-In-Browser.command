@@ -6,4 +6,4 @@ if ! python3 -c 'from http.server import ThreadingHTTPServer' >/dev/null 2>&1; t
     exit 1
 fi
 
-exec python3 "$(dirname -- "${BASH_SOURCE[0]}")/serve-local-demo.py" --open-browser "$@"
+exec python3 "$(dirname -- "${BASH_SOURCE[0]}")/serve-browser-game.py" --open-browser "$@"

@@ -1747,15 +1747,15 @@ class ReleasePackageTests(unittest.TestCase):
         self.assertEqual(archive.name, "restunts-browser-threaded.zip")
         files, modes = PACKAGES.archive_contents(archive)
         files.pop(PACKAGES.MANIFEST)
-        launchers = {"Start-LocalDemo.bat", "Start-LocalDemo.sh", "Start-LocalDemo.command"}
-        self.assertTrue(launchers | {"serve-local-demo.py", "python/LICENSE.txt",
+        launchers = {"Play-In-Browser.bat", "Play-In-Browser.sh", "Play-In-Browser.command"}
+        self.assertTrue(launchers | {"serve-browser-game.py", "python/LICENSE.txt",
                          "python/python.exe", "python/python314.dll", "python/python314.zip",
                          "python/python314._pth"} <= files.keys())
         self.assertEqual({name: data for name, data in files.items() if name.startswith("python/")},
                          self.browser_python_data)
         for name in launchers:
             self.assertIn(name, files[PACKAGES.README].decode())
-        for name in ("Start-LocalDemo.sh", "Start-LocalDemo.command"):
+        for name in ("Play-In-Browser.sh", "Play-In-Browser.command"):
             self.assertEqual(modes[name], PACKAGES.EXECUTABLE_MODE)
             with self.subTest(launcher=name), \
                     self.assertRaisesRegex(ValueError, "Missing executable permission"):
@@ -1767,8 +1767,8 @@ class ReleasePackageTests(unittest.TestCase):
         configuration = "share/restunts/wasm-relink/CMakeLists.txt"
         with self.assertRaisesRegex(ValueError, "requires RESTUNTS_WASM_THREADS ON"):
             PACKAGES.validate_contents(target, files | {configuration: b"set(RESTUNTS_WASM_THREADS OFF)\n"}, {})
-        for name in ("Start-LocalDemo.bat", "Start-LocalDemo.sh", "Start-LocalDemo.command",
-                     "serve-local-demo.py", "python/python.exe", "python/LICENSE.txt",
+        for name in ("Play-In-Browser.bat", "Play-In-Browser.sh", "Play-In-Browser.command",
+                     "serve-browser-game.py", "python/python.exe", "python/LICENSE.txt",
                      "share/restunts/wasm-relink/audio/lib/librestunts_game.a"):
             with self.subTest(missing=name), self.assertRaisesRegex(ValueError, "missing packaged files"):
                 PACKAGES.validate_contents(target, {key: data for key, data in files.items() if key != name}, {})

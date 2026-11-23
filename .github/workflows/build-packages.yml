@@ -514,7 +514,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Start the archived demo with its bundled Python
+      - name: Start the archived game with its bundled Python
         shell: cmd
         run: python tools\scripts\test-browser-threaded-windows.py dist\packages\restunts-browser-threaded.zip "%GITHUB_SHA%"
 

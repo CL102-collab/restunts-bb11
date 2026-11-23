@@ -13,9 +13,9 @@ from urllib.request import ProxyHandler, build_opener
 import zipfile
 
 
-LAUNCHER = "Start-LocalDemo.bat"
-DEMO_FILE = "restunts.html"
-DEMO_URL = f"http://127.0.0.1:8000/{DEMO_FILE}"
+LAUNCHER = "Play-In-Browser.bat"
+GAME_HTML = "restunts.html"
+GAME_URL = f"http://127.0.0.1:8000/{GAME_HTML}"
 STARTUP_TIMEOUT = 30
 REQUEST_TIMEOUT = 5
 STOP_TIMEOUT = 10
@@ -31,24 +31,24 @@ def smoke_check(process, log, expected_html):
     while time.monotonic() < deadline:
         exit_code = process.poll()
         if exit_code is not None:
-            raise ValueError(f"The demo launcher exited before serving the game ({exit_code})")
-        if f"Open {DEMO_URL} in your browser." in log.read_text(encoding="utf-8", errors="replace"):
+            raise ValueError(f"The browser launcher exited before serving the game ({exit_code})")
+        if f"Open {GAME_URL} in your browser." in log.read_text(encoding="utf-8", errors="replace"):
             break
         time.sleep(0.1)
     else:
-        raise ValueError(f"The demo launcher did not start listening within {STARTUP_TIMEOUT} seconds")
+        raise ValueError(f"The browser launcher did not start listening within {STARTUP_TIMEOUT} seconds")
 
     try:
-        with opener.open(DEMO_URL, timeout=REQUEST_TIMEOUT) as response:
-            if response.url != DEMO_URL or response.status != 200:
-                raise ValueError(f"Unexpected response for {DEMO_URL}: {response.status} {response.url}")
+        with opener.open(GAME_URL, timeout=REQUEST_TIMEOUT) as response:
+            if response.url != GAME_URL or response.status != 200:
+                raise ValueError(f"Unexpected response for {GAME_URL}: {response.status} {response.url}")
             for header, expected in EXPECTED_HEADERS.items():
                 if response.headers.get(header) != expected:
                     raise ValueError(f"Expected {header}: {expected}")
             if response.read() != expected_html:
-                raise ValueError(f"{DEMO_URL} returned different HTML from the package")
+                raise ValueError(f"{GAME_URL} returned different HTML from the package")
     except (HTTPError, URLError, TimeoutError) as error:
-        raise ValueError(f"Could not read {DEMO_URL}: {error}") from error
+        raise ValueError(f"Could not read {GAME_URL}: {error}") from error
 
 
 def test_launcher(archive, commit):
@@ -67,7 +67,7 @@ def test_launcher(archive, commit):
         environment = dict(os.environ, PATH=str(directory / "empty path"),
                            PYLAUNCHER_DRYRUN="1", PYTHON_MANAGER_AUTOMATIC_INSTALL="0")
         log = directory / "launcher.log"
-        expected_html = (package / DEMO_FILE).read_bytes()
+        expected_html = (package / GAME_HTML).read_bytes()
         try:
             with log.open("wb") as output:
                 process = subprocess.Popen(
@@ -104,7 +104,7 @@ def main():
         test_launcher(args.archive, args.commit)
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
         parser.exit(1, f"Threaded browser launcher check failed: {error}\n")
-    print(f"Verified {LAUNCHER} served the archived game from bundled Python at {DEMO_URL}")
+    print(f"Verified {LAUNCHER} served the archived game from bundled Python at {GAME_URL}")
 
 
 if __name__ == "__main__":

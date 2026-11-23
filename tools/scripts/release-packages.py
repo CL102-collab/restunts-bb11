@@ -87,7 +87,7 @@ TARGETS = {
     "templeos": ".zip",
 }
 BROWSER_TARGETS = {"browser", "browser-threaded"}
-BROWSER_UNIX_LAUNCHERS = {"Start-LocalDemo.sh", "Start-LocalDemo.command"}
+BROWSER_UNIX_LAUNCHERS = {"Play-In-Browser.sh", "Play-In-Browser.command"}
 BROWSER_PYTHON_FILES = {
     f"python/{name}": digest for name, digest in json.loads(
         Path(__file__).with_name("browser-python-files.json").read_text(encoding="utf-8")).items()
@@ -678,7 +678,7 @@ def required_files(target):
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
         if target == "browser-threaded":
-            required |= {"Start-LocalDemo.bat", "serve-local-demo.py"} | BROWSER_PYTHON_FILES.keys()
+            required |= {"Play-In-Browser.bat", "serve-browser-game.py"} | BROWSER_PYTHON_FILES.keys()
             required |= BROWSER_UNIX_LAUNCHERS | WASM_AUDIO_SERIAL_ARCHIVES
         return (required | custom_car_files(f"{relink}/data/assets/cars") |
                 custom_horizon_files(f"{relink}/data/assets/horizons") | custom_horizon_files("horizons") |
@@ -879,12 +879,12 @@ def readme(target, commit):
     elif target in BROWSER_TARGETS:
         if target == "browser-threaded":
             lines += ["Extract the whole ZIP before starting the game.",
-                      "On Windows 11, run Start-LocalDemo.bat.",
+                      "On Windows 11, run Play-In-Browser.bat.",
                       "It tries Google Chrome, Chromium, Microsoft Edge, then the default browser.",
                       "The package includes signed x64 Python. On Windows Arm64 it uses x64 emulation.",
                       "See python/LICENSE.txt for Python's redistribution terms.",
-                      "On Linux, run ./Start-LocalDemo.sh from a terminal in the extracted folder.",
-                      "On macOS, open Start-LocalDemo.command in Finder.",
+                      "On Linux, run ./Play-In-Browser.sh from a terminal in the extracted folder.",
+                      "On macOS, open Play-In-Browser.command in Finder.",
                       "Linux and macOS use system Python 3.7 or later and open the default browser.",
                       "The launcher serves restunts.html on loopback with cross-origin isolation.",
                       "Keep the launcher window open while playing. Press Ctrl+C to stop."]

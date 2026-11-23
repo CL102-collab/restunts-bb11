@@ -1416,8 +1416,8 @@ only the game; native dump tools and regression executables are disabled.
 For direct offline play, open `restunts.html` from `restunts-browser.zip`
 or a local serial build. For the threaded build, extract the full
 `restunts-browser-threaded.zip` and start the local server with
-`Start-LocalDemo.bat` on Windows 11, `./Start-LocalDemo.sh` on Linux, or
-`Start-LocalDemo.command` on macOS. For launcher prerequisites and manual
+`Play-In-Browser.bat` on Windows 11, `./Play-In-Browser.sh` on Linux, or
+`Play-In-Browser.command` on macOS. For launcher prerequisites and manual
 hosting, see the [browser guide](docs/wasm.md#play-from-a-website-or-offline).
 Click **Choose game folder**, select your Stunts folder, then click **Start game**.
 Supported browsers remember the selected folder and may ask you to **Allow folder

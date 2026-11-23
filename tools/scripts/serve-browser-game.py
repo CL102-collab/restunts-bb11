@@ -18,14 +18,14 @@ WINDOWS_BROWSERS = (
 )
 
 
-class DemoRequestHandler(SimpleHTTPRequestHandler):
+class GameRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         super().end_headers()
 
 
-class DemoServer(ThreadingHTTPServer):
+class LocalGameServer(ThreadingHTTPServer):
     # On Windows SO_REUSEADDR can let two listeners bind to the same port.
     allow_reuse_address = os.name != "nt"
 
@@ -58,7 +58,7 @@ def windows_browser_paths(executable, install_path):
             yield path / executable
 
 
-def open_demo_browser(url):
+def open_game_in_browser(url):
     if os.name != "nt":
         return webbrowser.open(url)
 
@@ -75,9 +75,9 @@ def open_demo_browser(url):
     return True
 
 
-def launch_demo_browser(url):
+def launch_game_browser(url):
     try:
-        if open_demo_browser(url):
+        if open_game_in_browser(url):
             return
     except (OSError, webbrowser.Error):
         pass
@@ -90,7 +90,7 @@ def main():
                         help="directory containing restunts.html (default: directory of this script)")
     parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT,
                         help="HTTP port (default: %(default)s)")
-    parser.add_argument("--open-browser", action="store_true", help="open the demo in a browser")
+    parser.add_argument("--open-browser", action="store_true", help="open the game in a browser")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
@@ -99,12 +99,12 @@ def main():
     if not (directory / "restunts.html").is_file():
         parser.error(f"restunts.html was not found in {directory}")
 
-    handler = partial(DemoRequestHandler, directory=str(directory))
+    handler = partial(GameRequestHandler, directory=str(directory))
     address = (LOOPBACK_HOST, args.port)
     try:
-        server = DemoServer(address, handler)
+        server = LocalGameServer(address, handler)
     except OSError as error:
-        parser.exit(1, f"Could not start the local demo on {address[0]}:{address[1]}: {error}\n")
+        parser.exit(1, f"Could not start the local game server on {address[0]}:{address[1]}: {error}\n")
 
     with server:
         url = f"http://{address[0]}:{address[1]}/restunts.html"
@@ -113,7 +113,7 @@ def main():
         try:
             if args.open_browser:
                 # Some desktop launchers wait for the browser to exit.
-                Thread(target=launch_demo_browser, args=(url,), daemon=True).start()
+                Thread(target=launch_game_browser, args=(url,), daemon=True).start()
             server.serve_forever()
         except KeyboardInterrupt:
             pass

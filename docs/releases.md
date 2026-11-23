@@ -213,8 +213,8 @@ to rebuild each package's HTML with either modified audio library. Distribute
 the complete archive with its relink kit.
 
 Open the serial browser build directly from disk. For the threaded build,
-extract the full ZIP and use `Start-LocalDemo.bat` on Windows 11,
-`Start-LocalDemo.sh` on Linux, or `Start-LocalDemo.command` on macOS. The ZIP
+extract the full ZIP and use `Play-In-Browser.bat` on Windows 11,
+`Play-In-Browser.sh` on Linux, or `Play-In-Browser.command` on macOS. The ZIP
 bundles x64 CPython for Windows 11. The Linux and macOS launchers use an
 installed Python 3.7 or later. For manual hosting, see the
 [browser setup guide](wasm.md#play-from-a-website-or-offline).

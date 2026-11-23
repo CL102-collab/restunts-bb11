@@ -100,22 +100,22 @@ The `restunts-browser-threaded.zip` package enables multi-core rendering,
 a dedicated worker for UNIT's live AI planning, and off-main-thread audio.
 Extract the full ZIP and use the launcher for your system.
 
-- On **Windows 11**, double-click `Start-LocalDemo.bat`. It opens Google Chrome,
+- On **Windows 11**, double-click `Play-In-Browser.bat`. It opens Google Chrome,
   Chromium, Microsoft Edge, or the system default browser, in that order. The
   launcher uses the included official Authenticode-signed x64 CPython 3.14.10
   embeddable runtime in `python/`. Windows 11 on Arm64 runs it using x64
   emulation.
 - On **Linux**, install Python 3.7 or later with `python3` available. From the
-  extracted folder, run `./Start-LocalDemo.sh`. The Bash launcher opens your
+  extracted folder, run `./Play-In-Browser.sh`. The Bash launcher opens your
   default browser.
 - On **macOS**, install Python 3.7 or later with `python3` available. Double-click
-  `Start-LocalDemo.command` in Finder, or run `./Start-LocalDemo.command` from
+  `Play-In-Browser.command` in Finder, or run `./Play-In-Browser.command` from
   the extracted folder in Terminal. The launcher opens your default browser.
 
 The launchers serve `http://127.0.0.1:8000/restunts.html` with the required
 isolation headers. Press Ctrl+C in the launcher window to stop the server.
 If your ZIP extractor removes execute permissions, run
-`chmod +x Start-LocalDemo.sh Start-LocalDemo.command` in the extracted folder.
+`chmod +x Play-In-Browser.sh Play-In-Browser.command` in the extracted folder.
 
 For manual hosting, serve the extracted threaded `restunts.html` over HTTPS or
 localhost using the two isolation headers in [Build](#build).
@@ -125,7 +125,7 @@ or later and open Command Prompt. From the repository root, pass the directory
 containing `restunts.html` to the launcher.
 
 ```bat
-tools\scripts\Start-LocalDemo.bat "out\sdl3-wasm-windows"
+tools\scripts\Play-In-Browser.bat "out\sdl3-wasm-windows"
 ```
 
 Use your threaded build directory to run the threaded features. The launcher
