@@ -46,7 +46,7 @@ archives and a SHA-256 sidecar for each archive:
 | `restunts-haiku-x86.tar.gz` | 32-bit x86 with SSE2, modern GCC ABI, Haiku R1/beta6 |
 | `restunts-macos-universal.tar.gz` | Intel and Apple Silicon, macOS 11.0+ |
 | `restunts-browser.zip` | Serial HTML/WebAssembly for direct offline play |
-| `restunts-browser-threaded.zip` | Threaded HTML/WebAssembly with Windows 11 local launcher |
+| `restunts-browser-threaded.zip` | Threaded HTML/WebAssembly with Windows 11, Linux, and macOS local launchers |
 | `restunts-templeos.zip` | Native HolyC port and RedSea installation CD for stock TempleOS 5.03 |
 
 Each Android target builds both the game and Genghost as separate installable
@@ -213,9 +213,11 @@ to rebuild each package's HTML with either modified audio library. Distribute
 the complete archive with its relink kit.
 
 Open the serial browser build directly from disk. For the threaded build,
-extract the full ZIP and run `Start-LocalDemo.bat` on Windows 11. This package
-includes a local server and its x64 CPython runtime. For manual hosting on
-another OS, see the [browser guide](wasm.md#play-from-a-website-or-offline).
+extract the full ZIP and use `Start-LocalDemo.bat` on Windows 11,
+`Start-LocalDemo.sh` on Linux, or `Start-LocalDemo.command` on macOS. The ZIP
+bundles x64 CPython for Windows 11. The Linux and macOS launchers use an
+installed Python 3.7 or later. For manual hosting, see the
+[browser setup guide](wasm.md#play-from-a-website-or-offline).
 
 Each Android ZIP contains `bin/restunts.apk` for the game and `bin/genghost.apk`
 for the ghost generator, both matching the archive's ARMv7 or ARM64 ABI. It also

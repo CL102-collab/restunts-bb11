@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from threading import Thread
 import webbrowser
 
 
@@ -74,6 +75,15 @@ def open_demo_browser(url):
     return True
 
 
+def launch_demo_browser(url):
+    try:
+        if open_demo_browser(url):
+            return
+    except (OSError, webbrowser.Error):
+        pass
+    print("Could not open a browser automatically. Open the URL above.", file=sys.stderr, flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Serve a local Chocolate Stunts browser build.")
     parser.add_argument("directory", nargs="?", type=Path, default=Path(__file__).resolve().parent,
@@ -102,13 +112,8 @@ def main():
         print("Press Ctrl+C to stop the server.", flush=True)
         try:
             if args.open_browser:
-                try:
-                    opened = open_demo_browser(url)
-                except (OSError, webbrowser.Error):
-                    opened = False
-                if not opened:
-                    print("Could not open a browser automatically. Open the URL above.",
-                          file=sys.stderr, flush=True)
+                # Some desktop launchers wait for the browser to exit.
+                Thread(target=launch_demo_browser, args=(url,), daemon=True).start()
             server.serve_forever()
         except KeyboardInterrupt:
             pass

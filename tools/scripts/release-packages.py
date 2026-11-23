@@ -87,6 +87,7 @@ TARGETS = {
     "templeos": ".zip",
 }
 BROWSER_TARGETS = {"browser", "browser-threaded"}
+BROWSER_UNIX_LAUNCHERS = {"Start-LocalDemo.sh", "Start-LocalDemo.command"}
 BROWSER_PYTHON_FILES = {
     f"python/{name}": digest for name, digest in json.loads(
         Path(__file__).with_name("browser-python-files.json").read_text(encoding="utf-8")).items()
@@ -678,7 +679,7 @@ def required_files(target):
                      for opponent in range(1, OPPONENT_COUNT + 1)}
         if target == "browser-threaded":
             required |= {"Start-LocalDemo.bat", "serve-local-demo.py"} | BROWSER_PYTHON_FILES.keys()
-            required |= WASM_AUDIO_SERIAL_ARCHIVES
+            required |= BROWSER_UNIX_LAUNCHERS | WASM_AUDIO_SERIAL_ARCHIVES
         return (required | custom_car_files(f"{relink}/data/assets/cars") |
                 custom_horizon_files(f"{relink}/data/assets/horizons") | custom_horizon_files("horizons") |
                 custom_track_files(f"{relink}/data/assets/tracks"))
@@ -785,6 +786,8 @@ def validate_contents(target, files, modes):
     if target == "browser-threaded":
         for name, digest in BROWSER_PYTHON_FILES.items():
             require(sha256(files[name]) == digest, f"Embedded Python file differs from upstream: {name}")
+        for name in BROWSER_UNIX_LAUNCHERS:
+            require(modes.get(name, 0) & stat.S_IXUSR, f"Missing executable permission: {name}")
     if TARGETS[target] == ".tar.gz":
         executables = ({AMIGA_EXECUTABLE} if target == "amiga-m68k" else
                        {f"bin/{name}" for name in NATIVE_EXECUTABLES})
@@ -875,13 +878,16 @@ def readme(target, commit):
             lines += ["Requires a 64-bit ARM Android operating system."]
     elif target in BROWSER_TARGETS:
         if target == "browser-threaded":
-            lines += ["On Windows 11, extract the whole ZIP and run Start-LocalDemo.bat.",
-                      "The launcher serves restunts.html on loopback with cross-origin isolation.",
-                      "It tries Google Chrome, Chromium, Microsoft Edge, then your default browser.",
-                      "Keep the Command Prompt window open while playing. Press Ctrl+C to stop.",
+            lines += ["Extract the whole ZIP before starting the game.",
+                      "On Windows 11, run Start-LocalDemo.bat.",
+                      "It tries Google Chrome, Chromium, Microsoft Edge, then the default browser.",
                       "The package includes signed x64 Python. On Windows Arm64 it uses x64 emulation.",
                       "See python/LICENSE.txt for Python's redistribution terms.",
-                      "On other systems, serve the game with the headers listed in wasm.md."]
+                      "On Linux, run ./Start-LocalDemo.sh from a terminal in the extracted folder.",
+                      "On macOS, open Start-LocalDemo.command in Finder.",
+                      "Linux and macOS use system Python 3.7 or later and open the default browser.",
+                      "The launcher serves restunts.html on loopback with cross-origin isolation.",
+                      "Keep the launcher window open while playing. Press Ctrl+C to stop."]
         else:
             lines += ["Open restunts.html in your browser. The HTML runs offline by itself."]
         lines += ["Choose your game-data folder on the game page.",

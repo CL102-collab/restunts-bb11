@@ -244,6 +244,7 @@ case "$target" in
             printf '%s  %s\n' "$BROWSER_PYTHON_SHA256" "$python_archive" | sha256sum --check
             unzip -q "$python_archive" -d "$package_dir/python"
             install -m 0644 "$script_dir/Start-LocalDemo.bat" "$script_dir/serve-local-demo.py" "$package_dir/"
+            install -m 0755 "$script_dir/Start-LocalDemo.sh" "$script_dir/Start-LocalDemo.command" "$package_dir/"
         fi
         if [[ "$target" == dos32 ]]; then
             unzip -p "$tool_root/downloads/csdpmi7b.zip" bin/CWSDPMI.EXE > "$package_dir/bin/CWSDPMI.EXE"

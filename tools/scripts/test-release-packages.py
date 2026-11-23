@@ -336,14 +336,14 @@ class ReleasePackageTests(unittest.TestCase):
 
     def create(self, target, asset_data=None, run_attempt=RUN_ATTEMPT, run_id=RUN_ID):
         runtime = self.root / target
+        executables = {f"bin/{name}" for name in PACKAGES.NATIVE_EXECUTABLES} | {
+            "restunts", "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.MACOS_GENGHOST_GUI,
+            PACKAGES.APPIMAGE} | PACKAGES.BROWSER_UNIX_LAUNCHERS
         for name in PACKAGES.required_files(target) - {PACKAGES.README}:
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
-            if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {
-                    "restunts",
-                    "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.MACOS_GENGHOST_GUI,
-                    PACKAGES.APPIMAGE}:
+            if name in executables:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
         for name, content in (asset_data or {}).items():
             path = runtime / name
@@ -1745,13 +1745,21 @@ class ReleasePackageTests(unittest.TestCase):
         target = "browser-threaded"
         archive = self.create(target)
         self.assertEqual(archive.name, "restunts-browser-threaded.zip")
-        files, _ = PACKAGES.archive_contents(archive)
-        self.assertTrue({"Start-LocalDemo.bat", "serve-local-demo.py", "python/LICENSE.txt",
+        files, modes = PACKAGES.archive_contents(archive)
+        files.pop(PACKAGES.MANIFEST)
+        launchers = {"Start-LocalDemo.bat", "Start-LocalDemo.sh", "Start-LocalDemo.command"}
+        self.assertTrue(launchers | {"serve-local-demo.py", "python/LICENSE.txt",
                          "python/python.exe", "python/python314.dll", "python/python314.zip",
                          "python/python314._pth"} <= files.keys())
         self.assertEqual({name: data for name, data in files.items() if name.startswith("python/")},
                          self.browser_python_data)
-        self.assertIn("Start-LocalDemo.bat", files[PACKAGES.README].decode())
+        for name in launchers:
+            self.assertIn(name, files[PACKAGES.README].decode())
+        for name in ("Start-LocalDemo.sh", "Start-LocalDemo.command"):
+            self.assertEqual(modes[name], PACKAGES.EXECUTABLE_MODE)
+            with self.subTest(launcher=name), \
+                    self.assertRaisesRegex(ValueError, "Missing executable permission"):
+                PACKAGES.validate_contents(target, files, {**modes, name: PACKAGES.FILE_MODE})
 
     def test_threaded_browser_archive_rejects_serial_build_and_wrong_python_files(self):
         target = "browser-threaded"
@@ -1759,7 +1767,8 @@ class ReleasePackageTests(unittest.TestCase):
         configuration = "share/restunts/wasm-relink/CMakeLists.txt"
         with self.assertRaisesRegex(ValueError, "requires RESTUNTS_WASM_THREADS ON"):
             PACKAGES.validate_contents(target, files | {configuration: b"set(RESTUNTS_WASM_THREADS OFF)\n"}, {})
-        for name in ("Start-LocalDemo.bat", "serve-local-demo.py", "python/python.exe", "python/LICENSE.txt",
+        for name in ("Start-LocalDemo.bat", "Start-LocalDemo.sh", "Start-LocalDemo.command",
+                     "serve-local-demo.py", "python/python.exe", "python/LICENSE.txt",
                      "share/restunts/wasm-relink/audio/lib/librestunts_game.a"):
             with self.subTest(missing=name), self.assertRaisesRegex(ValueError, "missing packaged files"):
                 PACKAGES.validate_contents(target, {key: data for key, data in files.items() if key != name}, {})
