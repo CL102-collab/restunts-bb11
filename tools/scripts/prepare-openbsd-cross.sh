@@ -78,11 +78,24 @@ done
 # The download-only adapter retains tag definitions between dry-run packages
 # and prevents pkg_add's ldconfig probe from executing a target program.
 # Native dependency and signature checks still verify the complete closure.
-mkdir -p "$download_dir/packages"
-PKG_PATH="https://cdn.openbsd.org/pub/OpenBSD/$release/packages/$package_architecture/" \
-    PKG_CACHE="$download_dir/packages" \
-    perl "$script_dir/download-openbsd-sdk-packages.pl" \
-        "$package_architecture" "$sysroot" gtk+3
-"$python_command" "$script_dir/extract-openbsd-sdk-packages.py" \
-    "$sysroot" "$download_dir/packages"
-printf '%s\n' "$target" > "$sysroot/restunts-target"
+# An interrupted transfer can leave a partial archive in PKG_CACHE. Resolve
+# against one mirror at a time and extract only from a successful attempt.
+# pkg_add can exit successfully even when the requested package is unavailable.
+for package_mirror in https://cdn.openbsd.org/pub/OpenBSD \
+    https://ftp.usa.openbsd.org/pub/OpenBSD https://ftp.eu.openbsd.org/pub/OpenBSD; do
+    package_cache=$(mktemp -d "$download_dir/packages.XXXXXXXX")
+    echo "Fetching OpenBSD SDK packages from $package_mirror" >&2
+    if PKG_PATH="$package_mirror/$release/packages/$package_architecture/" \
+        PKG_CACHE="$package_cache" \
+        perl "$script_dir/download-openbsd-sdk-packages.pl" \
+            "$package_architecture" "$sysroot" gtk+3 &&
+        find "$package_cache" -type f -name 'gtk+3-*.tgz' -size +0c -print | grep -q .; then
+        "$python_command" "$script_dir/extract-openbsd-sdk-packages.py" \
+            "$sysroot" "$package_cache"
+        printf '%s\n' "$target" > "$sysroot/restunts-target"
+        exit 0
+    fi
+    rm -rf -- "$package_cache"
+done
+echo "Could not download OpenBSD $release $package_architecture SDK packages." >&2
+exit 1
