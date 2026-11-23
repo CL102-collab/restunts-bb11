@@ -22,6 +22,9 @@
 #define TEST_BIO_BACKGROUND_TOP 105
 #define TEST_BIO_PAGE_TOP 166
 #define TEST_BIO_METADATA_COUNT 5U
+#define TEST_BIO_FOREGROUND 0
+#define TEST_BIO_BACKGROUND 15
+#define TEST_BIO_HINT_RED 12
 #define TEST_BIO_MAX_LINES ((TEST_BIO_PAGE_TOP - TEST_BIO_BACKGROUND_TOP) / TEST_GLYPH_HEIGHT)
 #define TEST_BIO_INDENT_SPACES 4U
 #define TEST_BIO_NORMAL_PAGES 2U
@@ -32,6 +35,7 @@ struct TEST_DRAW {
 	legacy_s8 text[TEST_TEXT_CAPACITY];
 	legacy_s16 x;
 	legacy_s16 y;
+	legacy_u16 color;
 };
 
 static legacy_u8 *allocation;
@@ -42,6 +46,14 @@ static struct TEST_DRAW draws[TEST_DRAW_CAPACITY];
 static legacy_u16 draw_count;
 static legacy_u16 test_space_width = TEST_GLYPH_WIDTH;
 legacy_s16 font_glyph_height = TEST_GLYPH_HEIGHT;
+static legacy_u8 font_colors[2U * LEGACY_WORD_BYTES];
+legacy_u8 *active_font_definition = font_colors;
+
+void font_set_colors(legacy_s16 color, legacy_s16 background)
+{
+	LEGACY_WRITE_U16_LE(font_colors, (legacy_u16)color);
+	LEGACY_WRITE_U16_LE(font_colors + LEGACY_WORD_BYTES, (legacy_u16)background);
+}
 
 void *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size)
 {
@@ -84,6 +96,7 @@ void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 	strcpy((legacy_char *)draws[draw_count].text, (const legacy_char *)text);
 	draws[draw_count].x = x;
 	draws[draw_count].y = y;
+	draws[draw_count].color = LEGACY_READ_U16_LE(font_colors);
 	draw_count++;
 }
 
@@ -174,7 +187,7 @@ static void test_portrait_ownership(void)
 	assert(release_count == allocation_count && allocation == NULL);
 }
 
-static legacy_u16 assert_biography_layout(void)
+static legacy_u16 assert_biography_layout(legacy_u8 show_hint)
 {
 	static const legacy_char *metadata[] = {"Unitree Humanoid Bot", "Age: 1 Height: 6'0",
 											"Years Experience: 97", "Expertise: All",
@@ -189,20 +202,24 @@ static legacy_u16 assert_biography_layout(void)
 		"system for optimizing parameters to approximate a function that maps inputs to outputs.";
 	assert(strcmp((const legacy_char *)unit_opponent_background(), expected_background) == 0);
 	draw_count = 0;
-	legacy_u16 pages = unit_opponent_draw_biography(0);
+	legacy_u16 pages = unit_opponent_draw_biography(0, show_hint);
 	assert(pages > 1);
 	legacy_char reconstructed[TEST_BIO_CAPACITY] = {0};
 	for (legacy_u16 page = 0; page < pages; page++) {
 		draw_count = 0;
-		assert(unit_opponent_draw_biography(page) == pages);
-		assert(draw_count > TEST_BIO_METADATA_COUNT + 1U);
-		assert(draw_count <= TEST_BIO_METADATA_COUNT + TEST_BIO_MAX_LINES + 1U);
+		assert(unit_opponent_draw_biography(page, show_hint) == pages);
+		legacy_u8 hint_visible = show_hint != 0 && page + 1U < pages;
+		legacy_u16 footer_count = 1U + hint_visible;
+		assert(draw_count > TEST_BIO_METADATA_COUNT + footer_count);
+		assert(draw_count <= TEST_BIO_METADATA_COUNT + TEST_BIO_MAX_LINES + footer_count);
 		struct TEST_DRAW previous_draws[TEST_DRAW_CAPACITY];
 		legacy_u16 previous_count = draw_count;
 		memcpy(previous_draws, draws, draw_count * sizeof(draws[0]));
 		draw_count = 0;
-		assert(unit_opponent_draw_biography(page) == pages);
+		assert(unit_opponent_draw_biography(page, show_hint) == pages);
 		assert(draw_count == previous_count);
+		assert(LEGACY_READ_U16_LE(font_colors) == TEST_BIO_FOREGROUND);
+		assert(LEGACY_READ_U16_LE(font_colors + LEGACY_WORD_BYTES) == TEST_BIO_BACKGROUND);
 		assert(memcmp(previous_draws, draws, draw_count * sizeof(draws[0])) == 0);
 		for (legacy_u16 index = 0; index < TEST_BIO_METADATA_COUNT; index++) {
 			assert(strcmp((const legacy_char *)draws[index].text, metadata[index]) == 0);
@@ -213,7 +230,11 @@ static legacy_u16 assert_biography_layout(void)
 			assert(draws[index].x - TEST_BIO_LEFT + font_text_width(draws[index].text) <=
 				   TEST_BIO_WIDTH);
 		}
-		for (legacy_u16 index = TEST_BIO_METADATA_COUNT; index + 1U < draw_count; index++) {
+		legacy_u16 footer_index = draw_count - footer_count;
+		for (legacy_u16 index = 0; index <= footer_index; index++) {
+			assert(draws[index].color == TEST_BIO_FOREGROUND);
+		}
+		for (legacy_u16 index = TEST_BIO_METADATA_COUNT; index < footer_index; index++) {
 			const legacy_char *line = (const legacy_char *)draws[index].text;
 			size_t length = strlen(line);
 			assert(length > 0 && line[0] != ' ' && line[length - 1U] != ' ');
@@ -231,12 +252,21 @@ static legacy_u16 assert_biography_layout(void)
 			}
 			strcat(reconstructed, line);
 		}
+		const struct TEST_DRAW *page_label = &draws[footer_index];
 		legacy_char label[TEST_TEXT_CAPACITY];
-		snprintf(label, sizeof(label), "Bio %u/%u  Up/Down", (legacy_uint)(page + 1U),
-				 (legacy_uint)pages);
-		assert(strcmp((const legacy_char *)draws[draw_count - 1U].text, label) == 0);
-		assert(draws[draw_count - 1U].y == TEST_BIO_PAGE_TOP);
-		assert(draws[draw_count - 1U].x == TEST_BIO_LEFT);
+		snprintf(label, sizeof(label), "Bio %u/%u", (legacy_uint)(page + 1U), (legacy_uint)pages);
+		assert(strcmp((const legacy_char *)page_label->text, label) == 0);
+		assert(page_label->y == TEST_BIO_PAGE_TOP);
+		assert(page_label->x == TEST_BIO_LEFT);
+
+		if (hint_visible != 0) {
+			const struct TEST_DRAW *hint = &draws[draw_count - 1U];
+			assert(strcmp((const legacy_char *)hint->text, "[press down to continue]") == 0);
+			assert(hint->color == TEST_BIO_HINT_RED);
+			assert(hint->y == TEST_BIO_PAGE_TOP);
+			assert(hint->x ==
+				   TEST_BIO_LEFT + font_text_width(page_label->text) + 2 * test_space_width);
+		}
 	}
 	assert(strcmp(reconstructed, expected_background) == 0);
 	return pages;
@@ -244,10 +274,13 @@ static legacy_u16 assert_biography_layout(void)
 
 static void test_biography(void)
 {
-	assert(assert_biography_layout() == TEST_BIO_NORMAL_PAGES);
+	font_set_colors(TEST_BIO_FOREGROUND, TEST_BIO_BACKGROUND);
+	assert(assert_biography_layout(1) == TEST_BIO_NORMAL_PAGES);
+	assert(assert_biography_layout(0) == TEST_BIO_NORMAL_PAGES);
 	/* Indentation must measure spaces, including with a proportional font. */
 	test_space_width = TEST_WIDE_SPACE_WIDTH;
-	assert(assert_biography_layout() == TEST_BIO_WIDE_SPACE_PAGES);
+	assert(assert_biography_layout(1) == TEST_BIO_WIDE_SPACE_PAGES);
+	assert(assert_biography_layout(0) == TEST_BIO_WIDE_SPACE_PAGES);
 	test_space_width = TEST_GLYPH_WIDTH;
 }
 

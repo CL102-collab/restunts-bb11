@@ -65,6 +65,12 @@ enum OPPONENT_MENU_BUTTON {
 #define CAR_ID_LENGTH 4U
 #define CAR_MATERIAL_VARIANT_MASK 1U
 
+#ifdef RESTUNTS_SDL3
+#define OPPONENT_BIO_HINT_VISIBLE_TICKS DOS_TIMER_REALTIME_TICKS_PER_SECOND
+#define OPPONENT_BIO_HINT_CYCLE_TICKS                                                              \
+	(OPPONENT_BIO_HINT_VISIBLE_TICKS + DOS_TIMER_REALTIME_TICKS_PER_SECOND / 2U)
+#endif
+
 struct OPPONENT_MENU_STATE {
 	legacy_s8 far *opponent_resource;
 	legacy_u8 selected;
@@ -76,8 +82,32 @@ struct OPPONENT_MENU_STATE {
 #ifdef RESTUNTS_SDL3
 	legacy_u16 biography_page;
 	legacy_u16 biography_pages;
+	legacy_u32 biography_hint_start;
+	legacy_u8 biography_hint_visible;
 #endif
 };
+
+#ifdef RESTUNTS_SDL3
+static void opponent_menu_restart_biography_hint(struct OPPONENT_MENU_STATE *menu)
+{
+	menu->biography_hint_start = dos_timer_get_realtime_counter();
+	menu->biography_hint_visible = 1;
+}
+
+static legacy_u8 opponent_menu_update_biography_hint(struct OPPONENT_MENU_STATE *menu)
+{
+	if (menu->displayed_opponent != OPPONENT_UNIT ||
+		menu->biography_page + 1U >= menu->biography_pages) {
+		return 0;
+	}
+	legacy_u32 elapsed =
+		LEGACY_U32_WRAP_SUB(dos_timer_get_realtime_counter(), menu->biography_hint_start);
+	legacy_u8 visible = elapsed % OPPONENT_BIO_HINT_CYCLE_TICKS < OPPONENT_BIO_HINT_VISIBLE_TICKS;
+	legacy_u8 changed = menu->biography_hint_visible != visible;
+	menu->biography_hint_visible = visible;
+	return changed;
+}
+#endif
 
 static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 {
@@ -85,7 +115,8 @@ static void opponent_menu_draw_description(struct OPPONENT_MENU_STATE *menu)
 	if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
 		font_set_fontdef2(fontnptr);
 		font_set_colors(0, VIDEO_UI_COLOR(dialog_fnt_colour));
-		menu->biography_pages = unit_opponent_draw_biography(menu->biography_page);
+		menu->biography_pages =
+			unit_opponent_draw_biography(menu->biography_page, menu->biography_hint_visible);
 		font_set_fontdef();
 		return;
 	}
@@ -229,6 +260,15 @@ static void opponent_menu_draw_background(void)
 	}
 }
 
+static void opponent_menu_redraw(struct OPPONENT_MENU_STATE *menu)
+{
+	mouse_draw_opaque_check();
+	opponent_menu_draw_background();
+	opponent_menu_draw_description(menu);
+	menu->previous_selection = OPPONENT_MENU_NO_SELECTION;
+	mouse_draw_transparent_check();
+}
+
 static void opponent_menu_refresh(struct OPPONENT_MENU_STATE *menu)
 {
 	legacy_u8 selected_ghost = (legacy_u8)(ghost_is_selected() != 0);
@@ -259,8 +299,11 @@ static void opponent_menu_refresh(struct OPPONENT_MENU_STATE *menu)
 			sprite_make_wnd(OPPONENT_MENU_SCREEN_WIDTH, OPPONENT_MENU_SCREEN_HEIGHT,
 							OPPONENT_MENU_TRANSPARENT_COLOR);
 #ifdef RESTUNTS_SDL3
-		menu->biography_page = 0;
-		menu->biography_pages = 1;
+		if ((legacy_u8)gameconfig.game_opponenttype == OPPONENT_UNIT) {
+			menu->biography_page = 0;
+			menu->biography_pages = 1;
+			opponent_menu_restart_biography_hint(menu);
+		}
 #endif
 		menu->displayed_opponent = (legacy_u8)gameconfig.game_opponenttype;
 		menu->displayed_ghost = selected_ghost;
@@ -273,12 +316,12 @@ static void opponent_menu_refresh(struct OPPONENT_MENU_STATE *menu)
 
 static legacy_u16 opponent_menu_poll_input(struct OPPONENT_MENU_STATE *menu)
 {
-	if (frame_renderer_status_expire_idle() != 0) {
-		mouse_draw_opaque_check();
-		opponent_menu_draw_background();
-		opponent_menu_draw_description(menu);
-		menu->previous_selection = OPPONENT_MENU_NO_SELECTION;
-		mouse_draw_transparent_check();
+	legacy_u8 hint_changed = 0;
+#ifdef RESTUNTS_SDL3
+	hint_changed = opponent_menu_update_biography_hint(menu);
+#endif
+	if (frame_renderer_status_expire_idle() != 0 || hint_changed != 0) {
+		opponent_menu_redraw(menu);
 	}
 	if (menu->selected != menu->previous_selection) {
 		menu->previous_selection = menu->selected;
@@ -309,12 +352,11 @@ static legacy_u8 opponent_menu_activate_key(struct OPPONENT_MENU_STATE *menu, le
 			menu->biography_page--;
 		} else if (key == KEY_DOWN && menu->biography_page + 1U < menu->biography_pages) {
 			menu->biography_page++;
+		} else {
+			return 0;
 		}
-		mouse_draw_opaque_check();
-		opponent_menu_draw_background();
-		opponent_menu_draw_description(menu);
-		menu->previous_selection = OPPONENT_MENU_NO_SELECTION;
-		mouse_draw_transparent_check();
+		opponent_menu_restart_biography_hint(menu);
+		opponent_menu_redraw(menu);
 		return 0;
 	}
 #endif

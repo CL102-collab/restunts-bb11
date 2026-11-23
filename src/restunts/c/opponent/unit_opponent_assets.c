@@ -17,6 +17,7 @@
 #define UNIT_BIO_CONTINUATION_INDENT "    "
 #define UNIT_BIO_LINE_CAPACITY 80U
 #define UNIT_BIO_PAGE_TOP 166
+#define UNIT_BIO_HINT_RED 12
 
 static struct SHAPE2D *unit_portrait;
 static const legacy_s8 unit_background[] =
@@ -111,7 +112,7 @@ static void unit_bio_next_line(const legacy_s8 **source, legacy_s8 *line, legacy
 	}
 }
 
-legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
+legacy_u16 unit_opponent_draw_biography(legacy_u16 page, legacy_u8 show_hint)
 {
 	font_draw_text("Unitree Humanoid Bot", UNIT_BIO_LEFT, UNIT_BIO_TITLE_TOP);
 	font_draw_text("Age: 1 Height: 6'0", UNIT_BIO_LEFT, UNIT_BIO_AGE_TOP);
@@ -137,9 +138,18 @@ legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
 		index++;
 	}
 	legacy_u16 pages = (index + lines_per_page - 1U) / lines_per_page;
-	legacy_s8 label[] = "Bio 0/0  Up/Down";
+	legacy_s8 label[] = "Bio 0/0";
 	label[4] = (legacy_s8)('0' + page + 1U);
 	label[6] = (legacy_s8)('0' + pages);
 	font_draw_text(label, UNIT_BIO_LEFT, UNIT_BIO_PAGE_TOP);
+	if (show_hint != 0 && page + 1U < pages) {
+		legacy_s16 hint_x = UNIT_BIO_LEFT + font_text_width(label) + font_text_width("  ");
+		legacy_s16 color = LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(active_font_definition));
+		legacy_s16 background =
+			LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(active_font_definition + LEGACY_WORD_BYTES));
+		font_set_colors(UNIT_BIO_HINT_RED, background);
+		font_draw_text("[press down to continue]", hint_x, UNIT_BIO_PAGE_TOP);
+		font_set_colors(color, background);
+	}
 	return pages;
 }

@@ -41,6 +41,7 @@ static struct SHAPE2D fixture_shapes[4];
 static struct SPRITE fixture_sprites[4];
 #ifdef RESTUNTS_SDL3
 static legacy_u16 unit_biography_pages_seen;
+static legacy_u8 unit_biography_hint_visible;
 
 struct SHAPE2D *unit_opponent_menu_portrait(legacy_u8 opponent, legacy_s8 **originals)
 {
@@ -52,10 +53,11 @@ void unit_opponent_portrait_release(void)
 {
 }
 
-legacy_u16 unit_opponent_draw_biography(legacy_u16 page)
+legacy_u16 unit_opponent_draw_biography(legacy_u16 page, legacy_u8 show_hint)
 {
 	assert(page < 3U);
 	unit_biography_pages_seen |= (legacy_u16)(1U << page);
+	unit_biography_hint_visible = show_hint != 0 && page + 1U < 3U;
 	return 3;
 }
 #endif

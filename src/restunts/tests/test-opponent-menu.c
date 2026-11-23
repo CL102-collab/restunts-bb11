@@ -110,6 +110,21 @@ static legacy_u32 opponent_notice_presentations, opponent_notice_erasures;
 static legacy_u8 opponent_presented_notice;
 
 #ifdef RESTUNTS_SDL3
+struct OPPONENT_BIOGRAPHY_EVENT {
+	legacy_u16 key;
+	legacy_u32 advance;
+	legacy_u8 hint_visible;
+};
+
+static const struct OPPONENT_BIOGRAPHY_EVENT *opponent_biography_events;
+static legacy_u32 opponent_tick;
+static legacy_u8 opponent_presented_biography_hint;
+
+legacy_u32 dos_timer_get_realtime_counter(void)
+{
+	return opponent_tick;
+}
+
 void menu_background_draw(const struct SPRITE *target, const struct SHAPE2D *original,
 						  enum MENU_BACKGROUND kind)
 {
@@ -202,6 +217,7 @@ legacy_s16 sprite_blit_to_video(struct SPRITE *sprite, legacy_s16 mode)
 	assert(opponent_window_notice == display_status_active);
 #ifdef RESTUNTS_SDL3
 	assert(background_ready != 0 && background_window_mode == renderer_active);
+	opponent_presented_biography_hint = unit_biography_hint_visible;
 #endif
 	if (opponent_window_notice != 0) {
 		opponent_notice_presentations++;
@@ -473,6 +489,13 @@ legacy_s16 input_checking(legacy_s16 elapsed)
 	(void)elapsed;
 	assert(event_index < event_count);
 	assert((legacy_u8)gameconfig.game_opponenttype == expected_opponents[event_index]);
+#ifdef RESTUNTS_SDL3
+	if (opponent_biography_events != NULL) {
+		const struct OPPONENT_BIOGRAPHY_EVENT *event = &opponent_biography_events[event_index];
+		assert(opponent_presented_biography_hint == event->hint_visible);
+		opponent_tick += event->advance;
+	}
+#endif
 	if (opponent_expiry_test != 0 && event_index == 1) {
 		assert(display_status_active != 0 && display_status_draw_count == 1);
 		display_status_expire_pending = 1;
@@ -676,6 +699,9 @@ static void begin_case(legacy_u8 opponent, legacy_u8 page_flipping)
 	opponent_background_draws = opponent_background_copies = 0;
 	opponent_notice_presentations = opponent_notice_erasures = 0;
 #ifdef RESTUNTS_SDL3
+	opponent_biography_events = NULL;
+	opponent_tick = 0;
+	opponent_presented_biography_hint = 0;
 	portrait_draws = enhanced_portrait_draws = portrait_unloads = 0;
 	background_draws = enhanced_background_draws = background_unloads = background_overlay_draws =
 		0;
@@ -914,17 +940,30 @@ static void test_renderer_toggle(legacy_u8 page_flipping, legacy_u8 opponent, le
 #ifdef RESTUNTS_SDL3
 static void test_unit_biography(legacy_u8 page_flipping)
 {
+	static const struct OPPONENT_BIOGRAPHY_EVENT events[] = {
+		{KEY_UP, DOS_TIMER_REALTIME_TICKS_PER_SECOND - 1U, 1},
+		{0, 1, 1},
+		{0, DOS_TIMER_REALTIME_TICKS_PER_SECOND / 2U - 1U, 0},
+		{0, 1, 0},
+		{0, DOS_TIMER_REALTIME_TICKS_PER_SECOND, 1},
+		{KEY_DOWN, 0, 0},
+		{0, DOS_TIMER_REALTIME_TICKS_PER_SECOND, 1},
+		{KEY_DOWN, 0, 0},
+		{0, DOS_TIMER_REALTIME_TICKS_PER_SECOND, 0},
+		{KEY_DOWN, DOS_TIMER_REALTIME_TICKS_PER_SECOND, 0},
+		{KEY_UP, 0, 0},
+		{KEY_ESCAPE, 0, 1},
+	};
 	begin_case(OPPONENT_UNIT, page_flipping);
 	unit_biography_pages_seen = 0;
-	add_event(KEY_UP, OPPONENT_UNIT);
-	add_event(KEY_DOWN, OPPONENT_UNIT);
-	add_event(KEY_DOWN, OPPONENT_UNIT);
-	add_event(KEY_DOWN, OPPONENT_UNIT);
-	add_event(KEY_UP, OPPONENT_UNIT);
-	add_event(KEY_ESCAPE, OPPONENT_UNIT);
+	opponent_tick = LEGACY_U32_MAX - 1U;
+	opponent_biography_events = events;
+	for (legacy_u16 index = 0; index < sizeof(events) / sizeof(events[0]); index++) {
+		add_event(events[index].key, OPPONENT_UNIT);
+	}
 	finish_case(OPPONENT_UNIT, 1);
 	assert(unit_biography_pages_seen == 7U);
-	assert(opponent_background_draws == 6U);
+	assert(opponent_background_draws == 8U);
 	assert(load_count == 0);
 
 	begin_case(OPPONENT_UNIT, page_flipping);
