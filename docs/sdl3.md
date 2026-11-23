@@ -270,9 +270,9 @@ To run an extracted runtime package without installing build tools:
 bash /path/to/package/run-restunts.sh --data-dir /path/to/Stunts -- --nointro
 ```
 
-See the root README for the complete
-[macOS build instructions](../readme.md#macos-host-macos-backend) and
-[precompiled-package instructions](../readme.md#macos-running-an-already-compiled-package),
+See the developer guide for the complete
+[macOS build instructions](devs.md#macos-host-macos-backend) and
+[precompiled-package instructions](devs.md#macos-running-an-already-compiled-package),
 including architecture selection, archive extraction, and direct executable use.
 
 ## Windows with MinGW-w64
@@ -340,7 +340,7 @@ VESA modes are supported too. If no sufficiently large mode is available, SDL
 scales the 1280x800 rendering to the largest available viewport and logs a warning.
 With `--widescreen:on`, HyperVision races and replays select the widest supported
 aspect fitting an available VESA mode (16:9, 16:10 or 3:2). Menus, intro and
-classic rendering remain 4:3. See the [resolution table](../readme.md#hypervision-and-fps-display).
+classic rendering remain 4:3. See the [resolution table](users.md#hypervision-and-fps-display).
 Disabling HyperVision restores Mode 13h. High-resolution rendering requires more
 RAM and processing power than the original mode.
 
@@ -508,7 +508,7 @@ expose **Multi-core rendering** under **Graphics settings** and remember the
 selection; saved choices take precedence over the default.
 Enabled rendering uses available CPU cores; `RESTUNTS_RENDER_WORKERS` overrides
 the background worker count for measurements only while the option is enabled.
-See [render-worker settings](../readme.md#hypervision-and-fps-display) and
+See [render-worker settings](users.md#hypervision-and-fps-display) and
 [browser threading requirements](wasm.md).
 
 Desktop rendering uses two owned ARGB presentation pages. Composition writes the
@@ -530,7 +530,7 @@ apply the setting, the game logs a warning and continues. The existing classic
 and HyperVision frame-rate targets and physics schedule remain in place; waiting
 for a display refresh does not count as CPU load for automatic quality changes.
 DOS and batch dump tools are unaffected. See the
-[VSync examples](../readme.md#hypervision-and-fps-display) for Linux and PowerShell.
+[VSync examples](users.md#hypervision-and-fps-display) for Linux and PowerShell.
 
 Desktop windows apply the VGA vertical 6:5 pixel-aspect correction: the original
 320x200 framebuffer fills a 4:3 image. Nearest-neighbour scaling preserves sharp
@@ -660,7 +660,7 @@ Existing keyboard driving and replay controls remain available:
 - **Escape** leaves driving or replay playback; closing the desktop window exits
   the game and removes its temporary ghost cache.
 
-See the [gameplay notes](../readme.md#hypervision-and-fps-display) for HyperVision,
+See the [gameplay notes](users.md#hypervision-and-fps-display) for HyperVision,
 ghost selection, and rewind behavior.
 
 ## Sound modes

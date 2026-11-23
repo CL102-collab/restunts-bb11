@@ -45,7 +45,7 @@ cp tools/oracles/borland/repldumo.exe tools/oracles/borland/pixldumo.exe stunts/
 ```
 
 Build the candidate `repldump` and `pixldump` executables using the
-[repository build instructions](../../../readme.md#how-to-build). For local
+[repository build instructions](../../../docs/devs.md#how-to-build). For local
 comparisons against the archived renderer, use `pixelcheck.sh` with `rebuild=false`
 after copying the references above. `rebuild=true` builds both renderer tools,
 replacing `stunts/pixldumo.exe` with the Watcom source build.

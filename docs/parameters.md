@@ -114,7 +114,7 @@ current window or display. Desktop, Android, and web support 20:9, 16:9, 16:10,
 and 3:2. DOS32 supports 16:9, 16:10, and 3:2. Displays wider than the largest
 supported aspect center the image with black side borders. Displays narrower
 than 3:2, menus, the intro, and classic rendering use 4:3. See the
-[widescreen resolution table](../readme.md#hypervision-and-fps-display).
+[widescreen resolution table](users.md#hypervision-and-fps-display).
 
 Desktop fullscreen names and values are case-insensitive. Supply this option
 once; unknown values and repeated options report an error before creating the

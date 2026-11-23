@@ -10,7 +10,7 @@ Before staging or commit, ensure that executable bits are not set for files whic
 
 Quit DOSBox by SIGKILL, otherwise it is popping up a confirmation window. Set `core` to `dynamic` and `cycles` to `max`, for maximum performance.
 
-Check the project root's readme.md for code formatting standards and check if the new code meets them, use the needed tools to enforce the rules.
+Check docs/devs.md for code formatting standards and check if the new code meets them, use the needed tools to enforce the rules.
 
 Do not write magic values, instead: use defined constants.
 

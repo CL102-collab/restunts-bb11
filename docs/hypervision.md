@@ -177,7 +177,7 @@ resolutions, build settings, and hardware. At 4:3, the supported 3D raster sizes
 are 1280x800, 640x400, and 320x200, with fixed 1280x800 frame composition.
 At 20:9 on desktop, Android, and web, the 3D raster sizes are 1600x720, 800x360,
 and 400x180, with fixed 1600x720 frame composition. See the
-[widescreen resolution table](../readme.md#hypervision-and-fps-display) for the
+[widescreen resolution table](users.md#hypervision-and-fps-display) for the
 other aspects. Use locked presets during comparisons so automatic quality
 changes do not make a slower run appear faster by reducing the workload. Compare
 equivalent geometry and visual features at each resolution.

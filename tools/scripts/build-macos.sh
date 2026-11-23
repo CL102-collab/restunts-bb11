@@ -63,7 +63,7 @@ esac
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || fail "--jobs must be a positive integer."
 
 for tool in cmake ninja git xcrun; do
-    command -v "$tool" >/dev/null 2>&1 || fail "Missing $tool; see readme.md for prerequisites."
+    command -v "$tool" >/dev/null 2>&1 || fail "Missing $tool; see docs/devs.md for prerequisites."
 done
 cxx_compiler="$(xcrun --find clang++)" || fail "Install Xcode Command Line Tools: xcode-select --install"
 compiler="$(xcrun --find clang)" || fail "Install Xcode Command Line Tools: xcode-select --install"

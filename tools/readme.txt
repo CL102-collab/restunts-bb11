@@ -20,5 +20,5 @@ files remain unchanged; generated compatible copies live in the build tree.
 C builds use only Open Watcom headers and runtime libraries under watcom.
 The immutable pre-migration regression binaries live in oracles/borland.
 
-See the root readme.md for build commands and regression validation, and
+See docs/devs.md for build commands and regression validation, and
 docs/assembler.md for original-source preparation and artifact comparisons.

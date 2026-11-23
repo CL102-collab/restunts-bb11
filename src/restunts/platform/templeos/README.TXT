@@ -195,7 +195,7 @@ function/class braces on their own line, control-flow braces on the control
 line, a 100-column target, and CRLF endings. Spaces reproduce TempleOS's
 logical two-column nesting without requiring its eight-column tab stops.
 Retain existing braced bodies and control flow. These HolyC rules are separate
-from the shared C source style documented in the repository's readme.md.
+from the shared C source style documented in the repository's docs/devs.md.
 
 Check all port HC/HH files with the formatter installed above:
 
