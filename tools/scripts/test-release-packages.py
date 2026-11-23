@@ -76,6 +76,11 @@ class ReleasePackageTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.output = self.root / "archives"
+        self.browser_python_data = {name: name.encode() for name in PACKAGES.BROWSER_PYTHON_FILES}
+        fixture_hashes = {name: PACKAGES.sha256(data) for name, data in self.browser_python_data.items()}
+        patch = mock.patch.object(PACKAGES, "BROWSER_PYTHON_FILES", fixture_hashes)
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def copy_bundled_sources(self, source):
         track_readme = source / "assets/tracks/README.TXT"
@@ -278,8 +283,11 @@ class ReleasePackageTests(unittest.TestCase):
         return self.output / PACKAGES.archive_name(target)
 
     def runtime_data(self, target, name):
-        if target == "browser" and name == "share/restunts/wasm-relink/CMakeLists.txt":
-            return b"set(RESTUNTS_WASM_THREADS OFF)\n"
+        if target in PACKAGES.BROWSER_TARGETS and name == "share/restunts/wasm-relink/CMakeLists.txt":
+            mode = "ON" if target == "browser-threaded" else "OFF"
+            return f"set(RESTUNTS_WASM_THREADS {mode})\n".encode()
+        if name in self.browser_python_data:
+            return self.browser_python_data[name]
         if target == "templeos":
             if not hasattr(self, "templeos_runtime"):
                 self.templeos_runtime = self.templeos_files()
@@ -386,7 +394,7 @@ class ReleasePackageTests(unittest.TestCase):
         header = "cmake/toolchains/netbsd-clang-compat.h"
         packaged_header = f"share/restunts/nuked-opl2-lite/build-context/{header}"
         unexpected = "share/restunts/nuked-opl2-lite/build-context/cmake/toolchains/private.h"
-        for target in sorted(PACKAGES.SDL3_TARGETS - {"browser", "dos32"}):
+        for target in sorted(PACKAGES.SDL3_TARGETS - PACKAGES.BROWSER_TARGETS - {"dos32"}):
             files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             # Add the actual installed header independently of required_files:
             # fixtures derived only from that inventory concealed this mismatch.
@@ -409,7 +417,7 @@ class ReleasePackageTests(unittest.TestCase):
                                      for name in PACKAGES.required_files(target)))
                 continue
             with self.subTest(target=target):
-                editor = ("tracked.html" if target == "browser" else
+                editor = ("tracked.html" if target in PACKAGES.BROWSER_TARGETS else
                           "share/restunts/editor/tracked.html")
                 archive = self.create(target)
                 files, _ = PACKAGES.archive_contents(archive)
@@ -444,7 +452,7 @@ class ReleasePackageTests(unittest.TestCase):
                 files, _ = PACKAGES.archive_contents(archive)
                 expected = (PACKAGES.ROOT / "assets/horizons/Antarctica.png").read_bytes()
                 self.assertIn(base64.b64encode(expected), files[PACKAGES.track_editor_path(target)])
-                if target == "browser":
+                if target in PACKAGES.BROWSER_TARGETS:
                     self.assertEqual(files["horizons/Antarctica.png"], expected)
                     self.assertEqual(files[
                         "share/restunts/wasm-relink/data/assets/horizons/Antarctica.png"], expected)
@@ -528,7 +536,7 @@ class ReleasePackageTests(unittest.TestCase):
                 else:
                     collections = [files]
                     directory = "cars" if target in {"dos16", "amiga-m68k"} else "bin/cars"
-                    if target == "browser":
+                    if target in PACKAGES.BROWSER_TARGETS:
                         directory = "share/restunts/wasm-relink/data/assets/cars"
                 for contents in collections:
                     packaged = {name for name in contents if name.startswith(directory + "/")}
@@ -552,7 +560,8 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_native_archives_preserve_the_tracks_folder(self):
         expected = (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
-        targets = PACKAGES.TARGETS.keys() - PACKAGES.ANDROID_TARGETS.keys() - {"browser", "templeos"}
+        targets = (PACKAGES.TARGETS.keys() - PACKAGES.ANDROID_TARGETS.keys() -
+                   PACKAGES.BROWSER_TARGETS - {"templeos"})
         for target in targets:
             with self.subTest(target=target):
                 name = ("tracks/README.TXT" if target in {"dos16", "amiga-m68k"}
@@ -1060,7 +1069,7 @@ class ReleasePackageTests(unittest.TestCase):
         for target in PACKAGES.TARGETS:
             with self.subTest(target=target):
                 files = PACKAGES.required_files(target)
-                if target.startswith("dos") or target == "browser" or target in PORTED_TARGETS:
+                if target.startswith("dos") or target in PACKAGES.BROWSER_TARGETS | PORTED_TARGETS:
                     self.assertFalse(any("genghost" in name for name in files))
                 elif target in PACKAGES.ANDROID_TARGETS:
                     self.assertIn(PACKAGES.ANDROID_GENGHOST_APK, files)
@@ -1732,6 +1741,33 @@ class ReleasePackageTests(unittest.TestCase):
                 for name, content in extras.items():
                     self.assertEqual(files[name], content)
 
+    def test_threaded_browser_archive_includes_launcher_and_unmodified_python_runtime(self):
+        target = "browser-threaded"
+        archive = self.create(target)
+        self.assertEqual(archive.name, "restunts-browser-threaded.zip")
+        files, _ = PACKAGES.archive_contents(archive)
+        self.assertTrue({"Start-LocalDemo.bat", "serve-local-demo.py", "python/LICENSE.txt",
+                         "python/python.exe", "python/python314.dll", "python/python314.zip",
+                         "python/python314._pth"} <= files.keys())
+        self.assertEqual({name: data for name, data in files.items() if name.startswith("python/")},
+                         self.browser_python_data)
+        self.assertIn("Start-LocalDemo.bat", files[PACKAGES.README].decode())
+
+    def test_threaded_browser_archive_rejects_serial_build_and_wrong_python_files(self):
+        target = "browser-threaded"
+        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+        configuration = "share/restunts/wasm-relink/CMakeLists.txt"
+        with self.assertRaisesRegex(ValueError, "requires RESTUNTS_WASM_THREADS ON"):
+            PACKAGES.validate_contents(target, files | {configuration: b"set(RESTUNTS_WASM_THREADS OFF)\n"}, {})
+        for name in ("Start-LocalDemo.bat", "serve-local-demo.py", "python/python.exe", "python/LICENSE.txt",
+                     "share/restunts/wasm-relink/audio/lib/librestunts_game.a"):
+            with self.subTest(missing=name), self.assertRaisesRegex(ValueError, "missing packaged files"):
+                PACKAGES.validate_contents(target, {key: data for key, data in files.items() if key != name}, {})
+        with self.assertRaisesRegex(ValueError, "Embedded Python file differs from upstream"):
+            PACKAGES.validate_contents(target, files | {"python/python.exe": FILE_DATA}, {})
+        with self.assertRaisesRegex(ValueError, "Unexpected package file"):
+            PACKAGES.validate_contents(target, files | {"python/unrelated.dll": FILE_DATA}, {})
+
     def test_mt32emu_runtime_license_and_corresponding_source_are_required(self):
         runtimes = {"linux-x64": "lib/libmt32emu.so", "windows-x64": "bin/mt32emu.dll",
                     "macos-universal": "lib/libmt32emu.dylib"}
@@ -1846,7 +1882,7 @@ class ReleasePackageTests(unittest.TestCase):
                          "share/licenses/restunts/puff-LICENSE"}
         for target in sorted(PACKAGES.SDL3_TARGETS):
             expected = decoder_files.copy()
-            if target == "browser":
+            if target in PACKAGES.BROWSER_TARGETS:
                 expected.add("share/restunts/wasm-relink/lib/librestunts_webm.a")
             files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}

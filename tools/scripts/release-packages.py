@@ -83,7 +83,13 @@ TARGETS = {
     "windows-x64": ".zip",
     "macos-universal": ".tar.gz",
     "browser": ".zip",
+    "browser-threaded": ".zip",
     "templeos": ".zip",
+}
+BROWSER_TARGETS = {"browser", "browser-threaded"}
+BROWSER_PYTHON_FILES = {
+    f"python/{name}": digest for name, digest in json.loads(
+        Path(__file__).with_name("browser-python-files.json").read_text(encoding="utf-8")).items()
 }
 SDL3_TARGETS = set(TARGETS) - {"dos16", "amiga-m68k", "templeos"}
 TRACK_EDITOR = "tracked.html"
@@ -229,7 +235,8 @@ WASM_AUDIO_RELINK_FILES = (
     "generate-audio-sources.py", "objects/browser_audio_runtime.c.o", "objects/audio_commands.c.o",
     "objects/audio_completions.c.o", "source/browser_audio_runtime.c", "source/audio_commands.c",
     "source/audio_completions.c")
-WASM_AUDIO_SERIAL_LIBRARIES = ("librestunts_game.a", "librestunts_webm.a", "libSDL3.a")
+WASM_AUDIO_SERIAL_ARCHIVES = {f"{WASM_RELINK_DIRECTORY}/audio/lib/{name}" for name in
+                              ("librestunts_game.a", "librestunts_webm.a", "libSDL3.a")}
 CMAKE_FALSE_VALUES = {"", "0", "OFF", "NO", "FALSE", "N", "IGNORE", "NOTFOUND"}
 SKYBOX_THEMES = ("desert", "tropical", "alpine", "city", "country")
 SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
@@ -274,7 +281,7 @@ def archive_name(target):
 
 
 def track_editor_path(target):
-    return TRACK_EDITOR if target == "browser" else f"share/restunts/editor/{TRACK_EDITOR}"
+    return TRACK_EDITOR if target in BROWSER_TARGETS else f"share/restunts/editor/{TRACK_EDITOR}"
 
 
 def custom_car_source(name):
@@ -416,7 +423,7 @@ def reject_synthesizer_rom(name, content):
 def optional_music_files(target):
     if target in {"dos16", "amiga-m68k", "templeos"} or target in ANDROID_TARGETS:
         return set()
-    if target == "browser":
+    if target in BROWSER_TARGETS:
         prefix = "share/restunts/wasm-relink/data/assets"
     else:
         prefix = "bin"
@@ -451,7 +458,7 @@ def mt32emu_source_files():
     return required
 
 
-def browser_audio_relink_archives(files):
+def browser_audio_relink_archives(target, files):
     configuration = f"{WASM_RELINK_DIRECTORY}/CMakeLists.txt"
     if configuration not in files:
         return set()
@@ -460,10 +467,12 @@ def browser_audio_relink_archives(files):
         files[configuration].decode("utf-8"), re.MULTILINE | re.IGNORECASE)
     require(len(settings) == 1, "Browser relink kit must record exactly one thread setting")
     value = settings[0].upper()
+    if target == "browser-threaded":
+        require(value == "ON", "Threaded browser package requires RESTUNTS_WASM_THREADS ON")
     if value in CMAKE_FALSE_VALUES or value.endswith("-NOTFOUND"):
         return set()
     # Pthread game archives cannot serve the independent serial audio realm.
-    return {f"{WASM_RELINK_DIRECTORY}/audio/lib/{name}" for name in WASM_AUDIO_SERIAL_LIBRARIES}
+    return WASM_AUDIO_SERIAL_ARCHIVES
 
 
 def android_minimum_sdk(target):
@@ -627,7 +636,7 @@ def required_files(target):
     required = {README} | optional_music_files(target)
     if target in SDL3_TARGETS:
         required.add(track_editor_path(target))
-        document_directory = "" if target == "browser" else "share/docs/restunts/"
+        document_directory = "" if target in BROWSER_TARGETS else "share/docs/restunts/"
         required |= {f"{document_directory}{name}" for name in TRACK_EDITOR_DOCUMENTS}
     if target == "templeos":
         return required | TEMPLEOS_PACKAGE_FILES
@@ -639,7 +648,7 @@ def required_files(target):
     if target in SDL3_TARGETS and target != "dos32":
         required |= mt32emu_source_files() | {
             "share/licenses/restunts/MT32EMU-COPYING.LESSER.txt", "share/licenses/restunts/MT32EMU-COPYING.txt"}
-        required.add("mt32.md" if target == "browser" else "share/docs/restunts/mt32.md")
+        required.add("mt32.md" if target in BROWSER_TARGETS else "share/docs/restunts/mt32.md")
         required |= {"share/licenses/restunts/MAME-PSG-LICENSE",
                      "share/restunts/mame-psg/mame_psg.c", "share/restunts/mame-psg/mame_psg.h",
                      "share/restunts/mame-psg/README.md"}
@@ -649,7 +658,7 @@ def required_files(target):
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE"}
         return required | nuked_source_files() | custom_horizon_files("horizons")
-    if target == "browser":
+    if target in BROWSER_TARGETS:
         required |= {"restunts.html", "wasm.md", "THIRD-PARTY-NOTICES.txt",
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE"}
@@ -667,6 +676,9 @@ def required_files(target):
                      for background in MENU_BACKGROUNDS}
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
+        if target == "browser-threaded":
+            required |= {"Start-LocalDemo.bat", "serve-local-demo.py"} | BROWSER_PYTHON_FILES.keys()
+            required |= WASM_AUDIO_SERIAL_ARCHIVES
         return (required | custom_car_files(f"{relink}/data/assets/cars") |
                 custom_horizon_files(f"{relink}/data/assets/horizons") | custom_horizon_files("horizons") |
                 custom_track_files(f"{relink}/data/assets/tracks"))
@@ -742,8 +754,8 @@ def validate_windows_gui_audits(target, files):
 
 def validate_contents(target, files, modes):
     required = required_files(target)
-    if target == "browser":
-        required |= browser_audio_relink_archives(files)
+    if target in BROWSER_TARGETS:
+        required |= browser_audio_relink_archives(target, files)
     missing = required - files.keys()
     require(not missing, f"{target}: missing packaged files: {', '.join(sorted(missing))}")
     for name, content in files.items():
@@ -767,9 +779,12 @@ def validate_contents(target, files, modes):
     if target == "amiga-m68k":
         require(files["README.md"] == (ROOT / "docs/amiga.md").read_bytes(),
                 "Amiga package guide differs from source")
-    if target == "browser":
+    if target in BROWSER_TARGETS:
         require(any(name.startswith("share/restunts/wasm-relink/objects/") for name in files),
                 "Browser package is missing application entry objects for relinking")
+    if target == "browser-threaded":
+        for name, digest in BROWSER_PYTHON_FILES.items():
+            require(sha256(files[name]) == digest, f"Embedded Python file differs from upstream: {name}")
     if TARGETS[target] == ".tar.gz":
         executables = ({AMIGA_EXECUTABLE} if target == "amiga-m68k" else
                        {f"bin/{name}" for name in NATIVE_EXECUTABLES})
@@ -820,7 +835,7 @@ def readme(target, commit):
                   "These car ZIPs load directly; do not extract them. MCMU includes its HyperVision model.",
                   "Glacier, Keukenhof, and Ninh Binh are available in the track selector."]
         if target != "dos32":
-            guide = "mt32.md" if target == "browser" else "share/docs/restunts/mt32.md"
+            guide = "mt32.md" if target in BROWSER_TARGETS else "share/docs/restunts/mt32.md"
             lines += ["Video mode offers VGA (the default), EGA, CGA, and Tandy for classic graphics.",
                       "Use --videomode:tandy for Tandy video; HyperVision keeps VGA graphics.",
                       "Sound settings offers No sound, PC Speaker, Tandy, Ad Lib, and MT-32.",
@@ -858,13 +873,23 @@ def readme(target, commit):
             lines += [f"Suitable for Samsung Galaxy S5 SM-G900F running Android {version} or newer."]
         else:
             lines += ["Requires a 64-bit ARM Android operating system."]
-    elif target == "browser":
-        lines += ["Open restunts.html in your browser and choose your game-data folder.",
+    elif target in BROWSER_TARGETS:
+        if target == "browser-threaded":
+            lines += ["On Windows 11, extract the whole ZIP and run Start-LocalDemo.bat.",
+                      "The launcher serves restunts.html on loopback with cross-origin isolation.",
+                      "It tries Google Chrome, Chromium, Microsoft Edge, then your default browser.",
+                      "Keep the Command Prompt window open while playing. Press Ctrl+C to stop.",
+                      "The package includes signed x64 Python. On Windows Arm64 it uses x64 emulation.",
+                      "See python/LICENSE.txt for Python's redistribution terms.",
+                      "On other systems, serve the game with the headers listed in wasm.md."]
+        else:
+            lines += ["Open restunts.html in your browser. The HTML runs offline by itself."]
+        lines += ["Choose your game-data folder on the game page.",
                   "Custom cars are embedded under /assets/cars and loaded automatically.",
                   "Bundled tracks are embedded under /assets/tracks and loaded automatically.",
                   "Antarctica is embedded and supplied separately as horizons/Antarctica.png.",
-                  "The HTML runs offline by itself. Keep the licenses, Nuked and Munt sources,",
-                  "and relink kit with redistributed packages; see wasm.md for instructions."]
+                  "Keep the licenses, Nuked and Munt sources, and relink kit with redistributed packages.",
+                  "See wasm.md for instructions."]
     elif target == "dos16":
         lines += ["Copy the executables, cars and tracks folders into your original game's directory.",
                   "Place custom tracks in tracks; loose tracks take priority on name conflicts.",

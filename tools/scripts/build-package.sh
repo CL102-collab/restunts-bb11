@@ -218,12 +218,18 @@ case "$target" in
             dos32)
                 export PATH="$tool_root/djgpp/bin:$PATH"
                 cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/djgpp.cmake) ;;
-            browser)
+            browser|browser-threaded)
                 # emsdk_env.sh expects unset optional environment variables.
                 set +u
                 source "$tool_root/emsdk/emsdk_env.sh"
                 set -u
-                cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$tool_root/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake") ;;
+                cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$tool_root/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
+                if [[ "$target" == browser-threaded ]]; then
+                    cmake_options+=(-DRESTUNTS_WASM_THREADS=ON)
+                else
+                    cmake_options+=(-DRESTUNTS_WASM_THREADS=OFF)
+                fi
+                ;;
             *) echo "Unknown package target: $target" >&2; exit 1 ;;
         esac
         cmake -S "$repo_dir" -B "$build_dir" -G Ninja "${cmake_options[@]}"
@@ -232,6 +238,13 @@ case "$target" in
             bash "$script_dir/test-haiku-build.sh" "$target"
         fi
         cmake --install "$build_dir" --prefix "$package_dir" --component Runtime
+        if [[ "$target" == browser-threaded ]]; then
+            source "$script_dir/package-toolchains.conf"
+            python_archive="$tool_root/downloads/python-embed-amd64.zip"
+            printf '%s  %s\n' "$BROWSER_PYTHON_SHA256" "$python_archive" | sha256sum --check
+            unzip -q "$python_archive" -d "$package_dir/python"
+            install -m 0644 "$script_dir/Start-LocalDemo.bat" "$script_dir/serve-local-demo.py" "$package_dir/"
+        fi
         if [[ "$target" == dos32 ]]; then
             unzip -p "$tool_root/downloads/csdpmi7b.zip" bin/CWSDPMI.EXE > "$package_dir/bin/CWSDPMI.EXE"
             mkdir -p "$package_dir/share/licenses/restunts"

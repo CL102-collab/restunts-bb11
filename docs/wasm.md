@@ -92,10 +92,34 @@ WebAssembly; entries in these formats appear red in its load dialogs.
 
 ## Play from a website or offline
 
-Open the threaded `restunts.html` from an isolated HTTPS or localhost website.
-For offline play, use the build configured with `RESTUNTS_WASM_THREADS=OFF`,
-save its HTML anywhere on your device, and open it in your browser. That serial
-build supports `file://` without a local web server. The HTML's location does not determine where the game looks for data.
+For direct `file://` play, open `restunts.html` from `restunts-browser.zip`.
+This package uses the serial build and runs without a local server. The HTML's
+location does not determine where the game looks for data.
+
+The `restunts-browser-threaded.zip` package enables multi-core rendering,
+a dedicated worker for UNIT's live AI planning, and off-main-thread audio.
+On Windows 11, extract the full ZIP and double-click `Start-LocalDemo.bat`. It
+serves the game at `http://127.0.0.1:8000/restunts.html` with the required
+isolation headers and opens Google Chrome, Chromium, Microsoft Edge, or the
+system default browser, in that order. The launcher uses the included official
+Authenticode-signed x64 CPython 3.14.10 embeddable runtime in `python/`.
+Windows 11 on Arm64 runs it using x64 emulation. Press Ctrl+C in the
+Command Prompt window to stop the server.
+
+On other operating systems, serve the extracted threaded `restunts.html` over
+HTTPS or localhost using the two isolation headers in [Build](#build).
+
+To serve a build from the source checkout on Windows 11, install Python 3.7
+or later and open Command Prompt. From the repository root, pass the directory
+containing `restunts.html` to the launcher.
+
+```bat
+tools\scripts\Start-LocalDemo.bat "out\sdl3-wasm-windows"
+```
+
+Use your threaded build directory to run the threaded features. The launcher
+can use `py -3` or `python.exe` from your installation. Add a port after the
+directory to override the default of 8000.
 
 1. Have your own Broderbund Stunts 1.1 game files in a folder on your device.
 2. Click **Choose game folder** and select the folder containing those files.

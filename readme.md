@@ -1413,8 +1413,11 @@ only the game; native dump tools and regression executables are disabled.
 
 #### Run and package the HTML
 
-Serve the threaded `restunts.html` with the isolation headers described in
-[the browser guide](docs/wasm.md), or open the serial offline build directly.
+For direct offline play, open `restunts.html` from `restunts-browser.zip`
+or a local serial build. On Windows 11, extract the full
+`restunts-browser-threaded.zip` and double-click `Start-LocalDemo.bat` to
+start its local server. To host the threaded build yourself, use the isolation
+headers described in the [browser guide](docs/wasm.md).
 Click **Choose game folder**, select your Stunts folder, then click **Start game**.
 Supported browsers remember the selected folder and may ask you to **Allow folder
 access** again when reopening the HTML. Use **Change game folder** to select a
@@ -1883,9 +1886,10 @@ refactors and audit results.
 32-bit DOS; Linux ARMv7, ARM64, RISC-V64, x86 with and without SSE2, and x64,
 including AppImage variants; Windows ARM64, x86 with and without SSE2, and x64;
 FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64; FreeBSD and NetBSD ARMv7;
-FreeBSD and OpenBSD x86 with SSE2; NetBSD x86 with and without SSE2; Haiku x64
-and x86; Universal macOS; the offline browser; Android ARMv7 and ARM64 (both Android 5.0+);
-Amiga 68000; and stock TempleOS.
+FreeBSD and OpenBSD x86 with SSE2; NetBSD x86 with and without SSE2; and
+Haiku x64 and x86. The workflow also builds Universal macOS, serial and threaded
+browser packages, Android ARMv7 and ARM64 (both Android 5.0+), Amiga 68000,
+and stock TempleOS.
 The reusable **Build release packages** workflow is used by **PR validation** and **Release**.
 
 Packages contain the platform's runtime files, but no original game data.

@@ -45,7 +45,8 @@ archives and a SHA-256 sidecar for each archive:
 | `restunts-haiku-x64.tar.gz` | x86_64, Haiku R1/beta6 |
 | `restunts-haiku-x86.tar.gz` | 32-bit x86 with SSE2, modern GCC ABI, Haiku R1/beta6 |
 | `restunts-macos-universal.tar.gz` | Intel and Apple Silicon, macOS 11.0+ |
-| `restunts-browser.zip` | Offline HTML/WebAssembly |
+| `restunts-browser.zip` | Serial HTML/WebAssembly for direct offline play |
+| `restunts-browser-threaded.zip` | Threaded HTML/WebAssembly with Windows 11 local launcher |
 | `restunts-templeos.zip` | Native HolyC port and RedSea installation CD for stock TempleOS 5.03 |
 
 Each Android target builds both the game and Genghost as separate installable
@@ -205,10 +206,16 @@ PR validation and release publication.
 Every SDL3 archive includes the single offline `tracked.html` track editor,
 with styles and JavaScript embedded. Native packages, including DOS32 and Android
 ZIPs, install it at `share/restunts/editor/tracked.html`; open it in a browser.
-The browser package puts it beside the playable `restunts.html` and also includes
-notices, licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
-source and the adjoining Munt source, plus object/archive files needed to rebuild
-the HTML with either modified audio library. Only the HTML is needed to play; distribute the complete archive.
+Both browser packages put it beside the playable `restunts.html` and include
+notices, licenses, and `share/restunts/wasm-relink/`. The relinking kit contains
+Nuked's source and the adjoining Munt source, plus object/archive files needed
+to rebuild each package's HTML with either modified audio library. Distribute
+the complete archive with its relink kit.
+
+Open the serial browser build directly from disk. For the threaded build,
+extract the full ZIP and run `Start-LocalDemo.bat` on Windows 11. This package
+includes a local server and its x64 CPython runtime. For manual hosting on
+another OS, see the [browser guide](wasm.md#play-from-a-website-or-offline).
 
 Each Android ZIP contains `bin/restunts.apk` for the game and `bin/genghost.apk`
 for the ghost generator, both matching the archive's ARMv7 or ARM64 ABI. It also

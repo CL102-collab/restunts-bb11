@@ -1,4 +1,4 @@
-"""Exercise native BSD target checks and cross-build configuration without compiling."""
+"""Exercise release target checks and cross-build configuration without compiling."""
 
 import json
 import os
@@ -80,6 +80,19 @@ class BuildPackageTargetTests(unittest.TestCase):
         self.assertEqual(len(configurations), 1, events)
         self.assertIn("-S", configurations[0]["arguments"])
         return configurations[0]
+
+    def test_browser_packages_select_their_thread_setting(self):
+        emsdk = Path(self.environment["RESTUNTS_TOOLCHAIN_ROOT"]) / "emsdk"
+        emsdk.mkdir(parents=True)
+        (emsdk / "emsdk_env.sh").write_text("# Test SDK environment\n", encoding="utf-8")
+        toolchain = emsdk / "upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+
+        for target, threads in (("browser", "OFF"), ("browser-threaded", "ON")):
+            with self.subTest(target=target):
+                result, events = self.configure_target(target)
+                configuration = self.require_configure(result, events)
+                self.assertIn(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}", configuration["arguments"])
+                self.assertIn(f"-DRESTUNTS_WASM_THREADS={threads}", configuration["arguments"])
 
     def test_bsd_machine_and_processor_names_accept_matching_64_bit_userspaces(self):
         cases = (

@@ -134,7 +134,11 @@ case "$target" in
         tar -xjf "$tool_root/downloads/djgpp.tar.bz2" -C "$tool_root/djgpp" --strip-components=1
         download "$CWSDPMI_URL" "$CWSDPMI_SHA256" "$tool_root/downloads/csdpmi7b.zip"
         ;;
-    browser)
+    browser|browser-threaded)
+        if [[ "$target" == browser-threaded ]]; then
+            download "$BROWSER_PYTHON_URL" "$BROWSER_PYTHON_SHA256" \
+                "$tool_root/downloads/python-embed-amd64.zip"
+        fi
         download "$EMSDK_URL" "$EMSDK_SHA256" "$tool_root/downloads/emsdk.tar.gz"
         mkdir -p "$tool_root/emsdk"
         tar -xzf "$tool_root/downloads/emsdk.tar.gz" -C "$tool_root/emsdk" --strip-components=1
