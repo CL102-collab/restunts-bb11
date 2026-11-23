@@ -14,7 +14,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
 const OPTIONS = ['skip-intro', 'input-method', 'controller-vibration', 'show-control-layout', 'sound-mode',
-    'video-mode', 'hypervision', 'new-midi', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph',
+    'video-mode', 'hypervision', 'new-midi', 'widescreen', 'show-fps', 'show-mph',
     'show-dashboard', 'multi-core', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching',
     'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const INPUT_EDITORS = ['controller-bindings', 'edit-control-layout'];
@@ -157,8 +157,8 @@ async function assertSettingsLayout(page, narrow) {
     assert.ok(layout.startupTop >= layout.drivingBottom, 'Startup options must sit below driving rules');
     assert.deepEqual(layout.inputControls, ['input-method', 'controller-vibration', 'controller-bindings',
         'show-control-layout', 'edit-control-layout'], 'Input settings must group the input and layout options');
-    assert.deepEqual(layout.graphicsControls, ['video-mode', 'start-fullscreen', 'widescreen', 'show-fps', 'show-mph',
-        'show-dashboard', 'multi-core', 'hypervision'],
+    assert.deepEqual(layout.graphicsControls, ['video-mode', 'widescreen', 'show-fps', 'show-mph', 'show-dashboard',
+        'multi-core', 'hypervision'],
         'Video mode must precede the shared graphics controls, with HyperVision last');
     assert.equal(layout.hypervisionOwnRow, true, 'HyperVision must have its own row with its label and dropdown together');
     assert.deepEqual(layout.drivingControls, RULES,
@@ -1221,123 +1221,58 @@ async function exerciseWidescreen(browser, url, fixture) {
     }
 }
 
-async function exerciseStartupFullscreen(browser, url, fixture) {
+async function exerciseFullscreenFailures(browser, url, fixture) {
     const context = await browser.newContext();
     await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
     try {
-        await page.goto(url);
-        await ready(page);
-        assert.equal(await page.locator('#start-fullscreen').isChecked(), false);
-        await loadFixture(page, fixture);
-        await page.locator('#start').click();
-        assert.equal(await page.evaluate(() => document.fullscreenElement), null,
-            'Unchecked startup fullscreen must leave the browser windowed');
-
-        await page.reload();
-        await ready(page);
-        await page.locator('#start-fullscreen').check();
-        assert.equal((await storedOptions(page))['start-fullscreen'], true);
-        await page.reload();
-        await ready(page);
-        assert.equal(await page.locator('#start-fullscreen').isChecked(), true,
-            'Startup fullscreen must restore the saved per-page choice');
-        await loadFixture(page, fixture);
-        await stubOrientation(page, 'success');
-        await page.evaluate(() => {
-            const canvas = document.getElementById('canvas');
-            const request = canvas.requestFullscreen;
-            window.startupFullscreenCalls = [];
-            window.startupFullscreenUnhandled = [];
-            window.addEventListener('unhandledrejection', event =>
-                window.startupFullscreenUnhandled.push(String(event.reason)));
-            canvas.requestFullscreen = function(...args) {
-                window.startupFullscreenCalls.push({
-                    activeGesture: navigator.userActivation.isActive,
-                    gameAlreadyStarted: !!window.launchedArguments,
-                    targetIsCanvas: this === canvas
-                });
-                return Reflect.apply(request, this, args);
-            };
-            // The real SDK does not have SDL's canvas-specific entry point until
-            // the game's window exists. Startup must not call its earlier wrapper.
-            Module.requestFullscreen = () => { throw new Error('No SDL window yet'); };
-        });
-        await page.locator('#start').click();
-        await page.waitForFunction(() => document.fullscreenElement === document.getElementById('canvas'));
-        await settleOrientation(page);
-        assert.deepEqual(await page.evaluate(() => window.startupFullscreenCalls), [{
-            activeGesture: true, gameAlreadyStarted: false, targetIsCanvas: true
-        }], 'Start must request canvas fullscreen synchronously within its trusted click');
-        assert.equal(await page.locator('#start-fullscreen').isDisabled(), true);
-        assert.equal(await page.evaluate(() => window.launchedArguments.some(argument =>
-            argument.startsWith('--fullscreen:'))), false,
-        'The browser owns its fullscreen choice rather than passing a game flag');
-        assert.ok((await orientationCalls(page)).some(call =>
-            call.type === 'lock' && call.mode === 'landscape' && call.canvasFullscreen),
-        'Fullscreen from Start must use the existing canvas orientation lifecycle');
-        await exitFullscreen(page);
-        assert.deepEqual(await page.evaluate(() => window.startupFullscreenUnhandled), []);
-
         // Both an asynchronously denied request and an unsupported/throwing API
         // must leave the game playable and consume all request rejections.
         for (const failure of ['reject', 'throw', 'unsupported']) {
-            await page.reload();
+            await page.goto(url);
             await ready(page);
             await loadFixture(page, fixture);
+            await page.locator('#start').click();
             await page.evaluate(failure => {
-                window.startupFullscreenUnhandled = [];
-                window.addEventListener('unhandledrejection', event =>
-                    window.startupFullscreenUnhandled.push(String(event.reason)));
-                document.getElementById('canvas').webkitRequestFullscreen = undefined;
-                document.getElementById('canvas').requestFullscreen = failure === 'unsupported' ? undefined : () => {
+                const canvas = document.getElementById('canvas');
+                canvas.webkitRequestFullscreen = undefined;
+                canvas.requestFullscreen = failure === 'unsupported' ? undefined : () => {
                     const error = new DOMException('Fullscreen blocked by test policy', 'NotAllowedError');
                     if (failure === 'throw') throw error;
                     return Promise.reject(error);
                 };
             }, failure);
-            await page.locator('#start').click();
-            await page.waitForFunction(() => Array.isArray(window.launchedArguments));
+            await page.locator('#fullscreen').click();
             await page.waitForFunction(() => document.getElementById('status').textContent.includes('Fullscreen is unavailable'));
-            await settleOrientation(page);
+            assert.match(await page.locator('#status').innerText(), /You can keep playing in the page\./);
             assert.equal(await page.evaluate(() => document.fullscreenElement), null);
             assert.equal(await page.locator('#fullscreen').isEnabled(), true,
-                'The manual fullscreen button must remain available after a refused startup request');
-            assert.deepEqual(await page.evaluate(() => window.startupFullscreenUnhandled), [],
-                failure + ' must not create an unhandled promise rejection');
+                'Fullscreen must remain available for another attempt');
         }
-        for (const outcome of ['throw', 'abort', 'exit']) {
-            await page.reload();
+        for (const outcome of ['abort', 'exit']) {
+            await page.goto(url);
             await ready(page);
             await loadFixture(page, fixture);
-            await page.evaluate(outcome => {
-                document.getElementById('canvas').requestFullscreen = () =>
-                    Promise.reject(new DOMException('Fullscreen blocked', 'NotAllowedError'));
-                Module.callMain = args => {
-                    window.launchedArguments = args;
-                    const error = new Error('Game startup failed');
-                    if (outcome === 'throw') throw error;
-                    if (outcome === 'abort') Module.onAbort(error);
-                    if (outcome === 'exit') Module.onExit(1);
-                };
-            }, outcome);
             await page.locator('#start').click();
+            await page.evaluate(() => {
+                document.getElementById('canvas').requestFullscreen = () => new Promise((resolve, reject) => {
+                    window.rejectFullscreen = reject;
+                });
+            });
+            await page.locator('#fullscreen').click();
+            await page.evaluate(outcome => {
+                if (outcome === 'abort') Module.onAbort(new Error('Game aborted'));
+                else Module.onExit(1);
+                window.rejectFullscreen(new DOMException('Fullscreen blocked by test policy', 'NotAllowedError'));
+            }, outcome);
             await page.waitForFunction(() => document.getElementById('log').textContent.includes('Fullscreen is unavailable'));
             assert.match(await page.locator('#status').innerText(),
-                outcome === 'exit' ? /Game exited with code 1/ : /Game error: Game startup failed/,
-                'A later fullscreen rejection must preserve the game failure/exit status');
+                outcome === 'exit' ? /Game exited with code 1/ : /Game error: Game aborted/,
+                'A later fullscreen rejection must preserve the game error or exit status');
         }
-        await page.reload();
-        await ready(page);
-        await page.locator('#start-fullscreen').uncheck();
-        assert.equal((await storedOptions(page))['start-fullscreen'], false);
-        await page.reload();
-        await ready(page);
-        assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
-            'A saved windowed choice must also persist');
-        assert.deepEqual(errors, [], 'Startup fullscreen must not report browser errors');
+        assert.deepEqual(errors, [], 'Fullscreen failures must not report uncaught browser errors');
     } finally {
         await context.close();
     }
@@ -1652,8 +1587,7 @@ async function main() {
         assert.equal(await page.locator('#sound-enabled').count(), 0, 'The old sound checkbox must be removed');
         assert.equal(await page.locator('#new-midi').locator('..').innerText(), ' OGG music replacement');
         assert.equal(await page.locator('#new-midi').evaluate(input => input.closest('fieldset').id), 'sound-settings');
-        assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
-            'Initial fullscreen must default off');
+        assert.equal(await page.locator('#fullscreen').isDisabled(), true, 'Fullscreen requires a running game');
         assert.equal(await page.locator('#widescreen').isChecked(), false, 'Widescreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-mph').isChecked(), false, 'MPH must default off');
@@ -1690,6 +1624,7 @@ async function main() {
         ]);
         assert.equal(await page.evaluate(() => window.launchedControlLayout), null,
             'The game must use default control positions when no layout is saved');
+        assert.equal(await page.evaluate(() => document.fullscreenElement), null, 'Start game must leave the page windowed');
         for (const id of [...OPTIONS, ...INPUT_EDITORS]) assert.equal(await page.locator('#' + id).isDisabled(), true);
 
         for (const [index, preset] of PRESETS.entries()) {
@@ -1865,7 +1800,7 @@ async function main() {
         const url = 'http://127.0.0.1:' + server.address().port + '/';
         await exerciseMt32Sound(browser, url, fixture, temporary);
         await exerciseMultiCoreAvailability(browser, url, fixture);
-        await exerciseStartupFullscreen(browser, url, fixture);
+        await exerciseFullscreenFailures(browser, url, fixture);
         await exerciseWidescreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseInputEditors(browser, url, fixture);
@@ -1874,7 +1809,7 @@ async function main() {
         await exerciseCustomHorizonLoading(browser, url);
         await exerciseBundledHorizonLoading(browser, url);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: input settings, controller binding and touch layout persistence, mobile control-layout defaults and saved overrides, wrapping web settings, widescreen defaults/persistence/arguments and supported canvas ratios with portrait/ultrawide fitting, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, dashboard defaults/persistence/arguments, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
+        console.log('PASS: input settings, controller binding and touch layout persistence, mobile control-layout defaults and saved overrides, wrapping web settings, widescreen defaults/persistence/arguments and supported canvas ratios with portrait/ultrawide fitting, sound mode with PC Speaker, Tandy and MT-32 ROM selection, six HyperVision presets, VGA/EGA/CGA/Tandy selection and independent typed persistence, FPS, independent MPH defaults/persistence/arguments and session-only hotkey, dashboard defaults/persistence/arguments, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, windowed startup, fullscreen canvas and nonfatal denial, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, exact UTF-8 custom horizon imports and remembered-folder refresh, bundled Antarctica installation and local override restoration, duplicate handling and failed-import draining, CSHIG direct saving, quiet persistent UNIT caches, and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));
