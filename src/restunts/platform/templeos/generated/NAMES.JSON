@@ -1468,6 +1468,7 @@
   "rs_menu_opponent_opponent_menu_draw_description": "RsMenuOpponentOpponentMenuDrawDescription",
   "rs_menu_opponent_opponent_menu_draw_ghost": "RsMenuOpponentOpponentMenuDrawGhost",
   "rs_menu_opponent_opponent_menu_poll_input": "RsMenuOpponentOpponentMenuPollInput",
+  "rs_menu_opponent_opponent_menu_redraw": "RsMenuOpponentOpponentMenuRedraw",
   "rs_menu_opponent_opponent_menu_refresh": "RsMenuOpponentOpponentMenuRefresh",
   "rs_menu_opponent_opponent_menu_release": "RsMenuOpponentOpponentMenuRelease",
   "rs_menu_opponent_show_text_input_dialog": "RsMenuOpponentShowTextInputDialog",

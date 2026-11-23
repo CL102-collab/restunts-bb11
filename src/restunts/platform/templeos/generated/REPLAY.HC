@@ -2,74 +2,74 @@
 
 legacy_s8 RsReplayLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7757;
+  legacy_s32 noreg temple_tmp_7759;
   if((value<=127)) {
-    temple_tmp_7757=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7759=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7757=TempleCastS32(TempleCastS8(
+    temple_tmp_7759=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7757);
+  return TempleCastS8(temple_tmp_7759);
 }
 
 legacy_s16 RsReplayLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7758;
+  legacy_s32 noreg temple_tmp_7760;
   if((value<=32767)) {
-    temple_tmp_7758=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7760=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7758=TempleCastS32(TempleCastS16(
+    temple_tmp_7760=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7758);
+  return TempleCastS16(temple_tmp_7760);
 }
 
 legacy_s32 RsReplayLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7759;
+  legacy_s32 noreg temple_tmp_7761;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7759=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7761=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7759=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7761=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7759);
+  return TempleCastS32(temple_tmp_7761);
 }
 
 legacy_void RsReplayReplayReadBytes(legacy_s8 *destination,legacy_u8 *source,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_7761;
-  legacy_u16 *temple_tmp_7762;
-  legacy_u16 noreg temple_tmp_7763;
-  temple_index_7761=TempleCastU16(0);
+  legacy_u16 noreg temple_index_7763;
+  legacy_u16 *temple_tmp_7764;
+  legacy_u16 noreg temple_tmp_7765;
+  temple_index_7763=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_7761<count))) {
+    if(!((temple_index_7763<count))) {
       break;
     }
-    (destination[temple_index_7761]=TempleCastS8(
-        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7761])))));
-    temple_tmp_7762=&(temple_index_7761);
-    temple_tmp_7763=*temple_tmp_7762;
-    *temple_tmp_7762=TempleCastU16((temple_tmp_7763+1));
-    temple_tmp_7763;
+    (destination[temple_index_7763]=TempleCastS8(
+        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7763])))));
+    temple_tmp_7764=&(temple_index_7763);
+    temple_tmp_7765=*temple_tmp_7764;
+    *temple_tmp_7764=TempleCastU16((temple_tmp_7765+1));
+    temple_tmp_7765;
   }
 }
 
 legacy_void RsReplayReplayWriteBytes(legacy_u8 *destination,legacy_s8 *source,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_7765;
-  legacy_u16 *temple_tmp_7766;
-  legacy_u16 noreg temple_tmp_7767;
-  temple_index_7765=TempleCastU16(0);
+  legacy_u16 noreg temple_index_7767;
+  legacy_u16 *temple_tmp_7768;
+  legacy_u16 noreg temple_tmp_7769;
+  temple_index_7767=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_7765<count))) {
+    if(!((temple_index_7767<count))) {
       break;
     }
-    (destination[temple_index_7765]=TempleCastU8(TempleCastU8(source[temple_index_7765])));
-    temple_tmp_7766=&(temple_index_7765);
-    temple_tmp_7767=*temple_tmp_7766;
-    *temple_tmp_7766=TempleCastU16((temple_tmp_7767+1));
-    temple_tmp_7767;
+    (destination[temple_index_7767]=TempleCastU8(TempleCastU8(source[temple_index_7767])));
+    temple_tmp_7768=&(temple_index_7767);
+    temple_tmp_7769=*temple_tmp_7768;
+    *temple_tmp_7768=TempleCastU16((temple_tmp_7769+1));
+    temple_tmp_7769;
   }
 }
 
@@ -98,8 +98,8 @@ legacy_void RsReplayGameinfoDecode(CGameInfo *destination,legacy_u8 *source)
 
 legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
 {
-  legacy_u16 noreg temple_legacy_write_u16_value__7769;
   legacy_u16 noreg temple_legacy_write_u16_value__7771;
+  legacy_u16 noreg temple_legacy_write_u16_value__7773;
   RsReplayReplayWriteBytes((destination+0),source->game_playercarid,TempleCastU16(4));
   (destination[4]=TempleCastU8(TempleCastU8(source->game_playermaterial)));
   (destination[5]=TempleCastU8(TempleCastU8(source->game_playertransmission)));
@@ -109,19 +109,19 @@ legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
   (destination[12]=TempleCastU8(TempleCastU8(source->game_opponenttransmission)));
   RsReplayReplayWriteBytes((destination+13),source->game_trackname,TempleCastU16(9));
   while(1) {
-    temple_legacy_write_u16_value__7769=TempleCastU16(TempleCastU16(source->game_framespersec));
-    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7769)));
+    temple_legacy_write_u16_value__7771=TempleCastU16(TempleCastU16(source->game_framespersec));
+    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7771)));
     ((destination+22)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7769>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7771>>8)))));
     if(!(0)) {
       break;
     }
   }
   while(1) {
-    temple_legacy_write_u16_value__7771=TempleCastU16(TempleCastU16(source->game_recordedframes));
-    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7771)));
+    temple_legacy_write_u16_value__7773=TempleCastU16(TempleCastU16(source->game_recordedframes));
+    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7773)));
     ((destination+24)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7771>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7773>>8)))));
     if(!(0)) {
       break;
     }
