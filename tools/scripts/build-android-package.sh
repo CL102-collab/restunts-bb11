@@ -33,8 +33,31 @@ if [[ -n "${RESTUNTS_BUILD_JOBS:-}" ]]; then
     export CMAKE_BUILD_PARALLEL_LEVEL=$RESTUNTS_BUILD_JOBS
     gradle_options+=(--parallel "--max-workers=$RESTUNTS_BUILD_JOBS")
 fi
-bash "$script_dir/build-android.sh" "$target" "${gradle_options[@]}"
-bash "$script_dir/build-genghost-android.sh" "$target" "${gradle_options[@]}"
+run_android_build() (
+    local build_script=$1 build_log build_status retry_delay
+    local -a retry_delays=(30 90)
+    local rate_limit_message='Received status code 429 from server:'
+    build_log=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/restunts-android-build.XXXXXX")
+    trap 'rm -f -- "$build_log"' EXIT
+
+    # Give the repository time to recover after Gradle's own retries.
+    for retry_delay in "${retry_delays[@]}" 0; do
+        if bash "$script_dir/$build_script" "$target" "${gradle_options[@]}" 2>&1 | tee "$build_log"; then
+            return 0
+        else
+            build_status=${PIPESTATUS[0]}
+        fi
+        if (( build_status == 0 || retry_delay == 0 )) || \
+                ! grep --fixed-strings --quiet -- "$rate_limit_message" "$build_log"; then
+            return "$build_status"
+        fi
+        printf 'Gradle was rate-limited in %s. Retrying in %s seconds.\n' "$build_script" "$retry_delay" >&2
+        sleep "$retry_delay"
+    done
+)
+
+run_android_build build-android.sh
+run_android_build build-genghost-android.sh
 
 expected_digest=
 if [[ "$build_type" == release ]]; then

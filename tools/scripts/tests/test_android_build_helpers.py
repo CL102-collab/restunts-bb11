@@ -164,10 +164,15 @@ class AndroidBuildHelperTests(unittest.TestCase):
                     self.assertIn("Usage:", result.stdout)
                     self.assertEqual(events, [])
 
-    def test_package_build_forwards_worker_count_to_gradle_and_native_environment(self):
+    def run_package(self, environment=None):
         package_helper = "build-android-package.sh"
         shutil.copy2(ROOT / "tools/scripts" / package_helper, self.scripts / package_helper)
         shutil.copy2(ROOT / "android/toolchain.properties", self.root / "android/toolchain.properties")
+        values = {"ANDROID_HOME": str(self.root / "SDK"), "RUNNER_TEMP": str(self.root)}
+        values.update(environment or {})
+        return self.run_helper(package_helper, ["android-armv7", str(self.root / "runtime")], values)
+
+    def test_package_build_forwards_worker_count_to_gradle_and_native_environment(self):
         expected_build_failure = 37
         (self.scripts / "build-android.sh").write_text(
             "#!/usr/bin/env python3\n"
@@ -183,14 +188,63 @@ class AndroidBuildHelperTests(unittest.TestCase):
         recorder.rename(self.scripts / "record-build.py")
         recorder.write_text('#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/record-build.py" "$@"\n',
                             encoding="utf-8")
-        result, events = self.run_helper(package_helper, ["android-armv7", str(self.root / "runtime")], {
-            "ANDROID_HOME": str(self.root / "SDK"),
+        result, events = self.run_package({
             "RESTUNTS_BUILD_JOBS": "7", "CMAKE_BUILD_PARALLEL_LEVEL": "1",
         })
         self.assertEqual(result.returncode, expected_build_failure, result.stderr)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["parallel"], "7")
         self.assertIn("--max-workers=7", events[0]["arguments"])
+
+    def run_package_with_gradle_results(self, results):
+        wrapper = self.root / "out/android-gradle/gradlew"
+        wrapper.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "from pathlib import Path\n"
+            f"results = {results!r}\n"
+            "module = sys.argv[3].split(':')[1]\n"
+            "events = Path(os.environ['ANDROID_HELPER_TEST_EVENTS'])\n"
+            "attempt = sum(json.loads(line)['step'] == module for line in events.read_text().splitlines())\n"
+            "with events.open('a') as output:\n"
+            "    output.write(json.dumps({'step': module}) + '\\n')\n"
+            "status, message = results[module][attempt]\n"
+            "print(message, file=sys.stderr)\n"
+            "sys.exit(status)\n",
+            encoding="utf-8")
+        commands = self.root / "commands"
+        commands.mkdir()
+        sleep = commands / "sleep"
+        sleep.write_text(
+            '#!/usr/bin/env bash\n'
+            'printf \'{"step": "sleep", "delay": "%s"}\\n\' "$1" >> "$ANDROID_HELPER_TEST_EVENTS"\n',
+            encoding="utf-8")
+        sleep.chmod(0o755)
+        result, events = self.run_package({"PATH": f"{commands}{os.pathsep}{os.environ['PATH']}"})
+        return result, [event for event in events if event["step"] != "prepare"]
+
+    def test_package_retries_maven_rate_limits_for_each_apk(self):
+        rate_limit = "Received status code 429 from server: Too Many Requests"
+        result, events = self.run_package_with_gradle_results({
+            "app": [(37, rate_limit), (0, "Game APK build succeeded")],
+            "genghost": [(38, rate_limit), (39, rate_limit), (40, rate_limit)],
+        })
+        self.assertEqual(result.returncode, 40, result.stderr)
+        self.assertEqual(events, [
+            {"step": "app"}, {"step": "sleep", "delay": "30"}, {"step": "app"},
+            {"step": "genghost"}, {"step": "sleep", "delay": "30"}, {"step": "genghost"},
+            {"step": "sleep", "delay": "90"}, {"step": "genghost"},
+        ])
+        self.assertIn("Game APK build succeeded", result.stdout + result.stderr)
+
+    def test_package_stops_retrying_when_gradle_reports_another_failure(self):
+        result, events = self.run_package_with_gradle_results({
+            "app": [(37, "Received status code 429 from server: Too Many Requests"),
+                    (41, "Compilation failed")],
+        })
+        self.assertEqual(result.returncode, 41, result.stderr)
+        self.assertEqual(events, [{"step": "app"}, {"step": "sleep", "delay": "30"}, {"step": "app"}])
+        self.assertIn("Compilation failed", result.stdout + result.stderr)
 
 
 class AndroidNativeBuildJobsTests(unittest.TestCase):
