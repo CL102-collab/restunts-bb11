@@ -4,7 +4,7 @@
     const $ = id => document.getElementById(id);
     const canvas = $('track-canvas'), ctx = canvas.getContext('2d');
     const minimap = $('minimap'), mini = minimap.getContext('2d');
-    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024, maximumTrackNameLength = 12;
+    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024, maximumTrackNameLength = 14;
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
     const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
     const terrainMaximumLevel = 4, paletteChannels = 3;

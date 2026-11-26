@@ -30,7 +30,7 @@ tools use a wide scrollable drawer below that toggle. The Terrain / Track librar
 switch shows one section at a time. Each section remembers its settings; selecting
 Build, Remove or an element group opens the track library. New tracks can have
 any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
-dimensions. Track filenames use 1–12 ASCII characters before `.cstrk`, without
+dimensions. Track filenames use 1–14 ASCII characters before `.cstrk`, without
 spaces, dots, or reserved filename characters.
 
 Choose **3D preview** above the canvas to explore the current track with WebGL.

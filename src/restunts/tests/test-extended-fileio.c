@@ -39,22 +39,22 @@ int main(void)
 	assert(mkdir("ExtendedFileIo", 0700) == 0);
 #endif
 	static const char *const paths[] = {
-		"ExtendedFileIo/12345678.CSTRK",	  "ExtendedFileIo/12345678.TRK",
-		"ExtendedFileIo/12345678.CSRPL",	  "ExtendedFileIo/12345678.RPL",
-		"ExtendedFileIo/MiXeD.CsTrK",		  "ExtendedFileIo/MiXeD.CsRpL",
-		"ExtendedFileIo/12345678.CSHIG",	  "ExtendedFileIo/MiXeD.CsHiG",
-		"ExtendedFileIo/123456789.TRK",		  "ExtendedFileIo/123456789.RPL",
-		"ExtendedFileIo/123456789.CSTRK",	  "ExtendedFileIo/123456789012.CSTRK",
-		"ExtendedFileIo/1234567890123.CSTRK", "ExtendedFileIo/123456789012.CSRPL",
-		"ExtendedFileIo/1234567890123.CSRPL", "ExtendedFileIo/123456789012.CSHIG",
-		"ExtendedFileIo/1234567890123.CSHIG"};
+		"ExtendedFileIo/12345678.CSTRK",		"ExtendedFileIo/12345678.TRK",
+		"ExtendedFileIo/12345678.CSRPL",		"ExtendedFileIo/12345678.RPL",
+		"ExtendedFileIo/MiXeD.CsTrK",			"ExtendedFileIo/MiXeD.CsRpL",
+		"ExtendedFileIo/12345678.CSHIG",		"ExtendedFileIo/MiXeD.CsHiG",
+		"ExtendedFileIo/123456789.TRK",			"ExtendedFileIo/123456789.RPL",
+		"ExtendedFileIo/123456789.CSTRK",		"ExtendedFileIo/12345678901234.CSTRK",
+		"ExtendedFileIo/123456789012345.CSTRK", "ExtendedFileIo/12345678901234.CSRPL",
+		"ExtendedFileIo/123456789012345.CSRPL", "ExtendedFileIo/12345678901234.CSHIG",
+		"ExtendedFileIo/123456789012345.CSHIG"};
 	for (size_t index = 0; index < sizeof(paths) / sizeof(paths[0]); index++) {
 		create_file(paths[index]);
 	}
-	static const char *const tracks[] = {"12345678.CSTRK", "123456789.CSTRK", "123456789012.CSTRK",
-										 "MiXeD.CsTrK"};
-	static const char *const replays[] = {"12345678.CSRPL", "123456789012.CSRPL", "MiXeD.CsRpL"};
-	static const char *const scores[] = {"12345678.CSHIG", "123456789012.CSHIG", "MiXeD.CsHiG"};
+	static const char *const tracks[] = {"12345678.CSTRK", "123456789.CSTRK",
+										 "12345678901234.CSTRK", "MiXeD.CsTrK"};
+	static const char *const replays[] = {"12345678.CSRPL", "12345678901234.CSRPL", "MiXeD.CsRpL"};
+	static const char *const scores[] = {"12345678.CSHIG", "12345678901234.CSHIG", "MiXeD.CsHiG"};
 	static const char *const old_track[] = {"12345678.TRK"};
 	static const char *const old_replay[] = {"12345678.RPL"};
 	expect_matches("extendedfileio/*.cstrk", tracks, 4);
@@ -91,7 +91,7 @@ int main(void)
 		assert(remove(paths[index]) == 0);
 	}
 	assert(rmdir("ExtendedFileIo") == 0);
-	puts("SDL3 enumeration preserves twelve-character extended names and eight-character legacy "
+	puts("SDL3 enumeration preserves fourteen-character extended names and eight-character legacy "
 		 "names.");
 	return 0;
 }

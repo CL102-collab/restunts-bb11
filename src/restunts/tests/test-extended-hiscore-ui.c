@@ -790,7 +790,7 @@ static void check_track_without_extended_replay(void)
 static void check_full_track_name(void)
 {
 	reset_fixture(TEST_NEW_SCORE_FRAMES, GAME_FRAME_RATE_NORMAL);
-	fixture_track_name = (const legacy_s8 *)"ABCDEFGHIJKL";
+	fixture_track_name = (const legacy_s8 *)"ABCDEFGHIJKLMN";
 	strcpy((char *)gameconfig.game_trackname, "ABCDEFGH");
 	struct END_SCREEN_STATE screen = {0};
 	end_hiscore_check_score(&screen);
@@ -798,9 +798,9 @@ static void check_full_track_name(void)
 	end_hiscore_enter_score(&screen, (void *)"Name", 0);
 	assert(record_calls == 1);
 	highscore_draw_table();
-	assert(strcmp((const char *)table_title, "Score 'ABCDEFGHIJKL'") == 0);
+	assert(strcmp((const char *)table_title, "Score 'ABCDEFGHIJKLMN'") == 0);
 	track_menu_draw_title();
-	assert(strcmp((const char *)track_title, "'ABCDEFGHIJKL'") == 0);
+	assert(strcmp((const char *)track_title, "'ABCDEFGHIJKLMN'") == 0);
 }
 
 int main(void)

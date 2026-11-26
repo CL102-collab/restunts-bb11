@@ -17,7 +17,7 @@ from regression_timeouts import scaled_timeout
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
 CSTRK_VERSION = 16
-CSRPL_VERSION = 22
+CSRPL_VERSION = 23
 CSRPL_MIN_VERSION = 11
 CSRPL_PRE_CUSTOM_HORIZON_VERSION = 19
 CSRPL_FUTURE_VERSION = 101
@@ -33,9 +33,11 @@ CSRPL_HEADER_SIZE = 64
 CSRPL_LONG_TRACK_NAME_VERSION = 17
 CSRPL_TRACK_NAME_OFFSET = 41
 CSRPL_LEGACY_TRACK_NAME_SIZE = 9
-CSRPL_TRACK_NAME_SIZE = 13
+CSRPL_V17_TRACK_NAME_SIZE = 13
+CSRPL_TRACK_NAME_SIZE = 15
+CSRPL_FULL_TRACK_NAME_VERSION = 23
 CSRPL_OPPONENT_COMMAND_VERSION = 21
-CSRPL_OPPONENT_ID_OFFSET = 54
+CSRPL_OPPONENT_ID_OFFSET = 56
 CSRPL_CLASSIC_TRACK = 1
 CSRPL_OPPONENT_COMMANDS = 2
 CSRPL_COMMAND_SIZE = 8
@@ -275,16 +277,20 @@ def decode_replay(recording):
     assert recording[:8] == CSRPL_MAGIC
     version, header = struct.unpack_from("<HH", recording, 8)
     assert version >= CSRPL_MIN_VERSION and header == CSRPL_HEADER_SIZE
-    name_size = (CSRPL_LEGACY_TRACK_NAME_SIZE if version < CSRPL_LONG_TRACK_NAME_VERSION
-                 else CSRPL_TRACK_NAME_SIZE)
+    if version < CSRPL_LONG_TRACK_NAME_VERSION:
+        name_size = CSRPL_LEGACY_TRACK_NAME_SIZE
+    elif version < CSRPL_FULL_TRACK_NAME_VERSION:
+        name_size = CSRPL_V17_TRACK_NAME_SIZE
+    else:
+        name_size = CSRPL_TRACK_NAME_SIZE
     name_end = CSRPL_TRACK_NAME_OFFSET + name_size
     flags = struct.unpack_from("<I", recording, 12)[0]
     assert not flags & ~(CSRPL_CLASSIC_TRACK | CSRPL_OPPONENT_COMMANDS)
     assert version >= CSRPL_OPPONENT_COMMAND_VERSION or flags == 0
     opponent = recording[34]
-    opponent_id = (recording[CSRPL_OPPONENT_ID_OFFSET:CSRPL_OPPONENT_ID_OFFSET + 4]
+    opponent_id = (recording[name_end:name_end + 4]
                    if version >= CSRPL_OPPONENT_COMMAND_VERSION else bytes(4))
-    reserved_start = CSRPL_OPPONENT_ID_OFFSET + 4 if version >= CSRPL_OPPONENT_COMMAND_VERSION else name_end
+    reserved_start = name_end + 4 if version >= CSRPL_OPPONENT_COMMAND_VERSION else name_end
     assert recording[reserved_start:CSRPL_HEADER_SIZE] == bytes(CSRPL_HEADER_SIZE - reserved_start)
     assert bool(flags & CSRPL_OPPONENT_COMMANDS) == (opponent > 6)
     assert opponent_id == b"UNIT" if opponent == 7 else opponent_id == bytes(4)
@@ -480,7 +486,7 @@ def main():
             custom_outputs = []
             for number, (filename, fallback) in enumerate(((CUSTOM_HORIZON_UNICODE, 4),
                                                           (CUSTOM_HORIZON_BOUNDARY, 2))):
-                custom_path = output / f"missing-horizon-{number}.cstrk"
+                custom_path = output / f"horizon-{number}.cstrk"
                 custom_path.write_bytes(track_bytes(custom_horizon=filename, horizon=fallback))
                 assert not (data / filename).exists() and not (output / filename).exists()
                 custom_output, custom_view, custom_report, _ = generate(
@@ -591,8 +597,8 @@ def main():
             print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
 
             # The replay name is independent of the source filename and must retain
-            # all twelve extended characters when a fine-tuned replay is published.
-            long_track_name = b"FLOWERFIELD1"
+            # all fourteen extended characters when a fine-tuned replay is published.
+            long_track_name = b"FLOWERFIELD123"
             assert len(long_track_name) == CSRPL_TRACK_NAME_SIZE - 1
             named_recording = bytearray(first.read_bytes())
             named_recording[CSRPL_TRACK_NAME_OFFSET:CSRPL_TRACK_NAME_OFFSET + CSRPL_TRACK_NAME_SIZE] = long_track_name + b"\0"
@@ -608,7 +614,7 @@ def main():
             assert named_view["track"] == view["track"] and named_view["version"] == CSRPL_VERSION
             assert verify(named_refined)["total_frames"] <= report["total_frames"]
             assert named_source.read_bytes() == named_recording
-            print("Twelve-character CSRPL names survive fine-tuning and report output", flush=True)
+            print("Fourteen-character CSRPL names survive fine-tuning and report output", flush=True)
 
             # Stored revisions select playback physics. Verification and refinement
             # retain v11, while a fresh search uses the current physics revision.

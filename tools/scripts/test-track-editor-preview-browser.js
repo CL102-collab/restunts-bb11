@@ -103,7 +103,7 @@ async function loadEditor(page, url, directory, bytes) {
 }
 
 async function checkExtendedTrackNameBoundary(page, bytes) {
-    const stem = 'ABCDEFGHIJKL';
+    const stem = 'ABCDEFGHIJKLMN';
     assert.equal(await page.locator('#new-name').getAttribute('maxlength'), String(stem.length));
     await page.locator('#save-track').click();
     assert.equal(await page.locator('#save-name').getAttribute('maxlength'), String(stem.length));
@@ -111,15 +111,15 @@ async function checkExtendedTrackNameBoundary(page, bytes) {
     await page.evaluate(name => {
         document.getElementById('save-name').value = name;
         document.getElementById('save-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    }, stem + 'M');
-    assert.match(await page.locator('#save-error').textContent(), /1–12 ASCII characters/);
+    }, stem + 'O');
+    assert.match(await page.locator('#save-error').textContent(), /1–14 ASCII characters/);
     assert(await page.locator('#save-dialog').isVisible());
     await page.locator('#save-name').fill(stem);
     const [download] = await Promise.all([
         page.waitForEvent('download'), page.locator('#confirm-save').click()
     ]);
     assert.equal(download.suggestedFilename(), stem + '.cstrk');
-    assert.deepEqual(await fs.readFile(await download.path()), bytes, 'twelve-character names preserve the complete track');
+    assert.deepEqual(await fs.readFile(await download.path()), bytes, 'fourteen-character names preserve the complete track');
     await download.delete();
     await page.waitForFunction(name => document.getElementById('document-name').textContent === name, stem);
     assert(await page.locator('#save-dialog').isHidden());

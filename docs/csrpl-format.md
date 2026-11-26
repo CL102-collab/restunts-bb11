@@ -7,7 +7,7 @@ UNIT also record `.csrpl` on classic `.trk` tracks. Those recordings embed the
 original 1,802-byte classic track and retain classic track physics.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v22**. The revision identifies the track format,
+recordings currently use **v23**. The revision identifies the track format,
 physics behavior, and filename metadata layout of the game that recorded the
 inputs; it is separate from the revision stored in the embedded track.
 
@@ -18,7 +18,7 @@ Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 Filename metadata and opponent recording have independent revision offsets.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v16, physics revision is 4, filename revision is 1, and opponent
+revision is v16, physics revision is 4, filename revision is 2, and opponent
 revision is 1. Physics revision 1 corrected wheel contact at consecutive hill
 slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
@@ -58,6 +58,8 @@ and the option to embed a classic track. The original six opponents retain their
 existing input-only replay behavior.
 Replay v22 adds track v16's slalom checkpoint variants. Their checkpoint
 progress follows the same playback and seeking rules as the road checkpoints.
+Replay v23 expands the stored track name to fifteen bytes to preserve
+fourteen-character stems and moves the opponent identifier two bytes later.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -85,7 +87,7 @@ is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `21`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `23`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Format flags, described below (zero before v21) |
 | 16 | 4 | Embedded track size in bytes |
@@ -99,26 +101,27 @@ is 32 bits, twice the original field's width.
 | 35 | 4 | Opponent car resource ID |
 | 39 | 1 | Opponent paint material |
 | 40 | 1 | Opponent transmission |
-| 41 | 13 | Display track name, byte array (v17+) |
-| 54 | 4 | Four-character opponent identifier when opponent number >6 (v21+); otherwise zero |
-| 58 | 6 | Reserved, all zero (v21+) |
+| 41 | 15 | Display track name, byte array (v23+) |
+| 56 | 4 | Four-character opponent identifier when opponent number >6 (v23+); otherwise zero |
+| 60 | 4 | Reserved, all zero (v23+) |
 | 64 | Track size | Complete validated `.cstrk`, or a 1,802-byte classic track |
 | 64 + track size | Frame count | Player input samples |
 | 64 + track size + frame count | 8 × frame count | Opponent commands, only when the opponent-command flag is set |
 
 Revisions v11 through v16 retain their original nine-byte track-name field at
 bytes 41–49 and fourteen reserved zero bytes at 50–63. Revisions v17–v20
-use bytes 41–53 for the name and reserve bytes 54–63. Revision v21 retains
-the name layout and uses bytes 54–57 for the optional opponent identifier.
+use bytes 41–53 for the name and reserve bytes 54–63. Revisions v21–v22
+retain the name layout, use bytes 54–57 for the optional opponent identifier,
+and reserve bytes 58–63.
 The header remains exactly 64 bytes, so the embedded track and input offsets do
 not move. The reader selects
 and validates the reserved range using the recorded replay revision.
 
-In memory, older names are zero-extended to thirteen bytes. Encoding an older
-revision rejects a name with nonzero bytes beyond its original nine-byte field;
+In memory, older names are zero-extended to fifteen bytes. Encoding an older
+revision rejects a name with nonzero bytes beyond that revision’s name field;
 it never silently truncates the name. Existing nine-byte names without a NUL
 remain valid byte arrays and round-trip unchanged. Normal new filenames use up
-to twelve characters followed by a NUL. This metadata expansion does not change
+to fourteen characters followed by a NUL. This metadata expansion does not change
 the original packed `GAMEINFO` name field or the legacy `.rpl` format.
 
 The format flags at byte 12 are independent of the driving-rule bitmask:

@@ -1676,8 +1676,8 @@ static void test_recorded_half_pipe_body_collision(void)
 
 static void test_long_extended_names(void)
 {
-	static const legacy_s8 first_name[] = "ALPINECIRCU1";
-	static const legacy_s8 second_name[] = "ALPINECIRCU2";
+	static const legacy_s8 first_name[] = "ALPINECIRCUITX";
+	static const legacy_s8 second_name[] = "ALPINECIRCUITY";
 	legacy_char track_path[128], saved_path[128];
 	snprintf(track_path, sizeof(track_path), "%s/%s.cstrk", temporary_directory, first_name);
 	snprintf(saved_path, sizeof(saved_path), "%s/%s.csrpl", temporary_directory, first_name);
@@ -1717,7 +1717,7 @@ static void test_long_extended_names(void)
 	struct CSRPL_VIEW view;
 	assert(csrpl_decode(bytes, (size_t)size, &view, error, sizeof(error)));
 	assert(strcmp(view.metadata.track_name, (const legacy_char *)first_name) == 0);
-	assert(view.metadata.version >= CSRPL_LONG_TRACK_NAME_VERSION);
+	assert(view.metadata.version >= CSRPL_FULL_TRACK_NAME_VERSION);
 	/* Admission failure occurs after replay history allocation and must retain both names. */
 	size_t first_object =
 		CSRPL_HEADER_SIZE + CSTRK_HEADER_SIZE +

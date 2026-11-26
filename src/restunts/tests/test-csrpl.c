@@ -501,12 +501,15 @@ static void test_track_name_layouts(void)
 	size_t track_size = 0;
 	assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
 	static const legacy_u8 inputs[] = {1U, 2U};
-	/* Test every old layout through the v16/v17 boundary and a newer reader case. */
-	for (legacy_u16 version = CSRPL_MIN_VERSION; version <= CSRPL_LONG_TRACK_NAME_VERSION + 1U;
+	/* Exercise every historical name layout and the current one. */
+	for (legacy_u16 version = CSRPL_MIN_VERSION; version <= CSRPL_FULL_TRACK_NAME_VERSION;
 		 version++) {
-		const size_t wire_name_size = version < CSRPL_LONG_TRACK_NAME_VERSION
-										  ? CSRPL_LEGACY_TRACK_NAME_SIZE
-										  : CSRPL_TRACK_NAME_SIZE;
+		size_t wire_name_size = CSRPL_TRACK_NAME_SIZE;
+		if (version < CSRPL_LONG_TRACK_NAME_VERSION) {
+			wire_name_size = CSRPL_LEGACY_TRACK_NAME_SIZE;
+		} else if (version < CSRPL_FULL_TRACK_NAME_VERSION) {
+			wire_name_size = CSRPL_V17_TRACK_NAME_SIZE;
+		}
 		for (size_t length = 0; length <= CSRPL_TRACK_NAME_SIZE; length++) {
 			struct CSRPL_METADATA metadata = {0};
 			metadata.version = version;
@@ -574,7 +577,7 @@ static void test_track_name_layouts(void)
 	metadata.version = TEST_FUTURE_TRACK_VERSION;
 	metadata.frames_per_second = 20U;
 	metadata.frame_count = sizeof(inputs);
-	memcpy(metadata.track_name, "TWELVECHARS!", CSRPL_TRACK_NAME_SIZE - 1U);
+	memcpy(metadata.track_name, "FOURTEENCHARS!", CSRPL_TRACK_NAME_SIZE - 1U);
 	legacy_u8 *encoded = NULL;
 	size_t size = 0;
 	assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded, &size,
@@ -633,7 +636,7 @@ static void test_opponent_command_wire(void)
 	assert(!csrpl_opponent_command_valid(wire));
 }
 
-static void test_extended_opponent_codec(legacy_int classic)
+static void test_extended_opponent_codec(legacy_int classic, legacy_u16 version)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
@@ -657,7 +660,7 @@ static void test_extended_opponent_codec(legacy_int classic)
 		csrpl_opponent_command_write(commands + frame * CSRPL_OPPONENT_COMMAND_SIZE, &command);
 	}
 	struct CSRPL_METADATA metadata = {0};
-	metadata.version = CSRPL_VERSION;
+	metadata.version = version;
 	metadata.flags = CSRPL_FLAG_OPPONENT_COMMANDS | (classic ? CSRPL_FLAG_CLASSIC_TRACK : 0U);
 	metadata.opponent_type = CSRPL_UNIT_OPPONENT_TYPE;
 	memcpy(metadata.opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE);
@@ -665,6 +668,12 @@ static void test_extended_opponent_codec(legacy_int classic)
 	memcpy(metadata.opponent_car_id, "PMIN", CSRPL_CAR_ID_SIZE);
 	metadata.frames_per_second = 20U;
 	metadata.frame_count = TEST_UNIT_FRAME_COUNT;
+	size_t opponent_id_offset = version < CSRPL_FULL_TRACK_NAME_VERSION
+									? CSRPL_V21_OPPONENT_ID_OFFSET
+									: CSRPL_OPPONENT_ID_OFFSET;
+	if (version >= CSRPL_FULL_TRACK_NAME_VERSION) {
+		memcpy(metadata.track_name, "FOURTEENCHARS!", CSRPL_TRACK_NAME_SIZE - 1U);
+	}
 	legacy_u8 *encoded = NULL;
 	size_t size = 0;
 	assert(csrpl_encode_with_commands(&metadata, track_data, track_size, inputs,
@@ -672,10 +681,11 @@ static void test_extended_opponent_codec(legacy_int classic)
 									  &encoded, &size, error, sizeof(error)));
 	assert(size == CSRPL_HEADER_SIZE + track_size + sizeof(inputs) + sizeof(commands));
 	assert(encoded[TEST_UNIT_OPPONENT_OFFSET] == CSRPL_UNIT_OPPONENT_TYPE);
-	assert(memcmp(encoded + CSRPL_OPPONENT_ID_OFFSET, "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
+	assert(memcmp(encoded + opponent_id_offset, "UNIT", CSRPL_OPPONENT_ID_SIZE) == 0);
 	struct CSRPL_VIEW view = {0};
 	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	assert(view.metadata.flags == metadata.flags);
+	assert(memcmp(view.metadata.track_name, metadata.track_name, CSRPL_TRACK_NAME_SIZE) == 0);
 	assert(view.metadata.opponent_type == metadata.opponent_type);
 	assert(memcmp(view.metadata.opponent_id, metadata.opponent_id, CSRPL_OPPONENT_ID_SIZE) == 0);
 	assert(view.track_size == track_size && memcmp(view.track_data, track_data, track_size) == 0);
@@ -715,12 +725,12 @@ static void test_extended_opponent_codec(legacy_int classic)
 	LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, metadata.version);
 	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
-	metadata.version = CSRPL_VERSION;
+	metadata.version = version;
 	LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, metadata.version);
 	/* Neither absent IDs nor opponent commands attached to a legacy opponent are valid. */
-	memset(encoded + CSRPL_OPPONENT_ID_OFFSET, 0, CSRPL_OPPONENT_ID_SIZE);
+	memset(encoded + opponent_id_offset, 0, CSRPL_OPPONENT_ID_SIZE);
 	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
-	memcpy(encoded + CSRPL_OPPONENT_ID_OFFSET, metadata.opponent_id, CSRPL_OPPONENT_ID_SIZE);
+	memcpy(encoded + opponent_id_offset, metadata.opponent_id, CSRPL_OPPONENT_ID_SIZE);
 	encoded[TEST_UNIT_OPPONENT_OFFSET] = CSRPL_CLASSIC_OPPONENT_LAST;
 	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	encoded[TEST_UNIT_OPPONENT_OFFSET] = CSRPL_UNIT_OPPONENT_TYPE;
@@ -764,8 +774,9 @@ int main(void)
 {
 	test_encoded_size_boundaries();
 	test_opponent_command_wire();
-	test_extended_opponent_codec(0);
-	test_extended_opponent_codec(1);
+	test_extended_opponent_codec(0, CSRPL_VERSION);
+	test_extended_opponent_codec(0, CSRPL_FULL_TRACK_NAME_VERSION - 1U);
+	test_extended_opponent_codec(1, CSRPL_VERSION);
 	test_track_name_layouts();
 	test_recording_and_seek_storage();
 	test_large_timeline();

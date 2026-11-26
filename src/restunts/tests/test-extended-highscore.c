@@ -25,7 +25,7 @@
 #define SCORE_PATH SCORE_DIRECTORY "/TWIN.cshig"
 #define LEGACY_SCORE_PATH SCORE_DIRECTORY "/TWIN.HIG"
 #define LEGACY_TRACK_PATH SCORE_DIRECTORY "/TWIN.TRK"
-#define FOLDER_TRACK_STEM "FOLDER"
+#define FOLDER_TRACK_STEM "FOLDERTRACK123"
 #define FOLDER_TRACK_PATH "tracks/" FOLDER_TRACK_STEM ".CSTRK"
 #define MAXIMUM_TRACK_STEM "MAXIMUM"
 #define MAXIMUM_TRACK_PATH SCORE_DIRECTORY "/" MAXIMUM_TRACK_STEM ".CSTRK"
@@ -200,11 +200,11 @@ static void test_stale_table_merge(struct CSTRK_TRACK *track)
 
 static void test_long_track_names(struct CSTRK_TRACK *track)
 {
-	static const char *const names[] = {"ABCDEFGHIJKL", "ABCDEFGHIJKM"};
-	static const char *const tracks[] = {SCORE_DIRECTORY "/ABCDEFGHIJKL.CSTRK",
-										 SCORE_DIRECTORY "/ABCDEFGHIJKM.CSTRK"};
-	static const char *const scores[] = {SCORE_DIRECTORY "/ABCDEFGHIJKL.cshig",
-										 SCORE_DIRECTORY "/ABCDEFGHIJKM.cshig"};
+	static const char *const names[] = {"ABCDEFGHIJKLMN", "ABCDEFGHIJKLMO"};
+	static const char *const tracks[] = {SCORE_DIRECTORY "/ABCDEFGHIJKLMN.CSTRK",
+										 SCORE_DIRECTORY "/ABCDEFGHIJKLMO.CSTRK"};
+	static const char *const scores[] = {SCORE_DIRECTORY "/ABCDEFGHIJKLMN.cshig",
+										 SCORE_DIRECTORY "/ABCDEFGHIJKLMO.cshig"};
 	size_t size;
 	uint8_t *bytes = read_bytes(TRACK_PATH, &size);
 	for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
@@ -222,7 +222,7 @@ static void test_long_track_names(struct CSTRK_TRACK *track)
 		assert(remove(tracks[index]) == 0);
 		assert(remove(scores[index]) == 0);
 	}
-	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "ABCDEFGHIJKLM", track, 1) != 0);
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "ABCDEFGHIJKLMNO", track, 1) != 0);
 }
 
 static void test_track_identity(struct CSTRK_TRACK *track)

@@ -3,10 +3,17 @@
 #include "../legacy.h"
 #include "../game_input.h"
 #include "../extended/extended_ui_dialog.h"
+#ifdef RESTUNTS_SDL3
+#include "../extended/extended_file_dialog.h"
+#endif
 struct FILE_DIALOG {
 	legacy_s16 positions[40];
 	struct BUTTON_AREA hit_areas[10];
+#ifdef RESTUNTS_SDL3
+	legacy_s8 filenames[128][EXTENDED_FILE_STEM_CAPACITY];
+#else
 	legacy_s8 filenames[128][13];
+#endif
 	legacy_s8 selected;
 	legacy_s8 scroll;
 	legacy_s8 previous_selected;

@@ -365,8 +365,8 @@ notes and instruments with pitch-dependent envelopes, vibrato, key scaling or
 multiplier controllers retain their original setup. Nuked runtime writes are
 buffered to preserve same-tick key-off/key-on transitions.
 
-Extended track and replay filenames support up to 12 characters before
-`.cstrk` or `.csrpl` (18 characters including the extension), including in the
+Extended track and replay filenames support up to 14 characters before
+`.cstrk` or `.csrpl` (20 characters including the extension), including in the
 native file picker. Original `.trk` and `.rpl` names retain their eight-character
 limit. Extended high score files use the same full track name with `.cshig`.
 
