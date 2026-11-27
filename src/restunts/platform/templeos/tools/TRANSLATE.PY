@@ -288,10 +288,6 @@ def prepare_sources(folder):
             if function == "sprite_free_wnd":
                 block = block.replace("hires_forget(", "TempleRasterForget(")
             text = text[:match.start()] + block + text[end:]
-        if path.name == "shape2d_image.c":
-            text, count = re.subn(r"video_pages_write_pixel\(bitmap, destination,\s*video_pages_read_pixel\(bitmap, destination\) \^ color_bits\);", "TempleRasterXorPixel(bitmap, destination, color_bits);", text)
-            if count != 1:
-                raise ValueError("Native XOR raster adaptation missing")
         if path.name == "shape2d_window.c":
             text, count = re.subn(
                 r"#if defined\(RESTUNTS_SDL3\) \|\| defined\(RESTUNTS_AMIGA\)"

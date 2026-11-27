@@ -28,6 +28,10 @@
 #define SHAPE2D_FIXED_ONE 65536UL
 #define SHAPE2D_ZERO_WIDTH_RASTER_PIXELS 131072UL
 
+#ifdef RESTUNTS_TEMPLEOS
+extern void TempleRasterXorPixel(legacy_u8 far *bitmap, legacy_u16 offset, legacy_u8 mask);
+#endif
+
 static void sprite_draw_dissolve_row(legacy_u16 shape_segment, legacy_u8 far *bitmap,
 									 legacy_u16 source, legacy_u16 destination, legacy_u16 width,
 									 legacy_u16 row_phase)
@@ -641,12 +645,16 @@ void sprite_xor_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legac
 				sdl3_video_mode_xor_begin(bitmap, destination, color_bits);
 			}
 #endif
+#ifdef RESTUNTS_TEMPLEOS
+			TempleRasterXorPixel(bitmap, destination, color_bits);
+#else
 			legacy_u8 pixel = video_pages_read_pixel(bitmap, destination);
 #ifdef RESTUNTS_SDL3
 			/* A widescreen dialog caret toggles pixels on the active text layer. */
 			widescreen_overlay_read(bitmap, destination, &pixel);
 #endif
 			video_pages_write_pixel(bitmap, destination, pixel ^ color_bits);
+#endif
 			destination++;
 			column_count--;
 		} while (column_count != 0);
