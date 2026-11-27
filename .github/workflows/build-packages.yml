@@ -705,7 +705,11 @@ jobs:
           sync: rsync
           envs: PACKAGE_TARGET GITHUB_SHA GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           prepare: |
-            /usr/sbin/pkg_add -u curl git-base mozilla-rootcerts-openssl
+            # Match the cross SDK's package tree. The VM may select a newer
+            # quarterly tree before its runtime dependencies are published.
+            release=$(uname -r)
+            printf 'PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/%s/%s.0/All\n' \
+              '${{ matrix.arch }}' "${release%%.*}" > /etc/pkg_install.conf
           run: sh tools/scripts/test-bsd-cross-package.sh "$PACKAGE_TARGET"
 
   haiku:
