@@ -41,4 +41,11 @@ extern legacy_s8 dashboard_secondary_resource_name[];
 
 void setup_car_shapes(legacy_s16 operation);
 
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 dashboard_replay_artwork_loaded(void);
+legacy_s16 dashboard_replay_needs_selection(void);
+legacy_s16 dashboard_replay_select(void);
+void dashboard_replay_unload(void);
+#endif
+
 #endif

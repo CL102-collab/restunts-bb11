@@ -209,9 +209,15 @@ void race_update_dashboard_layout(legacy_s16 rewind_active)
 		replaybar_enabled = 1;
 	}
 
+	legacy_s16 suppress_dashboard = followOpponentFlag != 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		suppress_dashboard = !dashboard_replay_artwork_loaded();
+	}
+#endif
 	if (idle_expired != 0) {
 		dashbmp_y_copy = RACE_SCREEN_HEIGHT;
-	} else if (dashb_toggle == 0 || followOpponentFlag != 0) {
+	} else if (dashb_toggle == 0 || suppress_dashboard != 0) {
 		if (game_replay_mode == REPLAY_MODE_PLAYBACK) {
 			if (replaybar_enabled != 0) {
 				dashbmp_y_copy = RACE_REPLAY_BAR_TOP;
@@ -238,13 +244,20 @@ void race_update_dashboard_layout(legacy_s16 rewind_active)
 void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_active)
 {
 	legacy_s16 renderer_changed = race_renderer_viewport_changed(&cache->renderer_viewport);
+	legacy_s16 dashboard_changed = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && dashb_toggle != 0) {
+		dashboard_changed = dashboard_replay_select();
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	legacy_s16 widescreen_changed =
 		widescreen_active() || cache->renderer_viewport.widescreen_active;
 #endif
 	if (game_replay_mode != game_replay_mode_copy || dashb_toggle != dashb_toggle_copy ||
 		replaybar_toggle != replaybar_toggle_copy || is_in_replay != is_in_replay_copy ||
-		followOpponentFlag != followOpponentFlag_copy || renderer_changed != 0) {
+		followOpponentFlag != followOpponentFlag_copy || renderer_changed != 0 ||
+		dashboard_changed != 0) {
 		race_renderer_cache_viewport(&cache->renderer_viewport);
 		race_update_dashboard_layout(rewind_active);
 		if (
@@ -502,9 +515,14 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		}
 #ifdef RESTUNTS_SDL3
 		race_hires_presentation_sync(rewind.active);
-		if (widescreen_active() && race_renderer_viewport_changed(&cache->renderer_viewport) != 0) {
+		if (
+#ifdef RESTUNTS_MULTI_REPLAY
+			(multi_replay_is_active() && dashb_toggle != 0 && dashboard_replay_needs_selection()) ||
+#endif
+			(widescreen_active() &&
+			 race_renderer_viewport_changed(&cache->renderer_viewport) != 0)) {
 			/* Interpolated presentations can run while waiting for the next physics
-			 * frame. Apply resized output dimensions before those draws too. */
+			 * frame. Apply dashboard and output changes before those draws too. */
 			race_update_viewport(cache, rewind.active);
 		}
 #endif

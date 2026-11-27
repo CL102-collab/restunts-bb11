@@ -5,10 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../c/car/car_audio.h"
+#include "../c/dashboard.h"
 #include "../c/extended/extended_track.h"
 #include "../c/fileio.h"
 #include "../c/game_input.h"
 #include "../c/memmgr.h"
+#include "../c/race/race_resources.h"
 #include "../c/replay/multi_replay.h"
 #include "../c/replay/multi_replay_capture.h"
 #include "../c/replay/multi_replay_manifest.h"
@@ -100,12 +103,24 @@ static void write_manifest(const legacy_char *path, const legacy_char *first,
 static void test_target_cycle(void)
 {
 	assert(multi_replay_target_index() == 0U);
+	assert(multi_replay_target_car() == multi_replay_car(0U));
+	assert(strcmp((const legacy_char *)multi_replay_target_car()->id, "PMIN") == 0);
+	assert(multi_replay_target_car()->frame_rate == GAME_FRAME_RATE_LOW);
+	assert(multi_replay_target_car()->dashboard_available);
 	assert(strcmp((const legacy_char *)replay_filename, TEST_SHORT_BASENAME) == 0);
 	multi_replay_cycle_target(1);
 	assert(multi_replay_target_index() == 1U);
+	assert(multi_replay_target_car() == multi_replay_car(1U));
+	assert(strcmp((const legacy_char *)multi_replay_target_car()->id, "JAGU") == 0);
+	assert(multi_replay_target_car()->frame_rate == GAME_FRAME_RATE_NORMAL);
+	assert(multi_replay_target_car()->dashboard_available);
 	assert(strcmp((const legacy_char *)replay_filename, "longer") == 0);
 	multi_replay_cycle_target(1);
 	assert(multi_replay_target_index() == 2U);
+	assert(multi_replay_target_car() == multi_replay_car(2U));
+	assert(strcmp((const legacy_char *)multi_replay_target_car()->id, "COUN") == 0);
+	assert(multi_replay_target_car()->frame_rate == GAME_FRAME_RATE_NORMAL);
+	assert(multi_replay_target_car()->dashboard_available);
 	assert(strcmp((const legacy_char *)replay_filename, "longer") == 0);
 	multi_replay_cycle_target(1);
 	assert(multi_replay_target_index() == 0U);
@@ -125,14 +140,22 @@ static void test_timeline(void)
 	assert(multi_replay_car(1U)->camera.frame == 2U);
 	assert(multi_replay_car(2U)->camera.frame == 2U);
 	assert(multi_replay_queue_frame());
-	assert(multi_replay_input_frame() == 3U && multi_replay_frame() == 2U);
+	assert(multi_replay_queue_frame());
+	assert(multi_replay_input_frame() == 4U && multi_replay_frame() == 2U);
 	multi_replay_present_input_frame();
 	assert(multi_replay_car(0U)->camera.frame == 1U);
 	assert(multi_replay_car(1U)->camera.frame == 3U);
+	multi_replay_present_input_frame();
+	assert(multi_replay_car(0U)->camera.frame == 2U);
+	assert(multi_replay_car(1U)->camera.frame == 4U);
 
 	multi_replay_seek(TEST_SHORT_END);
 	struct CARSTATE last_short_pose = multi_replay_car(0U)->state;
 	assert(multi_replay_car(0U)->camera.frame == TEST_SHORT_FRAMES);
+	assert(!multi_replay_car(0U)->finished);
+	multi_replay_seek(TEST_SHORT_END + 1U);
+	assert(multi_replay_car(0U)->finished);
+	assert(!multi_replay_car(1U)->finished);
 	multi_replay_seek(LEGACY_U32_MAX);
 	assert(multi_replay_frame() == TEST_LONG_FRAMES);
 	assert(multi_replay_car(0U)->camera.frame == TEST_SHORT_FRAMES);
@@ -142,10 +165,48 @@ static void test_timeline(void)
 	assert(!multi_replay_queue_frame());
 	multi_replay_seek(0U);
 	assert(multi_replay_car(0U)->camera.frame == 0U);
+	assert(!multi_replay_car(0U)->finished);
 	assert(multi_replay_car(2U)->camera.frame == 0U);
 
 	/* Playback and seeking leave the selected camera/car unchanged. */
 	assert(multi_replay_target_index() == 1U);
+}
+
+static void assert_selected_car_audio_sample(void)
+{
+	legacy_s16 write_index = audio_car_state_write_index;
+	assert(multi_replay_queue_frame());
+	multi_replay_present_input_frame();
+	assert(audio_car_state_ready != 0 && audio_car_state_write_index != write_index);
+	const struct AUDIO_CAR_STATE *sample = &audio_car_state_records[write_index];
+	const legacy_u16 rpm = LEGACY_READ_U16_LE((const legacy_u8 *)&sample->player_rpm);
+	assert(rpm == (legacy_u16)multi_replay_target_car()->state.car_currpm);
+	assert(rpm != (legacy_u16)multi_replay_car(0U)->state.car_currpm);
+}
+
+static void test_selected_car_presentation(void)
+{
+	is_in_replay = 1;
+	assert(setup_player_cars() == 0);
+	assert(dashboard_replay_artwork_loaded());
+	assert(strcmp((const legacy_char *)dashboard_primary_resource_name, "stdaJAGU") == 0);
+
+	multi_replay_seek(TEST_SHORT_END);
+	is_in_replay = 0;
+	assert_selected_car_audio_sample();
+	multi_replay_cycle_target(1);
+	assert(audio_car_state_ready == 0 && audio_car_state_read_index == audio_car_state_write_index);
+	assert(dashboard_replay_select());
+	assert(strcmp((const legacy_char *)dashboard_primary_resource_name, "stdaCOUN") == 0);
+	assert_selected_car_audio_sample();
+
+	is_in_replay = 1;
+	audio_carstate();
+	multi_replay_cycle_target(-1);
+	assert(audio_car_state_ready == 0);
+	assert(dashboard_replay_select());
+	assert(strcmp((const legacy_char *)dashboard_primary_resource_name, "stdaJAGU") == 0);
+	free_player_cars();
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
@@ -198,6 +259,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(multi_replay_car(3U) == NULL);
 	test_target_cycle();
 	test_timeline();
+	test_selected_car_presentation();
 	multi_replay_close();
 
 	write_manifest(manifest, short_path, mismatch_path);

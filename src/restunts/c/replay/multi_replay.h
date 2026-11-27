@@ -13,6 +13,9 @@ struct MULTI_REPLAY_CAR {
 	struct SIMD simd;
 	legacy_s8 id[REPLAY_CAR_ID_SIZE + 1U];
 	legacy_s8 material;
+	legacy_u16 frame_rate;
+	legacy_u8 dashboard_available;
+	legacy_u8 finished;
 };
 
 legacy_int multi_replay_open(const legacy_s8 *manifest_path, legacy_char *error, size_t error_size);
@@ -22,6 +25,7 @@ legacy_int multi_replay_is_active(void);
 size_t multi_replay_car_count(void);
 size_t multi_replay_target_index(void);
 const struct MULTI_REPLAY_CAR *multi_replay_car(size_t index);
+const struct MULTI_REPLAY_CAR *multi_replay_target_car(void);
 void multi_replay_cycle_target(legacy_s16 direction);
 
 legacy_u32 multi_replay_frame(void);

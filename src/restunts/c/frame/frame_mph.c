@@ -12,6 +12,9 @@
 #include "../platform.h"
 #include "../video/video_frame.h"
 #include "../memmgr.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
 
 enum {
 	MPH_TEXT_SCREEN_WIDTH = 320,
@@ -144,7 +147,14 @@ struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
 	}
 	legacy_s8 text[MPH_TEXT_BUFFER_SIZE];
 	/* Actual road speed is Q8 MPH; engine/rev speed also includes wheelspin. */
-	legacy_u16 speed = state.playerstate.car_actual_speed >> MPH_TEXT_SPEED_SHIFT;
+	const struct CARSTATE *car = &state.playerstate;
+#ifdef RESTUNTS_MULTI_REPLAY
+	const struct MULTI_REPLAY_CAR *replay_car = multi_replay_target_car();
+	if (replay_car != NULL) {
+		car = &replay_car->state;
+	}
+#endif
+	legacy_u16 speed = car->car_actual_speed >> MPH_TEXT_SPEED_SHIFT;
 	legacy_u16 count = frame_mph_format_number(text, speed);
 	copy_string(text + count, " MPH");
 	legacy_s16 width = font_text_width(text);

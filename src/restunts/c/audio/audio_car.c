@@ -8,6 +8,11 @@
 #include "../platform.h"
 #include "../camera.h"
 #include "../car/car_audio.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../crash_state.h"
+#include "../replay/multi_replay.h"
+#include "audio_control.h"
+#endif
 
 #define AUDIO_TRACK_CAMERA_VERTICAL_OFFSET 90
 #define AUDIO_CAR_COUNT_WITH_OPPONENT 2
@@ -46,10 +51,8 @@ static void audio_carstate_offsets(struct VECTOR far *previous, struct VECTOR fa
 						LEGACY_S16_WRAP_SUB(camera_current->z, car_current->z));
 }
 
-static legacy_u8 audio_carstate_update_flags(struct CARSTATE *carstate, legacy_s16 channel,
-											 legacy_u8 flags)
+static legacy_u8 audio_carstate_update_flags(legacy_u8 desired, legacy_s16 channel, legacy_u8 flags)
 {
-	legacy_u8 desired = (legacy_u8)carstate->car_sound_flags;
 	if ((desired & CAR_SOUND_ENGINE_ACTIVE_FLAG) != 0) {
 		if ((flags & CAR_SOUND_ENGINE_ACTIVE_FLAG) == 0) {
 			flags = (legacy_u8)(flags | CAR_SOUND_ENGINE_ACTIVE_FLAG);
@@ -123,7 +126,7 @@ static void audio_carstate_enter_replay(void)
 	audio_previous_replay_mode = (legacy_u8)is_in_replay;
 }
 
-static void audio_carstate_read_positions(struct CARSTATE *carstate, struct VECTOR *previous,
+static void audio_carstate_read_positions(const struct CARSTATE *carstate, struct VECTOR *previous,
 										  struct VECTOR *current)
 {
 	previous->x = audio_carstate_position((legacy_s32)carstate->car_previous_position.lx);
@@ -132,6 +135,16 @@ static void audio_carstate_read_positions(struct CARSTATE *carstate, struct VECT
 	current->x = audio_carstate_position((legacy_s32)carstate->car_position.lx);
 	current->y = audio_carstate_position((legacy_s32)carstate->car_position.ly);
 	current->z = audio_carstate_position((legacy_s32)carstate->car_position.lz);
+}
+
+static void audio_carstate_trackside_positions(struct AUDIO_CAR_POSITIONS *positions,
+											   legacy_s16 track_index)
+{
+	positions->camera_current = trackside_camera_positions[track_index];
+	positions->camera_current.y = LEGACY_S16_WRAP_ADD(
+		LEGACY_S16_WRAP_ADD(positions->camera_current.y, camera_track_height_offset),
+		AUDIO_TRACK_CAMERA_VERTICAL_OFFSET);
+	positions->camera_previous = positions->camera_current;
 }
 
 static void audio_carstate_camera_positions(struct AUDIO_CAR_POSITIONS *positions,
@@ -154,13 +167,7 @@ static void audio_carstate_camera_positions(struct AUDIO_CAR_POSITIONS *position
 				? ghost_camera->trackside_index
 				: LEGACY_S16_FROM_BITS(
 					  (legacy_u16)(legacy_s8)state.game_trackside_camera_index[follow]);
-		positions->camera_current.x = trackside_camera_positions[track_index].x;
-		positions->camera_current.y =
-			LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(trackside_camera_positions[track_index].y,
-													camera_track_height_offset),
-								AUDIO_TRACK_CAMERA_VERTICAL_OFFSET);
-		positions->camera_current.z = trackside_camera_positions[track_index].z;
-		positions->camera_previous = positions->camera_current;
+		audio_carstate_trackside_positions(positions, track_index);
 	} else if (follow != 0) {
 		positions->camera_current = positions->opponent_current;
 		positions->camera_previous = positions->opponent_previous;
@@ -204,7 +211,7 @@ static void audio_carstate_update_car_flags(legacy_s16 car_count)
 			channel = audio_opponent_engine_channel;
 			flags = (legacy_u8)audio_opponent_car_flags;
 		}
-		flags = audio_carstate_update_flags(carstate, channel, flags);
+		flags = audio_carstate_update_flags((legacy_u8)carstate->car_sound_flags, channel, flags);
 		if (car_index == 0) {
 			audio_player_car_flags = (legacy_s8)flags;
 		} else {
@@ -213,8 +220,143 @@ static void audio_carstate_update_car_flags(legacy_s16 car_count)
 	}
 }
 
+static void audio_carstate_finish_record(void)
+{
+	audio_car_state_ready = 1;
+	audio_car_state_write_index = LEGACY_S16_WRAP_ADD(audio_car_state_write_index, 1);
+	if (audio_car_state_write_index == AUDIO_CAR_STATE_RECORD_COUNT) {
+		audio_car_state_write_index = 0;
+	}
+	audio_previous_replay_mode = (legacy_u8)is_in_replay;
+}
+
+#ifdef RESTUNTS_MULTI_REPLAY
+static legacy_u8 multi_replay_audio_initialized;
+static legacy_u32 multi_replay_audio_frame;
+
+void audio_multi_replay_reset(void)
+{
+	if (!multi_replay_audio_initialized) {
+		return;
+	}
+	const struct MULTI_REPLAY_CAR *car = multi_replay_target_car();
+	multi_replay_audio_frame = car == NULL ? 0U : car->camera.frame;
+
+	audio_car_state_read_index = audio_car_state_write_index;
+	audio_car_state_interval = 0;
+	if (audio_car_state_ready != 0) {
+		audio_stop_skid_sound(audio_player_engine_channel);
+		audio_stop_engine(audio_player_engine_channel);
+		/* Also discard an impact still playing from the old view. */
+		audio_reset_channels();
+	}
+	audio_car_state_ready = 0;
+	audio_player_car_flags = CAR_SOUND_NONE;
+	audio_previous_replay_mode = (legacy_u8)is_in_replay;
+}
+
+void audio_multi_replay_begin(void)
+{
+	multi_replay_audio_initialized = 1;
+	audio_multi_replay_reset();
+}
+
+void audio_multi_replay_end(void)
+{
+	audio_multi_replay_reset();
+	multi_replay_audio_initialized = 0;
+}
+
+static legacy_s16 audio_replay_previous_coordinate(legacy_s16 previous, legacy_s16 current,
+												   legacy_u16 frame_rate)
+{
+	legacy_s32 delta = LEGACY_S16_WRAP_SUB(current, previous);
+	delta = delta * frame_rate / MULTI_REPLAY_FRAME_RATE;
+	return LEGACY_S16_WRAP_SUB(current, LEGACY_S16_FROM_BITS((legacy_u16)delta));
+}
+
+static void audio_replay_adjust_motion(struct VECTOR *previous, const struct VECTOR *current,
+									   legacy_u16 frame_rate)
+{
+	previous->x = audio_replay_previous_coordinate(previous->x, current->x, frame_rate);
+	previous->y = audio_replay_previous_coordinate(previous->y, current->y, frame_rate);
+	previous->z = audio_replay_previous_coordinate(previous->z, current->z, frame_rate);
+}
+
+static void audio_multi_replay_positions(const struct MULTI_REPLAY_CAR *car,
+										 struct AUDIO_CAR_POSITIONS *positions)
+{
+	audio_carstate_read_positions(&car->state, &positions->player_previous,
+								  &positions->player_current);
+	if (cameramode == CAMERA_MODE_FOLLOW) {
+		positions->camera_previous = car->camera.previous_position;
+		positions->camera_current = car->camera.follow_position;
+	} else if (cameramode == CAMERA_MODE_TRACKSIDE) {
+		audio_carstate_trackside_positions(positions, car->camera.trackside_index);
+	} else {
+		positions->camera_previous = positions->player_previous;
+		positions->camera_current = positions->player_current;
+	}
+
+	if (car->frame_rate != MULTI_REPLAY_FRAME_RATE) {
+		/* Convert slower replays' per-tick motion to the audio mix interval. */
+		audio_replay_adjust_motion(&positions->player_previous, &positions->player_current,
+								   car->frame_rate);
+		audio_replay_adjust_motion(&positions->camera_previous, &positions->camera_current,
+								   car->frame_rate);
+	}
+}
+
+static void audio_multi_replay_carstate(void)
+{
+	if (!multi_replay_audio_initialized) {
+		return;
+	}
+	const struct MULTI_REPLAY_CAR *car = multi_replay_target_car();
+	if (is_in_replay != 0 || car->finished) {
+		audio_multi_replay_reset();
+		return;
+	}
+
+	struct AUDIO_CAR_POSITIONS positions;
+	audio_multi_replay_positions(car, &positions);
+	struct AUDIO_CAR_STATE far *record = &audio_car_state_records[audio_car_state_write_index];
+	audio_carstate_offsets(&record->player_previous, &record->player_current,
+						   &positions.camera_previous, &positions.camera_current,
+						   &positions.player_previous, &positions.player_current);
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&record->player_rpm, car->state.car_currpm);
+
+	legacy_u8 sound_flags = (legacy_u8)car->state.car_sound_flags;
+	legacy_int crashed = car->state.car_crashBmpFlag == CRASH_EVENT_COLLISION ||
+						 car->state.car_crashBmpFlag == CRASH_EVENT_WATER;
+	if (crashed) {
+		sound_flags &= (legacy_u8)~CAR_SOUND_ENGINE_ACTIVE_FLAG;
+	}
+	audio_player_car_flags = (legacy_s8)audio_carstate_update_flags(
+		sound_flags, audio_player_engine_channel, (legacy_u8)audio_player_car_flags);
+	audio_carstate_finish_record();
+
+	/* Native ticks can repeat at a higher playback rate. Switches and seeks
+	 * prime this cursor at the displayed frame so past events stay silent. */
+	if (car->camera.frame > multi_replay_audio_frame) {
+		if (crashed && car->camera.crash_frame > multi_replay_audio_frame &&
+			car->camera.crash_frame <= car->camera.frame) {
+			audio_play_crash_and_stop_engine(audio_player_engine_channel);
+		}
+		audio_play_car_events(sound_flags, audio_player_engine_channel);
+		multi_replay_audio_frame = car->camera.frame;
+	}
+}
+#endif
+
 void audio_carstate(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		audio_multi_replay_carstate();
+		return;
+	}
+#endif
 	if (is_in_replay != 0) {
 		audio_carstate_enter_replay();
 		return;
@@ -248,10 +390,5 @@ void audio_carstate(void)
 
 	audio_carstate_update_car_flags(car_count);
 
-	audio_car_state_ready = 1;
-	audio_car_state_write_index = LEGACY_S16_WRAP_ADD(audio_car_state_write_index, 1);
-	if (audio_car_state_write_index == AUDIO_CAR_STATE_RECORD_COUNT) {
-		audio_car_state_write_index = 0;
-	}
-	audio_previous_replay_mode = (legacy_u8)is_in_replay;
+	audio_carstate_finish_record();
 }

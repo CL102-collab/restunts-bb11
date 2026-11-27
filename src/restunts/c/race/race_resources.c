@@ -29,6 +29,9 @@
 #include "../skybox.h"
 #include "race_graphics.h"
 #include "../car/car_audio.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
 #include "../audio/audio_control.h"
 #include "../car/car_resources.h"
 #include "../externs.h"
@@ -150,7 +153,11 @@ static void setup_car_engine_resources(void)
 	audio_car_state_ready = 0;
 	audio_player_car_flags = 0;
 	audio_opponent_car_flags = 0;
-	if (gameconfig.game_opponenttype != 0) {
+	if (gameconfig.game_opponenttype != 0
+#ifdef RESTUNTS_MULTI_REPLAY
+		&& !multi_replay_is_active()
+#endif
+	) {
 		audio_opponent_engine_channel = audio_init_engine(
 			OPPONENT_ENGINE_LEGACY_TYPE, &opponent_engine_definition, eng1ptr, engptr);
 	}
@@ -158,6 +165,11 @@ static void setup_car_engine_resources(void)
 	audio_car_state_read_index = 0;
 	audio_car_state_write_index = 0;
 	audio_car_state_interval = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		audio_multi_replay_begin();
+	}
+#endif
 }
 
 static void setup_car_physics_resources(void)
@@ -225,7 +237,11 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 	 * car 3D container in its original arena position because later legacy
 	 * state still observes that memory layout, but avoid the much larger 2D
 	 * dashboard allocation that memory-heavy custom cars cannot afford. */
-	if (idle_expired == 0 && load_dashboard_shapes) {
+	if (idle_expired == 0 && load_dashboard_shapes
+#ifdef RESTUNTS_MULTI_REPLAY
+		&& !multi_replay_is_active()
+#endif
+	) {
 		AMIGA_RACE_TRACE("dashboard");
 		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
 	}
@@ -276,8 +292,15 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 		return 1;
 	}
 #ifdef RESTUNTS_MULTI_REPLAY
-	if (multi_replay_is_active() && !frame_multi_replay_load()) {
-		return 1;
+	if (multi_replay_is_active()) {
+		if (!frame_multi_replay_load()) {
+			return 1;
+		}
+		/* Replay dashboards can change mid-race. Allocate their scratch sprites
+		 * above all persistent race sprites, then release them first. */
+		if (idle_expired == 0 && load_dashboard_shapes) {
+			(void)dashboard_replay_select();
+		}
 	}
 #endif
 	followOpponentFlag = 0;
@@ -298,6 +321,7 @@ legacy_s16 setup_player_cars_without_dashboard(void)
 void free_player_cars(void)
 {
 #ifdef RESTUNTS_MULTI_REPLAY
+	dashboard_replay_unload();
 	frame_multi_replay_free();
 #endif
 	/* Backing sprites were allocated after the render window. */
@@ -320,10 +344,18 @@ void free_player_cars(void)
 	unload_resource(gameresptr);
 	if (idle_expired == 0) {
 		mmgr_free(sdgameresptr);
-		setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (!multi_replay_is_active())
+#endif
+		{
+			setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+		}
 	}
 
 	mmgr_free(fontledresptr);
+#ifdef RESTUNTS_MULTI_REPLAY
+	audio_multi_replay_end();
+#endif
 	audio_remove_driver_timer();
 	mmgr_free(engptr);
 	mmgr_free(eng1ptr);

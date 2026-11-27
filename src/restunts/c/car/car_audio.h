@@ -95,6 +95,12 @@ legacy_s16 audio_init_engine(legacy_s16 timer_index, void far *first, void far *
 
 void audio_carstate(void);
 
+#ifdef RESTUNTS_MULTI_REPLAY
+void audio_multi_replay_begin(void);
+void audio_multi_replay_reset(void);
+void audio_multi_replay_end(void);
+#endif
+
 void audio_play_car_events(legacy_u8 flags, legacy_s16 channel);
 extern struct FULL_AUDIO_ENGINE_DEFINITION player_engine_definition;
 extern struct FULL_AUDIO_ENGINE_DEFINITION opponent_engine_definition;

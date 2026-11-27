@@ -6,6 +6,10 @@
 #include "game_input.h"
 #include "externs.h"
 #include "shape3d/shape3d.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "replay/multi_replay.h"
+#include <string.h>
+#endif
 
 #define DASHBOARD_STEERING_SCALE_SHIFT 3U
 #define DASHBOARD_VIEWPORT_WIDTH 320
@@ -139,13 +143,11 @@ static void dashboard_set_viewport(void)
 	sprite_set_target_clip_bounds(0, DASHBOARD_VIEWPORT_WIDTH, 0, height_above_replaybar);
 }
 
-static void dashboard_load_resources(void)
+static void dashboard_load_resources(const legacy_s8 *id, const struct SIMD *simd)
 {
 	for (legacy_u16 index = 0; index < DASHBOARD_CAR_ID_LENGTH; index++) {
-		dashboard_primary_resource_name[index + DASHBOARD_CAR_ID_RESOURCE_OFFSET] =
-			gameconfig.game_playercarid[index];
-		dashboard_secondary_resource_name[index + DASHBOARD_CAR_ID_RESOURCE_OFFSET] =
-			gameconfig.game_playercarid[index];
+		dashboard_primary_resource_name[index + DASHBOARD_CAR_ID_RESOURCE_OFFSET] = id[index];
+		dashboard_secondary_resource_name[index + DASHBOARD_CAR_ID_RESOURCE_OFFSET] = id[index];
 	}
 	stdaresptr = (legacy_s8 far *)file_load_resource(FILE_RESOURCE_SHAPE2D_COLLECTION,
 													 dashboard_primary_resource_name);
@@ -155,7 +157,7 @@ static void dashboard_load_resources(void)
 						  (legacy_s8 far **)whlshapes);
 	locate_many_resources(stdbresptr, dashboard_gear_and_dot_shape_ids,
 						  (legacy_s8 far **)gnobshapes);
-	if (simd_player.spdcenter.py == 0) {
+	if (simd->spdcenter.py == 0) {
 		locate_many_resources(stdbresptr, dashboard_digit_shape_ids, (legacy_s8 far **)digshapes);
 	}
 }
@@ -167,11 +169,11 @@ static legacy_u16 dashboard_panel_width(struct SHAPE2D far *shape)
 
 /* Optional revb uses its header as an instrument-local fill rectangle. The
  * bitmap pixels are unused; stock dashboards without it retain their needle. */
-static void dashboard_load_rpm_bar(void)
+static void dashboard_load_rpm_bar(const struct SIMD *simd)
 {
 	dashboard_rpm_bar = 0;
 	struct SHAPE2D far *shape = (struct SHAPE2D far *)locate_shape_nofatal(stdaresptr, "revb");
-	if (shape == 0 || simd_player.revnumpoints < DASHBOARD_RPM_BAR_MIN_POINTS) {
+	if (shape == 0 || simd->revnumpoints < DASHBOARD_RPM_BAR_MIN_POINTS) {
 		return;
 	}
 	struct SHAPE2D far *panel = whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
@@ -187,10 +189,10 @@ static void dashboard_load_rpm_bar(void)
 
 /* Optional spdc is a 1x1 marker: X centres the visible speed digits and Y
  * sets their top, in instrument-local pixels. SIMD supplies their spacing. */
-static void dashboard_load_speed_center(void)
+static void dashboard_load_speed_center(const struct SIMD *simd)
 {
 	dashboard_speed_center = 0;
-	if (simd_player.spdcenter.py != DASHBOARD_GAUGE_DIGITAL_CENTER_Y) {
+	if (simd->spdcenter.py != DASHBOARD_GAUGE_DIGITAL_CENTER_Y) {
 		return;
 	}
 	struct SHAPE2D far *shape = (struct SHAPE2D far *)locate_shape_nofatal(stdaresptr, "spdc");
@@ -282,12 +284,12 @@ static void dashboard_load_optional_shapes(void)
 	return;
 }
 
-static void dashboard_load(void)
+static void dashboard_load(const legacy_s8 *id, const struct SIMD *simd)
 {
-	dashboard_load_resources();
+	dashboard_load_resources(id, simd);
 	dashboard_load_instrument_transforms();
-	dashboard_load_rpm_bar();
-	dashboard_load_speed_center();
+	dashboard_load_rpm_bar(simd);
+	dashboard_load_speed_center(simd);
 	dashboard_create_sprites();
 	dashboard_load_optional_shapes();
 }
@@ -334,7 +336,55 @@ static void dashboard_unload(void)
 	return;
 }
 
+#ifdef RESTUNTS_MULTI_REPLAY
+static legacy_u8 dashboard_replay_loaded;
+
+legacy_s16 dashboard_replay_artwork_loaded(void)
+{
+	return dashboard_replay_loaded;
+}
+
+legacy_s16 dashboard_replay_needs_selection(void)
+{
+	const struct MULTI_REPLAY_CAR *car = multi_replay_target_car();
+	if (car == NULL || car->dashboard_available == 0) {
+		return dashboard_replay_loaded;
+	}
+	return dashboard_replay_loaded == 0 ||
+		   memcmp(dashboard_primary_resource_name + DASHBOARD_CAR_ID_RESOURCE_OFFSET, car->id,
+				  DASHBOARD_CAR_ID_LENGTH) != 0;
+}
+
+void dashboard_replay_unload(void)
+{
+	if (dashboard_replay_loaded != 0) {
+		dashboard_unload();
+		dashboard_replay_loaded = 0;
+	}
+}
+
+legacy_s16 dashboard_replay_select(void)
+{
+	if (!dashboard_replay_needs_selection()) {
+		return 0;
+	}
+	struct SPRITE saved_context[SPRITE_STATE_COUNT];
+	sprite_save_context(saved_context);
+	dashboard_replay_unload();
+	const struct MULTI_REPLAY_CAR *car = multi_replay_target_car();
+	if (car != NULL && car->dashboard_available != 0) {
+		dashboard_load(car->id, &car->simd);
+		dashboard_replay_loaded = 1;
+	}
+	sprite_restore_context(saved_context);
+	full_redraw_frames_remaining = video_page_count;
+	return 1;
+}
+#endif
+
 struct DASHBOARD_UPDATE {
+	const struct CARSTATE *car;
+	const struct SIMD *simd;
 	legacy_u16 buffer_index;
 	legacy_u16 speed_index;
 	legacy_u16 rpm_index;
@@ -364,10 +414,10 @@ static void dashboard_rebuild_gearbox_background(void)
 	sprite_restore_context(saved_context);
 }
 
-static void dashboard_update_gear(legacy_u16 buffer_index)
+static void dashboard_update_gear(const struct CARSTATE *car, legacy_u16 buffer_index)
 {
-	if (state.playerstate.car_gear_change_delay == GEAR_CHANGE_DELAY_EXPIRED &&
-		state.playerstate.car_changing_gear == CAR_GEAR_CHANGE_INACTIVE &&
+	if (car->car_gear_change_delay == GEAR_CHANGE_DELAY_EXPIRED &&
+		car->car_changing_gear == CAR_GEAR_CHANGE_INACTIVE &&
 		dashboard_gear_knob_visible_cache[buffer_index] != 0) {
 		if (video_uses_page_flipping == 0) {
 			mouse_draw_opaque_check();
@@ -376,20 +426,20 @@ static void dashboard_update_gear(legacy_u16 buffer_index)
 		dashboard_copy_panel(dashboard_gearbox_sprite, whlshapes[DASHBOARD_GEARBOX_SHAPE]);
 		dashboard_gear_knob_visible_cache[buffer_index] = 0;
 	} else if (dashboard_gear_knob_visible_cache[buffer_index] !=
-				   (legacy_u8)state.playerstate.car_changing_gear ||
-			   dashboard_gear_knob_x_cache[buffer_index] != state.playerstate.car_knob_x ||
-			   dashboard_gear_knob_y_cache[buffer_index] != state.playerstate.car_knob_y ||
-			   (state.playerstate.car_gear_change_delay != GEAR_CHANGE_DELAY_EXPIRED &&
+				   (legacy_u8)car->car_changing_gear ||
+			   dashboard_gear_knob_x_cache[buffer_index] != car->car_knob_x ||
+			   dashboard_gear_knob_y_cache[buffer_index] != car->car_knob_y ||
+			   (car->car_gear_change_delay != GEAR_CHANGE_DELAY_EXPIRED &&
 				dashboard_gear_knob_visible_cache[buffer_index] == 0)) {
 		dashboard_select_panel_target(dashboard_gearbox_sprite, whlshapes[DASHBOARD_GEARBOX_SHAPE]);
 		dashboard_gear_knob_visible_cache[buffer_index] = 1;
 		shape2d_rle_copy_clipped(whlshapes[DASHBOARD_GEARBOX_SHAPE], 0, 0);
-		dashboard_gear_knob_x_cache[buffer_index] = state.playerstate.car_knob_x;
-		dashboard_gear_knob_y_cache[buffer_index] = state.playerstate.car_knob_y;
+		dashboard_gear_knob_x_cache[buffer_index] = car->car_knob_x;
+		dashboard_gear_knob_y_cache[buffer_index] = car->car_knob_y;
 		sprite_and_image_at_anchor(gnobshapes[DASHBOARD_GEAR_KNOB_BACKGROUND_SHAPE],
-								   state.playerstate.car_knob_x, state.playerstate.car_knob_y);
-		sprite_or_image_at_anchor(gnobshapes[DASHBOARD_GEAR_KNOB_SHAPE],
-								  state.playerstate.car_knob_x, state.playerstate.car_knob_y);
+								   car->car_knob_x, car->car_knob_y);
+		sprite_or_image_at_anchor(gnobshapes[DASHBOARD_GEAR_KNOB_SHAPE], car->car_knob_x,
+								  car->car_knob_y);
 		if (video_uses_page_flipping != 0) {
 			sprite_select_mcga_backbuffer();
 		} else {
@@ -402,7 +452,7 @@ static void dashboard_update_gear(legacy_u16 buffer_index)
 
 static void dashboard_update_wheel(struct DASHBOARD_UPDATE *update)
 {
-	update->steering_position = dashboard_steering_position(state.playerstate.car_steeringAngle);
+	update->steering_position = dashboard_steering_position(update->car->car_steeringAngle);
 	update->wheel_state = DASHBOARD_WHEEL_STATE_CENTER;
 	if (update->steering_position < DASHBOARD_STEERING_LEFT_LIMIT) {
 		update->wheel_state = DASHBOARD_WHEEL_STATE_LEFT;
@@ -425,28 +475,28 @@ static void dashboard_update_wheel(struct DASHBOARD_UPDATE *update)
 
 static void dashboard_select_gauges(struct DASHBOARD_UPDATE *update)
 {
-	if (simd_player.spdcenter.py == DASHBOARD_GAUGE_HIDDEN_CENTER_Y) {
+	if (update->simd->spdcenter.py == DASHBOARD_GAUGE_HIDDEN_CENTER_Y) {
 		update->speed_index = 0;
 		update->gauge_mode = DASHBOARD_GAUGE_HIDDEN;
-	} else if (simd_player.spdcenter.py == DASHBOARD_GAUGE_DIGITAL_CENTER_Y) {
+	} else if (update->simd->spdcenter.py == DASHBOARD_GAUGE_DIGITAL_CENTER_Y) {
 		update->speed_index =
-			(legacy_u16)state.playerstate.car_rev_speed >> DASHBOARD_DIGITAL_SPEED_SHIFT;
+			(legacy_u16)update->car->car_rev_speed >> DASHBOARD_DIGITAL_SPEED_SHIFT;
 		update->gauge_mode = DASHBOARD_GAUGE_DIGITAL;
 	} else {
 		update->speed_index =
-			LEGACY_U16_DIV_OR_ZERO(state.playerstate.car_rev_speed, DASHBOARD_ANALOG_SPEED_DIVISOR);
-		if ((legacy_s16)update->speed_index >= simd_player.spdnumpoints) {
-			update->speed_index = (legacy_u16)(simd_player.spdnumpoints - 1);
+			LEGACY_U16_DIV_OR_ZERO(update->car->car_rev_speed, DASHBOARD_ANALOG_SPEED_DIVISOR);
+		if ((legacy_s16)update->speed_index >= update->simd->spdnumpoints) {
+			update->speed_index = (legacy_u16)(update->simd->spdnumpoints - 1);
 		}
 		update->gauge_mode = DASHBOARD_GAUGE_ANALOG;
 	}
-	update->rpm_index = (legacy_u16)state.playerstate.car_currpm >> DASHBOARD_RPM_INDEX_SHIFT;
-	if ((legacy_s16)update->rpm_index >= simd_player.revnumpoints) {
-		update->rpm_index = (legacy_u16)(simd_player.revnumpoints - 1);
+	update->rpm_index = (legacy_u16)update->car->car_currpm >> DASHBOARD_RPM_INDEX_SHIFT;
+	if ((legacy_s16)update->rpm_index >= update->simd->revnumpoints) {
+		update->rpm_index = (legacy_u16)(update->simd->revnumpoints - 1);
 	}
 }
 
-static legacy_u8 dashboard_draw_centered_speed(legacy_u16 speed_index)
+static legacy_u8 dashboard_draw_centered_speed(const struct SIMD *simd, legacy_u16 speed_index)
 {
 	if (dashboard_speed_center == 0) {
 		return 0;
@@ -472,7 +522,7 @@ static legacy_u8 dashboard_draw_centered_speed(legacy_u16 speed_index)
 		if (width == 0 || height == 0 || (legacy_u32)top + height > shape2d_get_height(panel)) {
 			return 0;
 		}
-		legacy_u16 x = (legacy_u8)simd_player.spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
+		legacy_u16 x = (legacy_u8)simd->spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
 		if (x < left) {
 			left = x;
 		}
@@ -487,15 +537,15 @@ static legacy_u8 dashboard_draw_centered_speed(legacy_u16 speed_index)
 		return 0;
 	}
 	for (legacy_u16 index = first; index < DASHBOARD_DIGITAL_DIGIT_COUNT; index++) {
-		legacy_u16 x = (legacy_u8)simd_player.spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
+		legacy_u16 x = (legacy_u8)simd->spdpoints[index * DASHBOARD_POINT_COORDINATE_STRIDE];
 		sprite_putimage_or(digshapes[digits[index]], (legacy_u16)(centered_left + x - left), top);
 	}
 	return 1;
 }
 
-static void dashboard_draw_digital_speed(legacy_u16 speed_index)
+static void dashboard_draw_digital_speed(const struct SIMD *simd, legacy_u16 speed_index)
 {
-	if (dashboard_draw_centered_speed(speed_index) != 0) {
+	if (dashboard_draw_centered_speed(simd, speed_index) != 0) {
 		return;
 	}
 	legacy_u16 digit_group = 0;
@@ -509,20 +559,18 @@ static void dashboard_draw_digital_speed(legacy_u16 speed_index)
 	legacy_u8 digit_started = 0;
 	if (digit_group != 0) {
 		sprite_putimage_or(digshapes[digit_group],
-						   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_HUNDREDS_X],
-						   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_HUNDREDS_Y]);
+						   (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_HUNDREDS_X],
+						   (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_HUNDREDS_Y]);
 		digit_started = 1;
 	}
 	legacy_u16 digit = LEGACY_U16_DIV_OR_ZERO(speed_index, DASHBOARD_DECIMAL_BASE);
 	if (digit != 0 || digit_started != 0) {
-		sprite_putimage_or(digshapes[digit],
-						   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_TENS_X],
-						   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_TENS_Y]);
+		sprite_putimage_or(digshapes[digit], (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_TENS_X],
+						   (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_TENS_Y]);
 		speed_index -= digit * DASHBOARD_DECIMAL_BASE;
 	}
-	sprite_putimage_or(digshapes[speed_index],
-					   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_UNITS_X],
-					   (legacy_u8)simd_player.spdpoints[DASHBOARD_SPEED_UNITS_Y]);
+	sprite_putimage_or(digshapes[speed_index], (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_UNITS_X],
+					   (legacy_u8)simd->spdpoints[DASHBOARD_SPEED_UNITS_Y]);
 }
 
 static void dashboard_draw_wheel_mask(legacy_u8 wheel_state)
@@ -585,12 +633,12 @@ static legacy_u8 dashboard_copy_transformed_instruments(legacy_u8 wheel_state)
 	return 1;
 }
 
-static void dashboard_draw_rpm(legacy_u16 rpm_index, legacy_u8 color)
+static void dashboard_draw_rpm(const struct SIMD *simd, legacy_u16 rpm_index, legacy_u8 color)
 {
 	if (dashboard_rpm_bar != 0) {
 		legacy_u16 height = shape2d_get_height(dashboard_rpm_bar);
-		legacy_u16 filled = (legacy_u16)((legacy_u32)height * rpm_index /
-										 (legacy_u16)(simd_player.revnumpoints - 1));
+		legacy_u16 filled =
+			(legacy_u16)((legacy_u32)height * rpm_index / (legacy_u16)(simd->revnumpoints - 1));
 		if (filled != 0) {
 			sprite_fill_rect_clipped(shape2d_get_pos_x(dashboard_rpm_bar),
 									 shape2d_get_pos_y(dashboard_rpm_bar) + height - filled,
@@ -599,9 +647,8 @@ static void dashboard_draw_rpm(legacy_u16 rpm_index, legacy_u8 color)
 		return;
 	}
 	legacy_u16 dot_index = rpm_index * DASHBOARD_POINT_COORDINATE_STRIDE;
-	preRender_line(simd_player.revcenter.px, simd_player.revcenter.py,
-				   (legacy_u8)simd_player.revpoints[dot_index],
-				   (legacy_u8)simd_player.revpoints[dot_index + DASHBOARD_POINT_Y_OFFSET], color);
+	preRender_line(simd->revcenter.px, simd->revcenter.py, (legacy_u8)simd->revpoints[dot_index],
+				   (legacy_u8)simd->revpoints[dot_index + DASHBOARD_POINT_Y_OFFSET], color);
 }
 
 static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
@@ -630,7 +677,7 @@ static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 		dashboard_rpm_index_cache[update->buffer_index] = (legacy_s16)update->rpm_index;
 
 		legacy_u16 needle_colors =
-			(legacy_u16)simd_player.reserved_handling_words[SIMD_NEEDLE_COLORS_INDEX];
+			(legacy_u16)update->simd->reserved_handling_words[SIMD_NEEDLE_COLORS_INDEX];
 		legacy_u8 speed_color = (legacy_u8)needle_colors;
 		legacy_u8 rpm_color = (legacy_u8)(needle_colors >> LEGACY_BYTE_BITS);
 		if (rpm_color == 0) {
@@ -638,16 +685,16 @@ static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 		}
 
 		if (update->gauge_mode == DASHBOARD_GAUGE_DIGITAL) {
-			dashboard_draw_digital_speed(update->speed_index);
+			dashboard_draw_digital_speed(update->simd, update->speed_index);
 		} else if (update->gauge_mode == DASHBOARD_GAUGE_ANALOG) {
 			dot_index = update->speed_index * DASHBOARD_POINT_COORDINATE_STRIDE;
-			preRender_line(simd_player.spdcenter.px, simd_player.spdcenter.py,
-						   (legacy_u8)simd_player.spdpoints[dot_index],
-						   (legacy_u8)simd_player.spdpoints[dot_index + DASHBOARD_POINT_Y_OFFSET],
+			preRender_line(update->simd->spdcenter.px, update->simd->spdcenter.py,
+						   (legacy_u8)update->simd->spdpoints[dot_index],
+						   (legacy_u8)update->simd->spdpoints[dot_index + DASHBOARD_POINT_Y_OFFSET],
 						   speed_color);
 		}
 
-		dashboard_draw_rpm(update->rpm_index, rpm_color);
+		dashboard_draw_rpm(update->simd, update->rpm_index, rpm_color);
 		legacy_u8 transformed = dashboard_instruments_follow_wheel != 0 &&
 								(dashboard_instrument_transforms[update->wheel_state] != 0 ||
 								 update->wheel_state == DASHBOARD_WHEEL_STATE_CENTER);
@@ -675,7 +722,7 @@ static void dashboard_update_steering_dot(struct DASHBOARD_UPDATE *update)
 		}
 		dashboard_set_viewport();
 		(void)dashboard_clear_steering_dot(update->buffer_index);
-		legacy_u8 *steering_dots = (legacy_u8 *)simd_player.steeringdots;
+		const legacy_u8 *steering_dots = (const legacy_u8 *)update->simd->steeringdots;
 		legacy_u16 dot_index = (legacy_u16)(update->steering_position < 0
 												? LEGACY_S16_WRAP_NEGATE(update->steering_position)
 												: update->steering_position) *
@@ -707,10 +754,18 @@ static void dashboard_update_steering_dot(struct DASHBOARD_UPDATE *update)
 static void dashboard_update(void)
 {
 	struct DASHBOARD_UPDATE update;
-
+	update.car = &state.playerstate;
+	update.simd = &simd_player;
+#ifdef RESTUNTS_MULTI_REPLAY
+	const struct MULTI_REPLAY_CAR *replay_car = multi_replay_target_car();
+	if (replay_car != NULL) {
+		update.car = &replay_car->state;
+		update.simd = &replay_car->simd;
+	}
+#endif
 	update.buffer_index = (legacy_u8)dashboard_buffer_index;
 	update.steering_dot_cleared = 0;
-	dashboard_update_gear(update.buffer_index);
+	dashboard_update_gear(update.car, update.buffer_index);
 	dashboard_update_wheel(&update);
 	dashboard_select_gauges(&update);
 	dashboard_update_instruments(&update);
@@ -722,7 +777,7 @@ void setup_car_shapes(legacy_s16 operation)
 {
 	switch (operation) {
 		case DASHBOARD_OPERATION_LOAD:
-			dashboard_load();
+			dashboard_load(gameconfig.game_playercarid, &simd_player);
 			break;
 		case DASHBOARD_OPERATION_REDRAW_STATIC:
 			dashboard_redraw_static();

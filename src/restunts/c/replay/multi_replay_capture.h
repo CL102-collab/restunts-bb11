@@ -49,7 +49,8 @@ legacy_int multi_replay_source_activate_track(const struct MULTI_REPLAY_SOURCE *
 											  legacy_char *error, size_t error_size);
 
 /* Check the same loose and archived car resources used by native playback. */
-legacy_int multi_replay_car_available(const legacy_s8 *car_id, legacy_int needs_dashboard);
+legacy_int multi_replay_car_available(const legacy_s8 *car_id);
+legacy_int multi_replay_car_has_dashboard(const legacy_s8 *car_id);
 
 /* Capture at the source's native tick rate before loading race presentation
  * resources. Car resources, shared track, and legacy checkpoint allocation

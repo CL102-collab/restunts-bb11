@@ -13,6 +13,9 @@
 #include "../timing.h"
 #include "../fatal.h"
 #include "../car/car_audio.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
 #include "audio_control.h"
 #include "../resource_bytes.h"
 #ifdef RESTUNTS_SDL3
@@ -293,7 +296,11 @@ void audio_apply_car_state_sample(const legacy_u8 far *sample, legacy_s16 interv
 		LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(sample + AUDIO_CAR_STATE_PLAYER_CURRENT_OFFSET +
 												AUDIO_VECTOR_Z_OFFSET)),
 		interval);
-	if (gameconfig.game_opponenttype != 0) {
+	if (gameconfig.game_opponenttype != 0
+#ifdef RESTUNTS_MULTI_REPLAY
+		&& !multi_replay_is_active()
+#endif
+	) {
 		audio_update_engine_spatial(
 			audio_opponent_engine_channel,
 			LEGACY_S16_FROM_BITS(LEGACY_READ_U16_LE(sample + AUDIO_CAR_STATE_OPPONENT_RPM_OFFSET)),

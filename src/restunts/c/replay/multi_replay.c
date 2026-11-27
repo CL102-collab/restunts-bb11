@@ -3,7 +3,6 @@
 #include "multi_replay_capture.h"
 #include "../hires/frame_interpolation.h"
 #include "multi_replay_manifest.h"
-#include "../camera.h"
 #include "../car/car_audio.h"
 #include "../renderer/frame_overlay.h"
 #include "../video/video_frame.h"
@@ -20,6 +19,7 @@ struct MULTI_REPLAY_ENTRY {
 struct MULTI_REPLAY_CAR_PROBE {
 	legacy_s8 id[REPLAY_CAR_ID_SIZE];
 	legacy_u8 available;
+	legacy_u8 dashboard_available;
 };
 
 struct MULTI_REPLAY_SESSION {
@@ -115,19 +115,20 @@ static legacy_int multi_replay_read_manifest(const legacy_s8 *path, legacy_char 
 	return 1;
 }
 
-static legacy_int multi_replay_probe_car(struct MULTI_REPLAY_CAR_PROBE *probes, size_t *count,
-										 const legacy_s8 *id, legacy_int needs_dashboard)
+static const struct MULTI_REPLAY_CAR_PROBE *
+multi_replay_probe_car(struct MULTI_REPLAY_CAR_PROBE *probes, size_t *count, const legacy_s8 *id)
 {
 	for (size_t index = 0; index < *count; index++) {
 		if (SDL_strncasecmp((const legacy_char *)probes[index].id, (const legacy_char *)id,
 							REPLAY_CAR_ID_SIZE) == 0) {
-			return probes[index].available;
+			return &probes[index];
 		}
 	}
 	struct MULTI_REPLAY_CAR_PROBE *probe = &probes[(*count)++];
 	memcpy(probe->id, id, REPLAY_CAR_ID_SIZE);
-	probe->available = multi_replay_car_available(id, needs_dashboard);
-	return probe->available;
+	probe->available = multi_replay_car_available(id);
+	probe->dashboard_available = probe->available && multi_replay_car_has_dashboard(id);
+	return probe;
 }
 
 static legacy_int multi_replay_report_missing_cars(const struct MULTI_REPLAY_CAR_PROBE *probes,
@@ -193,14 +194,16 @@ static legacy_int multi_replay_capture_entries(legacy_char *error, size_t error_
 			valid = multi_replay_error(error, error_size,
 									   "The selected replays no longer use the same track.");
 		}
+		const struct MULTI_REPLAY_CAR_PROBE *cars[MULTI_REPLAY_CARS_PER_RECORDING] = {0};
 		if (valid) {
 			const struct GAMEINFO *config = &source->config;
-			/* Race setup loads a dashboard only for the first replay's player. */
-			all_cars_available &=
-				multi_replay_probe_car(probes, &probed, config->game_playercarid, index == 0U);
+			cars[PLAYER_CAR_INDEX] =
+				multi_replay_probe_car(probes, &probed, config->game_playercarid);
+			all_cars_available &= cars[PLAYER_CAR_INDEX]->available;
 			if (config->game_opponenttype != 0) {
-				all_cars_available &=
-					multi_replay_probe_car(probes, &probed, config->game_opponentcarid, 0);
+				cars[OPPONENT_CAR_INDEX] =
+					multi_replay_probe_car(probes, &probed, config->game_opponentcarid);
+				all_cars_available &= cars[OPPONENT_CAR_INDEX]->available;
 			}
 		}
 		if (valid && all_cars_available && index == 0U) {
@@ -231,6 +234,8 @@ static legacy_int multi_replay_capture_entries(legacy_char *error, size_t error_
 		for (legacy_u8 car_index = 0; car_index < capture->car_count; car_index++) {
 			struct MULTI_REPLAY_CAR *car = &session.cars[session.car_count++];
 			car->simd = capture->simd[car_index];
+			car->frame_rate = capture->config.game_framespersec;
+			car->dashboard_available = cars[car_index]->dashboard_available;
 			if (car_index == PLAYER_CAR_INDEX) {
 				memcpy(car->id, capture->config.game_playercarid, REPLAY_CAR_ID_SIZE);
 				car->material = capture->config.game_playermaterial;
@@ -296,8 +301,16 @@ const struct MULTI_REPLAY_CAR *multi_replay_car(size_t index)
 	return index < session.car_count ? &session.cars[index] : NULL;
 }
 
+const struct MULTI_REPLAY_CAR *multi_replay_target_car(void)
+{
+	return session.active ? &session.cars[session.target] : NULL;
+}
+
 void multi_replay_cycle_target(legacy_s16 direction)
 {
+	if (session.car_count < 2U) {
+		return;
+	}
 	if (direction < 0) {
 		session.target = session.target == 0U ? session.car_count - 1U : session.target - 1U;
 	} else {
@@ -312,8 +325,7 @@ void multi_replay_cycle_target(legacy_s16 direction)
 		}
 		index -= count;
 	}
-	/* The original cockpit instruments and engine channels belong to the first replay. */
-	followOpponentFlag = session.target != 0U;
+	audio_multi_replay_reset();
 	full_redraw_frames_remaining = (legacy_s8)video_page_count;
 	frame_renderer_reset();
 }
@@ -323,18 +335,20 @@ static void multi_replay_sample(legacy_u32 frame)
 	size_t next_car = 0;
 	for (size_t index = 0; index < session.entry_count; index++) {
 		const struct MULTI_REPLAY_CAPTURE *capture = &session.entries[index].capture;
-		legacy_u64 native_frame =
-			(legacy_u64)frame * capture->config.game_framespersec / MULTI_REPLAY_FRAME_RATE;
-		size_t sample_index =
-			native_frame > capture->frame_count ? capture->frame_count : (size_t)native_frame;
+		const legacy_u64 native_time = (legacy_u64)frame * capture->config.game_framespersec;
+		const legacy_u64 last_time = (legacy_u64)capture->frame_count * MULTI_REPLAY_FRAME_RATE;
+		const legacy_u8 finished = native_time > last_time;
+		const size_t sample_index =
+			finished ? capture->frame_count : (size_t)(native_time / MULTI_REPLAY_FRAME_RATE);
 		for (legacy_u8 car_index = 0; car_index < capture->car_count; car_index++) {
 			struct MULTI_REPLAY_CAR *car = &session.cars[next_car++];
 			car->state = capture->frames[sample_index].cars[car_index].car;
 			car->camera = capture->frames[sample_index].cars[car_index].camera;
+			car->finished = finished;
 		}
 	}
 
-	/* Keep the ordinary overlay and audio inputs populated for the first replay. */
+	/* Keep the first replay in the legacy race state for shared scene effects. */
 	const struct MULTI_REPLAY_CAR *player = &session.cars[PLAYER_CAR_INDEX];
 	state.playerstate = player->state;
 	state.game_follow_camera_position[PLAYER_CAR_INDEX] = player->camera.follow_position;
@@ -371,6 +385,7 @@ void multi_replay_seek(legacy_u32 frame)
 {
 	session.input_frame = frame < session.duration ? frame : session.duration;
 	multi_replay_sample(session.input_frame);
+	audio_multi_replay_reset();
 }
 
 legacy_int multi_replay_queue_frame(void)
@@ -384,8 +399,12 @@ legacy_int multi_replay_queue_frame(void)
 
 void multi_replay_present_input_frame(void)
 {
-	multi_replay_sample(session.input_frame);
-	audio_carstate();
+	/* Each native sample can carry a brief audio event. Let the race loop catch
+	 * up one tick at a time so it passes each event to the audio driver. */
+	if (session.frame < session.input_frame) {
+		multi_replay_sample(session.frame + 1U);
+		audio_carstate();
+	}
 }
 
 void multi_replay_interpolate(legacy_u32 lag, struct MULTI_REPLAY_CAR *destination)

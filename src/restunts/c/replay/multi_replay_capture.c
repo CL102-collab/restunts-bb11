@@ -201,25 +201,23 @@ static legacy_int multi_replay_car_resource_exists(const legacy_s8 *car_id, cons
 	return 0;
 }
 
-legacy_int multi_replay_car_available(const legacy_s8 *car_id, legacy_int needs_dashboard)
+legacy_int multi_replay_car_available(const legacy_s8 *car_id)
 {
 	static const legacy_char *const physics_extensions[] = {".res", ".pre"};
 	static const legacy_char *const model_extensions[] = {".p3s", ".3sh"};
-	static const legacy_char *const dashboard_extensions[] = {".pvs", ".vsh", ".xvs", ".pes",
-															  ".esh"};
 	return multi_replay_car_resource_exists(car_id, "car", physics_extensions,
 											sizeof(physics_extensions) /
 												sizeof(physics_extensions[0])) &&
 		   multi_replay_car_resource_exists(car_id, "st", model_extensions,
-											sizeof(model_extensions) /
-												sizeof(model_extensions[0])) &&
-		   (!needs_dashboard ||
-			(multi_replay_car_resource_exists(car_id, "stda", dashboard_extensions,
-											  sizeof(dashboard_extensions) /
-												  sizeof(dashboard_extensions[0])) &&
-			 multi_replay_car_resource_exists(car_id, "stdb", dashboard_extensions,
-											  sizeof(dashboard_extensions) /
-												  sizeof(dashboard_extensions[0]))));
+											sizeof(model_extensions) / sizeof(model_extensions[0]));
+}
+
+legacy_int multi_replay_car_has_dashboard(const legacy_s8 *car_id)
+{
+	static const legacy_char *const extensions[] = {".pvs", ".vsh", ".xvs", ".pes", ".esh"};
+	const size_t count = sizeof(extensions) / sizeof(extensions[0]);
+	return multi_replay_car_resource_exists(car_id, "stda", extensions, count) &&
+		   multi_replay_car_resource_exists(car_id, "stdb", extensions, count);
 }
 
 static void multi_replay_save_pose(struct MULTI_REPLAY_CAPTURE_POSE *pose,

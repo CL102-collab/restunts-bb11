@@ -41,8 +41,9 @@ Playback starts directly in the replay viewer. Each car follows its original
 recording, including AI opponents. The replay toolbar seeks through all the
 recordings together. Cars from shorter recordings stay at their final positions.
 Press **T** for the next car or **Shift+T** for the previous car. The top-right
-label shows the replay filename for the current car. Choose **Main menu**
-from the replay menu to leave playback.
+label shows the replay filename for the current car. The dashboard and car
+sounds follow the selected car. Press **D** to toggle the dashboard. Choose
+**Main menu** from the replay menu to leave playback.
 
 The left column contains **Startup options**, **Input settings**, and
 **Driving rules**. The right column contains **Sound settings** and
