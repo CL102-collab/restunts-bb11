@@ -130,7 +130,7 @@ static MultiReplayCatalog scan_replays(wxDir &folder)
 			continue;
 		}
 		auto &variants = track_indices[name.Lower()];
-		const auto entry = variants.emplace(std::move(track), catalog.tracks.size());
+		const auto entry = variants.insert(std::make_pair(std::move(track), catalog.tracks.size()));
 		if (entry.second) {
 			catalog.tracks.push_back({name.empty() ? wxString("Unnamed track") : name, {}});
 		}
