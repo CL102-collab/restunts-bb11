@@ -37,6 +37,9 @@
 #include "race/race.h"
 #include "race/race_resources.h"
 #include "replay/replay.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "replay/multi_replay.h"
+#endif
 #include "ghost/ghost.h"
 #include "replay/replay_record.h"
 #include "replay/replay_viewer.h"
@@ -317,6 +320,32 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 	mmgr_release(cvxptr);
 }
 
+#ifdef RESTUNTS_MULTI_REPLAY
+static void main_menu_run_multi_replay(void)
+{
+	legacy_char error[192];
+	const struct GAMEINFO menu_config = gameconfig;
+	main_menu_backup_track();
+	cvxptr = mmgr_alloc_resbytes("cvx", sizeof(struct GAMESTATE) * GAMESTATE_CHECKPOINT_COUNT);
+	idle_expired = 0;
+	waitflag = STARTUP_WAITING_MESSAGE_Y;
+	show_waiting();
+	if (multi_replay_open(startup_options.multi_replay_manifest, error, sizeof(error))) {
+		replay_recording_flags = 0;
+		run_game();
+	} else {
+		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, error,
+					DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
+					0, 0);
+	}
+	multi_replay_close();
+	gameconfig = menu_config;
+	main_menu_restore_track();
+	mmgr_release(cvxptr);
+	replay_filename[0] = 0;
+}
+#endif
+
 legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 {
 	init_full_game(argc, argv);
@@ -324,6 +353,11 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 	//fatal_error("ai");
 	init_main_input_state();
 	set_default_car();
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (startup_options.multi_replay_manifest != NULL) {
+		main_menu_run_multi_replay();
+	}
+#endif
 
 	legacy_s8 start_in_replay;
 	legacy_s16 reload_track = 1;

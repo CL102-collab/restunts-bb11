@@ -483,6 +483,12 @@ add_library(restunts_vorbis OBJECT third_party/stb/stb_vorbis.c)
 target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
+if(restunts_launcher_supported)
+    target_sources(restunts_game PRIVATE
+        ${core}/replay/multi_replay.c ${core}/replay/multi_replay_capture.c
+        ${core}/frame/frame_multi_replay.c)
+    target_compile_definitions(restunts_game PRIVATE RESTUNTS_MULTI_REPLAY)
+endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(restunts_tandy_core third_party/mame-psg/mame_psg.c)
     set(restunts_tandy_driver ${platform}/tandy_driver.c ${restunts_tandy_core})
@@ -1780,6 +1786,19 @@ if(RESTUNTS_BUILD_TESTS)
         set_tests_properties(extended-replay-engine PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
             TIMEOUT ${restunts_render_test_timeout})
+        if(restunts_launcher_supported)
+            add_executable(test-multi-replay ${platform}/main.c
+                src/restunts/tests/test-multi-replay.c)
+            target_compile_definitions(test-multi-replay PRIVATE
+                RESTUNTS_PIXLDUMP RESTUNTS_MULTI_REPLAY)
+            target_link_libraries(test-multi-replay PRIVATE restunts_game)
+            target_compile_options(test-multi-replay PRIVATE -UNDEBUG)
+            add_test(NAME multi-replay COMMAND test-multi-replay
+                --data-dir "${CMAKE_SOURCE_DIR}/stunts" --nosound)
+            set_tests_properties(multi-replay PROPERTIES
+                ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
+                TIMEOUT ${restunts_render_test_timeout})
+        endif()
         add_executable(test-render-replay ${platform}/main.c
             src/restunts/tests/test-render-replay.c)
         target_compile_definitions(test-render-replay PRIVATE RESTUNTS_PIXLDUMP)

@@ -39,6 +39,13 @@ void hires_shape3d_load_car_meshes(
 	legacy_u16 car, const legacy_s8 *id,
 	const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT]);
 void hires_shape3d_free_car_meshes(void);
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 hires_shape3d_allocate_replay_car_meshes(size_t count);
+void hires_shape3d_load_replay_car_meshes(
+	size_t index, const legacy_s8 *id,
+	const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT]);
+void hires_shape3d_free_replay_car_meshes(void);
+#endif
 /* Lookup is read-only so concurrent geometry workers can share loaded meshes. */
 struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic);
 struct SHAPE3D_HIRES_VECTOR;

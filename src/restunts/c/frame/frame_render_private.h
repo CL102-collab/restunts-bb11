@@ -31,6 +31,10 @@
 #include "../residue.h"
 #include "../renderer/frame_render.h"
 
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
+
 #if defined(RESTUNTS_SDL3)
 #include "../shape3d/shape3d_internal.h"
 #include "../owoot/owoot_road.h"
@@ -39,6 +43,23 @@
 #endif
 
 extern const struct GAMESTATE *frame_state;
+
+#ifdef RESTUNTS_MULTI_REPLAY
+const struct MULTI_REPLAY_CAR *frame_viewed_multi_replay_car(void);
+legacy_s16 frame_multi_replay_load(void);
+void frame_multi_replay_free(void);
+void frame_multi_replay_begin_interpolation(legacy_u32 lag);
+void frame_multi_replay_end_interpolation(void);
+void frame_multi_replay_place_cars(const struct FRAME_TILE_SELECTION *tiles);
+legacy_s16 frame_multi_replay_tile_has_car(const struct FRAME_TILE *tile);
+void frame_multi_replay_prepare_tile(const struct FRAME_TILE *tile,
+									 const struct FRAME_CAMERA *camera, legacy_s8 flags);
+legacy_s16 frame_multi_replay_draw_before(legacy_s32 depth);
+void frame_multi_replay_draw_explosions(struct RECTANGLE *cliprect);
+void frame_multi_replay_add_shadows(const struct FRAME_CAMERA *camera);
+void frame_draw_explosion(struct RECTANGLE *bounds, struct RECTANGLE *cliprect,
+						  legacy_s16 explosion_index);
+#endif
 
 struct FRAME_CAR_RENDER {
 	legacy_s8 east, south;
@@ -194,11 +215,13 @@ void font_set_fontdef2(void far *data);
 void font_set_fontdef(void);
 void frame_mark_changed_rects(void);
 void frame_present(struct RECTANGLE *cliprect);
-void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
+void frame_prepare_car_model(struct TRANSFORMEDSHAPE3D *instance,
+							 const struct TRACKOBJECT *track_object,
 							 const struct CARSTATE *carstate, struct SHAPE3D *wheel_shape,
 							 legacy_s16 *wheel_angles, struct VECTOR *wheel_vectors,
 							 struct VECTOR *wheel_vector, legacy_s8 tile_detail);
-void frame_prepare_car_clipping(const struct CARSTATE *carstate, struct RECTANGLE *slow_rect,
+void frame_prepare_car_clipping(struct TRANSFORMEDSHAPE3D *instance,
+								const struct CARSTATE *carstate, struct RECTANGLE *slow_rect,
 								struct RECTANGLE *crash_rect);
 void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, legacy_u16 car_object,
 				   struct SHAPE3D *wheel_shape, legacy_s16 *wheel_angles,
@@ -221,7 +244,7 @@ legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const struct SI
 legacy_s8 frame_begin(legacy_s8 buffer_index);
 const struct CARSTATE *frame_second_car_state(void);
 const struct CARSTATE *frame_viewed_car_state(void);
-const struct GHOST_CAMERA_STATE *frame_viewed_ghost_camera(void);
+const struct GHOST_CAMERA_STATE *frame_viewed_recorded_camera(void);
 legacy_s16 frame_position_camera(struct FRAME_CAMERA *camera, const struct VECTOR *car_pos,
 								 legacy_s16 car_rot_x, legacy_s16 car_rot_y, legacy_s16 car_rot_z,
 								 const struct GHOST_CAMERA_STATE *ghost_camera);

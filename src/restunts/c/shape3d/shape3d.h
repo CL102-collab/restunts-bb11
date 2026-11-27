@@ -16,6 +16,9 @@
 #define SHAPE3D_VISIBILITY_MASK_SIZE 4U
 #define SHAPE3D_POLYGON_MAX_VERTICES 10U
 #define SHAPE3D_WHEEL_RIM_VERTEX_COUNT 3U
+#define SHAPE3D_CAR_WHEEL_CENTER_COUNT 2U
+#define SHAPE3D_CAR_WHEEL_VERTEX_COUNT 24U
+#define SHAPE3D_CAR_WHEEL_STATE_CACHE_SIZE 5
 #define SHAPE3D_WHEEL_FIRST_AXIS 1U
 #define SHAPE3D_WHEEL_SECOND_AXIS 2U
 
@@ -94,6 +97,18 @@ void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct V
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source);
 void shape3d_load_car_shapes(legacy_s8 *carid, legacy_s8 *opponent_carid);
 void shape3d_free_car_shapes(void);
+#ifdef RESTUNTS_MULTI_REPLAY
+/* Replay models own a copy of the resource so wheel animation can update
+ * geometry without touching the simulator or its two standard car slots. */
+struct REPLAY_CAR_SHAPES {
+	legacy_s8 *resource;
+	struct SHAPE3D low, wheel, high;
+	struct VECTOR centers[SHAPE3D_CAR_WHEEL_CENTER_COUNT];
+	struct VECTOR vertices[SHAPE3D_CAR_WHEEL_VERTEX_COUNT];
+	legacy_s16 wheel_state[SHAPE3D_CAR_WHEEL_STATE_CACHE_SIZE];
+};
+legacy_s16 shape3d_load_replay_car_shapes(struct REPLAY_CAR_SHAPES *shapes, const legacy_s8 *id);
+#endif
 #if defined(RESTUNTS_SDL3)
 /* Visible local underside at the current projection, clamped to signed renderer units. */
 legacy_s16 shape3d_hires_car_ground_height(const struct SHAPE3D *shape);

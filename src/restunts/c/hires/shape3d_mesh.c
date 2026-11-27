@@ -36,6 +36,31 @@ struct HIRES_CAR_MESHES {
 };
 static struct HIRES_CAR_MESHES hires_car_meshes[HIRES_MESH_CAR_COUNT];
 
+#ifdef RESTUNTS_MULTI_REPLAY
+static struct HIRES_CAR_MESHES *hires_replay_car_meshes;
+static size_t hires_replay_car_meshes_count;
+static size_t hires_replay_car_meshes_loaded;
+#endif
+
+static size_t hires_shape3d_car_mesh_count(void)
+{
+#ifdef RESTUNTS_MULTI_REPLAY
+	return HIRES_MESH_CAR_COUNT + hires_replay_car_meshes_loaded;
+#else
+	return HIRES_MESH_CAR_COUNT;
+#endif
+}
+
+static struct HIRES_CAR_MESHES *hires_shape3d_car_mesh_at(size_t index)
+{
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (index >= HIRES_MESH_CAR_COUNT) {
+		return &hires_replay_car_meshes[index - HIRES_MESH_CAR_COUNT];
+	}
+#endif
+	return &hires_car_meshes[index];
+}
+
 legacy_u8 hires_shape3d_mesh_decode(const legacy_u8 *data, size_t size, struct SHAPE3D *shape)
 {
 	if (shape == NULL) {
@@ -287,13 +312,10 @@ hires_shape3d_decode_car_meshes(struct HIRES_CAR_MESHES *car, size_t size,
 	return 1;
 }
 
-void hires_shape3d_load_car_meshes(legacy_u16 car, const legacy_s8 *id,
-								   const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT])
+static void
+hires_shape3d_load_meshes(struct HIRES_CAR_MESHES *meshes, const legacy_s8 *id,
+						  const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT])
 {
-	if (car >= HIRES_MESH_CAR_COUNT) {
-		return;
-	}
-	struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
 	hires_shape3d_clear_car_meshes(meshes);
 	if (id == NULL || classics == NULL) {
 		return;
@@ -304,6 +326,45 @@ void hires_shape3d_load_car_meshes(legacy_u16 car, const legacy_s8 *id,
 		hires_shape3d_clear_car_meshes(meshes);
 	}
 }
+
+void hires_shape3d_load_car_meshes(legacy_u16 car, const legacy_s8 *id,
+								   const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT])
+{
+	if (car < HIRES_MESH_CAR_COUNT) {
+		hires_shape3d_load_meshes(&hires_car_meshes[car], id, classics);
+	}
+}
+
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 hires_shape3d_allocate_replay_car_meshes(size_t count)
+{
+	hires_replay_car_meshes = calloc(count, sizeof(*hires_replay_car_meshes));
+	hires_replay_car_meshes_count = hires_replay_car_meshes != NULL ? count : 0;
+	return hires_replay_car_meshes != NULL;
+}
+
+void hires_shape3d_load_replay_car_meshes(
+	size_t index, const legacy_s8 *id,
+	const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT])
+{
+	if (index < hires_replay_car_meshes_count) {
+		hires_shape3d_load_meshes(&hires_replay_car_meshes[index], id, classics);
+		if (hires_replay_car_meshes_loaded <= index) {
+			hires_replay_car_meshes_loaded = index + 1U;
+		}
+	}
+}
+
+void hires_shape3d_free_replay_car_meshes(void)
+{
+	for (size_t index = 0; index < hires_replay_car_meshes_loaded; index++) {
+		hires_shape3d_clear_car_meshes(&hires_replay_car_meshes[index]);
+	}
+	free(hires_replay_car_meshes);
+	hires_replay_car_meshes = NULL;
+	hires_replay_car_meshes_count = hires_replay_car_meshes_loaded = 0;
+}
+#endif
 
 void hires_shape3d_free_car_meshes(void)
 {
@@ -316,10 +377,11 @@ void hires_shape3d_free_car_meshes(void)
 struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic)
 {
 	if (classic != NULL) {
-		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+		for (size_t car = 0; car < hires_shape3d_car_mesh_count(); car++) {
+			struct HIRES_CAR_MESHES *meshes = hires_shape3d_car_mesh_at(car);
 			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
-				if (hires_car_meshes[car].classics[index] == classic) {
-					return &hires_car_meshes[car].meshes[index];
+				if (meshes->classics[index] == classic) {
+					return &meshes->meshes[index];
 				}
 			}
 		}
@@ -330,9 +392,9 @@ struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic)
 const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE3D *shape)
 {
 	if (shape != NULL) {
-		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+		for (size_t car = 0; car < hires_shape3d_car_mesh_count(); car++) {
+			struct HIRES_CAR_MESHES *meshes = hires_shape3d_car_mesh_at(car);
 			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
-				const struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
 				if (meshes->classics[index] != NULL &&
 					(shape == meshes->classics[index] || shape == &meshes->meshes[index])) {
 					return meshes->vertices[index];
@@ -350,11 +412,11 @@ void hires_shape3d_update_car_mesh(const struct SHAPE3D *classic)
 		memcpy(mesh->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   classic->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   HIRES_MESH_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
-		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+		for (size_t car = 0; car < hires_shape3d_car_mesh_count(); car++) {
+			struct HIRES_CAR_MESHES *meshes = hires_shape3d_car_mesh_at(car);
 			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
-				if (&hires_car_meshes[car].meshes[index] == mesh &&
-					hires_car_meshes[car].vertices[index] != NULL) {
-					hires_shape3d_copy_native_vertices(mesh, hires_car_meshes[car].vertices[index]);
+				if (&meshes->meshes[index] == mesh && meshes->vertices[index] != NULL) {
+					hires_shape3d_copy_native_vertices(mesh, meshes->vertices[index]);
 					return;
 				}
 			}

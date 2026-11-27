@@ -25,6 +25,9 @@ enum REPLAY_LOOP_OPERATION {
 
 #define REPLAY_LOOP_UNUSED_ARGUMENT 0
 
+legacy_u32 replay_current_frame(void);
+legacy_u32 replay_input_frame(void);
+legacy_u32 replay_recorded_frames(void);
 void loop_game(legacy_s16 operation, legacy_s16 recorded_frame, legacy_s16 current_frame);
 
 #endif

@@ -11,24 +11,26 @@
 #include "../gamestate.h"
 #endif
 
+#ifdef RESTUNTS_MULTI_REPLAY
+#include <stdlib.h>
+#include <string.h>
+#endif
+
 #define CAR_RESOURCE_ID_OFFSET 2U
 #define CAR_ID_LENGTH 4
-#define CAR_WHEEL_CENTER_COUNT 2U
 #define CAR_WHEEL_COUNT 4
 #define CAR_WHEEL_VERTEX_GROUP_SIZE 6
-#define CAR_WHEEL_VERTEX_COUNT 24U
 #define CAR_WHEEL_CENTER_SAMPLE_OFFSET 3U
 #define CAR_FIRST_WHEEL_VERTEX 8U
 #define CAR_STEERED_WHEEL_VERTEX_COUNT 12
-#define CAR_WHEEL_STATE_CACHE_SIZE 5
 #define CAR_WHEEL_STEERING_CACHE_INDEX 4
 #define CAR_WHEEL_VERTICAL_SCALE_SHIFT 6U
 #define PLAYER_EXPLOSION_SHAPE_FIRST 116
 #define OPPONENT_EXPLOSION_SHAPE_FIRST 120
 
 static void shape3d_init_car_wheel_vertices(const struct SHAPE3D *shape,
-											struct VECTOR centers[CAR_WHEEL_CENTER_COUNT],
-											struct VECTOR vertices[CAR_WHEEL_VERTEX_COUNT])
+											struct VECTOR centers[SHAPE3D_CAR_WHEEL_CENTER_COUNT],
+											struct VECTOR vertices[SHAPE3D_CAR_WHEEL_VERTEX_COUNT])
 {
 	struct VECTOR resource_vertex;
 
@@ -76,6 +78,29 @@ static void shape3d_init_car_wheel_vertices(const struct SHAPE3D *shape,
 	}
 }
 
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 shape3d_load_replay_car_shapes(struct REPLAY_CAR_SHAPES *shapes, const legacy_s8 *id)
+{
+	legacy_s8 name[] = "st0000";
+	memcpy(name + CAR_RESOURCE_ID_OFFSET, id, CAR_ID_LENGTH);
+	legacy_s8 *resource = file_load_3dres(name);
+	legacy_u32 size = mmgr_get_chunk_size_bytes(resource);
+	shapes->resource = malloc(size);
+	if (shapes->resource != NULL) {
+		memcpy(shapes->resource, resource, size);
+	}
+	mmgr_release(resource);
+	if (shapes->resource == NULL) {
+		return 0;
+	}
+	shape3d_init_shape(locate_shape_fatal(shapes->resource, "car0"), &shapes->low);
+	shape3d_init_shape(locate_shape_fatal(shapes->resource, "car1"), &shapes->wheel);
+	shape3d_init_shape(locate_shape_fatal(shapes->resource, "car2"), &shapes->high);
+	shape3d_init_car_wheel_vertices(&shapes->wheel, shapes->centers, shapes->vertices);
+	return 1;
+}
+#endif
+
 void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_id[])
 {
 #if defined(RESTUNTS_SDL3)
@@ -96,7 +121,7 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 	shape3d_init_car_wheel_vertices(&game3dshapes[PLAYER_CAR_WHEEL_SHAPE],
 									player_front_wheel_centers, player_base_wheel_vertices);
 
-	for (legacy_s16 i = 0; i < CAR_WHEEL_STATE_CACHE_SIZE; i++) {
+	for (legacy_s16 i = 0; i < SHAPE3D_CAR_WHEEL_STATE_CACHE_SIZE; i++) {
 		player_wheel_vertex_state[i] = 0;
 	}
 
@@ -135,7 +160,7 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 
 		shape3d_init_car_wheel_vertices(&game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],
 										opponent_front_wheel_centers, opponent_base_wheel_vertices);
-		for (legacy_s16 i = 0; i < CAR_WHEEL_STATE_CACHE_SIZE; i++) {
+		for (legacy_s16 i = 0; i < SHAPE3D_CAR_WHEEL_STATE_CACHE_SIZE; i++) {
 			opponent_wheel_vertex_state[i] = 0;
 		}
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "car2"),

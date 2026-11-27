@@ -1,10 +1,14 @@
 #if defined(RESTUNTS_SDL3)
 #include "../frame/frame_render_private.h"
 
-struct VECTOR frame_hires_car_render_offset(const struct CARSTATE *carstate,
-											const struct SHAPE3D *wheel_shape)
+#ifndef RESTUNTS_MULTI_REPLAY
+static
+#endif
+	struct VECTOR
+	frame_hires_car_render_offset_with_ground(const struct CARSTATE *carstate,
+											  legacy_s16 ground_offset)
 {
-	struct VECTOR local = {0, -shape3d_hires_car_ground_offset(wheel_shape), 0};
+	struct VECTOR local = {0, -ground_offset, 0};
 	struct VECTOR offset;
 	struct MATRIX *rotation =
 		mat_rot_zxy(LEGACY_S16_WRAP_NEGATE(carstate->car_rotate.z),
@@ -29,6 +33,13 @@ struct VECTOR frame_hires_car_render_offset(const struct CARSTATE *carstate,
 	}
 	offset.y = LEGACY_S16_WRAP_SUB(offset.y, surface_bias);
 	return offset;
+}
+
+struct VECTOR frame_hires_car_render_offset(const struct CARSTATE *carstate,
+											const struct SHAPE3D *wheel_shape)
+{
+	return frame_hires_car_render_offset_with_ground(carstate,
+													 shape3d_hires_car_ground_offset(wheel_shape));
 }
 
 void frame_hires_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,

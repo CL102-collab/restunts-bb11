@@ -27,6 +27,9 @@
 #include "../ghost/ghost.h"
 #include "race_resources.h"
 #include "../replay/replay.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
 #include "../replay/replay_record.h"
 #include "../replay/replay_viewer.h"
 #include "../shape2d/shape2d.h"
@@ -96,6 +99,21 @@ static void race_initialize_state(void)
 	}
 	dashb_toggle = 0;
 
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		camera_select_mode(CAMERA_MODE_FOLLOW);
+		framespersec = MULTI_REPLAY_FRAME_RATE;
+		timer_ticks_per_frame = DOS_TIMER_REALTIME_TICKS_PER_SECOND / MULTI_REPLAY_FRAME_RATE;
+		frame_callback_countdown = (legacy_u8)timer_ticks_per_frame;
+		elapsed_time1 = 0;
+		state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+		multi_replay_seek(0);
+		mouse_minmax_position(0);
+		loop_game(REPLAY_LOOP_LOAD_RESOURCES, REPLAY_LOOP_UNUSED_ARGUMENT,
+				  REPLAY_LOOP_UNUSED_ARGUMENT);
+		return;
+	}
+#endif
 	if (idle_expired != 0) {
 		framespersec = gameconfig.game_framespersec;
 
@@ -337,6 +355,12 @@ static legacy_u16 race_handle_exit_request(struct RACE_VIEWPORT_CACHE *cache)
 static legacy_u16 race_frame_is_ready(legacy_s64 *last_processed_frame)
 {
 	if (race_current_frame() != race_input_frame()) {
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (multi_replay_is_active()) {
+			multi_replay_present_input_frame();
+			return 0;
+		}
+#endif
 #ifdef RESTUNTS_SDL3
 		if (game_replay_mode == REPLAY_MODE_LIVE) {
 #else
@@ -676,6 +700,13 @@ void run_game(void)
 			race_hires_presentation_finish();
 			ghost_end_race();
 			return;
+		}
+#endif
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (multi_replay_is_active()) {
+			loop_game(REPLAY_LOOP_SELECT_CONTROL, REPLAY_CONTROL_PLAY, REPLAY_LOOP_UNUSED_ARGUMENT);
+			is_in_replay = 0;
+			race_exit_request = 0;
 		}
 #endif
 		AMIGA_NORMAL_RACE_TRACE("initialize complete; frames begin");

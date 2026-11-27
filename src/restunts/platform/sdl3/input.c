@@ -14,6 +14,9 @@
 #include "../../c/hires/hires.h"
 #include "../../c/hires/widescreen.h"
 #include "../../c/opponent/unit_opponent.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../../c/replay/multi_replay.h"
+#endif
 #include <string.h>
 #ifdef __ANDROID__
 #include <jni.h>
@@ -532,6 +535,15 @@ static void input_key(const SDL_KeyboardEvent *event)
 		sdl3_video_screenshot();
 		return;
 	}
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (event->scancode == SDL_SCANCODE_T && multi_replay_is_active()) {
+		if (!was_pressed && !event->repeat &&
+			(event->mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT | SDL_KMOD_GUI)) == 0) {
+			sdl3_input_queue_key((event->mod & SDL_KMOD_SHIFT) != 0 ? 'T' : 't');
+		}
+		return;
+	}
+#endif
 	legacy_u32 scan = legacy_scancode(event->scancode);
 	if (scan == 0) {
 		return;

@@ -116,6 +116,9 @@ struct STARTUP_OPTIONS {
 	legacy_u8 control_layout_specified;
 #endif
 #endif
+#ifdef RESTUNTS_MULTI_REPLAY
+	const legacy_s8 *multi_replay_manifest;
+#endif
 };
 
 extern struct STARTUP_OPTIONS startup_options;

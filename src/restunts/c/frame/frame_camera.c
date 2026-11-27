@@ -15,6 +15,12 @@ struct MATRIX *frame_car_rotation(legacy_s16 rot_x, legacy_s16 rot_y, legacy_s16
 
 const struct CARSTATE *frame_viewed_car_state(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	const struct MULTI_REPLAY_CAR *replay_car = frame_viewed_multi_replay_car();
+	if (replay_car != NULL) {
+		return &replay_car->state;
+	}
+#endif
 	const struct CARSTATE *second_car = followOpponentFlag != 0 ? frame_second_car_state() : 0;
 	return second_car != 0 ? second_car : &frame_state->playerstate;
 }
@@ -39,9 +45,18 @@ legacy_s16 frame_position_camera(struct FRAME_CAMERA *camera, const struct VECTO
 		car_rot_matrix = frame_car_rotation(car_rot_x, car_rot_y, car_rot_z);
 		offset_vector.x = 0;
 		offset_vector.z = 0;
-		offset_vector.y = LEGACY_S16_WRAP_SUB(ghost_camera != 0 ? ghost_car_simd()->car_height
-																: simd_player.car_height,
-											  FRAME_COCKPIT_HEIGHT_CLEARANCE);
+		const struct SIMD *camera_simd;
+#ifdef RESTUNTS_MULTI_REPLAY
+		const struct MULTI_REPLAY_CAR *replay_car = frame_viewed_multi_replay_car();
+		if (replay_car != NULL) {
+			camera_simd = &replay_car->simd;
+		} else
+#endif
+		{
+			camera_simd = ghost_camera != 0 ? ghost_car_simd() : &simd_player;
+		}
+		offset_vector.y =
+			LEGACY_S16_WRAP_SUB(camera_simd->car_height, FRAME_COCKPIT_HEIGHT_CLEARANCE);
 
 		mat_mul_vector(&offset_vector, car_rot_matrix, &car_to_cam_rotated);
 		camera->position.x = LEGACY_S16_WRAP_ADD(car_pos->x, car_to_cam_rotated.x);
@@ -141,7 +156,7 @@ void frame_aim_external_camera(struct FRAME_CAMERA *camera, const struct VECTOR 
 void frame_setup_camera(struct FRAME_CAMERA *camera)
 {
 	const struct CARSTATE *viewed_car = frame_viewed_car_state();
-	const struct GHOST_CAMERA_STATE *ghost_camera = frame_viewed_ghost_camera();
+	const struct GHOST_CAMERA_STATE *ghost_camera = frame_viewed_recorded_camera();
 	struct VECTOR car_pos;
 	car_pos.x = position_to_word(viewed_car->car_position.lx);
 	car_pos.y = position_to_word(viewed_car->car_position.ly);

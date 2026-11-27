@@ -58,6 +58,9 @@
 #include "menu/menu_common.h"
 #include "externs.h"
 #include "startup_internal.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "replay/multi_replay_manifest.h"
+#endif
 
 struct STARTUP_OPTIONS startup_options;
 
@@ -324,6 +327,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->mode4_requested = 0;
 	options->sound_disabled = 0;
 	options->skip_intro = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	options->multi_replay_manifest = NULL;
+#endif
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
 	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
@@ -366,6 +372,19 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #endif
 #endif
 	for (legacy_u16 i = 1; argc > i; ++i) {
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (strcmp(argv[i], MULTI_REPLAY_MANIFEST_OPTION) == 0) {
+			if (options->multi_replay_manifest != NULL || i + 1 >= argc || argv[i + 1][0] == 0 ||
+				(argv[i + 1][0] == '-' && argv[i + 1][1] == '-')) {
+				startup_option_error_text("Specify one file with --multi-replay-manifest.\n");
+				dos_process_exit(1);
+				return;
+			}
+			options->multi_replay_manifest = argv[++i];
+			options->skip_intro = 1;
+			continue;
+		}
+#endif
 		if (strcmp(argv[i], STARTUP_NO_SOUND_OPTION) == 0) {
 			options->sound_disabled = 1;
 			continue;

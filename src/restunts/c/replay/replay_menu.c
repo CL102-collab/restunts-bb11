@@ -5,12 +5,36 @@
 #include "../extended/extended_file_dialog.h"
 #endif
 
+#ifdef RESTUNTS_MULTI_REPLAY
+enum MULTI_REPLAY_PAUSE_ACTION {
+	MULTI_REPLAY_PAUSE_DISPLAY_OPTIONS = 1,
+	MULTI_REPLAY_PAUSE_EXIT = 2
+};
+#endif
+
 static legacy_s8 replay_choose_pause_action(void)
 {
 	is_in_replay = 1;
 	audio_carstate();
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
 	replay_controls_draw(replay_current_frame(), replay_current_frame());
+	full_redraw_frames_remaining = (legacy_u8)video_page_count;
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		static legacy_s8 menu[] =
+			"Multi-replay]}[ Return to replay ][ Display options ][ Main menu ]";
+		switch (show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE, menu,
+								 DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
+								 VIDEO_UI_COLOR(dialog_border_color), 0,
+								 REPLAY_DIALOG_INITIAL_CHOICE)) {
+			case MULTI_REPLAY_PAUSE_DISPLAY_OPTIONS:
+				return REPLAY_PAUSE_ACTION_DISPLAY_OPTIONS;
+			case MULTI_REPLAY_PAUSE_EXIT:
+				return REPLAY_PAUSE_ACTION_EXIT;
+		}
+		return REPLAY_DIALOG_INITIAL_CHOICE;
+	}
+#endif
 	legacy_s16 options[REPLAY_PAUSE_OPTION_COUNT];
 	for (legacy_u16 index = 0; index < REPLAY_PAUSE_OPTION_COUNT; index++) {
 		options[index] = 0;
@@ -28,7 +52,6 @@ static legacy_s8 replay_choose_pause_action(void)
 	if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_RESTARTABLE_FLAG) == 0) {
 		options[REPLAY_PAUSE_ACTION_FINISH] = 1;
 	}
-	full_redraw_frames_remaining = (legacy_u8)video_page_count;
 	return LEGACY_S8_FROM_BITS(show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
 												locate_text_res(gameresptr, replay_pause_menu_id),
 												DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
@@ -284,11 +307,19 @@ static void replay_display_options(void)
 	if (gameconfig.game_opponenttype == 0 && ghost_car_state() == 0) {
 		mode_options[REPLAY_MODE_ACTION_FOLLOW_OPPONENT] = 1;
 	}
-	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(show_race_dialog(
-		DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE,
-		locate_text_res(gameresptr, replay_mode_options_dialog_id), DIALOG_AUTO_POSITION,
-		DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), mode_options,
-		REPLAY_DIALOG_INITIAL_CHOICE));
+	legacy_s8 far *menu = locate_text_res(gameresptr, replay_mode_options_dialog_id);
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		static legacy_s8 multi_replay_menu[] =
+			"Display options]}[ Toggle dashboard ][ Toggle replay bar ][ Change camera ]"
+			"[ Detail level ]";
+		menu = multi_replay_menu;
+	}
+#endif
+	legacy_s8 menu_result = LEGACY_S8_FROM_BITS(
+		show_race_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE, menu, DIALOG_AUTO_POSITION,
+						 DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), mode_options,
+						 REPLAY_DIALOG_INITIAL_CHOICE));
 	switch (menu_result) {
 		case REPLAY_MODE_ACTION_DASHBOARD:
 			dashb_toggle ^= 1;
@@ -339,7 +370,12 @@ void replay_pause_menu(void)
 			replay_display_options();
 			break;
 		case REPLAY_PAUSE_ACTION_EXIT:
-			update_crash_state(CRASH_EVENT_EXIT, PLAYER_CAR_INDEX);
+#ifdef RESTUNTS_MULTI_REPLAY
+			if (!multi_replay_is_active())
+#endif
+			{
+				update_crash_state(CRASH_EVENT_EXIT, PLAYER_CAR_INDEX);
+			}
 			replay_recording_flags = 0;
 			race_exit_request = REPLAY_EXIT_REQUESTED;
 			break;

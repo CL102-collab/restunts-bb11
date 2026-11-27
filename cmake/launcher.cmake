@@ -13,6 +13,12 @@ function(restunts_add_desktop_launcher)
     set(launcher_directory "${CMAKE_SOURCE_DIR}/src/restunts/launcher")
     set(genghost_gui_directory "${CMAKE_SOURCE_DIR}/src/restunts/genghost_gui")
     set(controller_bindings_source "${CMAKE_SOURCE_DIR}/src/restunts/c/controller_bindings.c")
+    set(extended_replay_format_sources
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
+    set(multi_replay_format_sources ${extended_replay_format_sources}
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/replay/replay.c")
     if(RESTUNTS_TARGET_X86 AND NOT RESTUNTS_SSE2)
         add_compile_options(-mno-mmx)
     endif()
@@ -185,15 +191,15 @@ function(restunts_add_desktop_launcher)
         "${launcher_directory}/controller_bindings_dialog.cpp" "${controller_bindings_source}"
         "${launcher_directory}/game_data.cpp" "${launcher_directory}/host_environment.cpp"
         "${launcher_directory}/browser.cpp" "${launcher_directory}/browser_command.cpp"
-        "${launcher_directory}/editor_export.cpp" "${launcher_directory}/editor_open.cpp")
+        "${launcher_directory}/editor_export.cpp" "${launcher_directory}/editor_open.cpp"
+        "${launcher_directory}/multi_replay_catalog.cpp"
+        "${launcher_directory}/multi_replay_dialog.cpp" ${multi_replay_format_sources})
     add_executable(genghost-gui WIN32
         "${genghost_gui_directory}/main.cpp" "${genghost_gui_directory}/options.cpp"
         "${genghost_gui_directory}/extended_options.cpp"
         "${launcher_directory}/options.cpp" "${launcher_directory}/game_data.cpp"
         "${controller_bindings_source}"
-        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
-        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
-        "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
+        ${extended_replay_format_sources})
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" OR RESTUNTS_WX_TOOLKIT STREQUAL "qt"
             OR "__WXQT__" IN_LIST wxWidgets_DEFINITIONS)
         if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_CROSSCOMPILING AND NOT Qt5_DIR)
@@ -299,7 +305,8 @@ function(restunts_add_desktop_launcher)
             RENAME restunts.svg COMPONENT Runtime)
     endif()
     if(RESTUNTS_BUILD_TESTS)
-        foreach(check options game_data host_environment browser_command editor_export)
+        foreach(check IN ITEMS options game_data host_environment browser_command editor_export
+                multi_replay_catalog)
             string(REPLACE "_" "-" test_suffix "${check}")
             add_executable(test-launcher-${test_suffix}
                 "${launcher_directory}/test_${check}.cpp" "${launcher_directory}/${check}.cpp")
@@ -312,14 +319,13 @@ function(restunts_add_desktop_launcher)
             add_test(NAME launcher-${test_suffix} COMMAND test-launcher-${test_suffix})
         endforeach()
         target_sources(test-launcher-options PRIVATE "${controller_bindings_source}")
+        target_sources(test-launcher-multi-replay-catalog PRIVATE ${multi_replay_format_sources})
         add_executable(test-genghost-gui-options
             "${genghost_gui_directory}/test_options.cpp" "${genghost_gui_directory}/options.cpp"
             "${genghost_gui_directory}/extended_options.cpp"
             "${launcher_directory}/options.cpp"
             "${controller_bindings_source}"
-            "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk.c"
-            "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_cstrk_horizon.c"
-            "${CMAKE_SOURCE_DIR}/src/restunts/c/extended/extended_csrpl.c")
+            ${extended_replay_format_sources})
         target_link_libraries(test-genghost-gui-options PRIVATE ${launcher_test_wx_libraries})
         target_compile_definitions(test-genghost-gui-options PRIVATE wxUSE_GUI=0)
         target_compile_features(test-genghost-gui-options PRIVATE cxx_std_11)

@@ -365,6 +365,11 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 	legacy_s16 racing_line_pending = frame_has_racing_line(tile);
 	legacy_s16 racing_line_depth = 0;
 	legacy_s16 depth_sort_racing_line = !frame_renderer_uses_screen_depth();
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		frame_multi_replay_prepare_tile(tile, camera, redraw_transform_flags);
+	}
+#endif
 	if (racing_line_pending != 0 && depth_sort_racing_line != 0) {
 		struct VECTOR origin = frame_racing_line_origin(tile, camera);
 		struct VECTOR view;
@@ -390,6 +395,12 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 				/* A full optional line never suppresses the remaining world shapes. */
 				(void)frame_draw_racing_line(tile, camera, redraw_transform_flags);
 			}
+#ifdef RESTUNTS_MULTI_REPLAY
+			if (multi_replay_is_active() && depth_sort_racing_line != 0 &&
+				frame_multi_replay_draw_before(transformedshape_zarray[shape_index])) {
+				return 1;
+			}
+#endif
 			frame_select_brake_paint(shape_index);
 
 			legacy_s16 transform_result =
@@ -406,6 +417,11 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 	if (racing_line_pending != 0) {
 		(void)frame_draw_racing_line(tile, camera, redraw_transform_flags);
 	}
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && frame_multi_replay_draw_before(-((legacy_s32)LEGACY_U16_MAX))) {
+		return 1;
+	}
+#endif
 	return 0;
 }
 
@@ -533,6 +549,11 @@ legacy_s16 frame_add_track_element(struct FRAME_TILE *tile, const struct FRAME_C
 void frame_add_tile_cars(const struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 						 struct FRAME_CAR_RENDER *cars, legacy_s8 redraw_transform_flags)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return;
+	}
+#endif
 	if ((cars[PLAYER_CAR_INDEX].east == tile->east ||
 		 cars[PLAYER_CAR_INDEX].east == tile->last_east) &&
 		(cars[PLAYER_CAR_INDEX].south == tile->south ||

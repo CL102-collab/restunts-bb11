@@ -34,6 +34,9 @@
 #include "../externs.h"
 #include "../video/video_pages.h"
 #include "../frame/frame_mph.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../frame/frame_render_private.h"
+#endif
 #ifdef RESTUNTS_AMIGA
 #include "../shape2d/shape2d_internal.h"
 #endif
@@ -272,6 +275,11 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 	if (idle_expired == 0 && load_dashboard_shapes != 0 && frame_mph_initialize() != 0) {
 		return 1;
 	}
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && !frame_multi_replay_load()) {
+		return 1;
+	}
+#endif
 	followOpponentFlag = 0;
 	is_in_replay_copy = -1;
 	return 0;
@@ -289,6 +297,9 @@ legacy_s16 setup_player_cars_without_dashboard(void)
 
 void free_player_cars(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	frame_multi_replay_free();
+#endif
 	/* Backing sprites were allocated after the render window. */
 	frame_mph_shutdown();
 #ifdef RESTUNTS_AMIGA

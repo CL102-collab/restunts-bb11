@@ -10,6 +10,9 @@
 #include "../externs.h"
 #include "../camera.h"
 #include "../ghost/ghost.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../frame/frame_render_private.h"
+#endif
 #include "../replay/replay.h"
 #include "../replay/replay_viewer.h"
 #include "../race/race_resources.h"
@@ -140,10 +143,20 @@ void race_hires_draw_visual(void)
 								  &race_hires_presentation.previous, fraction);
 	race_hires_presentation_interpolate_ghost(fraction);
 
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && race_hires_presentation.history_valid != 0 &&
+		is_in_replay == 0) {
+		legacy_u32 lag = race_hires_presentation.sample_span * (FRAME_INTERPOLATION_ONE - fraction);
+		frame_multi_replay_begin_interpolation(lag);
+	}
+#endif
 	race_select_render_target();
 	race_hires_presentation.interpolating = 1;
 	race_draw_frame();
 	race_hires_presentation.interpolating = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	frame_multi_replay_end_interpolation();
+#endif
 }
 
 void race_hires_present_interpolation(void)

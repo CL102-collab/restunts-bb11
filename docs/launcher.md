@@ -28,6 +28,20 @@ the same browser-opening path. The copy remains usable after the game or
 launcher exits or the AppImage is unmounted. Flatpak browser entries are granted
 explicit read access through the document portal.
 
+Choose **Multi-replay...** beside **Track editor...** to watch several replays
+on one track. Choose a folder containing replay files. The track list shows
+the number of matching replays in parentheses. Tracks with the same name but
+different track content appear as separate entries. Select a track, check the
+`.rpl` and `.csrpl` files you want to watch or use **Select all**, then choose
+**Start replay**.
+
+Playback starts directly in the replay viewer. Each car follows its original
+recording, including AI opponents. The replay toolbar seeks through all the
+recordings together. Cars from shorter recordings stay at their final positions.
+Press **T** for the next car or **Shift+T** for the previous car. The top-right
+label shows the replay filename for the current car. Choose **Main menu**
+from the replay menu to leave playback.
+
 The left column contains **Startup options**, **Input settings**, and
 **Driving rules**. The right column contains **Sound settings** and
 **Graphics settings**.

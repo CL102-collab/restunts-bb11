@@ -1,5 +1,6 @@
 #include <wx/wx.h>
 #include <wx/dirdlg.h>
+#include <wx/ffile.h>
 #include <wx/filename.h>
 #include <wx/scrolwin.h>
 #include <wx/process.h>
@@ -12,6 +13,8 @@
 #include "controller_bindings_dialog.h"
 #include "game_data.h"
 #include "editor_open.h"
+#include "multi_replay_dialog.h"
+#include "../c/replay/multi_replay_manifest.h"
 #include <cstdio>
 #ifdef __WXQT__
 #include <QtGui/QKeyEvent>
@@ -109,6 +112,30 @@ static wxString initial_folder(const wxString &game)
 	return current;
 }
 
+static wxString create_multi_replay_manifest(const std::vector<wxString> &replays)
+{
+	wxLogNull quiet;
+	wxFFile file;
+	const wxString name = wxFileName::CreateTempFileName("restunts-multi-replay-", &file);
+	if (name.empty()) {
+		return wxEmptyString;
+	}
+	wxFileName path(name);
+	legacy_bool written =
+		path.MakeAbsolute() && file.Write(MULTI_REPLAY_MANIFEST_HEADER, wxConvUTF8);
+	for (const wxString &replay : replays) {
+		const wxScopedCharBuffer utf8 = replay.utf8_str();
+		const size_t path_size = utf8.length() + 1U;
+		written =
+			written && utf8.data() != nullptr && file.Write(utf8.data(), path_size) == path_size;
+	}
+	if (!file.Close() || !written) {
+		wxRemoveFile(name);
+		return wxEmptyString;
+	}
+	return path.GetFullPath();
+}
+
 class LauncherDialog : public wxDialog
 {
 	public:
@@ -200,27 +227,39 @@ class LauncherDialog : public wxDialog
 		layout->Add(status_, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT, border);
 		layout->Add(new wxStaticLine(this), FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxTOP,
 					border);
-		wxBoxSizer *buttons = new wxBoxSizer(wxHORIZONTAL);
-		wxButton *generator = new wxButton(this, wxID_ANY, "&Ghost generator...");
-		generator->SetToolTip("Open the ghost generator and choose its game folder there.");
-		buttons->Add(generator, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
-		wxButton *editor = new wxButton(this, wxID_ANY, "&Track editor...");
-		editor->SetToolTip("Open the track editor in your default browser.");
-		buttons->Add(editor, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
-		buttons->AddStretchSpacer(GROW_LAYOUT);
-		buttons->Add(CreateButtonSizer(wxOK | wxCANCEL), FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
-		layout->Add(buttons, FIXED_LAYOUT, wxEXPAND | wxALL, border);
-		wxButton *start = static_cast<wxButton *>(FindWindow(wxID_OK));
-		start->SetLabel("&Start game");
-		start->SetDefault();
-		SetSizer(layout);
-		const wxSize fields_minimum = fields->CalcMin();
-		const wxSize footer_minimum = layout->CalcMin();
 		const wxRect screen = wxGetClientDisplayRect();
 		const legacy_int maximum_width =
 			screen.width * VISIBLE_SCREEN_NUMERATOR / VISIBLE_SCREEN_DENOMINATOR;
 		const legacy_int maximum_height =
 			screen.height * VISIBLE_SCREEN_NUMERATOR / VISIBLE_SCREEN_DENOMINATOR;
+		wxBoxSizer *tools = new wxBoxSizer(wxHORIZONTAL);
+		wxButton *generator = new wxButton(this, wxID_ANY, "&Ghost generator...");
+		generator->SetToolTip("Open the ghost generator and choose its game folder there.");
+		tools->Add(generator, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		wxButton *editor = new wxButton(this, wxID_ANY, "&Track editor...");
+		editor->SetToolTip("Open the track editor in your default browser.");
+		tools->Add(editor, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		wxButton *multi_replay = new wxButton(this, wxID_ANY, "&Multi-replay...");
+		tools->Add(multi_replay, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		wxSizer *start_or_cancel = CreateButtonSizer(wxOK | wxCANCEL);
+		wxButton *start = static_cast<wxButton *>(FindWindow(wxID_OK));
+		start->SetLabel("&Start game");
+		start->SetDefault();
+		const legacy_bool compact =
+			tools->CalcMin().x + start_or_cancel->CalcMin().x + 2 * border > maximum_width;
+		wxBoxSizer *buttons = new wxBoxSizer(compact ? wxVERTICAL : wxHORIZONTAL);
+		if (compact) {
+			buttons->Add(tools, FIXED_LAYOUT, wxBOTTOM, spacing);
+			buttons->Add(start_or_cancel, FIXED_LAYOUT, wxALIGN_RIGHT);
+		} else {
+			buttons->Add(tools, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+			buttons->AddStretchSpacer(GROW_LAYOUT);
+			buttons->Add(start_or_cancel, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		}
+		layout->Add(buttons, FIXED_LAYOUT, wxEXPAND | wxALL, border);
+		SetSizer(layout);
+		const wxSize fields_minimum = fields->CalcMin();
+		const wxSize footer_minimum = layout->CalcMin();
 		const legacy_int width =
 			wxMin(wxMax(wxMax(fields_minimum.x, footer_minimum.x), FromDIP(CONTENT_WIDTH)),
 				  maximum_width);
@@ -234,6 +273,7 @@ class LauncherDialog : public wxDialog
 		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_folder, this);
 		generator->Bind(wxEVT_BUTTON, &LauncherDialog::start_generator, this);
 		editor->Bind(wxEVT_BUTTON, &LauncherDialog::open_track_editor, this);
+		multi_replay->Bind(wxEVT_BUTTON, &LauncherDialog::open_multi_replay, this);
 		Bind(wxEVT_BUTTON, &LauncherDialog::start_game, this, wxID_OK);
 		update_sound_controls();
 #ifdef __WXQT__
@@ -510,6 +550,20 @@ class LauncherDialog : public wxDialog
 
 	void start_game(wxCommandEvent &)
 	{
+		launch_game({});
+	}
+
+	void open_multi_replay(wxCommandEvent &)
+	{
+		const std::vector<wxString> replays =
+			launcher_choose_multi_replays(this, folder_->GetValue());
+		if (!replays.empty()) {
+			launch_game(replays);
+		}
+	}
+
+	void launch_game(const std::vector<wxString> &replays)
+	{
 		if (folder_->GetValue().empty()) {
 			set_status("Choose a game data folder before starting.");
 			return;
@@ -561,8 +615,22 @@ class LauncherDialog : public wxDialog
 			set_status(save_error);
 			return;
 		}
-		launch_program(launcher_game_arguments(game_, options_), folder,
-					   "Cannot start the game executable: " + game_);
+		std::vector<wxString> arguments = launcher_game_arguments(game_, options_);
+		wxString manifest;
+		if (!replays.empty()) {
+			manifest = create_multi_replay_manifest(replays);
+			if (manifest.empty()) {
+				set_status("Cannot prepare the selected replays for playback.");
+				return;
+			}
+			arguments.push_back(MULTI_REPLAY_MANIFEST_OPTION);
+			arguments.push_back(manifest);
+		}
+		if (!launch_program(arguments, folder, "Cannot start the game executable: " + game_) &&
+			!manifest.empty()) {
+			wxLogNull quiet;
+			wxRemoveFile(manifest);
+		}
 	}
 
 	void open_track_editor(wxCommandEvent &)
@@ -599,8 +667,8 @@ class LauncherDialog : public wxDialog
 					   "Cannot start the ghost generator window: " + generator.GetFullPath());
 	}
 
-	void launch_program(const std::vector<wxString> &arguments, const wxString &working_directory,
-						const wxString &failure_message)
+	legacy_bool launch_program(const std::vector<wxString> &arguments,
+							   const wxString &working_directory, const wxString &failure_message)
 	{
 		std::vector<const wxChar *> argument_vector;
 		for (const wxString &argument : arguments) {
@@ -628,7 +696,7 @@ class LauncherDialog : public wxDialog
 			(wait_for_game_ ? SYNCHRONOUS_PROCESS_START_FAILURE : PROCESS_START_FAILURE)) {
 			Show();
 			set_status(failure_message);
-			return;
+			return false;
 		}
 		if (wait_for_game_) {
 			game_exit_code_ = static_cast<legacy_int>(process);
@@ -638,6 +706,7 @@ class LauncherDialog : public wxDialog
 #else
 		EndModal(wxID_OK);
 #endif
+		return true;
 	}
 
 	wxString game_;

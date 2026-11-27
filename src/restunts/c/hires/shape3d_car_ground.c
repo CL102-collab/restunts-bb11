@@ -312,6 +312,18 @@ legacy_s16 shape3d_hires_car_ground_height(const struct SHAPE3D *shape)
 	return height;
 }
 
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 shape3d_hires_neutral_car_ground_offset(const struct SHAPE3D *shape)
+{
+	struct CAR_GROUND_BOUNDS bounds;
+	shape3d_hires_car_ground_bounds(shape, &bounds);
+	legacy_s16 offset = shape3d_hires_calculate_car_ground_level(
+		&bounds, projection_focal_length_x, projection_focal_length_y, CAR_PHYSICS_TIRE_BOTTOM);
+	shape3d_hires_car_ground_clear(&bounds);
+	return offset;
+}
+#endif
+
 void shape3d_hires_reset_car_ground_offsets(void)
 {
 	for (legacy_u16 index = 0; index < CAR_GROUND_OFFSET_CACHE_COUNT; index++) {

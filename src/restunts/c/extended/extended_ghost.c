@@ -43,15 +43,25 @@ int extended_ghost_read(const legacy_s8 *path, struct EXTENDED_GHOST_REPLAY *out
 		offset += chunk;
 	}
 	dos_file_close(file);
-	if (!csrpl_decode(candidate.bytes, candidate.size, &candidate.view, NULL, 0)) {
-		free(candidate.bytes);
+	if (!extended_ghost_decode(candidate.bytes, candidate.size, &candidate.view, config)) {
+		extended_ghost_free(&candidate);
 		return 0;
 	}
-	const struct CSRPL_METADATA *metadata = &candidate.view.metadata;
+	*out = candidate;
+	return 1;
+}
+
+legacy_int extended_ghost_decode(const legacy_u8 *bytes, size_t size, struct CSRPL_VIEW *view,
+								 struct GAMEINFO *config)
+{
+	struct CSRPL_VIEW decoded;
+	if (!csrpl_decode(bytes, size, &decoded, NULL, 0)) {
+		return 0;
+	}
+	const struct CSRPL_METADATA *metadata = &decoded.metadata;
 	if (metadata->opponent_type > CSRPL_CLASSIC_OPPONENT_LAST &&
 		(metadata->opponent_type != CSRPL_UNIT_OPPONENT_TYPE ||
 		 memcmp(metadata->opponent_id, "UNIT", CSRPL_OPPONENT_ID_SIZE) != 0)) {
-		extended_ghost_free(&candidate);
 		return 0;
 	}
 	struct GAMEINFO next;
@@ -69,7 +79,7 @@ int extended_ghost_read(const legacy_s8 *path, struct EXTENDED_GHOST_REPLAY *out
 	/* Kept solely as the legacy nonzero marker. The full count lives in view. */
 	next.game_recordedframes =
 		metadata->frame_count > LEGACY_S16_MAX ? LEGACY_S16_MAX : (legacy_u16)metadata->frame_count;
-	*out = candidate;
+	*view = decoded;
 	*config = next;
 	return 1;
 }

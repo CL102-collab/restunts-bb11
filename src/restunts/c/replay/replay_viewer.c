@@ -136,7 +136,14 @@ static legacy_u16 replay_activate_selected_control(void)
 			replay_controls_select(REPLAY_CONTROL_RESTART);
 			replay_controls_draw(replay_current_frame(), replay_current_frame());
 			frame_renderer_reset();
-			restore_gamestate(REPLAY_FIRST_FRAME);
+#ifdef RESTUNTS_MULTI_REPLAY
+			if (multi_replay_is_active()) {
+				multi_replay_seek(REPLAY_FIRST_FRAME);
+			} else
+#endif
+			{
+				restore_gamestate(REPLAY_FIRST_FRAME);
+			}
 			(void)timer_wait_ticks(REPLAY_RESTART_WAIT_TICKS);
 			replay_controls_select(REPLAY_CONTROL_PAUSE);
 			replay_controls_draw(replay_current_frame(), replay_current_frame());

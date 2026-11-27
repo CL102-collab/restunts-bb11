@@ -5,6 +5,9 @@
 #include "../memmgr.h"
 #include "../platform.h"
 #include "replay_record.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "multi_replay.h"
+#endif
 #include "../timing.h"
 #include "../crash_state.h"
 #include "../car/car_audio.h"
@@ -294,8 +297,16 @@ void replay_update_input_tick(legacy_s16 force_neutral_input)
 #endif
 	} else if (game_replay_mode == REPLAY_MODE_PLAYBACK) {
 #ifdef RESTUNTS_SDL3
-		legacy_s16 handled;
-		if (extended_replay_ui_advance_input(&handled)) {
+		legacy_s16 handled = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (multi_replay_is_active()) {
+			handled = 1;
+			if (multi_replay_queue_frame()) {
+				return;
+			}
+		}
+#endif
+		if (!handled && extended_replay_ui_advance_input(&handled)) {
 			return;
 		}
 #endif

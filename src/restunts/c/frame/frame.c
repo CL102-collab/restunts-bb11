@@ -243,66 +243,61 @@ legacy_s8 frame_animated_material(void)
 	return animated_material;
 }
 
+#ifndef RESTUNTS_MULTI_REPLAY
+static
+#endif
+	void
+	frame_draw_explosion(struct RECTANGLE *bounds, struct RECTANGLE *cliprect,
+						 legacy_s16 explosion_index)
+{
+	if (rect_intersect(bounds, cliprect) != 0) {
+		return;
+	}
+	sprite_set_target_clip_bounds(bounds->left, bounds->right, bounds->top, bounds->bottom);
+	legacy_s16 x =
+		LEGACY_S16_SAR(LEGACY_S16_WRAP_ADD(bounds->right, bounds->left), FRAME_RECT_CENTER_SHIFT);
+	legacy_s16 y =
+		LEGACY_S16_SAR(LEGACY_S16_WRAP_ADD(bounds->bottom, bounds->top), FRAME_RECT_CENTER_SHIFT);
+	legacy_s16 extent = LEGACY_S16_WRAP_SUB(bounds->right, bounds->left);
+	legacy_s16 height = LEGACY_S16_WRAP_SUB(bounds->bottom, bounds->top);
+	if (height > extent) {
+		extent = height;
+	}
+	legacy_s16 scale = LEGACY_S16_FROM_BITS((legacy_u16)LEGACY_S32_DIV_OR_ZERO(
+		LEGACY_S32_WRAP_MUL((legacy_s32)extent, FRAME_EXPLOSION_FIXED_SCALE),
+		(legacy_s32)sdgame2_widths[explosion_index]));
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	legacy_s32 wide_scene = widescreen_logical_width() > FRAME_SCREEN_WIDTH;
+	if (wide_scene && !hires_begin_scene(&drawing_sprite)) {
+		return;
+	}
+#endif
+	shape2d_draw_scaled_transparent_clipped(scale, sdgame2shapes[explosion_index], x, y);
+#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
+	if (wide_scene) {
+		hires_end();
+	}
+#endif
+}
+
 void frame_draw_explosions(struct FRAME_CAR_RENDER *cars, struct RECTANGLE *cliprect)
 {
 	// Draw the three explosion images in successive four-frame phases.
-	struct VECTOR offset_vector;
-	struct RECTANGLE *redraw_rect;
-#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
-	legacy_s32 wide_scene = widescreen_logical_width() > FRAME_SCREEN_WIDTH;
-#endif
 	for (legacy_s16 car_index = 0; car_index < FRAME_EXPLOSION_CAR_COUNT; car_index++) {
 		if (cars[car_index].explosion_visible == 0) {
 			continue;
 		}
+		struct RECTANGLE *redraw_rect;
 		if (slow_video_mgmt_copy == 0) {
-			if (car_index == PLAYER_CAR_INDEX) {
-				redraw_rect = &cars[PLAYER_CAR_INDEX].crash_rect;
-			} else {
-				redraw_rect = &cars[OPPONENT_CAR_INDEX].crash_rect;
-			}
+			redraw_rect = &cars[car_index].crash_rect;
 		} else {
-			if (car_index == PLAYER_CAR_INDEX) {
-				redraw_rect = &frame_player_car_rect;
-			} else {
-				redraw_rect = &frame_opponent_car_rect;
-			}
+			redraw_rect =
+				car_index == PLAYER_CAR_INDEX ? &frame_player_car_rect : &frame_opponent_car_rect;
 		}
-
-		if (rect_intersect(redraw_rect, cliprect) == 0) {
-			sprite_set_target_clip_bounds(redraw_rect->left, redraw_rect->right, redraw_rect->top,
-										  redraw_rect->bottom);
-			offset_vector.x =
-				LEGACY_S16_SAR(LEGACY_S16_WRAP_ADD(redraw_rect->right, redraw_rect->left),
-							   FRAME_RECT_CENTER_SHIFT);
-			offset_vector.y =
-				LEGACY_S16_SAR(LEGACY_S16_WRAP_ADD(redraw_rect->top, redraw_rect->bottom),
-							   FRAME_RECT_CENTER_SHIFT);
-			legacy_s16 extent = LEGACY_S16_WRAP_SUB(redraw_rect->right, redraw_rect->left);
-			legacy_s16 height_or_scale = LEGACY_S16_WRAP_SUB(redraw_rect->bottom, redraw_rect->top);
-			if (height_or_scale > extent) {
-				extent = height_or_scale;
-			}
-
-			legacy_s16 explosion_index =
-				LEGACY_S16_SAR(frame_state->game_frame, FRAME_EXPLOSION_FRAME_SHIFT) %
-				FRAME_EXPLOSION_VARIANT_COUNT;
-			height_or_scale = LEGACY_S16_FROM_BITS((legacy_u16)LEGACY_S32_DIV_OR_ZERO(
-				LEGACY_S32_WRAP_MUL((legacy_s32)extent, FRAME_EXPLOSION_FIXED_SCALE),
-				(legacy_s32)sdgame2_widths[explosion_index]));
-#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
-			if (wide_scene && !hires_begin_scene(&drawing_sprite)) {
-				continue;
-			}
-#endif
-			shape2d_draw_scaled_transparent_clipped(height_or_scale, sdgame2shapes[explosion_index],
-													offset_vector.x, offset_vector.y);
-#if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
-			if (wide_scene) {
-				hires_end();
-			}
-#endif
-		}
+		legacy_s16 explosion_index =
+			LEGACY_S16_SAR(frame_state->game_frame, FRAME_EXPLOSION_FRAME_SHIFT) %
+			FRAME_EXPLOSION_VARIANT_COUNT;
+		frame_draw_explosion(redraw_rect, cliprect, explosion_index);
 	}
 }
 
@@ -312,31 +307,39 @@ void frame_draw_cockpit_effects(struct RECTANGLE *cliprect)
 	sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
 	if (cameramode == CAMERA_MODE_COCKPIT) {
 		const struct CARSTATE *viewed_carstate = frame_viewed_car_state();
-		const struct GHOST_CAMERA_STATE *ghost_camera = frame_viewed_ghost_camera();
-		legacy_s16 frame = frame_state->game_frame;
-		legacy_s16 crash_frame = frame_state->game_pEndFrame;
-		if (ghost_camera != 0) {
-			frame = ghost_camera->frame;
-			crash_frame = ghost_camera->crash_frame;
-		} else if (viewed_carstate == &frame_state->opponentstate) {
-			crash_frame = frame_state->game_oEndFrame;
+		const struct GHOST_CAMERA_STATE *recorded_camera = frame_viewed_recorded_camera();
+		legacy_s16 crash_frame = viewed_carstate == &frame_state->opponentstate
+									 ? frame_state->game_oEndFrame
+									 : frame_state->game_pEndFrame;
+		legacy_s16 effect_frame = LEGACY_S16_WRAP_SUB(frame_state->game_frame, crash_frame);
+		if (recorded_camera != 0) {
+#ifdef RESTUNTS_SDL3
+			/* Long recordings retain 32-bit camera clocks. The overlay consumes
+			 * elapsed time only, and saturates long after either effect completes. */
+			legacy_u32 elapsed = recorded_camera->frame >= recorded_camera->crash_frame
+									 ? recorded_camera->frame - recorded_camera->crash_frame
+									 : 0;
+			effect_frame = elapsed > LEGACY_S16_MAX ? LEGACY_S16_MAX : (legacy_s16)elapsed;
+#else
+			effect_frame =
+				LEGACY_S16_WRAP_SUB(recorded_camera->frame, recorded_camera->crash_frame);
+#endif
 		}
 
 		if (viewed_carstate->car_crashBmpFlag == CRASH_EVENT_COLLISION) {
 			if (slow_video_mgmt_copy != 0) {
-				rect_union(
-					init_crak(frame - crash_frame, cliprect->top, cliprect->bottom - cliprect->top),
-					frame_layer_rects, frame_layer_rects);
+				rect_union(init_crak(effect_frame, cliprect->top, cliprect->bottom - cliprect->top),
+						   frame_layer_rects, frame_layer_rects);
 			} else {
-				init_crak(frame - crash_frame, cliprect->top, cliprect->bottom - cliprect->top);
+				init_crak(effect_frame, cliprect->top, cliprect->bottom - cliprect->top);
 			}
 		} else if (viewed_carstate->car_crashBmpFlag == CRASH_EVENT_WATER) {
 			if (slow_video_mgmt_copy != 0) {
-				rect_union(do_sinking(frame - crash_frame, cliprect->top,
-									  cliprect->bottom - cliprect->top),
-						   frame_layer_rects, frame_layer_rects);
+				rect_union(
+					do_sinking(effect_frame, cliprect->top, cliprect->bottom - cliprect->top),
+					frame_layer_rects, frame_layer_rects);
 			} else {
-				do_sinking(frame - crash_frame, cliprect->top, cliprect->bottom - cliprect->top);
+				do_sinking(effect_frame, cliprect->top, cliprect->bottom - cliprect->top);
 			}
 		}
 	}
@@ -455,6 +458,11 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 #endif
 	shape3d_render_queued_primitives();
 	frame_draw_explosions(cars, cliprect);
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		frame_multi_replay_draw_explosions(cliprect);
+	}
+#endif
 	struct RECTANGLE cockpit_clip = *cliprect;
 #ifdef RESTUNTS_SDL3
 	if (widescreen_active()) {

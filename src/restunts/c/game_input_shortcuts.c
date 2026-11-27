@@ -1,3 +1,7 @@
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "replay/multi_replay.h"
+#endif
+
 #include "fileio.h"
 #include "game_input.h"
 #include "keyboard.h"
@@ -176,6 +180,12 @@ legacy_s16 input_update_controller_camera(void)
 
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && (key == 't' || key == 'T')) {
+		multi_replay_cycle_target(key == 'T' ? -1 : 1);
+		return 1;
+	}
+#endif
 	if (input_handle_display_shortcut(key) || input_handle_camera_shortcut(key)) {
 		return 1;
 	}

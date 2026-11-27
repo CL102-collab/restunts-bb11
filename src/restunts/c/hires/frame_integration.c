@@ -3,7 +3,11 @@
 
 void frame_hires_begin(void)
 {
-	polyinfo_set_expanded(frame_hires_enabled() || ghost_is_active());
+	legacy_u8 expanded_queue = frame_hires_enabled() || ghost_is_active();
+#ifdef RESTUNTS_MULTI_REPLAY
+	expanded_queue |= multi_replay_is_active() != 0;
+#endif
+	polyinfo_set_expanded(expanded_queue);
 	if (hires_active == 0) {
 		frame_hires_reset();
 	}
@@ -17,6 +21,12 @@ void frame_hires_prepare_ground(const struct FRAME_CAMERA *camera)
 	if (hires_active != 0) {
 		shape3d_hires_ground_begin(&camera->position);
 		shape3d_hires_shadows_begin(&camera->position);
+#ifdef RESTUNTS_MULTI_REPLAY
+		if (multi_replay_is_active()) {
+			frame_multi_replay_add_shadows(camera);
+			return;
+		}
+#endif
 		frame_hires_add_car_shadow(&frame_state->playerstate, &simd_player, &camera->position,
 								   &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
 		if (gameconfig.game_opponenttype != 0) {

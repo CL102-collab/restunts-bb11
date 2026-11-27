@@ -6,6 +6,11 @@
 
 legacy_u32 replay_current_frame(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return multi_replay_frame();
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	return extended_replay_frame();
 #else
@@ -15,6 +20,11 @@ legacy_u32 replay_current_frame(void)
 
 legacy_u32 replay_input_frame(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return multi_replay_input_frame();
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	return extended_replay_input_frame();
 #else
@@ -24,6 +34,11 @@ legacy_u32 replay_input_frame(void)
 
 legacy_u32 replay_recorded_frames(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return multi_replay_recorded_frames();
+	}
+#endif
 #ifdef RESTUNTS_SDL3
 	return extended_replay_recorded_frames();
 #else

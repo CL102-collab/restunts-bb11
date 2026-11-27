@@ -25,6 +25,11 @@ static struct FRAME_HIRES_GEOMETRY_JOB hires_geometry_jobs[FRAME_MAXIMUM_TILE_CO
 static legacy_u8 frame_hires_dynamic_tile(const struct FRAME_TILE *tile,
 										  const struct FRAME_CAR_RENDER *cars)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active() && frame_multi_replay_tile_has_car(tile)) {
+		return 1;
+	}
+#endif
 	for (legacy_s32 car = PLAYER_CAR_INDEX; car <= OPPONENT_CAR_INDEX; car++) {
 		if (cars[car].east == tile->east && cars[car].south == tile->south) {
 			return 1;
@@ -145,7 +150,11 @@ void frame_hires_draw_selected(struct FRAME_TILE_SELECTION *tiles, struct FRAME_
 	} else {
 		result = frame_draw_tiles(tiles, camera, cars, redraw_transform_flags, animated_material);
 	}
-	if (result == 0 && frame_hires_adaptive_active != 0) {
+	if (result == 0 && frame_hires_adaptive_active != 0
+#ifdef RESTUNTS_MULTI_REPLAY
+		&& !multi_replay_is_active()
+#endif
+	) {
 		frame_hires_draw_adaptive_particles(camera, cars, redraw_transform_flags);
 	}
 }

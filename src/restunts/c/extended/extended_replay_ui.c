@@ -9,6 +9,9 @@
 #include "../race/race_resources.h"
 #include "../replay/replay.h"
 #include "../replay/replay_viewer.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "../replay/multi_replay.h"
+#endif
 #include "../ghost/ghost.h"
 #include "../replay/replay_viewer_internal.h"
 #include "../resource.h"
@@ -46,15 +49,32 @@
 #define REPLAY_SECONDS_PER_MINUTE 60U
 #define REPLAY_TWO_DIGIT_MINUTES 10U
 
+static legacy_s16 replay_ui_uses_wide_timeline(void)
+{
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return 1;
+	}
+#endif
+	return extended_replay_is_active();
+}
+
+/* The full game uses the same replay clocks for toolbar and seek operations. */
+#ifndef RESTUNTS_MULTI_REPLAY
+#define replay_current_frame extended_replay_frame
+#define replay_input_frame extended_replay_input_frame
+#define replay_recorded_frames extended_replay_recorded_frames
+#endif
+
 legacy_s16 extended_replay_ui_scrub(legacy_s16 direction)
 {
-	if (!extended_replay_is_active()) {
+	if (!replay_ui_uses_wide_timeline()) {
 		return 0;
 	}
 	legacy_u64 accumulated =
 		replay_scrub_begin(direction > 0 ? REPLAY_CONTROL_FAST_FORWARD : REPLAY_CONTROL_REWIND);
-	legacy_u32 origin = extended_replay_input_frame();
-	legacy_u32 limit = direction > 0 ? extended_replay_recorded_frames() - origin : origin;
+	legacy_u32 origin = replay_input_frame();
+	legacy_u32 limit = direction > 0 ? replay_recorded_frames() - origin : origin;
 	legacy_u64 maximum = (legacy_u64)limit * REPLAY_SCRUB_FIXED_SCALE;
 	if (accumulated > maximum) {
 		accumulated = maximum;
@@ -80,14 +100,14 @@ legacy_s16 extended_replay_ui_scrub(legacy_s16 direction)
 		}
 		amount = (legacy_u32)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
 		target = direction > 0 ? origin + amount : origin - amount;
-		replay_controls_draw(extended_replay_frame(), target);
+		replay_controls_draw(replay_current_frame(), target);
 		input_do_checking((legacy_s16)(delta > LEGACY_S16_MAX ? LEGACY_S16_MAX : delta));
 	}
 	frame_renderer_reset();
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
 	replay_draw_waiting();
-	(void)extended_replay_seek(target);
-	replay_controls_draw(extended_replay_frame(), target);
+	(void)extended_replay_ui_seek(target);
+	replay_controls_draw(replay_current_frame(), target);
 	input_do_checking(REPLAY_INPUT_SETTLE_DELTA);
 	if (menu_requested) {
 		replay_pause_menu();
@@ -96,7 +116,7 @@ legacy_s16 extended_replay_ui_scrub(legacy_s16 direction)
 }
 legacy_s16 extended_replay_ui_format_time(legacy_s8 *out, legacy_u32 frame, legacy_s16 fraction)
 {
-	if (!extended_replay_is_active()) {
+	if (!replay_ui_uses_wide_timeline()) {
 		return 0;
 	}
 	/* Match the classic two-column minute field without truncating long replays. */
@@ -108,30 +128,29 @@ legacy_s16 extended_replay_ui_format_time(legacy_s8 *out, legacy_u32 frame, lega
 }
 legacy_s16 extended_replay_ui_format_current_time(legacy_s8 *out)
 {
-	return extended_replay_ui_format_time(out, extended_replay_frame(), 1);
+	return extended_replay_ui_format_time(out, replay_current_frame(), 1);
 }
 legacy_u32 extended_replay_ui_displayed_time(legacy_u32 current, legacy_u32 fallback)
 {
-	return extended_replay_is_active() ? current : fallback;
+	return replay_ui_uses_wide_timeline() ? current : fallback;
 }
 legacy_s16 extended_replay_ui_redraw_time(void)
 {
-	return extended_replay_is_active();
+	return replay_ui_uses_wide_timeline();
 }
 legacy_s16 extended_replay_ui_uses_legacy_limit(void)
 {
-	return !extended_replay_is_active();
+	return !replay_ui_uses_wide_timeline();
 }
 legacy_s16 extended_replay_ui_timeline(legacy_u32 recorded, legacy_u32 current, legacy_u16 range,
 									   legacy_s16 *recorded_position, legacy_s16 *current_position)
 {
-	if (!extended_replay_is_active()) {
+	if (!replay_ui_uses_wide_timeline()) {
 		return 0;
 	}
-	*recorded_position = (legacy_s16)extended_replay_timeline_position(
-		recorded, extended_replay_recorded_frames(), range);
-	*current_position = (legacy_s16)extended_replay_timeline_position(
-		current, extended_replay_recorded_frames(), range);
+	legacy_u32 duration = replay_recorded_frames();
+	*recorded_position = (legacy_s16)extended_replay_timeline_position(recorded, duration, range);
+	*current_position = (legacy_s16)extended_replay_timeline_position(current, duration, range);
 	return 1;
 }
 legacy_s16 extended_replay_ui_restart(void)
@@ -153,6 +172,12 @@ legacy_s16 extended_replay_ui_branch(void)
 }
 legacy_s16 extended_replay_ui_seek(legacy_u32 frame)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		multi_replay_seek(frame);
+		return 1;
+	}
+#endif
 	if (!extended_replay_is_active()) {
 		return 0;
 	}
@@ -161,26 +186,32 @@ legacy_s16 extended_replay_ui_seek(legacy_u32 frame)
 }
 legacy_s16 extended_replay_ui_seek_end(void)
 {
-	return extended_replay_ui_seek(extended_replay_recorded_frames());
+	return extended_replay_ui_seek(replay_recorded_frames());
 }
 legacy_s16 extended_replay_ui_seek_draw(legacy_u32 frame)
 {
 	if (!extended_replay_ui_seek(frame)) {
 		return 0;
 	}
-	replay_controls_draw(extended_replay_frame(), frame);
+	replay_controls_draw(replay_current_frame(), frame);
 	return 1;
 }
 legacy_s16 extended_replay_ui_draw_current(void)
 {
-	if (!extended_replay_is_active()) {
+	if (!replay_ui_uses_wide_timeline()) {
 		return 0;
 	}
-	replay_controls_draw(extended_replay_frame(), extended_replay_frame());
+	legacy_u32 frame = replay_current_frame();
+	replay_controls_draw(frame, frame);
 	return 1;
 }
 void extended_replay_ui_begin_live_track(void)
 {
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		return;
+	}
+#endif
 	if ((extended_track_active() || gameconfig.game_opponenttype == CSRPL_UNIT_OPPONENT_TYPE) &&
 		is_in_replay == 0) {
 		extended_replay_runtime_begin();

@@ -10,6 +10,9 @@
 #include "../menu/menu_internal.h"
 #include "../race/race_resources.h"
 #include "replay.h"
+#ifdef RESTUNTS_MULTI_REPLAY
+#include "multi_replay.h"
+#endif
 #include "replay_viewer.h"
 #include "../ghost/ghost.h"
 #include "replay_viewer_internal.h"
@@ -133,9 +136,6 @@ enum REPLAY_SAVE_STATUS {
 
 #endif
 
-legacy_u32 replay_current_frame(void);
-legacy_u32 replay_input_frame(void);
-legacy_u32 replay_recorded_frames(void);
 void replay_controls_select(legacy_u8 selection);
 void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_frame);
 void replay_draw_waiting(void);

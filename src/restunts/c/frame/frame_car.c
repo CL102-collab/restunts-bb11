@@ -45,7 +45,8 @@ void frame_add_dynamic_shape(struct TRACKOBJECT *track_object, legacy_s16 state_
 	transformed_shape_add_for_sort(z_adjust, 0);
 }
 
-void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
+void frame_prepare_car_model(struct TRANSFORMEDSHAPE3D *instance,
+							 const struct TRACKOBJECT *track_object,
 							 const struct CARSTATE *carstate, struct SHAPE3D *wheel_shape,
 							 legacy_s16 *wheel_angles, struct VECTOR *wheel_vectors,
 							 struct VECTOR *wheel_vector, legacy_s8 tile_detail)
@@ -54,27 +55,28 @@ void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
 		tile_detail != FRAME_TILE_DETAIL_FULL || detail_level >= FRAME_CAR_LOW_DETAIL_FIRST;
 	frame_renderer_override_car_detail(track_object, tile_detail, &low_detail);
 	if (low_detail) {
-		curtransshape_ptr->shapeptr = track_object->ss_loShapePtr;
+		instance->shapeptr = track_object->ss_loShapePtr;
 	} else {
-		curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
+		instance->shapeptr = track_object->ss_shapePtr;
 		shape3d_update_car_wheel_vertices(
 			wheel_shape, FRAME_STEERED_WHEEL_FIRST_VERTEX, carstate->car_steeringAngle,
 			carstate->car_suspension_deflection, wheel_angles, wheel_vectors, wheel_vector);
 	}
 }
 
-void frame_prepare_car_clipping(const struct CARSTATE *carstate, struct RECTANGLE *slow_rect,
+void frame_prepare_car_clipping(struct TRANSFORMEDSHAPE3D *instance,
+								const struct CARSTATE *carstate, struct RECTANGLE *slow_rect,
 								struct RECTANGLE *crash_rect)
 {
 	if (slow_video_mgmt_copy != 0) {
-		curtransshape_ptr->rectptr = slow_rect;
-		curtransshape_ptr->ts_flags = FRAME_TRANSFORM_FLAGS_CLIPPED;
+		instance->rectptr = slow_rect;
+		instance->ts_flags = FRAME_TRANSFORM_FLAGS_CLIPPED;
 	} else if (carstate->car_crashBmpFlag != CRASH_EVENT_COLLISION) {
-		curtransshape_ptr->ts_flags = FRAME_TRANSFORM_FLAGS_DEFAULT;
+		instance->ts_flags = FRAME_TRANSFORM_FLAGS_DEFAULT;
 	} else {
 		*crash_rect = empty_rect;
-		curtransshape_ptr->rectptr = crash_rect;
-		curtransshape_ptr->ts_flags = FRAME_TRANSFORM_FLAGS_CLIPPED;
+		instance->rectptr = crash_rect;
+		instance->ts_flags = FRAME_TRANSFORM_FLAGS_CLIPPED;
 	}
 }
 
@@ -136,9 +138,9 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 	frame_hires_offset_car_shape(&render_offset);
 #endif
 
-	frame_prepare_car_model(track_object, carstate, wheel_shape, wheel_angles, wheel_vectors,
-							wheel_vector, tile_detail);
-	frame_prepare_car_clipping(carstate, slow_rect, crash_rect);
+	frame_prepare_car_model(curtransshape_ptr, track_object, carstate, wheel_shape, wheel_angles,
+							wheel_vectors, wheel_vector, tile_detail);
+	frame_prepare_car_clipping(curtransshape_ptr, carstate, slow_rect, crash_rect);
 
 	curtransshape_ptr->ts_flags |= flags & SHAPE3D_GHOST_FLAG;
 #if defined(RESTUNTS_SDL3)
@@ -209,9 +211,17 @@ legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const struct SI
 
 void frame_place_cars(const struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAR_RENDER *cars)
 {
-	// Locate the player in the visible tile list using its wheels.
 	cars[PLAYER_CAR_INDEX].east = -1;
 	cars[PLAYER_CAR_INDEX].depth_adjustment = 0;
+	cars[OPPONENT_CAR_INDEX].east = -1;
+	cars[OPPONENT_CAR_INDEX].depth_adjustment = 0;
+#ifdef RESTUNTS_MULTI_REPLAY
+	if (multi_replay_is_active()) {
+		frame_multi_replay_place_cars(tiles);
+		return;
+	}
+#endif
+	// Locate the player in the visible tile list using its wheels.
 	if (cameramode != CAMERA_MODE_COCKPIT || followOpponentFlag != 0) {
 		if (frame_state->playerstate.car_crashBmpFlag != CRASH_EVENT_WATER) {
 			cars[PLAYER_CAR_INDEX].depth_adjustment =
@@ -221,8 +231,6 @@ void frame_place_cars(const struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAR
 	}
 
 	// Locate the opponent in the same draw order.
-	cars[OPPONENT_CAR_INDEX].east = -1;
-	cars[OPPONENT_CAR_INDEX].depth_adjustment = 0;
 	const struct CARSTATE *second_car = frame_second_car_state();
 	if (second_car != 0) {
 		if (cameramode != CAMERA_MODE_COCKPIT || followOpponentFlag == 0) {

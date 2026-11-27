@@ -26,6 +26,10 @@ legacy_u8 frame_hires_adaptive_car_flags(const struct CARSTATE *carstate, const 
 legacy_u8 frame_hires_adaptive_tile_flags(const struct FRAME_TILE *tile);
 
 void frame_hires_offset_car_shape(const struct VECTOR *offset);
+#ifdef RESTUNTS_MULTI_REPLAY
+struct VECTOR frame_hires_car_render_offset_with_ground(const struct CARSTATE *carstate,
+														legacy_s16 ground_offset);
+#endif
 struct VECTOR frame_hires_car_render_offset(const struct CARSTATE *carstate,
 											const struct SHAPE3D *wheel_shape);
 

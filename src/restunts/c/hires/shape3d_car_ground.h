@@ -8,6 +8,9 @@
 void shape3d_hires_cache_car_ground_offset(legacy_u16 index, const struct SHAPE3D *shape);
 /* Invalidate cached geometry before car resources are replaced or freed. */
 void shape3d_hires_reset_car_ground_offsets(void);
+#ifdef RESTUNTS_MULTI_REPLAY
+legacy_s16 shape3d_hires_neutral_car_ground_offset(const struct SHAPE3D *shape);
+#endif
 #endif
 
 #endif
