@@ -97,6 +97,21 @@ class BuiltinTypeTests(unittest.TestCase):
                 self.assertEqual(prelude, [])
                 self.assertEqual(text, expected)
 
+    def test_unsized_extern_keeps_inferred_array_size(self):
+        definition = self.parser.parse(
+            "extern const signed char thresholds[]; "
+            "const signed char thresholds[] = {99, 20, 18, 16, 14, 12, 10}; "
+            "void Check(void) { sizeof(thresholds); }", filename="scene.c")
+        declaration = self.parser.parse("extern const signed char thresholds[];",
+                                        filename="renderer.c")
+        model = TRANSLATE.Model()
+        model.collect(definition, "scene")
+        model.collect(declaration, "renderer")
+        generator = TRANSLATE.Generator(model)
+        prelude, text = generator.expr(definition.ext[-1].body.block_items[0])
+        self.assertEqual(prelude, [])
+        self.assertEqual(text, "(7 * sizeof(legacy_s8))")
+
 
     def test_array_pointer_uses_contiguous_element_storage(self):
         for source, expected in (("short (*value)[3];", "legacy_s16 *"),

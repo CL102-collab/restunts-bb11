@@ -344,9 +344,14 @@ class Model:
                 rename[decl.name] = f"rs_{module}_{decl.name}"
         for item in ast.ext:
             decl = item.decl if isinstance(item, A.FuncDef) else item
+            self.scan_types(item)
             if isinstance(decl, A.Decl) and decl.name:
                 name = rename.get(decl.name, decl.name)
-                self.symbols[name] = decl.type
+                # An unsized extern in another unit must preserve the array
+                # bounds supplied by an earlier declaration or initializer.
+                if (not isinstance(decl.type, A.ArrayDecl) or decl.type.dim is not None or
+                        name not in self.symbols):
+                    self.symbols[name] = decl.type
                 self.orig_names[name] = decl.name
                 if isinstance(decl.type, A.FuncDecl):
                     if name not in self.functions or isinstance(item, A.FuncDef):
@@ -356,7 +361,6 @@ class Model:
                         self.global_decls[name] = (decl, rename)
                     if "extern" not in decl.storage:
                         self.global_defs[name] = (decl, rename)
-            self.scan_types(item)
         self.units.append((module, ast, rename))
 
     def scan_types(self, node):

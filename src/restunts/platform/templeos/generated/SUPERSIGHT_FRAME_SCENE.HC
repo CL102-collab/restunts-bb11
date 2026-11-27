@@ -205,8 +205,8 @@ legacy_void RsFrameSupersightDrawSelected(CFrameTileSelection *tiles,CFrameCamer
       break;
     }
     temple_threshold_index_7827=TempleCastS16(temple_attempt_7823);
-    if((temple_threshold_index_7827>=TempleCastS16((*sizeof(legacy_s8))))) {
-      (temple_threshold_index_7827=TempleCastS16(((*sizeof(legacy_s8))-TempleCastU64(1))));
+    if((temple_threshold_index_7827>=TempleCastS16((7*sizeof(legacy_s8))))) {
+      (temple_threshold_index_7827=TempleCastS16(((7*sizeof(legacy_s8))-TempleCastU64(1))));
     }
     (tiles->detail_threshold=
             TempleCastS8(supersight_detail_thresholds[temple_threshold_index_7827]));
