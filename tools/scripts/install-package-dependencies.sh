@@ -106,7 +106,10 @@ case "$target" in
         fi
         apt-get update
         if [[ -n "${compiler:-}" ]]; then
-            apt-get install -y --no-install-recommends "$compiler" "$cxx_compiler" "${emulator_packages[@]}"
+            # Multiarch zstd packages must match. Resolve both copies before
+            # installing the target graphics stack, which depends on them.
+            apt-get install -y --no-install-recommends \
+                "$compiler" "$cxx_compiler" "${emulator_packages[@]}" libzstd1 "libzstd1:$architecture"
         fi
         apt-get install -y --no-install-recommends \
             "libasound2-dev:$architecture" "libpulse-dev:$architecture" "libgtk-3-dev:$architecture" \
