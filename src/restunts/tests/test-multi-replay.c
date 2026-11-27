@@ -37,10 +37,10 @@ static void write_bytes(const legacy_char *path, const void *bytes, size_t size)
 }
 
 static void write_legacy_replay(const legacy_char *path, const struct MULTI_REPLAY_SOURCE *source,
-								legacy_int mismatch)
+								const legacy_char *player_id, legacy_int mismatch)
 {
 	struct GAMEINFO config = {0};
-	memcpy(config.game_playercarid, "PMIN", REPLAY_CAR_ID_SIZE);
+	memcpy(config.game_playercarid, player_id, REPLAY_CAR_ID_SIZE);
 	memcpy(config.game_trackname, source->track_name, REPLAY_TRACK_NAME_SIZE);
 	config.game_playertransmission = TRANSMISSION_AUTOMATIC;
 	config.game_opponentcarid[0] = -1;
@@ -57,7 +57,8 @@ static void write_legacy_replay(const legacy_char *path, const struct MULTI_REPL
 	write_bytes(path, bytes, sizeof(bytes));
 }
 
-static void write_extended_replay(const legacy_char *path, const struct MULTI_REPLAY_SOURCE *source)
+static void write_extended_replay(const legacy_char *path, const struct MULTI_REPLAY_SOURCE *source,
+								  const legacy_char *player_id, const legacy_char *opponent_id)
 {
 	struct CSRPL_METADATA metadata = {0};
 	metadata.version = CSRPL_VERSION;
@@ -67,8 +68,8 @@ static void write_extended_replay(const legacy_char *path, const struct MULTI_RE
 	metadata.player_transmission = TRANSMISSION_AUTOMATIC;
 	metadata.opponent_type = CSRPL_CLASSIC_OPPONENT_LAST;
 	metadata.opponent_transmission = TRANSMISSION_AUTOMATIC;
-	memcpy(metadata.player_car_id, "JAGU", CSRPL_CAR_ID_SIZE);
-	memcpy(metadata.opponent_car_id, "COUN", CSRPL_CAR_ID_SIZE);
+	memcpy(metadata.player_car_id, player_id, CSRPL_CAR_ID_SIZE);
+	memcpy(metadata.opponent_car_id, opponent_id, CSRPL_CAR_ID_SIZE);
 	memcpy(metadata.track_name, source->track_name, CSRPL_TRACK_NAME_SIZE);
 
 	legacy_u8 *inputs = calloc(TEST_LONG_FRAMES, sizeof(*inputs));
@@ -167,19 +168,26 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(mkdtemp(directory) != NULL);
 	legacy_char short_path[REPLAY_FILENAME_SIZE], long_path[REPLAY_FILENAME_SIZE];
 	legacy_char mismatch_path[REPLAY_FILENAME_SIZE], manifest[REPLAY_FILENAME_SIZE];
+	legacy_char missing_player_path[REPLAY_FILENAME_SIZE],
+		missing_opponent_path[REPLAY_FILENAME_SIZE];
 	snprintf(short_path, sizeof(short_path), "%s/" TEST_SHORT_BASENAME ".rpl", directory);
 	snprintf(long_path, sizeof(long_path), "%s/longer.csrpl", directory);
 	snprintf(mismatch_path, sizeof(mismatch_path), "%s/mismatch\ntrack.rpl", directory);
 	snprintf(manifest, sizeof(manifest), "%s/selection", directory);
+	snprintf(missing_player_path, sizeof(missing_player_path), "%s/missing-player.rpl", directory);
+	snprintf(missing_opponent_path, sizeof(missing_opponent_path), "%s/missing-opponent.csrpl",
+			 directory);
 
 	legacy_char error[TEST_ERROR_SIZE] = {0};
 	struct MULTI_REPLAY_SOURCE source = {0};
 	const legacy_s8 *default_replay = file_find("DEFAULT.RPL");
 	assert(default_replay != NULL);
 	assert(multi_replay_source_read(default_replay, &source, error, sizeof(error)));
-	write_legacy_replay(short_path, &source, 0);
-	write_legacy_replay(mismatch_path, &source, 1);
-	write_extended_replay(long_path, &source);
+	write_legacy_replay(short_path, &source, "PMIN", 0);
+	write_legacy_replay(mismatch_path, &source, "PMIN", 1);
+	write_extended_replay(long_path, &source, "JAGU", "COUN");
+	write_legacy_replay(missing_player_path, &source, "Z9K1", 0);
+	write_extended_replay(missing_opponent_path, &source, "z9k1", "Z9K2");
 	multi_replay_source_free(&source);
 
 	write_manifest(manifest, short_path, long_path);
@@ -199,11 +207,21 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(multi_replay_car_count() == 0U);
 	assert(access(manifest, F_OK) != 0);
 
+	write_manifest(manifest, missing_player_path, missing_opponent_path);
+	assert(!multi_replay_open((const legacy_s8 *)manifest, error, sizeof(error)));
+	assert(strcmp(error, "Car files missing for Z9K1, Z9K2. Install the car files in the cars "
+						 "subfolder of the selected game-data folder.") == 0);
+	assert(!multi_replay_is_active());
+	assert(multi_replay_car_count() == 0U);
+	assert(access(manifest, F_OK) != 0);
+
 	extended_track_unload();
 	mmgr_release(cvxptr);
 	assert(unlink(short_path) == 0);
 	assert(unlink(long_path) == 0);
 	assert(unlink(mismatch_path) == 0);
+	assert(unlink(missing_player_path) == 0);
+	assert(unlink(missing_opponent_path) == 0);
 	assert(rmdir(directory) == 0);
 	return 0;
 }

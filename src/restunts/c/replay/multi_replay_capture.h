@@ -48,8 +48,12 @@ legacy_int multi_replay_source_same_track(const struct MULTI_REPLAY_SOURCE *firs
 legacy_int multi_replay_source_activate_track(const struct MULTI_REPLAY_SOURCE *source,
 											  legacy_char *error, size_t error_size);
 
+/* Check the same loose and archived car resources used by native playback. */
+legacy_int multi_replay_car_available(const legacy_s8 *car_id, legacy_int needs_dashboard);
+
 /* Capture at the source's native tick rate before loading race presentation
- * resources. The shared track and legacy checkpoint allocation must be ready. */
+ * resources. Car resources, shared track, and legacy checkpoint allocation
+ * must be ready. */
 legacy_int multi_replay_capture(const struct MULTI_REPLAY_SOURCE *source,
 								struct MULTI_REPLAY_CAPTURE *capture, legacy_char *error,
 								size_t error_size);

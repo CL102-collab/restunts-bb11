@@ -185,25 +185,41 @@ static void multi_replay_apply_rules(legacy_u16 rules)
 }
 
 static legacy_int multi_replay_car_resource_exists(const legacy_s8 *car_id, const legacy_char *stem,
-												   const legacy_char *suffix)
+												   const legacy_char *const *extensions,
+												   size_t extension_count)
 {
-	legacy_char name[sizeof("carXXXX.res")];
-	snprintf(name, sizeof(name), "%s%.*s%s", stem, (legacy_int)REPLAY_CAR_ID_SIZE,
-			 (const legacy_char *)car_id, suffix);
-	legacy_u16 handle = file_open_resource((const legacy_s8 *)name);
-	if (handle == 0) {
-		return 0;
+	for (size_t index = 0; index < extension_count; index++) {
+		legacy_char name[sizeof("stdaXXXX.vsh")];
+		snprintf(name, sizeof(name), "%s%.*s%s", stem, (legacy_int)REPLAY_CAR_ID_SIZE,
+				 (const legacy_char *)car_id, extensions[index]);
+		legacy_u16 handle = file_open_resource((const legacy_s8 *)name);
+		if (handle != 0) {
+			dos_file_close(handle);
+			return 1;
+		}
 	}
-	dos_file_close(handle);
-	return 1;
+	return 0;
 }
 
-static legacy_int multi_replay_car_available(const legacy_s8 *car_id)
+legacy_int multi_replay_car_available(const legacy_s8 *car_id, legacy_int needs_dashboard)
 {
-	return (multi_replay_car_resource_exists(car_id, "car", ".res") ||
-			multi_replay_car_resource_exists(car_id, "car", ".pre")) &&
-		   (multi_replay_car_resource_exists(car_id, "st", ".p3s") ||
-			multi_replay_car_resource_exists(car_id, "st", ".3sh"));
+	static const legacy_char *const physics_extensions[] = {".res", ".pre"};
+	static const legacy_char *const model_extensions[] = {".p3s", ".3sh"};
+	static const legacy_char *const dashboard_extensions[] = {".pvs", ".vsh", ".xvs", ".pes",
+															  ".esh"};
+	return multi_replay_car_resource_exists(car_id, "car", physics_extensions,
+											sizeof(physics_extensions) /
+												sizeof(physics_extensions[0])) &&
+		   multi_replay_car_resource_exists(car_id, "st", model_extensions,
+											sizeof(model_extensions) /
+												sizeof(model_extensions[0])) &&
+		   (!needs_dashboard ||
+			(multi_replay_car_resource_exists(car_id, "stda", dashboard_extensions,
+											  sizeof(dashboard_extensions) /
+												  sizeof(dashboard_extensions[0])) &&
+			 multi_replay_car_resource_exists(car_id, "stdb", dashboard_extensions,
+											  sizeof(dashboard_extensions) /
+												  sizeof(dashboard_extensions[0]))));
 }
 
 static void multi_replay_save_pose(struct MULTI_REPLAY_CAPTURE_POSE *pose,
@@ -260,11 +276,6 @@ legacy_int multi_replay_capture(const struct MULTI_REPLAY_SOURCE *source,
 								size_t error_size)
 {
 	legacy_int has_opponent = source->config.game_opponenttype != 0;
-	if (!multi_replay_car_available(source->config.game_playercarid) ||
-		(has_opponent && !multi_replay_car_available(source->config.game_opponentcarid))) {
-		return multi_replay_capture_error(error, error_size,
-										  "A car used by this replay is unavailable.");
-	}
 	legacy_u64 count = (legacy_u64)source->frame_count + 1U;
 	if (count > SIZE_MAX / sizeof(*capture->frames)) {
 		return multi_replay_capture_error(error, error_size, "The replay is too long to prepare.");

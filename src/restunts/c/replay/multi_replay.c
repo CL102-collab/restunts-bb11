@@ -17,6 +17,11 @@ struct MULTI_REPLAY_ENTRY {
 	struct MULTI_REPLAY_CAPTURE capture;
 };
 
+struct MULTI_REPLAY_CAR_PROBE {
+	legacy_s8 id[REPLAY_CAR_ID_SIZE];
+	legacy_u8 available;
+};
+
 struct MULTI_REPLAY_SESSION {
 	legacy_char *manifest;
 	struct MULTI_REPLAY_ENTRY *entries;
@@ -110,29 +115,107 @@ static legacy_int multi_replay_read_manifest(const legacy_s8 *path, legacy_char 
 	return 1;
 }
 
+static legacy_int multi_replay_probe_car(struct MULTI_REPLAY_CAR_PROBE *probes, size_t *count,
+										 const legacy_s8 *id, legacy_int needs_dashboard)
+{
+	for (size_t index = 0; index < *count; index++) {
+		if (SDL_strncasecmp((const legacy_char *)probes[index].id, (const legacy_char *)id,
+							REPLAY_CAR_ID_SIZE) == 0) {
+			return probes[index].available;
+		}
+	}
+	struct MULTI_REPLAY_CAR_PROBE *probe = &probes[(*count)++];
+	memcpy(probe->id, id, REPLAY_CAR_ID_SIZE);
+	probe->available = multi_replay_car_available(id, needs_dashboard);
+	return probe->available;
+}
+
+static legacy_int multi_replay_report_missing_cars(const struct MULTI_REPLAY_CAR_PROBE *probes,
+												   size_t count, legacy_char *error,
+												   size_t error_size)
+{
+	static const legacy_char prefix[] = "Car files missing for ";
+	static const legacy_char suffix[] =
+		". Install the car files in the cars subfolder of the selected game-data folder.";
+	static const legacy_char omitted[] = ", and others";
+	const size_t reserved = sizeof(prefix) + sizeof(suffix) + sizeof(omitted) - 2U;
+	const size_t room = error_size > reserved ? error_size - reserved : 0U;
+	size_t used = 0;
+	legacy_int truncated = 0;
+
+	for (size_t index = 0; index < count; index++) {
+		if (probes[index].available) {
+			continue;
+		}
+		const legacy_char *id = (const legacy_char *)probes[index].id;
+		SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Multi-replay: missing car resources for %.*s.",
+					(legacy_int)REPLAY_CAR_ID_SIZE, id);
+		const legacy_char *separator = used == 0U ? "" : ", ";
+		const size_t item_size = strlen(separator) + REPLAY_CAR_ID_SIZE;
+		if (room - used < item_size) {
+			truncated = 1;
+			continue;
+		}
+		if (used == 0U) {
+			memcpy(error, prefix, sizeof(prefix) - 1U);
+		}
+		snprintf(error + sizeof(prefix) - 1U + used, room - used + 1U, "%s%.*s", separator,
+				 (legacy_int)REPLAY_CAR_ID_SIZE, id);
+		used += item_size;
+	}
+	if (used == 0U) {
+		return multi_replay_error(error, error_size,
+								  "Missing car resources. Install car files "
+								  "in the game-data cars subfolder.");
+	}
+	const size_t end = sizeof(prefix) - 1U + used;
+	snprintf(error + end, error_size - end, "%s%s", truncated ? omitted : "", suffix);
+	return 0;
+}
+
 static legacy_int multi_replay_capture_entries(legacy_char *error, size_t error_size)
 {
+	struct MULTI_REPLAY_CAR_PROBE *probes =
+		calloc(session.entry_count * MULTI_REPLAY_CARS_PER_RECORDING, sizeof(*probes));
+	if (probes == NULL) {
+		return multi_replay_error(error, error_size, "Not enough memory to check replay cars.");
+	}
 	struct MULTI_REPLAY_SOURCE primary = {0};
+	size_t probed = 0;
+	legacy_int all_cars_available = 1;
 	legacy_int valid = 1;
 	for (size_t index = 0; index < session.entry_count && valid; index++) {
 		struct MULTI_REPLAY_ENTRY *entry = &session.entries[index];
 		struct MULTI_REPLAY_SOURCE current = {0};
 		struct MULTI_REPLAY_SOURCE *source = index == 0U ? &primary : &current;
 		valid = multi_replay_source_read(entry->path, source, error, error_size);
-		if (valid && index == 0U) {
-			valid = multi_replay_source_activate_track(source, error, error_size);
-		}
 		if (valid && index != 0U && !multi_replay_source_same_track(&primary, source)) {
 			valid = multi_replay_error(error, error_size,
 									   "The selected replays no longer use the same track.");
 		}
 		if (valid) {
+			const struct GAMEINFO *config = &source->config;
+			/* Race setup loads a dashboard only for the first replay's player. */
+			all_cars_available &=
+				multi_replay_probe_car(probes, &probed, config->game_playercarid, index == 0U);
+			if (config->game_opponenttype != 0) {
+				all_cars_available &=
+					multi_replay_probe_car(probes, &probed, config->game_opponentcarid, 0);
+			}
+		}
+		if (valid && all_cars_available && index == 0U) {
+			valid = multi_replay_source_activate_track(source, error, error_size);
+		}
+		if (valid && all_cars_available) {
 			valid = multi_replay_capture(source, &entry->capture, error, error_size);
 		}
 		multi_replay_source_free(&current);
 		if (!valid) {
 			SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Multi-replay: %s (%s)", error, entry->path);
 			break;
+		}
+		if (!all_cars_available) {
+			continue;
 		}
 		const struct MULTI_REPLAY_CAPTURE *capture = &entry->capture;
 		legacy_u64 duration = (legacy_u64)capture->frame_count * MULTI_REPLAY_FRAME_RATE /
@@ -158,6 +241,10 @@ static legacy_int multi_replay_capture_entries(legacy_char *error, size_t error_
 		}
 	}
 	multi_replay_source_free(&primary);
+	if (valid && !all_cars_available) {
+		valid = multi_replay_report_missing_cars(probes, probed, error, error_size);
+	}
+	free(probes);
 	return valid;
 }
 

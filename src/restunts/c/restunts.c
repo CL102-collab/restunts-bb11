@@ -39,6 +39,7 @@
 #include "replay/replay.h"
 #ifdef RESTUNTS_MULTI_REPLAY
 #include "replay/multi_replay.h"
+#include <string.h>
 #endif
 #include "ghost/ghost.h"
 #include "replay/replay_record.h"
@@ -321,9 +322,55 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 }
 
 #ifdef RESTUNTS_MULTI_REPLAY
+#define MULTI_REPLAY_START_ERROR_SIZE 192U
+#define MULTI_REPLAY_ERROR_LINE_LENGTH 35U
+
+static void show_multi_replay_start_error(const legacy_char *error)
+{
+	static const legacy_char heading[] = "Could not start multi-replay.]}";
+	static const legacy_char button[] = "}[ OK ]";
+	/* Allow an extra line terminator for each byte of the input. */
+	legacy_char message[sizeof(heading) + 2U * MULTI_REPLAY_START_ERROR_SIZE + sizeof(button)];
+	size_t used = sizeof(heading) - 1U;
+	memcpy(message, heading, used);
+	for (;;) {
+		error += strspn(error, " \t\r\n");
+		if (*error == 0) {
+			break;
+		}
+		size_t count = strcspn(error, "\r\n");
+		if (count > MULTI_REPLAY_ERROR_LINE_LENGTH) {
+			count = MULTI_REPLAY_ERROR_LINE_LENGTH;
+			size_t break_at = count;
+			while (break_at > 0U && error[break_at] != ' ') {
+				break_at--;
+			}
+			if (break_at != 0U) {
+				count = break_at;
+			}
+		}
+		for (size_t index = 0; index < count; index++) {
+			legacy_u8 character = (legacy_u8)error[index];
+			if (character < ' ' || character > '~' || strchr("[]{}@", character) != NULL) {
+				character = '?';
+			}
+			message[used++] = (legacy_char)character;
+		}
+		message[used++] = ']';
+		error += count;
+	}
+	memcpy(message + used, button, sizeof(button));
+
+	check_input();
+	mouse_draw_opaque_check();
+	sprite_select_screen_and_clear();
+	show_dialog(DIALOG_TYPE_MENU, DIALOG_NO_BACKGROUND_SAVE, message, DIALOG_AUTO_POSITION,
+				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
+}
+
 static void main_menu_run_multi_replay(void)
 {
-	legacy_char error[192];
+	legacy_char error[MULTI_REPLAY_START_ERROR_SIZE];
 	const struct GAMEINFO menu_config = gameconfig;
 	main_menu_backup_track();
 	cvxptr = mmgr_alloc_resbytes("cvx", sizeof(struct GAMESTATE) * GAMESTATE_CHECKPOINT_COUNT);
@@ -334,9 +381,7 @@ static void main_menu_run_multi_replay(void)
 		replay_recording_flags = 0;
 		run_game();
 	} else {
-		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, error,
-					DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
-					0, 0);
+		show_multi_replay_start_error(error);
 	}
 	multi_replay_close();
 	gameconfig = menu_config;

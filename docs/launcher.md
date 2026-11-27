@@ -33,7 +33,9 @@ on one track. Choose a folder containing replay files. The track list shows
 the number of matching replays in parentheses. Tracks with the same name but
 different track content appear as separate entries. Select a track, check the
 `.rpl` and `.csrpl` files you want to watch or use **Select all**, then choose
-**Start replay**.
+**Start replay**. If a replay uses a custom car, install its car-ID ZIP or
+extract its resource files into `cars/` in the game-data folder selected in
+the launcher. The game lists any missing car IDs before playback.
 
 Playback starts directly in the replay viewer. Each car follows its original
 recording, including AI opponents. The replay toolbar seeks through all the
