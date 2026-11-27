@@ -223,12 +223,15 @@ const struct FRAME_LOOKAHEAD_TILE *frame_setup_projection(struct FRAME_CAMERA *c
 	return lookahead_tiles;
 }
 
-/* Extended scenery can extend beyond the original finite background shell.
- * Keep the horizon and clouds at infinity while world geometry retains the
- * real camera height. Legacy tracks preserve their original altitude shift. */
+/* HyperVision and extended tracks can draw scenery beyond the original
+ * finite background shell. Keep the horizon and clouds at infinity for
+ * those views while projecting track geometry from the real camera height. */
 legacy_s16 frame_background_camera_height(const struct FRAME_CAMERA *camera)
 {
 #ifdef RESTUNTS_SDL3
+	if (frame_renderer_enabled()) {
+		return 0;
+	}
 	return extended_frame_background_height(camera->position.y);
 #else
 	return camera->position.y;

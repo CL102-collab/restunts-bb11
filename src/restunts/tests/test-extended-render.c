@@ -543,6 +543,77 @@ static void position_classic_render_target(legacy_u8 level)
 	custom_camera.azimuth_angle = 0;
 }
 
+#define CLASSIC_BACKGROUND_CAMERA_ROW 25U
+#define CLASSIC_BACKGROUND_ROAD_DISTANCE 20U
+
+static legacy_u16 check_classic_background_horizon(void)
+{
+	extended_track_unload();
+	legacy_u8 saved_elements[TRACKDATA_MAP_SIZE], saved_terrain[TRACKDATA_MAP_SIZE];
+	memcpy(saved_elements, track_element_map, sizeof(saved_elements));
+	memcpy(saved_terrain, track_terrain_map, sizeof(saved_terrain));
+	memset(track_element_map, 0, sizeof(saved_elements));
+	memset(track_terrain_map, 0, sizeof(saved_terrain));
+
+	struct GAMESTATE saved = state;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	cameramode = CAMERA_MODE_COCKPIT;
+	detail_level = SKYBOX_LOWEST_DETAIL_LEVEL;
+	struct CARSTATE *car = &state.playerstate;
+	car->car_position.lx =
+		(CLASSIC_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2U) *
+		CLASSIC_RENDER_POSITION_SCALE;
+	car->car_position.lz =
+		((TRACK_GRID_LAST_COORDINATE - CLASSIC_BACKGROUND_CAMERA_ROW) * CSTRK_TILE_WORLD_SIZE +
+		 CSTRK_TILE_WORLD_SIZE / 2U) *
+		CLASSIC_RENDER_POSITION_SCALE;
+	car->car_position.ly =
+		(CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT + CLASSIC_RENDER_CAR_CLEARANCE) *
+		CLASSIC_RENDER_POSITION_SCALE;
+	car->car_previous_position = car->car_position;
+	car->car_rotate = (struct VECTOR){0, 0, 0};
+	car->car_crashBmpFlag = CRASH_EVENT_WATER;
+	state.game_particles_active = 0;
+
+	size_t high_size, comparison_size;
+	legacy_u32 *high = capture_complete_render(&high_size);
+	legacy_u32 *comparison;
+	if (renderer_active) {
+		/* The road lies beyond the original horizon's finite distance. Its
+		 * flat surface must cover ground pixels instead of sky. */
+		legacy_u16 road_row = CLASSIC_BACKGROUND_CAMERA_ROW - CLASSIC_BACKGROUND_ROAD_DISTANCE;
+		track_element_map[trackrows[road_row] + CLASSIC_RENDER_COLUMN] = BACKGROUND_RENDER_ROAD_ID;
+		comparison = capture_complete_render(&comparison_size);
+		assert(high_size == comparison_size);
+		legacy_u32 ground = RENDER_CAPTURE_OPAQUE_ALPHA |
+							(legacy_u32)skybox.ground_color * RENDER_CAPTURE_INDEX_RGB_STEP;
+		size_t road_pixels = 0;
+		for (size_t pixel = 0; pixel < high_size; pixel++) {
+			if (comparison[pixel] != high[pixel]) {
+				assert(high[pixel] == ground);
+				road_pixels++;
+			}
+		}
+		assert(road_pixels > 0);
+	} else {
+		car->car_position.ly = CLASSIC_RENDER_CAR_CLEARANCE * CLASSIC_RENDER_POSITION_SCALE;
+		car->car_previous_position = car->car_position;
+		comparison = capture_complete_render(&comparison_size);
+		assert(high_size == comparison_size);
+		/* The classic renderer keeps the original altitude-dependent horizon. */
+		assert(memcmp(high, comparison, high_size * sizeof(*high)) != 0);
+	}
+	free(comparison);
+	free(high);
+	state = saved;
+	cameramode = saved_camera;
+	detail_level = saved_detail;
+	memcpy(track_element_map, saved_elements, sizeof(saved_elements));
+	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
+	return 2U;
+}
+
 static legacy_u16 check_classic_hill_rendering(void)
 {
 	extended_track_unload();
@@ -5367,6 +5438,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		assert(slope_pixels > 16U && edge_pixels > 16U);
 		frames += 4U;
 		frames += check_extended_background_altitude();
+		frames += check_classic_background_horizon();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 		frames += check_extended_fences();
 #endif
