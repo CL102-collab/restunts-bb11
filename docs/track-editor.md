@@ -15,7 +15,7 @@ or upload game files. Supported browsers can write tracks into that folder;
 other browsers require folder selection and download the resulting files.
 Reconnect a remembered folder when the browser requests permission.
 
-On Linux, the launcher's **Track editor…** button and the game's **New/Edit Tracks**
+On Linux, the launcher's **Track editor...** button and the game's **New/Edit Tracks**
 entry for an extended track open the same persistent copy under
 `Downloads/Chocolate Stunts/Track Editor/tracked.html` (or the home-folder
 fallback if no Downloads folder is configured). You can reopen or bookmark

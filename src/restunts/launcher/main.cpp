@@ -204,7 +204,7 @@ class LauncherDialog : public wxDialog
 		wxButton *generator = new wxButton(this, wxID_ANY, "&Ghost generator...");
 		generator->SetToolTip("Open the ghost generator and choose its game folder there.");
 		buttons->Add(generator, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
-		wxButton *editor = new wxButton(this, wxID_ANY, "&Track Editor...");
+		wxButton *editor = new wxButton(this, wxID_ANY, "&Track editor...");
 		editor->SetToolTip("Open the track editor in your default browser.");
 		buttons->Add(editor, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
 		buttons->AddStretchSpacer(GROW_LAYOUT);

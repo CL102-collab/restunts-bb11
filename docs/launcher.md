@@ -16,7 +16,7 @@ toolkit and desktop platform support. It starts the existing sibling `genghost`
 command-line executable. Both windows are included in the Runtime package, with
 separate application-menu entries on Linux and BSD and `Genghost.app` on macOS.
 
-**Track Editor...**, beside **Ghost generator...**, opens the packaged
+**Track editor...**, beside **Ghost generator...**, opens the packaged
 `tracked.html` in your default browser. The startup window stays open. Select
 your game folder in the editor; you can open it before choosing a folder in
 the startup window.

@@ -104,7 +104,7 @@ by default.
 pinned source. This option is incompatible with `RESTUNTS_SSE2=OFF`, because
 CMake cannot control the instruction set of a prebuilt SDL library.
 
-Linux launchers open **Track editor…** with the configured web browser,
+Linux launchers open **Track editor...** with the configured web browser,
 independently of the application associated with local HTML files. AppImages
 restore the caller's original library and desktop settings for browser launches. This keeps bundled GTK libraries
 out of external browsers, including browsers installed through Flatpak.
