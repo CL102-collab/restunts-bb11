@@ -4538,6 +4538,12 @@ static void check_extended_object_animations(void)
 #define OVERVIEW_RENDER_ROAD_LAST_COLUMN 84U
 #define OVERVIEW_RENDER_ROAD_FIRST_ROW 40U
 #define OVERVIEW_RENDER_ROAD_LAST_ROW 46U
+#define OVERVIEW_TURN_MAP_SIZE 6U
+#define OVERVIEW_TURN_ANCHOR 2U
+#define OVERVIEW_TURN_BIG_ID 10U
+#define OVERVIEW_TURN_FOOTPRINT 2U
+#define OVERVIEW_TURN_OCCUPIED_MASK 6U
+#define OVERVIEW_TURN_PLATEAU_LEVEL 1U
 
 static void add_overview_piece(struct CSTRK_TRACK *track, legacy_u16 id, legacy_u8 column,
 							   legacy_u8 row, legacy_u8 width, legacy_u8 height)
@@ -4617,6 +4623,48 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 		}
 	}
 	return copy;
+}
+
+static legacy_u16 check_overview_raised_turn(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[192];
+	cstrk_init(&track);
+	assert(
+		cstrk_create(&track, OVERVIEW_TURN_MAP_SIZE, OVERVIEW_TURN_MAP_SIZE, error, sizeof(error)));
+	const struct CSTRK_OBJECT turn = {.legacy_id = OVERVIEW_TURN_BIG_ID,
+									  .x = OVERVIEW_TURN_ANCHOR,
+									  .y = OVERVIEW_TURN_ANCHOR,
+									  .width = OVERVIEW_TURN_FOOTPRINT,
+									  .height = OVERVIEW_TURN_FOOTPRINT,
+									  .occupied_mask = OVERVIEW_TURN_OCCUPIED_MASK};
+	assert(cstrk_add_object(&track, &turn, error, sizeof(error)));
+	const legacy_u8 asphalt = (legacy_u8)material_clrlist_ptr[CLASSIC_RENDER_PAVED_MATERIAL];
+	size_t pavement[2][OVERVIEW_RENDER_ORBIT_HEADINGS] = {0};
+	for (legacy_u8 level = 0; level <= OVERVIEW_TURN_PLATEAU_LEVEL; level++) {
+		memset(track.corner_heights, level, (track.width + 1U) * (track.height + 1U));
+		track.objects[0].base_height = level;
+		assert(extended_track_activate(&track, error, sizeof(error)));
+		assert(track_setup() == TRACK_SETUP_NO_START_FINISH);
+		for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+			legacy_s32 width, height;
+			legacy_u8 *image =
+				capture_track_overview(heading * OVERVIEW_RENDER_QUARTER_ORBIT, &width, &height);
+			for (size_t pixel = 0; pixel < (size_t)width * height; pixel++) {
+				pavement[level][heading] += image[pixel] == asphalt;
+			}
+			free(image);
+		}
+	}
+	for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+		/* Raising the turn moves it closer to the camera. Coplanar grass in
+		 * the occupied tiles must not cover the pavement after that move. */
+		assert(pavement[0][heading] >= OVERVIEW_RENDER_MIN_ROAD_PIXELS);
+		assert(pavement[OVERVIEW_TURN_PLATEAU_LEVEL][heading] >= pavement[0][heading]);
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return 2U * OVERVIEW_RENDER_ORBIT_HEADINGS;
 }
 
 static legacy_u16 check_restored_track_overview(const struct CSTRK_TRACK *track)
@@ -4981,6 +5029,7 @@ static legacy_u16 check_extended_track_overview(void)
 {
 	assert(hires_enabled());
 	legacy_u32 saved_ticks = visual_clock_ticks;
+	legacy_u16 turn_frames = check_overview_raised_turn();
 	check_extended_object_distance_detail();
 	legacy_u16 detail_frames = check_overview_detail_and_workers();
 	struct CSTRK_TRACK track;
@@ -5064,7 +5113,7 @@ static legacy_u16 check_extended_track_overview(void)
 	visual_clock_ticks = saved_ticks;
 	extended_track_unload();
 	cstrk_free(&track);
-	return 7U + restored_frames + detail_frames;
+	return 7U + restored_frames + detail_frames + turn_frames;
 }
 
 enum {

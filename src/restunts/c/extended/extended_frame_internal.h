@@ -154,7 +154,6 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 									  const struct FRAME_CAMERA *camera, legacy_s8 flags);
 legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 									   legacy_s8 flags);
-void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row);
 legacy_s16 extended_frame_add_start_flag(const struct FRAME_CAMERA *camera,
 										 legacy_s8 redraw_transform_flags);
 legacy_s16 extended_frame_car_visible(const struct CARSTATE *carstate);

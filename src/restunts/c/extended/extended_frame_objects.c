@@ -454,7 +454,7 @@ legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRA
 	return 0;
 }
 
-void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row, legacy_s16 pass)
 {
 	struct FRAME_TILE tile = {0};
 	tile.east = (legacy_s8)column;
@@ -463,7 +463,10 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 	struct FRAME_CAMERA camera = {0};
 	camera.position.x = track_column_centers[column];
 	camera.position.z = track_row_centers[row];
-	extended_frame_draw_terrain(&tile, &camera, 0);
+	if (pass == FRAME_TILE_GROUND_PASS) {
+		extended_frame_draw_terrain(&tile, &camera, 0);
+		return;
+	}
 
 	/* Look up nearby origins instead of scanning the entire object list for
 	 * every overview cell. Free footprint corners can have another owner. */

@@ -97,10 +97,11 @@ void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
 	assert(!"Unexpected extended preview in a legacy track fixture");
 }
 
-void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row, legacy_s16 pass)
 {
 	(void)column;
 	(void)row;
+	(void)pass;
 	assert(!"Unexpected extended preview in a legacy track fixture");
 }
 

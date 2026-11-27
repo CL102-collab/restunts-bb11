@@ -15,9 +15,9 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 									   const struct FRAME_CAMERA *camera, legacy_s8 flags);
 legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 									   legacy_s8 flags);
-/* Queue one complete overview tile using a local camera at its wrapped center.
+/* Queue terrain or objects for an overview tile using a camera at its wrapped center.
  * The caller supplies its full camera-relative origin to HyperVision. */
-void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row);
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row, legacy_s16 pass);
 /* Diagnostic override; change only between completed preview frames. */
 void extended_frame_preview_set_detail_enabled(legacy_u8 enabled);
 legacy_s16 extended_frame_add_start_flag(const struct FRAME_CAMERA *camera, legacy_s8 flags);

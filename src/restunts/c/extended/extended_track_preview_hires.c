@@ -2,6 +2,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "extended_frame.h"
+#include "../frame/frame_render_internal.h"
 #include "../hires/hires.h"
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
@@ -173,6 +174,7 @@ hires_track_preview_extended_orbit_radius(const struct HIRES_TRACK_PREVIEW_EXTEN
 struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME {
 	const struct CSTRK_TRACK *track;
 	const struct SHAPE3D_HIRES_VECTOR *camera;
+	legacy_s16 pass;
 };
 
 static void hires_track_preview_build_geometry(void *argument, legacy_s32 index)
@@ -195,7 +197,7 @@ static void hires_track_preview_build_geometry(void *argument, legacy_s32 index)
 		struct SHAPE3D_HIRES_VECTOR origin = {center_x - frame->camera->x, -frame->camera->y,
 											  center_z - frame->camera->z};
 		shape3d_hires_set_origin(&origin);
-		extended_frame_draw_preview_tile(column, row);
+		extended_frame_draw_preview_tile(column, row, frame->pass);
 		if (++column == frame->track->width) {
 			column = 0;
 			row++;
@@ -237,13 +239,16 @@ static void hires_track_preview_draw_extended_3d(void)
 							 HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
 	select_cliprect_rotate(0, -HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH, (legacy_s16)heading, &clip,
 						   0);
-	struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME geometry = {track, &camera};
+	struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME geometry = {track, &camera, FRAME_TILE_GROUND_PASS};
 	legacy_s32 tile_count = (legacy_s32)track->width * track->height;
 	legacy_s32 groups = (tile_count + HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES - 1) /
 						HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES;
-	/* No dynamic serial geometry interrupts the overview, so all immutable
-	 * tile groups can build independently and merge once in source order. */
-	shape3d_hires_geometry_run(groups, hires_track_preview_build_geometry, NULL, NULL, &geometry);
+	/* Coplanar faces drawn later win. Submit all terrain before objects so
+	 * grass in a tile after a multi-tile road's anchor cannot cover the road. */
+	for (; geometry.pass <= FRAME_TILE_OBJECT_PASS; geometry.pass++) {
+		shape3d_hires_geometry_run(groups, hires_track_preview_build_geometry, NULL, NULL,
+								   &geometry);
+	}
 	shape3d_hires_set_origin(NULL);
 	hires_track_preview_last_primitive_count = shape3d_hires_scene_count();
 	shape3d_render_queued_primitives();

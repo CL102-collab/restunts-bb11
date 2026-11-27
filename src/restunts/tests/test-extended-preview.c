@@ -5,7 +5,7 @@
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_frame.h"
 #include "../c/extended/extended_track_preview_hires.h"
-#include "../c/frame/frame_internal.h"
+#include "../c/frame/frame_render_internal.h"
 #include "../c/game_input.h"
 #include "../c/hires/hires.h"
 #include "../c/menu/menu_internal.h"
@@ -150,7 +150,7 @@ void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
 	origin_count++;
 }
 
-void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row, legacy_s16 pass)
 {
 	assert(preview_hires != 0 && origin_active != 0);
 	assert(current_clip.top == 0 && current_clip.bottom < PREVIEW_TEST_SCREEN_HEIGHT);
@@ -161,10 +161,11 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 		   current_clip.bottom == background_clip.bottom);
 	assert(column >= 0 && column < preview_track.width);
 	assert(row >= 0 && row < preview_track.height);
+	assert(pass == FRAME_TILE_GROUND_PASS || pass == FRAME_TILE_OBJECT_PASS);
 	legacy_u32 index = (legacy_u32)row * preview_track.width + column;
-	assert(index == tile_count);
-	assert(visited_tiles[index] == 0);
-	visited_tiles[index] = 1;
+	assert(index + (legacy_u32)pass * preview_track.width * preview_track.height == tile_count);
+	assert(visited_tiles[index] == pass);
+	visited_tiles[index]++;
 	struct SHAPE3D_HIRES_VECTOR camera;
 	camera.x = ((legacy_f64)column + .5) * CSTRK_TILE_WORLD_SIZE - current_origin.x;
 	camera.y = -current_origin.y;
@@ -182,7 +183,8 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 
 void shape3d_render_queued_primitives(void)
 {
-	assert(tile_count == (legacy_u32)preview_track.width * preview_track.height);
+	assert(tile_count ==
+		   (FRAME_TILE_OBJECT_PASS + 1U) * preview_track.width * preview_track.height);
 	flush_count++;
 }
 
@@ -370,7 +372,8 @@ static struct SHAPE3D_HIRES_VECTOR render_3d(legacy_u32 ticks)
 	preview_hires = renderer_active = 1;
 	reset_capture();
 	draw_track_preview();
-	assert(tile_count == (legacy_u32)preview_track.width * preview_track.height);
+	assert(tile_count ==
+		   (FRAME_TILE_OBJECT_PASS + 1U) * preview_track.width * preview_track.height);
 	assert(origin_count == tile_count);
 	assert(extended_track_preview_hires_primitive_count() == tile_count);
 	assert(flush_count == 1 && reset_count != 0 && origin_active == 0);
