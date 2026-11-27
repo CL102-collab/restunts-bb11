@@ -46,7 +46,52 @@ void sdl3_input_pop_modal(void)
 	modal_depth--;
 }
 
-/* The file selector uses the ordinary modal path throughout this fixture. */
+void sdl3_input_push_overlay_modal(void)
+{
+	sdl3_input_push_modal();
+}
+
+void sdl3_input_pop_overlay_modal(void)
+{
+	sdl3_input_pop_modal();
+}
+
+void sdl3_video_present(void)
+{
+	assert(0 && "Unexpected immediate presentation in file dialog");
+}
+
+/* Keep the file selector in its classic presentation for this fixture. */
+legacy_s32 widescreen_active(void)
+{
+	return 0;
+}
+
+legacy_s32 widescreen_overlay_visible(enum WIDESCREEN_OVERLAY overlay)
+{
+	(void)overlay;
+	assert(0 && "Unexpected overlay lookup in classic file dialog");
+	return 0;
+}
+
+void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay)
+{
+	(void)overlay;
+	assert(0 && "Unexpected overlay clear in classic file dialog");
+}
+
+void sprite_save_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
+{
+	(void)saved_context;
+	assert(0 && "Unexpected sprite context save in classic file dialog");
+}
+
+void sprite_restore_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
+{
+	(void)saved_context;
+	assert(0 && "Unexpected sprite context restore in classic file dialog");
+}
+
 void widescreen_overlay_begin(enum WIDESCREEN_OVERLAY overlay)
 {
 	(void)overlay;

@@ -266,11 +266,9 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 	if (strlen(extension) < sizeof(selected_file_extension)) {
 		strcpy(selected_file_extension, extension);
 	}
-	legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_text_input_dialog(
-		DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, file_load_dialog_id),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color),
-		dialog.positions));
-	if (dialog_result < 0) {
+	struct DIALOG_PRESENTATION presentation;
+	if (!dialog_open_text_input(&presentation, locate_text_res(mainresptr, file_load_dialog_id),
+								VIDEO_UI_COLOR(dialog_border_color), dialog.positions)) {
 		return 0;
 	}
 	legacy_u8 saved_busy = g_is_busy;
@@ -309,7 +307,7 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 			break;
 		}
 	}
-	sprite_pop_background();
+	dialog_close_text_input(&presentation);
 	g_is_busy = saved_busy;
 	return result;
 }
@@ -317,25 +315,11 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 legacy_s8 do_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename, legacy_s8 *extension,
 							   legacy_s8 far *prompt)
 {
-#ifdef RESTUNTS_SDL3
-	sdl3_input_push_modal();
-#endif
-	legacy_s8 result = do_fileselect_dialog_impl(directory, filename, extension, prompt, 0);
-#ifdef RESTUNTS_SDL3
-	sdl3_input_pop_modal();
-#endif
-	return result;
+	return do_fileselect_dialog_impl(directory, filename, extension, prompt, 0);
 }
 
 legacy_s8 do_format_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename,
 									  legacy_s8 *extension, legacy_s8 far *prompt)
 {
-#ifdef RESTUNTS_SDL3
-	sdl3_input_push_modal();
-#endif
-	legacy_s8 result = do_fileselect_dialog_impl(directory, filename, extension, prompt, 1);
-#ifdef RESTUNTS_SDL3
-	sdl3_input_pop_modal();
-#endif
-	return result;
+	return do_fileselect_dialog_impl(directory, filename, extension, prompt, 1);
 }

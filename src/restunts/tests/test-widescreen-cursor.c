@@ -82,6 +82,29 @@ static void assert_erased(const legacy_u8 *legacy)
 	assert_scene_unchanged(legacy);
 }
 
+static void test_dialog_caret(const legacy_u8 *legacy)
+{
+	legacy_u16 offset = TEST_CURSOR_NEXT_Y * VIDEO_FRAMEBUFFER_WIDTH + TEST_CURSOR_NEXT_X;
+	widescreen_overlay_begin(WIDESCREEN_OVERLAY_DIALOG);
+	assert(widescreen_overlay_write(legacy, offset, TEST_PARENT_FIRST));
+
+	legacy_s32 width, height;
+	sprite_xor_rect_clipped(TEST_CURSOR_NEXT_X, TEST_CURSOR_NEXT_Y, 1, 1, TEST_CURSOR_WHITE);
+	const legacy_u8 *image = hires_framebuffer(legacy, &width, &height);
+	assert(image != NULL);
+	assert(output_at(image, width, height, TEST_CURSOR_NEXT_X, TEST_CURSOR_NEXT_Y) ==
+		   (TEST_PARENT_FIRST ^ TEST_CURSOR_WHITE));
+
+	sprite_xor_rect_clipped(TEST_CURSOR_NEXT_X, TEST_CURSOR_NEXT_Y, 1, 1, TEST_CURSOR_WHITE);
+	image = hires_framebuffer(legacy, &width, &height);
+	assert(image != NULL);
+	assert(output_at(image, width, height, TEST_CURSOR_NEXT_X, TEST_CURSOR_NEXT_Y) ==
+		   TEST_PARENT_FIRST);
+	widescreen_overlay_end();
+	widescreen_overlay_clear(WIDESCREEN_OVERLAY_DIALOG);
+	assert_erased(legacy);
+}
+
 static void test_cursor(legacy_s32 width, legacy_s32 height, legacy_s32 scale)
 {
 	legacy_u8 *legacy = dos_memory_make_pointer(TEST_VGA_SEGMENT, 0);
@@ -119,6 +142,8 @@ static void test_cursor(legacy_s32 width, legacy_s32 height, legacy_s32 scale)
 	assert_cursor(legacy);
 	mouse_draw_opaque();
 	assert_erased(legacy);
+
+	test_dialog_caret(legacy);
 
 	/* A wide cursor has no saved legacy background to restore after F12 or
 	 * disabling widescreen changes the presentation between draw and erase. */

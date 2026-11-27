@@ -2,6 +2,7 @@
 #include "../video/video_color.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/widescreen.h"
+#include "../../platform/sdl3/video_game.h"
 #endif
 
 const legacy_u8 far g_ascii_props[256] = {
@@ -443,6 +444,23 @@ legacy_u16 show_dialog(legacy_s16 dialog_type, legacy_s16 save_background, void 
 }
 
 #ifdef RESTUNTS_SDL3
+static void race_dialog_begin(struct DIALOG_PRESENTATION *presentation)
+{
+	/* Draw above a replay or progress dialog so closing this one reveals it intact. */
+	presentation->overlay = widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG)
+								? WIDESCREEN_OVERLAY_NESTED_DIALOG
+								: WIDESCREEN_OVERLAY_DIALOG;
+	sprite_save_context(presentation->saved_context);
+	sdl3_input_push_overlay_modal();
+}
+
+static void race_dialog_end(struct DIALOG_PRESENTATION *presentation)
+{
+	widescreen_overlay_clear((enum WIDESCREEN_OVERLAY)presentation->overlay);
+	sprite_restore_context(presentation->saved_context);
+	sdl3_input_pop_overlay_modal();
+}
+
 legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
 							void far *text_resource, legacy_u16 x_argument, legacy_u16 y_argument,
 							legacy_s16 border_color, legacy_s16 *disabled_choices,
@@ -453,20 +471,16 @@ legacy_u16 show_race_dialog(legacy_s16 dialog_type, legacy_s16 save_background,
 						   border_color, disabled_choices, initial_choice);
 	}
 
-	/* A shortcut can open a confirmation while the replay menu or a race
-	 * progress dialog is visible. Draw above it so cancel reveals it intact. */
-	enum WIDESCREEN_OVERLAY overlay = widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG)
-										  ? WIDESCREEN_OVERLAY_NESTED_DIALOG
-										  : WIDESCREEN_OVERLAY_DIALOG;
-	struct SPRITE saved_context[SPRITE_STATE_COUNT];
-	sprite_save_context(saved_context);
-	sdl3_input_push_overlay_modal();
-	legacy_u16 result =
-		show_dialog_impl(dialog_type, DIALOG_NO_BACKGROUND_SAVE, text_resource, x_argument,
-						 y_argument, border_color, disabled_choices, initial_choice, overlay);
-	widescreen_overlay_clear(overlay);
-	sprite_restore_context(saved_context);
-	sdl3_input_pop_overlay_modal();
+	struct DIALOG_PRESENTATION presentation;
+	race_dialog_begin(&presentation);
+	legacy_u16 result = show_dialog_impl(dialog_type, DIALOG_NO_BACKGROUND_SAVE, text_resource,
+										 x_argument, y_argument, border_color, disabled_choices,
+										 initial_choice, presentation.overlay);
+	if (dialog_type == DIALOG_TYPE_MESSAGE) {
+		/* Present a nonblocking message before releasing its layer. */
+		sdl3_video_present();
+	}
+	race_dialog_end(&presentation);
 	return result;
 }
 
@@ -483,3 +497,57 @@ void show_race_progress_dialog(void far *text_resource, legacy_u16 y, legacy_s16
 	}
 }
 #endif
+
+legacy_s16 dialog_open_text_input(struct DIALOG_PRESENTATION *presentation, void far *text,
+								  legacy_s16 border_color, legacy_s16 *positions)
+{
+	presentation->overlay = 0;
+#ifdef __ANDROID__
+	legacy_u16 y = DIALOG_TEXT_INPUT_TOP;
+#else
+	legacy_u16 y = DIALOG_AUTO_POSITION;
+#endif
+#ifdef RESTUNTS_SDL3
+	if (widescreen_active()) {
+		race_dialog_begin(presentation);
+	} else {
+		sdl3_input_push_modal();
+	}
+#endif
+
+	legacy_s16 save_background =
+		presentation->overlay ? DIALOG_NO_BACKGROUND_SAVE : DIALOG_SAVE_BACKGROUND;
+	if (show_dialog_impl(DIALOG_TYPE_PLACEHOLDERS, save_background, text, DIALOG_AUTO_POSITION, y,
+						 border_color, positions, 0,
+						 presentation->overlay) == DIALOG_FAILURE_RESULT) {
+#ifdef RESTUNTS_SDL3
+		if (presentation->overlay) {
+			race_dialog_end(presentation);
+		} else {
+			sdl3_input_pop_modal();
+		}
+#endif
+		return 0;
+	}
+
+	/* Keep the same layer for the file list, text fields and their redraws. */
+	dialog_begin_overlay(presentation->overlay);
+	return 1;
+}
+
+void dialog_close_text_input(struct DIALOG_PRESENTATION *presentation)
+{
+#ifdef RESTUNTS_SDL3
+	if (presentation->overlay) {
+		dialog_end_overlay(presentation->overlay);
+		race_dialog_end(presentation);
+		return;
+	}
+#else
+	(void)presentation;
+#endif
+	sprite_pop_background();
+#ifdef RESTUNTS_SDL3
+	sdl3_input_pop_modal();
+#endif
+}

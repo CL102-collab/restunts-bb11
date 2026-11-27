@@ -25,7 +25,6 @@ void sdl3_audio_update(void);
 void sdl3_audio_set_music_muted(legacy_s32 muted);
 void sdl3_input_shutdown(void);
 void sdl3_video_shutdown(void);
-void sdl3_video_present(void);
 void sdl3_video_redraw(void);
 void sdl3_video_screenshot(void);
 void sdl3_video_toggle_fullscreen(void);

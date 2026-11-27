@@ -56,6 +56,17 @@
 extern const legacy_u8 far quiz_question_suffixes[20];
 extern const legacy_u8 far g_ascii_props[256];
 
+struct DIALOG_PRESENTATION {
+#ifdef RESTUNTS_SDL3
+	struct SPRITE saved_context[SPRITE_STATE_COUNT];
+#endif
+	legacy_u8 overlay;
+};
+
+legacy_s16 dialog_open_text_input(struct DIALOG_PRESENTATION *presentation, void far *text,
+								  legacy_s16 border_color, legacy_s16 *positions);
+void dialog_close_text_input(struct DIALOG_PRESENTATION *presentation);
+
 struct DIALOG_CONTENT {
 	legacy_s8 line_buffer[DIALOG_LINE_BUFFER_CAPACITY];
 	legacy_s8 far *choice_texts[DIALOG_CHOICE_CAPACITY];

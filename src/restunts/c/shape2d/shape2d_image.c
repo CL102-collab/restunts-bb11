@@ -11,6 +11,9 @@
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
 #include "../video/video_color.h"
+#ifdef RESTUNTS_SDL3
+#include "../hires/widescreen.h"
+#endif
 #if defined(RESTUNTS_SDL3) && defined(RESTUNTS_FULL) && !defined(RESTUNTS_HEADLESS)
 #include "../hires/hires.h"
 #include "../../platform/sdl3/video_mode.h"
@@ -638,8 +641,12 @@ void sprite_xor_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legac
 				sdl3_video_mode_xor_begin(bitmap, destination, color_bits);
 			}
 #endif
-			video_pages_write_pixel(bitmap, destination,
-									video_pages_read_pixel(bitmap, destination) ^ color_bits);
+			legacy_u8 pixel = video_pages_read_pixel(bitmap, destination);
+#ifdef RESTUNTS_SDL3
+			/* A widescreen dialog caret toggles pixels on the active text layer. */
+			widescreen_overlay_read(bitmap, destination, &pixel);
+#endif
+			video_pages_write_pixel(bitmap, destination, pixel ^ color_bits);
 			destination++;
 			column_count--;
 		} while (column_count != 0);

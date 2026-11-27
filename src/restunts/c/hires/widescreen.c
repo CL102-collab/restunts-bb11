@@ -146,6 +146,8 @@ static void widescreen_capture_modal_background(void)
 	hires_forget(legacy);
 }
 
+/* Temporary presentation changes leave the authored drawing target bound.
+ * Overlay access still checks whether widescreen is active. */
 void widescreen_push_modal(void)
 {
 	if (widescreen_modal_depth == LEGACY_U16_MAX) {
@@ -157,7 +159,6 @@ void widescreen_push_modal(void)
 			widescreen_capture_modal_background();
 		}
 		widescreen_revision++;
-		overlay_target.base = NULL;
 	}
 	widescreen_modal_depth++;
 }
@@ -176,7 +177,6 @@ void widescreen_pop_modal(void)
 			modal_background_saved = 0;
 		}
 		widescreen_revision++;
-		overlay_target.base = NULL;
 	}
 }
 
@@ -193,7 +193,6 @@ void widescreen_set_output_size(legacy_s32 width, legacy_s32 height)
 		widescreen_width = render_width;
 		widescreen_height = render_height;
 		widescreen_revision++;
-		overlay_target.base = NULL;
 	}
 }
 
@@ -294,6 +293,16 @@ static legacy_s32 widescreen_overlay_offset(const legacy_u8 *base, legacy_u16 of
 	}
 	legacy_u16 relative = (legacy_u16)(offset - overlay_target.origin);
 	return relative < WIDESCREEN_UI_PIXELS ? relative : -1;
+}
+
+legacy_s32 widescreen_overlay_read(const legacy_u8 *base, legacy_u16 offset, legacy_u8 *color)
+{
+	legacy_s32 index = widescreen_overlay_offset(base, offset);
+	if (index < 0 || !widescreen_overlay_only() || !overlay_valid[overlay_target.kind][index]) {
+		return 0;
+	}
+	*color = overlay_pixels[overlay_target.kind][index];
+	return 1;
 }
 
 legacy_s32 widescreen_overlay_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)

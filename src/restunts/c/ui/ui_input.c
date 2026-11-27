@@ -303,7 +303,8 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 					 void(far *callback)(void), legacy_u32 timeout)
 {
 #ifdef RESTUNTS_SDL3
-	sdl3_input_push_modal();
+	/* Text entry draws into the presentation chosen by its containing dialog. */
+	sdl3_input_push_overlay_modal();
 #endif
 	struct READ_LINE_STATE state;
 	state.input_flags = (legacy_u8)flags;
@@ -330,7 +331,7 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 				SDL_StopTextInput(sdl3_video_window());
 #endif
 #ifdef RESTUNTS_SDL3
-				sdl3_input_pop_modal();
+				sdl3_input_pop_overlay_modal();
 #endif
 				return 0;
 			}
@@ -346,7 +347,7 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 			SDL_StopTextInput(sdl3_video_window());
 #endif
 #ifdef RESTUNTS_SDL3
-			sdl3_input_pop_modal();
+			sdl3_input_pop_overlay_modal();
 #endif
 			return key;
 		}

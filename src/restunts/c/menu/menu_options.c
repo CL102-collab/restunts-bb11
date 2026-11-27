@@ -289,8 +289,8 @@ void show_graphic_levels_menu(void)
 		option_menu_mark_graphics(menu_text);
 
 		selected = LEGACY_S8_FROM_BITS(
-			show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, (void far *)menu_text, -1, -1,
-						VIDEO_UI_COLOR(performGraphColor), 0, (legacy_s16)selected));
+			show_race_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, (void far *)menu_text, -1,
+							 -1, VIDEO_UI_COLOR(performGraphColor), 0, (legacy_s16)selected));
 		if (selected == -1 || selected == 9) {
 			break;
 		}
@@ -314,9 +314,9 @@ void show_graphic_levels_menu(void)
 	}
 
 	if (original_frame_rate != configured_frame_rate) {
-		show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-					locate_text_res(mainresptr, frame_rate_changed_message_id), -1, -1,
-					VIDEO_UI_COLOR(dialog_border_color), 0, 0);
+		show_race_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
+						 locate_text_res(mainresptr, frame_rate_changed_message_id), -1, -1,
+						 VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 	}
 	dos_timer_set_callbacks_suspended(0);
 	audio_resume();

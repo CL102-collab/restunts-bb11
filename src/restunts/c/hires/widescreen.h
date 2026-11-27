@@ -49,6 +49,7 @@ void widescreen_overlay_clear(enum WIDESCREEN_OVERLAY overlay);
 legacy_s32 widescreen_overlay_visible(enum WIDESCREEN_OVERLAY overlay);
 legacy_s32 widescreen_overlay_only(void);
 legacy_u32 widescreen_overlay_generation(void);
+legacy_s32 widescreen_overlay_read(const legacy_u8 *base, legacy_u16 offset, legacy_u8 *color);
 legacy_s32 widescreen_overlay_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color);
 legacy_s32 widescreen_overlay_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 									 const legacy_u8 *source, legacy_u16 source_offset,

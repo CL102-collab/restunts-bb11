@@ -85,8 +85,9 @@ void extended_replay_runtime_clear(void)
 	++clear_calls;
 }
 
-legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_u16 x, legacy_u16 y,
-					   legacy_s16 color, legacy_s16 *disabled, legacy_s16 selected)
+legacy_u16 show_race_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_u16 x,
+							legacy_u16 y, legacy_s16 color, legacy_s16 *disabled,
+							legacy_s16 selected)
 {
 	assert(g_is_busy == 0 && load_calls == 1 && fixture_load_result == 0);
 	assert(type == DIALOG_TYPE_MENU && save == DIALOG_SAVE_BACKGROUND);

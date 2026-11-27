@@ -16,6 +16,7 @@
 #include "../c/keyboard.h"
 #include "../c/race/race_resources.h"
 #include "../c/race/race_internal.h"
+#include "../c/replay/replay_viewer_private.h"
 #include "../c/residue.h"
 #include "../c/track/track_collision.h"
 #include "../c/wheel_transform.h"
@@ -47,7 +48,9 @@ static const legacy_char RENDER_REPLAY_VIDEO_MODE_PREFIX[] = "--videomode:";
  * framebuffer comparisons. No wall-clock overlay may expire between snapshots. */
 #define dos_timer_get_realtime_counter render_replay_realtime_counter
 #define timer_get_delta render_replay_timer_delta
+#define timer_get_counter render_replay_timer_counter
 #include "../platform/sdl3/timer.c"
+#undef timer_get_counter
 #undef timer_get_delta
 #undef dos_timer_get_realtime_counter
 
@@ -341,7 +344,7 @@ struct REPLAY_QUIT_TEST {
 
 static struct REPLAY_QUIT_TEST *replay_quit_test;
 
-static const legacy_u8 *quit_dialog_pixels(void)
+static const legacy_u8 *race_dialog_pixels(void)
 {
 	legacy_s32 width, height;
 	const legacy_u8 *pixels =
@@ -353,9 +356,98 @@ static const legacy_u8 *quit_dialog_pixels(void)
 	return pixels;
 }
 
+enum REPLAY_MENU_STAGE {
+	REPLAY_MENU_OPEN,
+	REPLAY_DISPLAY_OPTIONS_OPEN,
+	REPLAY_CHILD_DIALOG_OPEN,
+	REPLAY_MENU_DONE
+};
+
+struct REPLAY_MENU_TEST {
+	enum REPLAY_PAUSE_ACTION action;
+	enum REPLAY_MENU_STAGE stage;
+	legacy_u16 polls_remaining;
+	const legacy_u8 *scene_pixels;
+	size_t pixel_count;
+};
+
+static struct REPLAY_MENU_TEST *replay_menu_test;
+
+static void check_replay_dialog_pixels(const struct REPLAY_MENU_TEST *test)
+{
+	const legacy_u8 *pixels = race_dialog_pixels();
+	assert(widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG));
+	assert(memcmp(pixels, test->scene_pixels, test->pixel_count) != 0);
+	const size_t width = RENDER_REPLAY_DIALOG_WIDTH;
+	const size_t artwork_width =
+		RENDER_REPLAY_DIALOG_HEIGHT * WIDESCREEN_ASPECT_WIDTH / WIDESCREEN_ASPECT_HEIGHT;
+	const size_t margin = (width - artwork_width) / 2U;
+	for (size_t row = 0; row < test->pixel_count; row += width) {
+		const size_t right = row + width - margin;
+		assert(memcmp(pixels + row, test->scene_pixels + row, margin) == 0);
+		assert(memcmp(pixels + right, test->scene_pixels + right, margin) == 0);
+	}
+}
+
+static void replay_menu_test_input(legacy_u8 text_input)
+{
+	struct REPLAY_MENU_TEST *test = replay_menu_test;
+	if (test == NULL || test->stage == REPLAY_MENU_DONE) {
+		return;
+	}
+	const legacy_u8 editing_name =
+		test->stage == REPLAY_CHILD_DIALOG_OPEN && test->action == REPLAY_PAUSE_ACTION_SAVE;
+	if (text_input != editing_name) {
+		return;
+	}
+	if (test->polls_remaining != 0) {
+		test->polls_remaining--;
+		return;
+	}
+
+	check_replay_dialog_pixels(test);
+	if (test->stage == REPLAY_CHILD_DIALOG_OPEN) {
+		test->stage = REPLAY_MENU_DONE;
+		sdl3_input_queue_key(KEY_ESCAPE);
+		return;
+	}
+	legacy_u16 movement_count;
+	if (test->stage == REPLAY_MENU_OPEN) {
+		/* Wrap backward from Return to Replay. These choices are always enabled here. */
+		movement_count = REPLAY_PAUSE_OPTION_COUNT - test->action;
+		for (legacy_u16 move = 0; move < movement_count; move++) {
+			sdl3_input_queue_key(KEY_UP);
+		}
+		test->stage = test->action == REPLAY_PAUSE_ACTION_DISPLAY_OPTIONS
+						  ? REPLAY_DISPLAY_OPTIONS_OPEN
+						  : REPLAY_CHILD_DIALOG_OPEN;
+	} else {
+		movement_count = REPLAY_MODE_ACTION_DETAIL - REPLAY_DIALOG_INITIAL_CHOICE;
+		for (legacy_u16 move = 0; move < movement_count; move++) {
+			sdl3_input_queue_key(KEY_DOWN);
+		}
+		test->stage = REPLAY_CHILD_DIALOG_OPEN;
+	}
+	/* Accepting a choice drains input before the next dialog polls. The
+	 * filename editor instead reads keys after setting its first deadline. */
+	test->polls_remaining =
+		test->action == REPLAY_PAUSE_ACTION_SAVE
+			? 0
+			: movement_count + RENDER_REPLAY_DIALOG_CLOSE_POLLS + RENDER_REPLAY_DIALOG_OPEN_POLLS;
+	sdl3_input_queue_key(KEY_ENTER);
+}
+
+legacy_u32 timer_get_counter(void)
+{
+	legacy_u32 counter = render_replay_timer_counter();
+	replay_menu_test_input(1);
+	return counter;
+}
+
 legacy_u32 timer_get_delta(void)
 {
 	legacy_u32 delta = render_replay_timer_delta();
+	replay_menu_test_input(0);
 	struct REPLAY_QUIT_TEST *test = replay_quit_test;
 	if (test == NULL || test->stage == REPLAY_QUIT_DONE) {
 		return delta;
@@ -365,7 +457,7 @@ legacy_u32 timer_get_delta(void)
 		return delta;
 	}
 
-	const legacy_u8 *pixels = quit_dialog_pixels();
+	const legacy_u8 *pixels = race_dialog_pixels();
 	switch (test->stage) {
 		case REPLAY_QUIT_PARENT_OPEN:
 			memcpy(test->background_pixels, pixels, test->pixel_count);
@@ -390,7 +482,28 @@ legacy_u32 timer_get_delta(void)
 	return delta;
 }
 
-static void check_race_quit_dialogs(void)
+static void check_replay_menu_dialogs(const legacy_u8 *scene_pixels, size_t scene_size)
+{
+	static const enum REPLAY_PAUSE_ACTION actions[] = {
+		REPLAY_PAUSE_ACTION_LOAD, REPLAY_PAUSE_ACTION_SAVE, REPLAY_PAUSE_ACTION_DISPLAY_OPTIONS};
+	legacy_s8 saved_replaybar = replaybar_enabled;
+	replaybar_enabled = 0;
+	assert(replay_recorded_frames() != 0 && elapsed_time1 == 0);
+	for (size_t index = 0; index < sizeof(actions) / sizeof(actions[0]); index++) {
+		struct REPLAY_MENU_TEST test = {actions[index], REPLAY_MENU_OPEN,
+										RENDER_REPLAY_DIALOG_OPEN_POLLS, scene_pixels, scene_size};
+		replay_menu_test = &test;
+		replay_pause_menu();
+		replay_menu_test = NULL;
+		assert(test.stage == REPLAY_MENU_DONE);
+		assert(!widescreen_overlay_visible(WIDESCREEN_OVERLAY_DIALOG));
+		mouse_draw_opaque_check();
+		assert(memcmp(race_dialog_pixels(), scene_pixels, scene_size) == 0);
+	}
+	replaybar_enabled = saved_replaybar;
+}
+
+static void check_widescreen_race_dialogs(void)
 {
 	widescreen_set_enabled(1);
 	widescreen_set_racing(1);
@@ -414,7 +527,7 @@ static void check_race_quit_dialogs(void)
 	assert(dos_kb_get_char() == 0);
 	assert(test.stage == REPLAY_QUIT_DONE);
 	mouse_draw_opaque_check();
-	assert(memcmp(quit_dialog_pixels(), scene_pixels, scene_size) == 0);
+	assert(memcmp(race_dialog_pixels(), scene_pixels, scene_size) == 0);
 
 	/* Let the entry polls finish before sending Ctrl+Q and Escape. The
 	 * confirmation's final poll drains input before reinstating its parent. */
@@ -430,8 +543,9 @@ static void check_race_quit_dialogs(void)
 	assert(test.stage == REPLAY_QUIT_DONE);
 	assert(memcmp(scene_pixels, test.background_pixels, scene_size) != 0);
 	mouse_draw_opaque_check();
-	assert(memcmp(quit_dialog_pixels(), scene_pixels, scene_size) == 0);
+	assert(memcmp(race_dialog_pixels(), scene_pixels, scene_size) == 0);
 	free(test.background_pixels);
+	check_replay_menu_dialogs(scene_pixels, scene_size);
 	free(scene_pixels);
 	widescreen_set_racing(0);
 	widescreen_set_enabled(0);
@@ -753,7 +867,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(fclose(output) == 0);
 	free(recording);
 	if (mode == RENDER_REPLAY_ADAPTIVE_MODE && expected_video_mode == SDL3_VIDEO_MODE_VGA) {
-		check_race_quit_dialogs();
+		check_widescreen_race_dialogs();
 		check_widescreen_clouds();
 	}
 	/* Match pixldump shutdown: this fixture never loaded dashboard resources. */

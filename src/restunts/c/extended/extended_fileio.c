@@ -26,8 +26,8 @@ void file_warn_replay_version(legacy_u16 version)
 			 "Physics may differ; playback may desync.]"
 			 "Press OK to continue playback.]}[ OK ]",
 			 (legacy_u32)version, (legacy_u32)CSRPL_VERSION);
-	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
+	show_race_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
+					 DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 #else
 	(void)version;
 #endif
@@ -52,8 +52,8 @@ void file_warn_replay_driving_rules(legacy_u16 recorded)
 			 recorded & DRIVING_RULE_CHICANE_FAST_GRASS ? "On" : "Off",
 			 recorded & DRIVING_RULE_AMIGA_GRASS ? "On" : "Off",
 			 recorded & DRIVING_RULE_OWOOT ? "On" : "Off");
-	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
+	show_race_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
+					 DIALOG_AUTO_POSITION, VIDEO_UI_COLOR(dialog_border_color), 0, 0);
 #else
 	(void)recorded;
 #endif
