@@ -289,14 +289,21 @@ jobs:
         # Ubuntu's high-entropy ASLR can overlap GCC TSan's fixed shadow mapping.
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 
-      - &native-sanitizer-assets
+      - &download-game-assets
         name: Download and extract the game assets
         run: |
-          curl --fail --location --silent --show-error \
-            --retry 6 --retry-max-time 120 --connect-timeout 20 \
-            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
-            --output "$RUNNER_TEMP/BB11.zip"
-          unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts
+          zip_path=$(mktemp "$RUNNER_TEMP/BB11.XXXXXX")
+          trap 'unlink "$zip_path"' EXIT
+          curl_options=(--fail --location --silent --show-error --retry 6 --retry-max-time 120 --connect-timeout 20)
+          if ! curl "${curl_options[@]}" --output "$zip_path" \
+            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip; then
+            echo '::warning::BB11.zip release download failed. Retrying via the GitHub release asset API.'
+            curl "${curl_options[@]}" --header 'Accept: application/octet-stream' --output "$zip_path" \
+              https://api.github.com/repos/CommonLoon102/restunts4d-oracles/releases/assets/572085774
+          fi
+          printf '71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  %s\n' "$zip_path" \
+            | sha256sum --check --strict
+          unzip -oq "$zip_path" -d stunts
 
       - name: Build instrumented native binaries
         # Headless dummy-driver regressions do not need desktop D-Bus IPC.
@@ -397,7 +404,7 @@ jobs:
       - *native-sanitizer-checkout
       - *native-sanitizer-dependencies
       - *native-sanitizer-address-space
-      - *native-sanitizer-assets
+      - *download-game-assets
 
       - name: Download the ThreadSanitizer test build
         uses: actions/download-artifact@v8.0.1
@@ -544,16 +551,7 @@ jobs:
           python3 -m unittest discover -s tools/scripts/tests -p 'test_*.py'
           python3 tools/scripts/test-compare-dos-artifacts.py
 
-      - name: Download and extract the game assets
-        env:
-          STUNTS_URL: https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip
-        run: |
-          set -eu
-          zip_path="$RUNNER_TEMP/BB11.zip"
-          trap 'rm -f -- "$zip_path"' EXIT
-          curl --fail --location --silent --show-error \
-              --retry 6 --retry-max-time 120 --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
-          unzip -oq "$zip_path" -d stunts
+      - *download-game-assets
 
       - name: Build original dump references
         run: make --jobs="$(nproc)" -C src/restunts repldump-original pixldump-original
@@ -624,13 +622,7 @@ jobs:
             libwayland-dev libxkbcommon-dev libdecor-0-dev libudev-dev libdrm-dev libgbm-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 
-      - name: Download and extract the game assets
-        run: |
-          curl --fail --location --silent --show-error \
-            --retry 6 --retry-max-time 120 --connect-timeout 20 \
-            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
-            --output "$RUNNER_TEMP/BB11.zip"
-          unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts
+      - *download-game-assets
 
       - name: Build the SDL3 game and dump tools
         run: |
