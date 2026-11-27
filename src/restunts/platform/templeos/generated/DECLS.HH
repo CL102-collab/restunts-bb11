@@ -317,6 +317,7 @@ extern CCarState *RsGhostCarState();
 extern legacy_void RsAudioAllocateCarStateRecords();
 extern legacy_void RsFrameCallback();
 extern legacy_void RsReplayUpdateInputTick(legacy_s16 force_neutral_input);
+extern legacy_u32 RsReplayCurrentFrame();
 extern legacy_void RsTimerRemoveCallback(legacy_u8 *callback);
 extern legacy_u32 RsTimerGetDeltaAlt();
 extern legacy_s16 RsReadLine(legacy_s16 flags,legacy_s8 *text,legacy_s16 initial_key,
@@ -342,7 +343,6 @@ extern legacy_void RsEndHiscoreDrawOpponentText(
 extern legacy_void RsReplayControlsDraw(legacy_u32 recorded_frame,legacy_u32 current_frame);
 extern legacy_void RsReplayControlsSelect(legacy_u8 selection);
 extern legacy_void RsReplayPauseMenu();
-extern legacy_u32 RsReplayCurrentFrame();
 extern legacy_void RsReplayFastForward();
 extern legacy_void RsReplayRewind();
 extern legacy_void RsRaceSupersightClipDashboard();
@@ -439,7 +439,7 @@ extern legacy_void RsFrameSupersightOverrideCarDetail(
 extern legacy_void RsFrameSupersightRacingLineFlags(legacy_u8 *flags);
 extern CCarState *RsFrameSecondCarState();
 extern CCarState *RsFrameViewedCarState();
-extern CGhostCameraState *RsFrameViewedGhostCamera();
+extern CGhostCameraState *RsFrameViewedRecordedCamera();
 extern legacy_void RsFrameSetupCamera(CFrameCamera *camera);
 extern CFrameLookaheadTile *RsFrameSetupProjection(CFrameCamera *camera,CRectangle *cliprect);
 extern legacy_s16 RsFrameBackgroundCameraHeight(CFrameCamera *camera);

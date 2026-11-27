@@ -2,38 +2,38 @@
 
 legacy_s8 RsFrameContextLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7946;
+  legacy_s32 noreg temple_tmp_7954;
   if((value<=127)) {
-    temple_tmp_7946=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7954=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7946=TempleCastS32(TempleCastS8(
+    temple_tmp_7954=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7946);
+  return TempleCastS8(temple_tmp_7954);
 }
 
 legacy_s16 RsFrameContextLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7947;
+  legacy_s32 noreg temple_tmp_7955;
   if((value<=32767)) {
-    temple_tmp_7947=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7955=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7947=TempleCastS32(TempleCastS16(
+    temple_tmp_7955=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7947);
+  return TempleCastS16(temple_tmp_7955);
 }
 
 legacy_s32 RsFrameContextLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7948;
+  legacy_s32 noreg temple_tmp_7956;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7948=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7956=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7948=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7956=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7948);
+  return TempleCastS32(temple_tmp_7956);
 }
 
 legacy_s16 RsFrameContextCameraAdjustCustomDirection(legacy_u16 direction)
@@ -80,20 +80,20 @@ CCarState *RsFrameSecondCarState()
   return RsGhostCarState();
 }
 
-CGhostCameraState *RsFrameViewedGhostCamera()
+CGhostCameraState *RsFrameViewedRecordedCamera()
 {
-  legacy_s32 noreg temple_tmp_7949;
-  temple_tmp_7949=0;
+  legacy_s32 noreg temple_tmp_7957;
+  temple_tmp_7957=0;
   if((follow_opponent_flag==0)) {
-    temple_tmp_7949=1;
+    temple_tmp_7957=1;
   }
-  if(!temple_tmp_7949) {
-    temple_tmp_7949=0;
+  if(!temple_tmp_7957) {
+    temple_tmp_7957=0;
     if((gameconfig.game_opponenttype!=0)) {
-      temple_tmp_7949=1;
+      temple_tmp_7957=1;
     }
   }
-  if(temple_tmp_7949) {
+  if(temple_tmp_7957) {
     return 0;
   }
   return RsGhostCameraState();

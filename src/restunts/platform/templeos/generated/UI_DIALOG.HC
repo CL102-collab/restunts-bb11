@@ -847,3 +847,33 @@ legacy_u16 RsShowDialog(legacy_s16 dialog_type,legacy_s16 save_background,
       TempleCastS16(initial_choice),TempleCastU8(0)));
   return TempleCastU16(temple_result_1577);
 }
+
+legacy_s16 RsDialogOpenTextInput(CDialogPresentation *presentation,legacy_u8 *text,
+    legacy_s16 border_color,legacy_s16 *positions)
+{
+  legacy_u16 noreg temple_y_1578;
+  legacy_s16 noreg temple_save_background_1579;
+  legacy_s32 noreg temple_tmp_1580;
+  (presentation->overlay=TempleCastU8(0));
+  temple_y_1578=TempleCastU16(65535);
+  if(presentation->overlay) {
+    temple_tmp_1580=TempleCastS32(DIALOG_NO_BACKGROUND_SAVE);
+  } else {
+    temple_tmp_1580=TempleCastS32(DIALOG_SAVE_BACKGROUND);
+  }
+  temple_save_background_1579=TempleCastS16(temple_tmp_1580);
+  if((RsUiDialogShowDialogImpl(TempleCastS16(DIALOG_TYPE_PLACEHOLDERS),
+          TempleCastS16(temple_save_background_1579),text,TempleCastU16(65535),
+          TempleCastU16(temple_y_1578),TempleCastS16(border_color),positions,TempleCastS16(0),
+          TempleCastU8(presentation->overlay))==65535)) {
+    return TempleCastS16(0);
+  }
+  RsUiDialogDialogBeginOverlay(TempleCastU8(presentation->overlay));
+  return TempleCastS16(1);
+}
+
+legacy_void RsDialogCloseTextInput(CDialogPresentation *presentation)
+{
+  presentation;
+  RsSpritePopBackground();
+}

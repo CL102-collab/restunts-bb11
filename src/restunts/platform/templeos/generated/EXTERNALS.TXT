@@ -10,7 +10,7 @@ legacy_void TempleRasterResizeParagraphs(legacy_u16 segment, legacy_u16 previous
 // Native hook: TempleRasterSelect
 // Native hook: TempleRasterSource
 // Native hook: TempleRasterSourceAt
-// Native hook: TempleRasterXorPixel
+legacy_void TempleRasterXorPixel(legacy_u8 *bitmap, legacy_u16 offset, legacy_u8 mask);
 // Native hook: TempleVideoPresent
 legacy_u8 * RsInternal2Fmemcpy(legacy_u8 *arg0, legacy_u8 *arg1, legacy_u16 arg2);
 legacy_u8 * RsInternal1Memcpy(legacy_u8 *arg0, legacy_u8 *arg1, legacy_u16 arg2);

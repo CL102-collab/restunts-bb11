@@ -1144,6 +1144,11 @@ class CFileDialog
   legacy_u8 search_again;
 };
 
+class CDialogPresentation
+{
+  legacy_u8 overlay;
+};
+
 class CDialogContent
 {
   legacy_s8 line_buffer[128];
@@ -1268,6 +1273,8 @@ class CSkybox
 
 class CDashboardUpdate
 {
+  CCarState *car;
+  CSimd *simd;
   legacy_u16 buffer_index;
   legacy_u16 speed_index;
   legacy_u16 rpm_index;
