@@ -6,7 +6,9 @@ game data is copied to C:/DATA. The original ISO and source files are read
 only; no existing VirtualBox or QEMU disk is attached.
 
 Host dependencies: Python 3, qemu-system-x86_64, dosfstools (mkfs.fat), and
-mtools (mcopy). Pillow is optional and converts screenshots to PNG.
+mtools (mcopy). Pillow is optional and converts screenshots to PNG. Speaker
+recordings also need QEMU's pa audio backend and PulseAudio (pulseaudio,
+parec, and pactl). The helper starts an isolated audio server for each guest.
 
 From the repository root:
 
@@ -33,7 +35,7 @@ Useful options:
   --boot-seconds 20               Initial startup delay (20 is the default).
   --keep                          Leave the guest running after completion.
   --no-wait                       Launch an interactive entry and return.
-  --record-speaker                Capture PC speaker output to SPEAKER.WAV.
+  --record-speaker                Record PC speaker audio in real time.
   --verbose                       Print the full captured compiler document.
 
 Place --work /tmp/a-unique-directory BEFORE the command for a separate guest.
@@ -63,7 +65,7 @@ Artifacts in the work directory:
   DEBUG.LOG     QEMU debug-port output plus the guest compiler document.
   SCREEN.PPM    Screenshot taken at completion or failure.
   SCREEN.PNG    Same screenshot when Pillow is available.
-  SPEAKER.WAV   PC speaker capture when requested; finalized on stop.
+  SPEAKER.WAV   Real-time PC speaker capture when requested; finalized on stop.
   VMRUN.HC      The exact guest compilation/exception wrapper.
   SHARE.IMG     Disposable FAT32 disk containing the input snapshot.
 
@@ -71,6 +73,12 @@ The helper uses TCG so it does not contend for hardware virtualization with
 an existing VirtualBox guest. It does not open a desktop window. The debugger
 port is used only by this test wrapper; the port itself is not required by
 the game. Source changes made after a run starts require a new run.
+
+The recording begins before boot and includes quiet intervals and compilation
+time. Trim to the audio of interest after stopping the guest. If you use
+--keep or --no-wait, use the stop command to finalize the WAV and shut down
+the isolated audio server. QEMU's direct WAV backend can shorten recordings
+when the guest gates off the speaker, changing the apparent tempo.
 
 The PC speaker backend was translated from the shipped PC15.DRV interfaces:
 six tone contexts retain the DOS PIT divisor tables, pitch bend rounding,

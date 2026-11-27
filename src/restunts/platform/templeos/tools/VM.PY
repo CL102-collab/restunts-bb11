@@ -7,6 +7,7 @@ existing VM disk. Each run builds a disposable FAT32 disk from the input files.
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -36,6 +37,10 @@ READY_ATTEMPTS = 5
 READY_MARKER = "@"
 PASS_MARKER = "RESTUNTS_VM_PASS"
 FAIL_MARKER = "RESTUNTS_VM_FAIL"
+SPEAKER_SINK = "restunts-speaker"
+SPEAKER_WAV_HEADER_BYTES = 44
+SPEAKER_TIMEOUT_SECONDS = 5
+SPEAKER_RUNTIME_MODE = 0o700
 
 
 class Qmp:
@@ -152,6 +157,74 @@ def require_tool(name):
     return result
 
 
+def speaker_server(work):
+    return "unix:" + str(work / "PULSE" / "native")
+
+
+def start_speaker_capture(work):
+    pulseaudio = require_tool("pulseaudio")
+    parec = require_tool("parec")
+    require_tool("pactl")
+    stop_speaker_capture(work)
+    recording = work / "SPEAKER.WAV"
+    recording.unlink(missing_ok=True)
+    runtime = work / "PULSE"
+    runtime.mkdir(mode=SPEAKER_RUNTIME_MODE, exist_ok=True)
+    env = dict(os.environ, PULSE_RUNTIME_PATH=str(runtime))
+    subprocess.run([
+        pulseaudio, "--daemonize=yes", "--use-pid-file=no", "--disable-shm=yes",
+        "--exit-idle-time=-1", "--log-target=file:" + str(work / "PULSE.LOG"), "-n",
+        "-L", "module-native-protocol-unix auth-anonymous=1",
+        "-L", "module-null-sink sink_name=" + SPEAKER_SINK,
+    ], env=env, check=True, timeout=SPEAKER_TIMEOUT_SECONDS)
+    with (work / "SPEAKER.LOG").open("wb") as log:
+        recorder = subprocess.Popen([
+            parec, "--server=" + speaker_server(work), "--device=" + SPEAKER_SINK + ".monitor",
+            "--file-format=wav", "--latency-msec=20", str(recording),
+        ], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
+    deadline = time.monotonic() + SPEAKER_TIMEOUT_SECONDS
+    while time.monotonic() < deadline and recorder.poll() is None:
+        if recording.exists() and recording.stat().st_size > SPEAKER_WAV_HEADER_BYTES:
+            return recorder
+        time.sleep(POLL_SECONDS)
+    raise RuntimeError("PulseAudio monitor did not start. See " + str(work / "SPEAKER.LOG"))
+
+
+def stop_speaker_capture(work):
+    runtime_socket = work / "PULSE" / "native"
+    if not runtime_socket.exists():
+        return
+    control = subprocess.run([
+        require_tool("pactl"), "--server=" + speaker_server(work), "exit",
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=SPEAKER_TIMEOUT_SECONDS)
+    if control.returncode:
+        # A killed server can leave its socket behind. Remove only a socket
+        # that is already refusing connections.
+        with socket.socket(socket.AF_UNIX) as probe:
+            try:
+                probe.connect(str(runtime_socket))
+            except ConnectionRefusedError:
+                runtime_socket.unlink(missing_ok=True)
+            except FileNotFoundError:
+                pass
+            else:
+                raise RuntimeError("Could not stop the isolated PulseAudio server")
+    recording = work / "SPEAKER.WAV"
+    deadline = time.monotonic() + SPEAKER_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if not runtime_socket.exists():
+            if not recording.exists():
+                return
+            with recording.open("rb") as stream:
+                header = stream.read(8)
+            # The monitor receives a disconnect and closes the WAV. Wait for
+            # the final RIFF length before reporting the recording as ready.
+            if header[:4] == b"RIFF" and int.from_bytes(header[4:], "little") + 8 == recording.stat().st_size:
+                return
+        time.sleep(POLL_SECONDS)
+    raise RuntimeError("PulseAudio recording did not finalize. See " + str(work / "SPEAKER.LOG"))
+
+
 def make_disk(args, work):
     source = args.source.resolve()
     entry = Path(args.entry)
@@ -191,17 +264,20 @@ def make_disk(args, work):
 
 
 def stop(work):
-    if not (work / "QMP.SOCK").exists():
-        return
-    try:
-        qmp = Qmp(work)
-        qmp.command("quit")
-        qmp.close()
-    except (ConnectionRefusedError, FileNotFoundError):
-        return
-    deadline = time.monotonic() + 5
-    while (work / "QEMU.PID").exists() and time.monotonic() < deadline:
-        time.sleep(POLL_SECONDS)
+    if (work / "QMP.SOCK").exists():
+        try:
+            qmp = Qmp(work)
+        except (ConnectionRefusedError, FileNotFoundError):
+            pass
+        else:
+            try:
+                qmp.command("quit")
+            finally:
+                qmp.close()
+            deadline = time.monotonic() + 5
+            while (work / "QEMU.PID").exists() and time.monotonic() < deadline:
+                time.sleep(POLL_SECONDS)
+    stop_speaker_capture(work)
 
 
 def run(args, work):
@@ -224,15 +300,21 @@ def run(args, work):
         "-global", "isa-debugcon.iobase=" + hex(DEBUG_PORT),
         "-pidfile", str(work / "QEMU.PID"), "-daemonize",
     ]
-    if args.record_speaker:
-        command.extend([
-            "-audiodev", "wav,id=speaker,path=" + str(work / "SPEAKER.WAV"),
-            "-machine", "pcspk-audiodev=speaker",
-        ])
-    subprocess.run(command, check=True)
-    print("Booting isolated live-CD guest...", flush=True)
+    recorder = None
+    started = False
     qmp = None
     try:
+        if args.record_speaker:
+            # QEMU's WAV backend stops writing when the guest gates off the
+            # speaker. Capture the monitor instead to retain quiet intervals.
+            recorder = start_speaker_capture(work)
+            command.extend([
+                "-audiodev", "pa,id=speaker,server=" + speaker_server(work),
+                "-machine", "pcspk-audiodev=speaker",
+            ])
+        subprocess.run(command, check=True)
+        started = True
+        print("Booting isolated live-CD guest...", flush=True)
         time.sleep(args.boot_seconds)
         qmp = Qmp(work)
         qmp.text("n")  # Decline hard-disk installation.
@@ -303,8 +385,10 @@ def run(args, work):
     finally:
         if qmp is not None:
             qmp.close()
-        if not args.keep and not args.no_wait:
+        if not started or (not args.keep and not args.no_wait):
             stop(work)
+            if recorder is not None:
+                recorder.wait(timeout=SPEAKER_TIMEOUT_SECONDS)
 
 
 def main():
@@ -321,7 +405,8 @@ def main():
     runner.add_argument("--timeout", type=float, default=120)
     runner.add_argument("--keep", action="store_true")
     runner.add_argument("--no-wait", action="store_true")
-    runner.add_argument("--record-speaker", action="store_true")
+    runner.add_argument("--record-speaker", action="store_true",
+                        help="Record a real-time WAV with PulseAudio, including quiet intervals")
     runner.add_argument("--verbose", action="store_true")
     commands.add_parser("stop")
     commands.add_parser("screenshot")
@@ -353,6 +438,6 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         print("VM error: " + str(error), file=sys.stderr)
         sys.exit(1)
