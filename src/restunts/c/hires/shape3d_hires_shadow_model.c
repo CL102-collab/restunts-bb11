@@ -350,8 +350,6 @@ legacy_f64 shape3d_hires_shadow_silhouette_sample(const struct SHADOW_SILHOUETTE
 	return (first + (last - first) * z) / LEGACY_U8_MAX;
 }
 
-static struct SHADOW_SILHOUETTE hires_shadow_silhouettes[HIRES_CAR_SHADOW_COUNT];
-
 void shape3d_hires_ground_begin(const struct VECTOR *camera_position)
 {
 	shape3d_hires_state.ground_enabled = 0;
@@ -425,13 +423,41 @@ void shape3d_hires_shadows_begin(const struct VECTOR *camera_position)
 	shape3d_hires_state.shadow_inverse[2][2] = (a * e - b * d) * scale;
 }
 
+legacy_s32 shape3d_hires_reserve_car_shadows(struct SHAPE3D_HIRES_STATE *state, size_t count)
+{
+	if (count <= state->car_shadow_capacity) {
+		return 1;
+	}
+	size_t limit = SIZE_MAX / sizeof(*state->car_shadows);
+	if (count > limit) {
+		return 0;
+	}
+	size_t capacity = SDL_max(count, HIRES_CAR_SHADOW_INITIAL_CAPACITY);
+	if (state->car_shadow_capacity <= limit / 2U) {
+		capacity = SDL_max(capacity, state->car_shadow_capacity * 2U);
+	}
+	struct HIRES_CAR_SHADOW *shadows = realloc(state->car_shadows, capacity * sizeof(*shadows));
+	if (shadows == NULL) {
+		return 0;
+	}
+	memset(shadows + state->car_shadow_capacity, 0,
+		   (capacity - state->car_shadow_capacity) * sizeof(*shadows));
+	state->car_shadows = shadows;
+	state->car_shadow_capacity = capacity;
+	return 1;
+}
+
 void shape3d_hires_shadow_car(const struct VECTOR *relative_position, legacy_s16 heading,
 							  legacy_s16 half_width, legacy_s16 half_length)
 {
 	shape3d_hires_state.shadow_model_pending = 0;
-	if (!hires_enabled() || hires_render_scale() == HIRES_MINIMUM_SCALE ||
-		shape3d_hires_state.car_shadow_count == HIRES_CAR_SHADOW_COUNT || half_width <= 0 ||
+	if (!hires_enabled() || hires_render_scale() == HIRES_MINIMUM_SCALE || half_width <= 0 ||
 		half_length <= 0) {
+		return;
+	}
+	if (!shape3d_hires_reserve_car_shadows(&shape3d_hires_state,
+										   shape3d_hires_state.car_shadow_count + 1U)) {
+		shape3d_hires_geometry_error("Cannot allocate HyperVision car shadows");
 		return;
 	}
 	struct HIRES_CAR_SHADOW *shadow =
@@ -446,7 +472,7 @@ void shape3d_hires_shadow_car(const struct VECTOR *relative_position, legacy_s16
 	shadow->min_z = -half_length;
 	shadow->max_z = half_length;
 	shadow->height = SDL_min(half_width, half_length) * HIRES_CAR_SHADOW_FALLBACK_HEIGHT_SCALE;
-	shadow->silhouette = NULL;
+	shadow->has_silhouette = 0;
 	shadow->projected = 0;
 	shadow->surface_top = shadow->grille_top = -DBL_MAX;
 	hires_shadow_update_volume(shadow);
@@ -459,9 +485,12 @@ void shape3d_hires_shadow_models_reset(void)
 	shape3d_hires_state.car_shadow_count = 0;
 	shape3d_hires_state.shadow_model_pending = 0;
 	shape3d_hires_state.shadow_surface_count = 0;
-	for (legacy_s32 index = 0; index < HIRES_CAR_SHADOW_COUNT; index++) {
-		hires_shadow_silhouettes[index].shape = NULL;
+	for (size_t index = 0; index < shape3d_hires_state.car_shadow_capacity; index++) {
+		free(shape3d_hires_state.car_shadows[index].silhouette);
 	}
+	free(shape3d_hires_state.car_shadows);
+	shape3d_hires_state.car_shadows = NULL;
+	shape3d_hires_state.car_shadow_capacity = 0;
 }
 
 static void hires_shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_height,
@@ -477,8 +506,15 @@ static void hires_shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 gr
 	shape = hires_shape3d_car_mesh(shape);
 	struct HIRES_CAR_SHADOW *shadow =
 		&shape3d_hires_state.car_shadows[shape3d_hires_state.car_shadow_count - 1];
-	struct SHADOW_SILHOUETTE *silhouette =
-		&hires_shadow_silhouettes[shape3d_hires_state.car_shadow_count - 1];
+	/* Keep cached silhouettes in place when the caster array grows. */
+	if (shadow->silhouette == NULL) {
+		shadow->silhouette = calloc(1, sizeof(*shadow->silhouette));
+		if (shadow->silhouette == NULL) {
+			shape3d_hires_geometry_error("Cannot allocate HyperVision shadow silhouette");
+			return;
+		}
+	}
+	struct SHADOW_SILHOUETTE *silhouette = shadow->silhouette;
 	struct SHADOW_PROJECTION projection = {0};
 	if (projected) {
 		projection.x = (shape3d_hires_state.shadow_light_x * shadow->cosine -
@@ -506,7 +542,7 @@ static void hires_shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 gr
 		silhouette->shape = shape;
 		silhouette->vertex_bytes = shape->shape3d_vertex_bytes;
 	}
-	shadow->silhouette = silhouette;
+	shadow->has_silhouette = 1;
 	shadow->projected = projected;
 	shadow->min_x = silhouette->min_x;
 	shadow->max_x = silhouette->max_x;

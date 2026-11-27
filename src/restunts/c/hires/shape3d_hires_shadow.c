@@ -42,15 +42,29 @@ static void hires_shadow_world_vertices(const struct SHAPE3D_HIRES_VECTOR *verti
 			surface->maximum.z = SDL_max(surface->maximum.z, world.z);
 		}
 	}
-	surface->cars = 0;
-	for (legacy_s32 car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
-		const struct HIRES_CAR_SHADOW *shadow = &shape3d_hires_state.car_shadows[car];
-		if (surface->maximum.x >= shadow->minimum.x && surface->minimum.x <= shadow->maximum.x &&
-			surface->maximum.y >= shadow->minimum.y && surface->minimum.y <= shadow->maximum.y &&
-			surface->maximum.z >= shadow->minimum.z && surface->minimum.z <= shadow->maximum.z) {
-			surface->cars |= 1U << car;
+	/* Plane fitting may expand the Y bounds used for intersection tests. Keep
+	 * the original polygon bounds for deciding which casters it can cover. */
+	surface->authored_min_y = surface->minimum.y;
+	surface->authored_max_y = surface->maximum.y;
+}
+
+static legacy_s32 hires_shadow_surface_overlaps_car(const struct SHADOW_SURFACE *surface,
+													const struct HIRES_CAR_SHADOW *shadow)
+{
+	return surface->maximum.x >= shadow->minimum.x && surface->minimum.x <= shadow->maximum.x &&
+		   surface->maximum.z >= shadow->minimum.z && surface->minimum.z <= shadow->maximum.z &&
+		   surface->authored_max_y >= shadow->minimum.y &&
+		   surface->authored_min_y <= shadow->maximum.y;
+}
+
+static legacy_s32 hires_shadow_surface_overlaps_cars(const struct SHADOW_SURFACE *surface)
+{
+	for (size_t car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
+		if (hires_shadow_surface_overlaps_car(surface, &shape3d_hires_state.car_shadows[car])) {
+			return 1;
 		}
 	}
+	return 0;
 }
 
 legacy_s32 shape3d_hires_shadows_active(void)
@@ -67,7 +81,7 @@ legacy_s32 shape3d_hires_shadow_overlap(const struct SHAPE3D_HIRES_VECTOR *verti
 	}
 	struct SHADOW_SURFACE surface;
 	hires_shadow_world_vertices(vertices, count, &surface);
-	return surface.cars != 0;
+	return hires_shadow_surface_overlaps_cars(&surface);
 }
 
 legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *vertices,
@@ -79,7 +93,7 @@ legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *verti
 	}
 	struct SHADOW_SURFACE surface;
 	hires_shadow_world_vertices(vertices, count, &surface);
-	if (surface.cars == 0) {
+	if (!hires_shadow_surface_overlaps_cars(&surface)) {
 		return 0;
 	}
 	/* Newell's normal also handles polygons with collinear leading vertices. */
@@ -161,9 +175,9 @@ legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *verti
 		shape3d_hires_state.shadow_surface_capacity = capacity;
 	}
 	shape3d_hires_state.shadow_surfaces[shape3d_hires_state.shadow_surface_count++] = surface;
-	for (legacy_s32 car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
-		if ((surface.cars & (1U << car)) != 0) {
-			struct HIRES_CAR_SHADOW *shadow = &shape3d_hires_state.car_shadows[car];
+	for (size_t car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
+		struct HIRES_CAR_SHADOW *shadow = &shape3d_hires_state.car_shadows[car];
+		if (hires_shadow_surface_overlaps_car(&surface, shadow)) {
 			shadow->surface_top = SDL_max(shadow->surface_top, surface.maximum.y);
 			if (grille) {
 				shadow->grille_top = SDL_max(shadow->grille_top, surface.maximum.y);
@@ -340,7 +354,6 @@ static legacy_f64 hires_shadow_transmission(const struct HIRES_CAR_SHADOW *shado
 		shape3d_hires_state.shadow_light_cotangent > 0
 			? SDL_max(0, (limit - offset) / shape3d_hires_state.shadow_light_cotangent)
 			: DBL_MAX;
-	legacy_u32 car = 1U << (shadow - shape3d_hires_state.car_shadows);
 	for (size_t index = 0; index < shape3d_hires_state.shadow_surface_count; index++) {
 		const struct SHADOW_SURFACE *surface = &shape3d_hires_state.shadow_surfaces[index];
 		/* A warped road quad's rasterized depth need not lie on its Newell
@@ -350,7 +363,7 @@ static legacy_f64 hires_shadow_transmission(const struct HIRES_CAR_SHADOW *shado
 			trace.solid_receiver |= !surface->grille;
 			continue;
 		}
-		if ((surface->cars & car) == 0 ||
+		if (!hires_shadow_surface_overlaps_car(surface, shadow) ||
 			surface->maximum.y < y - HIRES_CAR_SHADOW_RECEIVER_TOLERANCE) {
 			continue;
 		}
@@ -486,7 +499,7 @@ static legacy_u8 hires_shadow_opacity(const struct HIRES_CAR_SHADOW *shadow, leg
 	legacy_f64 u = (x * shadow->cosine - z * shadow->sine) * shrink;
 	legacy_f64 v = (x * shadow->sine + z * shadow->cosine) * shrink;
 	legacy_f64 coverage;
-	if (shadow->silhouette != NULL) {
+	if (shadow->has_silhouette) {
 		coverage = shape3d_hires_shadow_silhouette_sample(shadow->silhouette, u, v);
 	} else {
 		/* Retain a modest footprint if a custom model has no usable geometry. */
@@ -526,7 +539,7 @@ void shape3d_hires_draw_shadows(void)
 		ray_step[axis] = shape3d_hires_state.shadow_inverse[axis][0] / focal_x;
 	}
 	legacy_s32 started = 0;
-	for (legacy_s32 car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
+	for (size_t car = 0; car < shape3d_hires_state.car_shadow_count; car++) {
 		const struct HIRES_CAR_SHADOW *shadow = &shape3d_hires_state.car_shadows[car];
 		struct RECTANGLE bounds = hires_shadow_bounds(shadow);
 		if (bounds.left < target.left) {

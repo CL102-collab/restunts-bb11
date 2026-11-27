@@ -56,7 +56,7 @@ struct HIRES_SHAPE {
 	legacy_s32 shadow_receiver;
 };
 
-#define HIRES_CAR_SHADOW_COUNT 2
+#define HIRES_CAR_SHADOW_INITIAL_CAPACITY 2U
 #define HIRES_CAR_SHADOW_REACH 256.0
 #define HIRES_CAR_SHADOW_HEIGHT_SCALE 0.6
 /* Cotangent of the 70-degree sun elevation; preserve the authored approximation. */
@@ -85,8 +85,8 @@ struct HIRES_CAR_SHADOW {
 	legacy_f64 cosine, sine;
 	legacy_f64 half_width, half_length;
 	legacy_f64 min_x, max_x, min_z, max_z, height;
-	legacy_s32 projected;
-	const struct SHADOW_SILHOUETTE *silhouette;
+	legacy_s32 projected, has_silhouette;
+	struct SHADOW_SILHOUETTE *silhouette;
 	struct SHAPE3D_HIRES_VECTOR minimum, maximum;
 	legacy_f64 surface_top, grille_top;
 };
@@ -95,7 +95,8 @@ struct SHADOW_SURFACE {
 	struct SHAPE3D_HIRES_VECTOR vertices[HIRES_SHADOW_SURFACE_MAX_POINTS];
 	struct SHAPE3D_HIRES_VECTOR minimum, maximum, normal;
 	legacy_f64 distance;
-	legacy_u32 count, cars;
+	legacy_f64 authored_min_y, authored_max_y;
+	legacy_u32 count;
 	legacy_s32 grille, axis;
 };
 
@@ -136,8 +137,8 @@ struct SHAPE3D_HIRES_STATE {
 	struct HIRES_BACKEND_SCENE_PRIMITIVE *scene;
 	legacy_u32 scene_count, scene_capacity;
 	const legacy_char *allocation_error;
-	struct HIRES_CAR_SHADOW car_shadows[HIRES_CAR_SHADOW_COUNT];
-	legacy_s32 car_shadow_count;
+	struct HIRES_CAR_SHADOW *car_shadows;
+	size_t car_shadow_count, car_shadow_capacity;
 	legacy_s32 shadow_model_pending;
 	struct MATRIX shadow_view;
 	legacy_f64 shadow_inverse[3][3];
@@ -167,6 +168,7 @@ extern RESTUNTS_RENDER_THREAD_LOCAL struct SHAPE3D_HIRES_STATE *shape3d_hires_th
 	(*(shape3d_hires_thread_state != NULL ? shape3d_hires_thread_state : &shape3d_hires_main_state))
 void shape3d_hires_geometry_error(const legacy_char *message);
 void shape3d_hires_geometry_shutdown(void);
+legacy_s32 shape3d_hires_reserve_car_shadows(struct SHAPE3D_HIRES_STATE *state, size_t count);
 legacy_s32 shape3d_hires_reserve_primitives(legacy_u32 index);
 void shape3d_hires_project_intersection(const struct SHAPE3D_HIRES_VECTOR *first,
 										const struct SHAPE3D_HIRES_VECTOR *second,

@@ -69,6 +69,7 @@ void shape3d_hires_geometry_shutdown(void)
 		free(state->primitives);
 		free(state->shapes);
 		free(state->scene);
+		free(state->car_shadows);
 		free(state->shadow_surfaces);
 		free(state->shadow_grille_hits);
 	}
@@ -92,6 +93,8 @@ static void hires_geometry_build(void *argument, legacy_s32 index)
 	state->scene = previous.scene;
 	state->scene_capacity = previous.scene_capacity;
 	state->scene_count = 0;
+	state->car_shadows = previous.car_shadows;
+	state->car_shadow_capacity = previous.car_shadow_capacity;
 	state->shadow_surfaces = previous.shadow_surfaces;
 	state->shadow_grille_hits = previous.shadow_grille_hits;
 	state->shadow_surface_capacity = previous.shadow_surface_capacity;
@@ -100,6 +103,14 @@ static void hires_geometry_build(void *argument, legacy_s32 index)
 	state->rectangle_count = 0;
 	state->current_shape = 0;
 	state->current_family = 1;
+	if (state->car_shadow_count != 0) {
+		if (!shape3d_hires_reserve_car_shadows(state, state->car_shadow_count)) {
+			state->allocation_error = "Cannot allocate HyperVision geometry job car shadows";
+			return;
+		}
+		memcpy(state->car_shadows, jobs->source->car_shadows,
+			   state->car_shadow_count * sizeof(*state->car_shadows));
+	}
 	struct SHAPE3D_HIRES_STATE *prior_context = shape3d_hires_thread_state;
 	shape3d_hires_thread_state = state;
 	jobs->job(jobs->context, index);
@@ -157,7 +168,7 @@ static legacy_s32 hires_geometry_merge_shadows(const struct SHAPE3D_HIRES_STATE 
 		   source->shadow_surfaces,
 		   source->shadow_surface_count * sizeof(*source->shadow_surfaces));
 	destination->shadow_surface_count = count;
-	for (legacy_s32 car = 0; car < destination->car_shadow_count; car++) {
+	for (size_t car = 0; car < destination->car_shadow_count; car++) {
 		if (source->car_shadows[car].surface_top > destination->car_shadows[car].surface_top) {
 			destination->car_shadows[car].surface_top = source->car_shadows[car].surface_top;
 		}

@@ -3155,7 +3155,9 @@ enum SHADOW_OCCLUSION_TEST_CONSTANTS {
 	SHADOW_TEST_CHANNEL_ROUNDING = 1,
 	SHADOW_TEST_MASKED_MATERIAL = 1,
 	SHADOW_TEST_ORDERED_FLAG = 1,
-	SHADOW_TEST_DOUBLE_SIDED_FLAG = 1
+	SHADOW_TEST_DOUBLE_SIDED_FLAG = 1,
+	SHADOW_TEST_MANY_CAR_COUNT = 34,
+	SHADOW_TEST_OFFSCREEN_X = 10000
 };
 
 #define SHADOW_TEST_BASE_COLOR 0xFFC0C0C0U
@@ -3578,6 +3580,54 @@ static void test_car_shadow_opaque_road_and_partial_edge(void)
 	}
 }
 
+static void test_car_shadows_with_many_casters(void)
+{
+	const struct {
+		size_t count, visible;
+	} scenes[] = {{1, 0},
+				  {SHADOW_TEST_MANY_CAR_COUNT, 0},
+				  {SHADOW_TEST_MANY_CAR_COUNT, SHADOW_TEST_MANY_CAR_COUNT - 1}};
+	const struct VECTOR camera = {0, SHADOW_TEST_CAMERA_HEIGHT, 0};
+	const struct VECTOR visible = {0, SHADOW_TEST_CAR_HEIGHT - SHADOW_TEST_CAMERA_HEIGHT, 0};
+	const struct VECTOR offscreen = {SHADOW_TEST_OFFSCREEN_X,
+									 SHADOW_TEST_CAR_HEIGHT - SHADOW_TEST_CAMERA_HEIGHT, 0};
+	legacy_u32 reference[2] = {0};
+	prepare_shadow_model(1);
+	shape3d_hires_shadow_models_reset();
+	for (size_t scene = 0; scene < SDL_arraysize(scenes); scene++) {
+		for (size_t blocker = 0; blocker < SDL_arraysize(reference); blocker++) {
+			begin_shadow_scene(SHADOW_TEST_CAR_HEIGHT, 0);
+			shape3d_hires_shadows_begin(&camera);
+			/* The first visible caster retains its silhouette as storage grows.
+			 * The last must still interact with surfaces beyond slot 32. */
+			for (size_t car = 0; car < scenes[scene].count; car++) {
+				legacy_s32 on_screen = car == scenes[scene].visible;
+				shape3d_hires_shadow_car(on_screen ? &visible : &offscreen, 0,
+										 (legacy_s16)shadow_image.half_width,
+										 (legacy_s16)shadow_image.half_length);
+				if (on_screen) {
+					shape3d_hires_shadow_model(&shadow_model);
+				}
+			}
+			if (blocker) {
+				collect_shadow_road(SHADOW_TEST_ROAD_HEIGHT, SHADOW_TEST_ROAD_HEIGHT, 0, 0);
+			}
+			queue_shadow_receiver(0, 0, 1, SHADOW_TEST_HALF_SURFACE);
+			shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, SHADOW_TEST_SURFACE_COLOR, 0, 0, 0,
+								 0);
+			legacy_u32 coverage = finish_shadow_scene(0, 0, 0);
+			assert(coverage > 0);
+			if (scene == 0) {
+				reference[blocker] = coverage;
+			} else {
+				assert(coverage == reference[blocker]);
+			}
+		}
+	}
+	assert(reference[1] < reference[0]);
+	shape3d_hires_shadow_models_reset();
+}
+
 static void test_car_shadow_grille_transmission(void)
 {
 	legacy_s32 full[2];
@@ -3919,6 +3969,7 @@ static void test_car_shadow_render_scales(void)
 
 enum {
 	GEOMETRY_TEST_JOBS = 7,
+	GEOMETRY_TEST_CAR_COUNT = SHADOW_TEST_MANY_CAR_COUNT,
 	GEOMETRY_TEST_EMPTY_JOB = 1,
 	GEOMETRY_TEST_INVISIBLE_JOB = 2,
 	GEOMETRY_TEST_SHADOW_JOB = 3,
@@ -3953,7 +4004,7 @@ struct GEOMETRY_TEST_SNAPSHOT {
 	struct HIRES_PRIMITIVE primitives[GEOMETRY_TEST_MAX_PRIMITIVES];
 	struct HIRES_SHAPE shapes[GEOMETRY_TEST_MAX_PRIMITIVES];
 	struct SHADOW_SURFACE shadows[GEOMETRY_TEST_MAX_SHADOWS];
-	legacy_f64 surface_top[HIRES_CAR_SHADOW_COUNT], grille_top[HIRES_CAR_SHADOW_COUNT];
+	legacy_f64 surface_top[GEOMETRY_TEST_CAR_COUNT], grille_top[GEOMETRY_TEST_CAR_COUNT];
 };
 
 /* Each producer uses the production transform with local instance/bounds data.
@@ -4037,6 +4088,7 @@ static void capture_geometry_test_scene(struct GEOMETRY_TEST_SNAPSHOT *snapshot)
 {
 	assert(hires_backend_scene_count < GEOMETRY_TEST_MAX_PRIMITIVES);
 	assert(shape3d_hires_state.shadow_surface_count < GEOMETRY_TEST_MAX_SHADOWS);
+	assert(shape3d_hires_state.car_shadow_count == GEOMETRY_TEST_CAR_COUNT);
 	snapshot->scene_count = hires_backend_scene_count;
 	snapshot->shadow_count = shape3d_hires_state.shadow_surface_count;
 	memcpy(snapshot->scene, hires_backend_scene, snapshot->scene_count * sizeof(*snapshot->scene));
@@ -4046,7 +4098,7 @@ static void capture_geometry_test_scene(struct GEOMETRY_TEST_SNAPSHOT *snapshot)
 		   snapshot->scene_count * sizeof(*snapshot->shapes));
 	memcpy(snapshot->shadows, shape3d_hires_state.shadow_surfaces,
 		   snapshot->shadow_count * sizeof(*snapshot->shadows));
-	for (legacy_s32 car = 0; car < HIRES_CAR_SHADOW_COUNT; car++) {
+	for (size_t car = 0; car < GEOMETRY_TEST_CAR_COUNT; car++) {
 		snapshot->surface_top[car] = shape3d_hires_state.car_shadows[car].surface_top;
 		snapshot->grille_top[car] = shape3d_hires_state.car_shadows[car].grille_top;
 	}
@@ -4056,7 +4108,7 @@ static void compare_geometry_test_scene(const struct GEOMETRY_TEST_SNAPSHOT *exp
 {
 	assert(hires_backend_scene_count == expected->scene_count);
 	assert(shape3d_hires_state.shadow_surface_count == expected->shadow_count);
-	assert(shape3d_hires_state.car_shadow_count == HIRES_CAR_SHADOW_COUNT);
+	assert(shape3d_hires_state.car_shadow_count == GEOMETRY_TEST_CAR_COUNT);
 	for (legacy_u32 index = 0; index < expected->scene_count; index++) {
 		assert(hires_backend_scene[index].type == expected->scene[index].type);
 		assert(hires_backend_scene[index].material == expected->scene[index].material);
@@ -4080,9 +4132,10 @@ static void compare_geometry_test_scene(const struct GEOMETRY_TEST_SNAPSHOT *exp
 	for (size_t index = 0; index < expected->shadow_count; index++) {
 		const struct SHADOW_SURFACE *actual = &shape3d_hires_state.shadow_surfaces[index];
 		const struct SHADOW_SURFACE *reference = &expected->shadows[index];
-		assert(actual->count == reference->count && actual->cars == reference->cars &&
-			   actual->grille == reference->grille && actual->axis == reference->axis &&
-			   actual->distance == reference->distance);
+		assert(actual->count == reference->count && actual->grille == reference->grille &&
+			   actual->axis == reference->axis && actual->distance == reference->distance &&
+			   actual->authored_min_y == reference->authored_min_y &&
+			   actual->authored_max_y == reference->authored_max_y);
 		assert(actual->normal.x == reference->normal.x && actual->normal.y == reference->normal.y &&
 			   actual->normal.z == reference->normal.z);
 		assert(actual->minimum.x == reference->minimum.x &&
@@ -4097,7 +4150,7 @@ static void compare_geometry_test_scene(const struct GEOMETRY_TEST_SNAPSHOT *exp
 				   actual->vertices[vertex].z == reference->vertices[vertex].z);
 		}
 	}
-	for (legacy_s32 car = 0; car < HIRES_CAR_SHADOW_COUNT; car++) {
+	for (size_t car = 0; car < GEOMETRY_TEST_CAR_COUNT; car++) {
 		assert(shape3d_hires_state.car_shadows[car].surface_top == expected->surface_top[car]);
 		assert(shape3d_hires_state.car_shadows[car].grille_top == expected->grille_top[car]);
 	}
@@ -4154,6 +4207,11 @@ static void test_parallel_geometry_matches_serial(void)
 			const struct VECTOR camera = {0, GEOMETRY_TEST_CAMERA_HEIGHT, 0};
 			const struct VECTOR cars[] = {{0, -40, 300}, {20, -35, 310}};
 			shape3d_hires_shadows_begin(&camera);
+			const struct VECTOR offscreen = {SHADOW_TEST_OFFSCREEN_X, -40, 300};
+			for (size_t car = SDL_arraysize(cars); car < GEOMETRY_TEST_CAR_COUNT; car++) {
+				shape3d_hires_shadow_car(&offscreen, 0, GEOMETRY_TEST_CAR_WIDTH,
+										 GEOMETRY_TEST_CAR_LENGTH);
+			}
 			for (legacy_u32 car = 0; car < SDL_arraysize(cars); car++) {
 				shape3d_hires_shadow_car(&cars[car], 0, GEOMETRY_TEST_CAR_WIDTH,
 										 GEOMETRY_TEST_CAR_LENGTH);
@@ -4291,6 +4349,7 @@ legacy_int main(void)
 	test_car_shadow_excludes_car_geometry();
 	test_car_shadow_ground_fallback_and_reset();
 	test_car_shadow_opaque_road_and_partial_edge();
+	test_car_shadows_with_many_casters();
 	test_car_shadow_grille_transmission();
 	test_car_shadow_collects_camera_hidden_roads();
 	test_car_shadow_collects_behind_camera_road();
