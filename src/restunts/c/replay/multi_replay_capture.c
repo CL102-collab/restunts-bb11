@@ -1,10 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL3/SDL_iostream.h>
+#include "../../platform/sdl3/sdl3.h"
 
 #include "multi_replay_capture.h"
-#include "../../platform/sdl3/sdl3.h"
 #include "../car/car_speed.h"
 #include "../crash_state.h"
 #include "../driving_rules.h"

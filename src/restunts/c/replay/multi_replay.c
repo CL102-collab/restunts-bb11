@@ -1,3 +1,8 @@
+#include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "multi_replay.h"
 
 #include "multi_replay_capture.h"
@@ -6,10 +11,6 @@
 #include "../car/car_audio.h"
 #include "../renderer/frame_overlay.h"
 #include "../video/video_frame.h"
-#include <SDL3/SDL.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 struct MULTI_REPLAY_ENTRY {
 	const legacy_s8 *path;
