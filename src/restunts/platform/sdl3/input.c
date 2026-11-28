@@ -586,8 +586,17 @@ static void input_key(const SDL_KeyboardEvent *event)
 	sdl3_input_queue_key(value);
 }
 
+static legacy_u8 input_race_view_active(void)
+{
+	return gameplay_active && modal_depth == 0;
+}
+
 void sdl3_input_queue_key(legacy_u16 value)
 {
+	if (value == KEY_TOUCH_CAMERA && !input_race_view_active()) {
+		/* Keep the overlay's C shortcut available in menus and the track editor. */
+		value = 'c';
+	}
 	/* Touch arrows use this queue too, including a tap released before polling. */
 	if (input_focused && gameplay_active && !replay_active && modal_depth == 0 &&
 		(value == KEY_LEFT || value == KEY_RIGHT)) {
@@ -650,11 +659,6 @@ void sdl3_input_touch_mouse(legacy_f32 x, legacy_f32 y, legacy_u8 down)
 	if (was_down != down) {
 		input_mouse_transition();
 	}
-}
-
-static legacy_u8 input_race_view_active(void)
-{
-	return gameplay_active && modal_depth == 0;
 }
 
 static legacy_u8 input_driving_active(void)

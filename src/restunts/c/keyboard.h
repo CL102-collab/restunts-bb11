@@ -35,7 +35,9 @@ enum KEY_CODE {
 	KEY_DELETE = 21248,
 	KEY_SHIFT_F1 = 21504,
 	KEY_SHIFT_F10 = 23808,
-	KEY_CTRL_F9 = 26112
+	KEY_CTRL_F9 = 26112,
+	/* Overlay command in an unused extended key slot. */
+	KEY_TOUCH_CAMERA = 0x0100
 };
 
 void kb_init_interrupt(void);

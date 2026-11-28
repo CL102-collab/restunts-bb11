@@ -691,6 +691,12 @@ static void send_touch_control(SDL_EventType type, SDL_FingerID finger, enum TOU
 	assert(SDL_PushEvent(&event));
 }
 
+static void tap_touch_shortcut(enum TOUCH_CONTROL control)
+{
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_SHORTCUT_FINGER, control);
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_SHORTCUT_FINGER, control);
+}
+
 static void test_touch_shortcut_keys(void)
 {
 	static const struct {
@@ -701,9 +707,9 @@ static void test_touch_shortcut_keys(void)
 	sdl3_platform_pump();
 	kb_init_interrupt();
 	sdl3_touch_enable(true);
-	sdl3_touch_configure(true, true, false, false);
+	sdl3_touch_configure(true, false, false, false);
 	for (legacy_u32 index = 0; index < SDL_arraysize(shortcuts); index++) {
-		/* Touch must deliver the same character as a physical, unmodified key press. */
+		/* In menus, touch still delivers the same character as an unmodified key press. */
 		send_key(shortcuts[index].scancode, SDL_KMOD_NONE, true, false);
 		assert(kb_read_char() == shortcuts[index].key);
 		send_key(shortcuts[index].scancode, SDL_KMOD_NONE, false, false);
@@ -719,12 +725,38 @@ static void test_touch_shortcut_keys(void)
 		send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_SHORTCUT_FINGER,
 						   shortcuts[index].control);
 		assert(kb_read_char() == 0);
-		send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_SHORTCUT_FINGER,
-						   shortcuts[index].control);
-		send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_SHORTCUT_FINGER,
-						   shortcuts[index].control);
+		tap_touch_shortcut(shortcuts[index].control);
 		assert(kb_read_char() == shortcuts[index].key && kb_read_char() == 0);
 	}
+	sdl3_touch_enable(false);
+}
+
+static void test_touch_camera_contexts(void)
+{
+	sdl3_platform_pump();
+	kb_init_interrupt();
+	sdl3_touch_enable(true);
+	sdl3_input_set_gameplay_active(true);
+	for (legacy_u8 replay = false; replay <= true; ++replay) {
+		sdl3_input_set_replay_active(replay);
+		sdl3_touch_configure(true, !replay, false, replay);
+		tap_touch_shortcut(TOUCH_CAMERA);
+		send_key(SDL_SCANCODE_C, SDL_KMOD_NONE, true, false);
+		send_key(SDL_SCANCODE_C, SDL_KMOD_NONE, false, false);
+		tap_touch_shortcut(TOUCH_FOLLOW);
+		assert(dos_kb_get_char() == KEY_TOUCH_CAMERA);
+		assert(dos_kb_get_char() == 'c');
+		assert(dos_kb_get_char() == 't');
+		assert(dos_kb_get_char() == 0);
+	}
+
+	sdl3_input_push_modal();
+	tap_touch_shortcut(TOUCH_CAMERA);
+	assert(dos_kb_get_char() == 'c' && dos_kb_get_char() == 0);
+	sdl3_input_pop_modal();
+
+	sdl3_input_set_replay_active(false);
+	sdl3_input_set_gameplay_active(false);
 	sdl3_touch_enable(false);
 }
 
@@ -3377,6 +3409,7 @@ legacy_int main(void)
 	test_planning_progress();
 	test_touch_focus_and_background();
 	test_touch_shortcut_keys();
+	test_touch_camera_contexts();
 	test_remote_shifts();
 	test_high_resolution_video();
 	test_dynamic_resolution_video();

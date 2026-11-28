@@ -780,7 +780,8 @@ and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
 **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
 **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**,
 with the same defaults as the command-line options.
-Upper-right **C**/**T** circles send the camera/follow keyboard shortcuts.
+The upper-right **C** circle cycles F1, F2, F3, all three F3 chase views, then F4.
+The **T** circle switches which car the camera follows.
 
 ## Extended track editor
 

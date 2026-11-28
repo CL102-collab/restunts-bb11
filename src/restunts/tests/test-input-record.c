@@ -1004,6 +1004,44 @@ static void test_custom_camera_switches(void)
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+static void test_touch_camera_cycle(void)
+{
+	const struct CUSTOM_CAMERA *original = &test_camera_originals[1];
+	assert(kb_parse_key(KEY_TOUCH_CAMERA) == KEY_TOUCH_CAMERA);
+	for (legacy_u8 mode = REPLAY_MODE_LIVE; mode <= REPLAY_MODE_PLAYBACK; mode++) {
+		reset_inputs();
+		camera_select_mode(CAMERA_MODE_COCKPIT);
+		game_replay_mode = mode;
+		custom_camera = *original;
+		dashb_toggle = 1;
+		assert(handle_ingame_kb_shortcuts(KEY_TOUCH_CAMERA) == 1);
+		assert(game_replay_mode == mode);
+		if (mode == REPLAY_MODE_PAUSED) {
+			assert(cameramode == CAMERA_MODE_COCKPIT);
+			continue;
+		}
+		assert(cameramode == CAMERA_MODE_FOLLOW);
+		assert(handle_ingame_kb_shortcuts(KEY_TOUCH_CAMERA) == 1);
+		assert(cameramode == CAMERA_MODE_CUSTOM);
+		assert(custom_camera_preset == CUSTOM_CAMERA_PRESET_ORIGINAL);
+		assert_custom_camera(original, 1);
+		for (legacy_u8 preset = CUSTOM_CAMERA_PRESET_CLOSE; preset <= CUSTOM_CAMERA_PRESET_FAR;
+			 preset++) {
+			assert(handle_ingame_kb_shortcuts(KEY_TOUCH_CAMERA) == 1);
+			assert(cameramode == CAMERA_MODE_CUSTOM && custom_camera_preset == preset);
+			assert_custom_camera(&test_camera_presets[preset - CUSTOM_CAMERA_PRESET_CLOSE], 0);
+		}
+		assert(handle_ingame_kb_shortcuts(KEY_TOUCH_CAMERA) == 1);
+		assert(cameramode == CAMERA_MODE_TRACKSIDE);
+		assert(custom_camera_preset == CUSTOM_CAMERA_PRESET_ORIGINAL);
+		assert_custom_camera(original, 1);
+		assert(handle_ingame_kb_shortcuts(KEY_TOUCH_CAMERA) == 1);
+		assert(cameramode == CAMERA_MODE_COCKPIT && game_replay_mode == mode);
+	}
+}
+#endif
+
 static void assert_renderer_status(const legacy_char *expected, legacy_u32 count)
 {
 	assert(renderer_status_count == count);
@@ -1268,6 +1306,7 @@ int main(void)
 	test_modal_refresh_restore();
 #endif
 #ifdef RESTUNTS_SDL3
+	test_touch_camera_cycle();
 	test_touch_shift_recording();
 	test_controller_recording();
 	test_tilt_recording();
@@ -1297,9 +1336,9 @@ int main(void)
 	assert(callback_hash == 0x9bd7fd3eUL);
 #endif
 	/* Display shortcuts, including Shift+F11, bypass the paused-race fallback.
-	 * SDL additionally recognizes Shift+F12. */
+	 * SDL additionally recognizes Shift+F12 and the touch camera command. */
 #ifdef RESTUNTS_SDL3
-	assert(shortcut_hash == 0xdd68456aUL);
+	assert(shortcut_hash == 0x0c11461eUL);
 #else
 	assert(shortcut_hash == 0xabcf7b92UL);
 #endif

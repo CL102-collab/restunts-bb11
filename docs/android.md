@@ -179,7 +179,8 @@ manual gears selected. Each press sends one gear-change request, even if you
 keep holding the circle. Q and shifting are hidden in menus and replays. The four
 arrows navigate menus and replay controls. In the default layout, **ESC** is at
 the upper left, **C** is at the upper right, and **T** is directly below **C**.
-Each tap of C or T cycles the camera or followed car like the keyboard shortcuts.
+Tap **C** to cycle F1, F2, F3, the close, normal and far F3 chase views,
+then F4. Tap **T** to switch which car the camera follows.
 Tap the game buttons to activate choices.
 
 All existing car/opponent and replay toolbar buttons accept direct touch,

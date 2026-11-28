@@ -466,7 +466,7 @@ static void test_single_tap_shortcuts(void)
 {
 	static const enum TOUCH_CONTROL controls[] = {TOUCH_CAMERA, TOUCH_FOLLOW};
 	static const SDL_Scancode scancodes[] = {SDL_SCANCODE_C, SDL_SCANCODE_T};
-	static const legacy_u16 keys[] = {'c', 't'};
+	static const legacy_u16 keys[] = {KEY_TOUCH_CAMERA, 't'};
 	static const enum TOUCH_CONTROL burst[] = {TOUCH_FOLLOW, TOUCH_CAMERA, TOUCH_CAMERA,
 											   TOUCH_FOLLOW};
 	clear();
@@ -497,7 +497,7 @@ static void test_single_tap_shortcuts(void)
 		circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, burst[index]);
 		circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, burst[index]);
 		assert(queued_keys[SDL_arraysize(controls) + index] ==
-			   (burst[index] == TOUCH_CAMERA ? 'c' : 't'));
+			   (burst[index] == TOUCH_CAMERA ? KEY_TOUCH_CAMERA : 't'));
 	}
 	assert(key_count == SDL_arraysize(controls) + SDL_arraysize(burst));
 	assert(mouse_count == 0 && sdl3_touch_take_shift_flags() == 0);
@@ -514,8 +514,8 @@ static void test_single_tap_shortcuts(void)
 	circle_event(SDL_EVENT_FINGER_UP, TEST_FOURTH_FINGER, TOUCH_ACCELERATE);
 	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT) && !sdl3_touch_key_state(SDL_SCANCODE_UP));
 	assert(key_count == SDL_arraysize(controls) + 2U);
-	assert(queued_keys[0] == KEY_LEFT && queued_keys[1] == KEY_UP && queued_keys[2] == 'c' &&
-		   queued_keys[3] == 't');
+	assert(queued_keys[0] == KEY_LEFT && queued_keys[1] == KEY_UP &&
+		   queued_keys[2] == KEY_TOUCH_CAMERA && queued_keys[3] == 't');
 }
 
 static void test_gestures_and_pointer(void)
