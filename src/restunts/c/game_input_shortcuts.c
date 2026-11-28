@@ -138,17 +138,16 @@ static legacy_s16 input_handle_camera_shortcut(legacy_s16 key)
 #endif
 		case 'C':
 		case 'c':
-			if (game_replay_mode == REPLAY_MODE_PAUSED) {
-				return 1;
-			}
+			if (game_replay_mode != REPLAY_MODE_PAUSED) {
 #ifdef RESTUNTS_SDL3
-			if (key == KEY_TOUCH_CAMERA && cameramode == CAMERA_MODE_CUSTOM &&
-				custom_camera_preset != CUSTOM_CAMERA_PRESET_FAR) {
-				input_cycle_custom_camera();
-				return 1;
-			}
+				if (key == KEY_TOUCH_CAMERA && cameramode == CAMERA_MODE_CUSTOM &&
+					custom_camera_preset != CUSTOM_CAMERA_PRESET_FAR) {
+					input_cycle_custom_camera();
+					return 1;
+				}
 #endif
-			camera_select_mode((legacy_s8)(((legacy_u8)cameramode + 1U) & CAMERA_MODE_MASK));
+				camera_select_mode((legacy_s8)(((legacy_u8)cameramode + 1U) & CAMERA_MODE_MASK));
+			}
 			return 1;
 
 		case KEY_F1:
